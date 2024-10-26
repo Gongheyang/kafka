@@ -19,6 +19,7 @@ package org.apache.kafka.clients.consumer.internals;
 import org.apache.kafka.clients.CommonClientConfigs;
 import org.apache.kafka.clients.GroupRebalanceConfig;
 import org.apache.kafka.clients.MockClient;
+import org.apache.kafka.clients.consumer.GroupMembershipOperation;
 import org.apache.kafka.common.Node;
 import org.apache.kafka.common.errors.AuthenticationException;
 import org.apache.kafka.common.errors.DisconnectException;
@@ -1093,7 +1094,21 @@ public class AbstractCoordinatorTest {
         checkLeaveGroupRequestSent(Optional.of("groupInstanceId"));
     }
 
-    private void checkLeaveGroupRequestSent(Optional<String> groupInstanceId) {
+    @Test
+    public void testLeaveGroupSentWithGroupInstanceIdUnSetAndDifferentGroupMembershipOperation() {
+        checkLeaveGroupRequestSent(Optional.empty(), GroupMembershipOperation.DEFAULT);
+        checkLeaveGroupRequestSent(Optional.empty(), GroupMembershipOperation.LEAVE_GROUP);
+        checkLeaveGroupRequestSent(Optional.empty(), GroupMembershipOperation.REMAIN_IN_GROUP);
+        checkLeaveGroupRequestSent(Optional.of("groupInstanceId"), GroupMembershipOperation.DEFAULT);
+        checkLeaveGroupRequestSent(Optional.of("groupInstanceId"), GroupMembershipOperation.LEAVE_GROUP);
+        checkLeaveGroupRequestSent(Optional.of("groupInstanceId"), GroupMembershipOperation.REMAIN_IN_GROUP);
+    }
+
+    private void checkLeaveGroupRequestSent(Optional<String> groupInstanceId)  {
+        checkLeaveGroupRequestSent(groupInstanceId, GroupMembershipOperation.DEFAULT);
+    }
+
+    private void checkLeaveGroupRequestSent(Optional<String> groupInstanceId, GroupMembershipOperation operation) {
         setupCoordinator(RETRY_BACKOFF_MS, RETRY_BACKOFF_MAX_MS, Integer.MAX_VALUE, groupInstanceId);
 
         mockClient.prepareResponse(groupCoordinatorResponse(node, Errors.NONE));
@@ -1111,12 +1126,13 @@ public class AbstractCoordinatorTest {
 
         try {
             coordinator.ensureActiveGroup();
-            coordinator.close();
-            if (coordinator.isDynamicMember()) {
+            coordinator.close(new MockTime().timer(0), operation);
+            if (GroupMembershipOperation.LEAVE_GROUP == operation ||
+                (GroupMembershipOperation.DEFAULT == operation && coordinator.isDynamicMember())) {
                 fail("Expected leavegroup to raise an error.");
             }
         } catch (RuntimeException exception) {
-            if (coordinator.isDynamicMember()) {
+            if (GroupMembershipOperation.LEAVE_GROUP == operation || coordinator.isDynamicMember()) {
                 assertEquals(exception, e);
             } else {
                 fail("Coordinator with group.instance.id set shouldn't send leave group request.");
@@ -1204,7 +1220,7 @@ public class AbstractCoordinatorTest {
         }, leaveGroupResponse);
 
         coordinator.ensureActiveGroup();
-        return coordinator.maybeLeaveGroup(leaveReason);
+        return coordinator.maybeLeaveGroup(GroupMembershipOperation.DEFAULT, leaveReason);
     }
 
     @Test

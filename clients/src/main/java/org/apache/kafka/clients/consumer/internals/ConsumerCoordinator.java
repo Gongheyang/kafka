@@ -25,6 +25,7 @@ import org.apache.kafka.clients.consumer.ConsumerPartitionAssignor.Assignment;
 import org.apache.kafka.clients.consumer.ConsumerPartitionAssignor.GroupSubscription;
 import org.apache.kafka.clients.consumer.ConsumerPartitionAssignor.RebalanceProtocol;
 import org.apache.kafka.clients.consumer.ConsumerPartitionAssignor.Subscription;
+import org.apache.kafka.clients.consumer.GroupMembershipOperation;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.clients.consumer.OffsetCommitCallback;
 import org.apache.kafka.clients.consumer.RetriableCommitFailedException;
@@ -973,7 +974,7 @@ public final class ConsumerCoordinator extends AbstractCoordinator {
     /**
      * @throws KafkaException if the rebalance callback throws exception
      */
-    public void close(final Timer timer) {
+    public void close(final Timer timer, GroupMembershipOperation membershipOperation) {
         // we do not need to re-enable wakeups since we are closing already
         client.disableWakeups();
         try {
@@ -984,7 +985,7 @@ public final class ConsumerCoordinator extends AbstractCoordinator {
                 invokeCompletedOffsetCommitCallbacks();
             }
         } finally {
-            super.close(timer);
+            super.close(timer, membershipOperation);
         }
     }
 

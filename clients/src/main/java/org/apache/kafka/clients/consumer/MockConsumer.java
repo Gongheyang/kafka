@@ -557,6 +557,7 @@ public class MockConsumer<K, V> implements Consumer<K, V> {
     }
 
     @Override
+    @SuppressWarnings("deprecation")
     public synchronized void close(Duration timeout) {
         this.closed = true;
     }
@@ -568,6 +569,11 @@ public class MockConsumer<K, V> implements Consumer<K, V> {
     @Override
     public synchronized void wakeup() {
         wakeup.set(true);
+    }
+
+    @Override
+    public void close(CloseOption option) {
+        this.closed = true;
     }
 
     /**

@@ -1776,6 +1776,7 @@ public class KafkaConsumer<K, V> implements Consumer<K, V> {
      * @throws org.apache.kafka.common.KafkaException for any other error during close
      */
     @Override
+    @SuppressWarnings("deprecation")
     public void close(Duration timeout) {
         delegate.close(timeout);
     }
@@ -1788,6 +1789,17 @@ public class KafkaConsumer<K, V> implements Consumer<K, V> {
     @Override
     public void wakeup() {
         delegate.wakeup();
+    }
+
+    /**
+     * This method allows the caller to specify shutdown behavior using the {@link CloseOption} class.
+     * If {@code null} is provided, the default behavior will be applied, equivalent to providing a new {@link CloseOption} instance.
+     *
+     * @param option see {@link CloseOption}
+     */
+    @Override
+    public void close(CloseOption option) {
+        delegate.close(option);
     }
 
     // Functions below are for testing only

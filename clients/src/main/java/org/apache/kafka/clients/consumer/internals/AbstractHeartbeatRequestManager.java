@@ -18,6 +18,7 @@ package org.apache.kafka.clients.consumer.internals;
 
 import org.apache.kafka.clients.CommonClientConfigs;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.apache.kafka.clients.consumer.GroupMembershipOperation;
 import org.apache.kafka.clients.consumer.internals.NetworkClientDelegate.PollResult;
 import org.apache.kafka.clients.consumer.internals.events.ApplicationEventProcessor;
 import org.apache.kafka.clients.consumer.internals.events.BackgroundEventHandler;
@@ -221,7 +222,17 @@ public abstract class AbstractHeartbeatRequestManager<R extends AbstractResponse
      */
     @Override
     public PollResult pollOnClose(long currentTimeMs) {
-        if (membershipManager().isLeavingGroup()) {
+        AbstractMembershipManager<R> membershipManager = membershipManager();
+        GroupMembershipOperation leaveGroupOperation = membershipManager.leaveGroupOperation();
+
+        if (membershipManager.isLeavingGroup() &&
+            // Default operation: both static and dynamic consumers will send a leave heartbeat
+            (GroupMembershipOperation.DEFAULT == leaveGroupOperation ||
+                // Leave operation: both static and dynamic consumers will send a leave heartbeat
+                GroupMembershipOperation.LEAVE_GROUP == leaveGroupOperation ||
+                // Remain in group: only static consumers will send a leave heartbeat, while dynamic members will not
+                membershipManager.groupInstanceId().isPresent())
+        ) {
             NetworkClientDelegate.UnsentRequest request = makeHeartbeatRequest(currentTimeMs, true);
             return new NetworkClientDelegate.PollResult(heartbeatRequestState.heartbeatIntervalMs, Collections.singletonList(request));
         }

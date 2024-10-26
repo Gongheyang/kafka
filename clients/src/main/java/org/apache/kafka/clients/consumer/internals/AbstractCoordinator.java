@@ -19,6 +19,7 @@ package org.apache.kafka.clients.consumer.internals;
 import org.apache.kafka.clients.ClientResponse;
 import org.apache.kafka.clients.CommonClientConfigs;
 import org.apache.kafka.clients.GroupRebalanceConfig;
+import org.apache.kafka.clients.consumer.GroupMembershipOperation;
 import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.Node;
 import org.apache.kafka.common.errors.AuthenticationException;
@@ -1114,22 +1115,26 @@ public abstract class AbstractCoordinator implements Closeable {
      */
     @Override
     public final void close() {
-        close(time.timer(0));
+        close(time.timer(0), GroupMembershipOperation.DEFAULT);
     }
 
     /**
      * @throws KafkaException if the rebalance callback throws exception
      */
-    protected void close(Timer timer) {
+    protected void close(Timer timer, GroupMembershipOperation membershipOperation) {
         try {
             closeHeartbeatThread();
         } finally {
             // Synchronize after closing the heartbeat thread since heartbeat thread
             // needs this lock to complete and terminate after close flag is set.
             synchronized (this) {
-                if (rebalanceConfig.leaveGroupOnClose) {
+                // If membershipOperation is REMAIN_IN_GROUP, never send leave group request.
+                // If membershipOperation is DEFAULT, leave group based on rebalanceConfig.leaveGroupOnClose.
+                // Otherwise, leave group only if membershipOperation is LEAVE_GROUP.
+                if (GroupMembershipOperation.REMAIN_IN_GROUP != membershipOperation &&
+                    (GroupMembershipOperation.LEAVE_GROUP == membershipOperation || rebalanceConfig.leaveGroupOnClose)) {
                     onLeavePrepare();
-                    maybeLeaveGroup("the consumer is being closed");
+                    maybeLeaveGroup(membershipOperation, "the consumer is being closed");
                 }
 
                 // At this point, there may be pending commits (async commits or sync commits that were
@@ -1151,31 +1156,28 @@ public abstract class AbstractCoordinator implements Closeable {
             "either by increasing max.poll.interval.ms or by reducing the maximum size of batches " +
             "returned in poll() with max.poll.records.");
 
-        maybeLeaveGroup("consumer poll timeout has expired.");
+        maybeLeaveGroup(GroupMembershipOperation.DEFAULT, "consumer poll timeout has expired.");
     }
 
     /**
-     * Sends LeaveGroupRequest and logs the {@code leaveReason}, unless this member is using static membership or is already
-     * not part of the group (ie does not have a valid member id, is in the UNJOINED state, or the coordinator is unknown).
+     * Sends LeaveGroupRequest and logs the {@code leaveReason}, unless this member is using static membership
+     * with the default consumer group membership operation, or is already not part of the group (i.e., does not have a
+     * valid member ID, is in the UNJOINED state, or the coordinator is unknown).
      *
+     * @param membershipOperation the operation on consumer group membership that the consumer will perform when closing
      * @param leaveReason the reason to leave the group for logging
      * @throws KafkaException if the rebalance callback throws exception
      */
-    public synchronized RequestFuture<Void> maybeLeaveGroup(String leaveReason) {
+    public synchronized RequestFuture<Void> maybeLeaveGroup(GroupMembershipOperation membershipOperation, String leaveReason) {
         RequestFuture<Void> future = null;
 
-        // Starting from 2.3, only dynamic members will send LeaveGroupRequest to the broker,
-        // consumer with valid group.instance.id is viewed as static member that never sends LeaveGroup,
-        // and the membership expiration is only controlled by session timeout.
-        if (isDynamicMember() && !coordinatorUnknown() &&
-            state != MemberState.UNJOINED && generation.hasMemberId()) {
-            // this is a minimal effort attempt to leave the group. we do not
-            // attempt any resending if the request fails or times out.
+        if (shouldSendLeaveGroupRequest(membershipOperation)) {
             log.info("Member {} sending LeaveGroup request to coordinator {} due to {}",
                 generation.memberId, coordinator, leaveReason);
+
             LeaveGroupRequest.Builder request = new LeaveGroupRequest.Builder(
                 rebalanceConfig.groupId,
-                Collections.singletonList(new MemberIdentity().setMemberId(generation.memberId).setReason(JoinGroupRequest.maybeTruncateReason(leaveReason)))
+                List.of(new MemberIdentity().setMemberId(generation.memberId).setReason(JoinGroupRequest.maybeTruncateReason(leaveReason)))
             );
 
             future = client.send(coordinator, request).compose(new LeaveGroupResponseHandler(generation));
@@ -1185,6 +1187,17 @@ public abstract class AbstractCoordinator implements Closeable {
         resetGenerationOnLeaveGroup();
 
         return future;
+    }
+
+    private boolean shouldSendLeaveGroupRequest(GroupMembershipOperation membershipOperation) {
+        // According to KIP-1092, static members can leave the group if the consumer group membership operation is LEAVE_GROUP.
+        // If the operation is REMAIN_IN_GROUP, this method "maybeLeaveGroup" will not be invoked.
+        return membershipOperation == GroupMembershipOperation.LEAVE_GROUP ||
+            // Below is the default behavior for consumer group membership:
+            // Starting from 2.3, only dynamic members will send LeaveGroupRequest to the broker,
+            // consumer with valid group.instance.id is viewed as static member that never sends LeaveGroup,
+            // and the membership expiration is only controlled by session timeout.
+            (isDynamicMember() && !coordinatorUnknown() && state != MemberState.UNJOINED && generation.hasMemberId());
     }
 
     protected boolean isDynamicMember() {

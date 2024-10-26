@@ -18,6 +18,7 @@ package org.apache.kafka.clients.consumer.internals;
 
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRebalanceListener;
+import org.apache.kafka.clients.consumer.GroupMembershipOperation;
 import org.apache.kafka.clients.consumer.internals.events.BackgroundEventHandler;
 import org.apache.kafka.clients.consumer.internals.events.CompletableBackgroundEvent;
 import org.apache.kafka.clients.consumer.internals.events.ConsumerRebalanceListenerCallbackCompletedEvent;
@@ -104,11 +105,6 @@ import static org.apache.kafka.clients.consumer.internals.ConsumerRebalanceListe
 public class ConsumerMembershipManager extends AbstractMembershipManager<ConsumerGroupHeartbeatResponse> {
 
     /**
-     * Group instance ID to be used by the member, provided when creating the current membership manager.
-     */
-    protected final Optional<String> groupInstanceId;
-
-    /**
      * Rebalance timeout. To be used as time limit for the commit request issued
      * when a new assignment is received, that is retried until it succeeds, fails with a
      * non-retriable error, it the time limit expires.
@@ -172,12 +168,12 @@ public class ConsumerMembershipManager extends AbstractMembershipManager<Consume
                               Time time,
                               RebalanceMetricsManager metricsManager) {
         super(groupId,
+            groupInstanceId,
             subscriptions,
             metadata,
             logContext.logger(ConsumerMembershipManager.class),
             time,
             metricsManager);
-        this.groupInstanceId = groupInstanceId;
         this.rebalanceTimeoutMs = rebalanceTimeoutMs;
         this.serverAssignor = serverAssignor;
         this.commitRequestManager = commitRequestManager;
@@ -185,11 +181,11 @@ public class ConsumerMembershipManager extends AbstractMembershipManager<Consume
     }
 
     /**
-     * @return Instance ID used by the member when joining the group. If non-empty, it will indicate that
-     * this is a static member.
+     * {@inheritDoc}
      */
-    public Optional<String> groupInstanceId() {
-        return groupInstanceId;
+    @Override
+    public void leaveGroupOperationOnClose(GroupMembershipOperation operation) {
+        this.leaveGroupOperation = operation;
     }
 
     /**
@@ -466,8 +462,14 @@ public class ConsumerMembershipManager extends AbstractMembershipManager<Consume
      */
     @Override
     public int leaveGroupEpoch() {
+        if (GroupMembershipOperation.LEAVE_GROUP.equals(leaveGroupOperation)) {
+            return ConsumerGroupHeartbeatRequest.LEAVE_GROUP_MEMBER_EPOCH;
+        } else if (GroupMembershipOperation.REMAIN_IN_GROUP.equals(leaveGroupOperation)) {
+            return ConsumerGroupHeartbeatRequest.LEAVE_GROUP_STATIC_MEMBER_EPOCH;
+        }
+
         return groupInstanceId.isPresent() ?
-                ConsumerGroupHeartbeatRequest.LEAVE_GROUP_STATIC_MEMBER_EPOCH :
-                ConsumerGroupHeartbeatRequest.LEAVE_GROUP_MEMBER_EPOCH;
+            ConsumerGroupHeartbeatRequest.LEAVE_GROUP_STATIC_MEMBER_EPOCH :
+            ConsumerGroupHeartbeatRequest.LEAVE_GROUP_MEMBER_EPOCH;
     }
 }

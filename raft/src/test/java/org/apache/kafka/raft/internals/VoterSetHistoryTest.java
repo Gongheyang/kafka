@@ -89,6 +89,27 @@ public final class VoterSetHistoryTest {
         assertEquals(Optional.empty(), votersHistory.valueAtOrBefore(99));
         assertEquals(Optional.of(addedVoterSet), votersHistory.valueAtOrBefore(199));
         assertEquals(Optional.of(removedVoterSet), votersHistory.valueAtOrBefore(200));
+
+        // Assert multiple voters can be added or removed at a time
+        voterMap.put(4, VoterSetTest.voterNode(4, true));
+        voterMap.put(5, VoterSetTest.voterNode(5, true));
+
+        VoterSet addedMultipleVoters = VoterSet.fromMap(new HashMap<>(voterMap));
+        votersHistory.addAt(300, addedMultipleVoters);
+
+        assertEquals(addedMultipleVoters, votersHistory.lastValue());
+        assertEquals(Optional.of(removedVoterSet), votersHistory.valueAtOrBefore(299));
+        assertEquals(Optional.of(addedMultipleVoters), votersHistory.valueAtOrBefore(300));
+
+        voterMap.remove(4);
+        voterMap.remove(5);
+
+        VoterSet removedMultipleVoters = VoterSet.fromMap(new HashMap<>(voterMap));
+        votersHistory.addAt(400, removedMultipleVoters);
+
+        assertEquals(removedMultipleVoters, votersHistory.lastValue());
+        assertEquals(Optional.of(addedMultipleVoters), votersHistory.valueAtOrBefore(399));
+        assertEquals(Optional.of(removedMultipleVoters), votersHistory.valueAtOrBefore(400));
     }
 
     @Test
@@ -120,55 +141,6 @@ public final class VoterSetHistoryTest {
         assertEquals(Optional.of(bootstrapVoterSet), votersHistory.valueAtOrBefore(99));
         assertEquals(Optional.of(addedVoterSet), votersHistory.valueAtOrBefore(199));
         assertEquals(Optional.of(removedVoterSet), votersHistory.valueAtOrBefore(200));
-    }
-
-    @Test
-    void testAddAtNonOverlapping() {
-        VoterSetHistory votersHistory = new VoterSetHistory(VoterSet.empty());
-
-        Map<Integer, VoterSet.VoterNode> voterMap = VoterSetTest.voterMap(IntStream.of(1, 2, 3), true);
-        VoterSet voterSet = VoterSet.fromMap(new HashMap<>(voterMap));
-
-        // Add a starting voter to the history
-        votersHistory.addAt(100, voterSet);
-
-        // Remove voter so that it doesn't overlap
-        VoterSet nonoverlappingRemovedSet = voterSet
-            .removeVoter(voterMap.get(1).voterKey()).get()
-            .removeVoter(voterMap.get(2).voterKey()).get();
-
-        assertThrows(
-            IllegalArgumentException.class,
-            () -> votersHistory.addAt(200, nonoverlappingRemovedSet)
-        );
-        assertEquals(voterSet, votersHistory.lastValue());
-
-
-        // Add voters so that it doesn't overlap
-        VoterSet nonoverlappingAddSet = voterSet
-            .addVoter(VoterSetTest.voterNode(4, true)).get()
-            .addVoter(VoterSetTest.voterNode(5, true)).get();
-
-        assertThrows(
-            IllegalArgumentException.class,
-            () -> votersHistory.addAt(200, nonoverlappingAddSet)
-        );
-        assertEquals(voterSet, votersHistory.lastValue());
-    }
-
-    @Test
-    void testNonoverlappingFromStaticVoterSet() {
-        Map<Integer, VoterSet.VoterNode> voterMap = VoterSetTest.voterMap(IntStream.of(1, 2, 3), true);
-        VoterSet staticVoterSet = VoterSet.fromMap(new HashMap<>(voterMap));
-        VoterSetHistory votersHistory = new VoterSetHistory(VoterSet.empty());
-
-        // Remove voter so that it doesn't overlap
-        VoterSet nonoverlappingRemovedSet = staticVoterSet
-            .removeVoter(voterMap.get(1).voterKey()).get()
-            .removeVoter(voterMap.get(2).voterKey()).get();
-
-        votersHistory.addAt(100, nonoverlappingRemovedSet);
-        assertEquals(nonoverlappingRemovedSet, votersHistory.lastValue());
     }
 
     @Test

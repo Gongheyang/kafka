@@ -47,24 +47,6 @@ public final class VoterSetHistory {
      * @throws IllegalArgumentException if the offset is not greater than all previous offsets
      */
     public void addAt(long offset, VoterSet voters) {
-        Optional<LogHistory.Entry<VoterSet>> lastEntry = votersHistory.lastEntry();
-        if (lastEntry.isPresent() && lastEntry.get().offset() >= 0) {
-            // If the last voter set comes from the replicated log then the majorities must overlap.
-            // This ignores the static voter set and the bootstrapped voter set since they come from
-            // the configuration and the KRaft leader never guaranteed that they are the same across
-            // all replicas.
-            VoterSet lastVoterSet = lastEntry.get().value();
-            if (!lastVoterSet.hasOverlappingMajority(voters)) {
-                throw new IllegalArgumentException(
-                    String.format(
-                        "Last voter set %s doesn't have an overlapping majority with the new voter set %s",
-                        lastVoterSet,
-                        voters
-                    )
-                );
-            }
-        }
-
         votersHistory.addAt(offset, voters);
     }
 

@@ -21,7 +21,6 @@ import org.apache.kafka.common.Uuid;
 import org.apache.kafka.common.feature.SupportedVersionRange;
 import org.apache.kafka.common.message.VotersRecord;
 import org.apache.kafka.common.network.ListenerName;
-import org.apache.kafka.common.utils.Utils;
 
 import java.net.InetSocketAddress;
 import java.util.Collections;
@@ -268,26 +267,6 @@ public final class VoterSet {
         return new VotersRecord()
             .setVersion(version)
             .setVoters(voterRecordVoters);
-    }
-
-    /**
-     * Determines if two sets of voters have an overlapping majority.
-     *
-     * An overlapping majority means that for all majorities in {@code this} set of voters and for
-     * all majority in {@code that} set of voters, they have at least one voter in common.
-     *
-     * If this function returns true, it means that if one of the set of voters commits an offset,
-     * the other set of voters cannot commit a conflicting offset.
-     *
-     * @param that the other voter set to compare
-     * @return true if they have an overlapping majority, false otherwise
-     */
-    public boolean hasOverlappingMajority(VoterSet that) {
-        Set<ReplicaKey> thisReplicaKeys = voterKeys();
-        Set<ReplicaKey> thatReplicaKeys = that.voterKeys();
-
-        if (Utils.diff(HashSet::new, thisReplicaKeys, thatReplicaKeys).size() > 1) return false;
-        return Utils.diff(HashSet::new, thatReplicaKeys, thisReplicaKeys).size() <= 1;
     }
 
     @Override

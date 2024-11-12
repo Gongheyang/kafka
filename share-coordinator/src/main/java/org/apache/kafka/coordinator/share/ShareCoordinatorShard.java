@@ -21,11 +21,14 @@ import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.Uuid;
 import org.apache.kafka.common.message.ReadShareGroupStateRequestData;
 import org.apache.kafka.common.message.ReadShareGroupStateResponseData;
+import org.apache.kafka.common.message.ReadShareGroupStateSummaryRequestData;
+import org.apache.kafka.common.message.ReadShareGroupStateSummaryResponseData;
 import org.apache.kafka.common.message.WriteShareGroupStateRequestData;
 import org.apache.kafka.common.message.WriteShareGroupStateResponseData;
 import org.apache.kafka.common.protocol.ApiMessage;
 import org.apache.kafka.common.protocol.Errors;
 import org.apache.kafka.common.requests.ReadShareGroupStateResponse;
+import org.apache.kafka.common.requests.ReadShareGroupStateSummaryResponse;
 import org.apache.kafka.common.requests.TransactionResult;
 import org.apache.kafka.common.requests.WriteShareGroupStateResponse;
 import org.apache.kafka.common.utils.LogContext;
@@ -487,6 +490,60 @@ public class ShareCoordinatorShard implements CoordinatorShard<CoordinatorRecord
             .combineStateBatches();
     }
 
+    /**
+     * This method finds the ShareSnapshotValue record corresponding to the requested topic partition from the
+     * in-memory state of coordinator shard, the shareStateMap.
+     * <p>
+     * This method as called by the ShareCoordinatorService will be provided with
+     * the request data which covers only key i.e. group1:topic1:partition1. The implementation
+     * below was done keeping this in mind.
+     *
+     * @param request - ReadShareGroupStateSummaryRequestData for a single key
+     * @param offset  - offset to read from the __share_group_state topic partition
+     * @return CoordinatorResult(records, response)
+     */
+    public ReadShareGroupStateSummaryResponseData readStateSummary(ReadShareGroupStateSummaryRequestData request, Long offset) {
+        // records to read (with the key of snapshot type), response to caller
+        // only one key will be there in the request by design
+        Optional<ReadShareGroupStateSummaryResponseData> error = maybeGetReadStateSummaryError(request, offset);
+        if (error.isPresent()) {
+            return error.get();
+        }
+
+        Uuid topicId = request.topics().get(0).topicId();
+        int partition = request.topics().get(0).partitions().get(0).partition();
+        int leaderEpoch = request.topics().get(0).partitions().get(0).leaderEpoch();
+
+        SharePartitionKey coordinatorKey = SharePartitionKey.getInstance(request.groupId(), topicId, partition);
+
+        if (!shareStateMap.containsKey(coordinatorKey)) {
+            return ReadShareGroupStateSummaryResponse.toResponseData(
+                    topicId,
+                    partition,
+                    PartitionFactory.UNINITIALIZED_START_OFFSET,
+                    PartitionFactory.DEFAULT_STATE_EPOCH
+            );
+        }
+
+        ShareGroupOffset offsetValue = shareStateMap.get(coordinatorKey, offset);
+
+        if (offsetValue == null) {
+            // Returning an error response as the snapshot value was not found
+            return ReadShareGroupStateSummaryResponse.toErrorResponseData(
+                    topicId,
+                    partition,
+                    Errors.UNKNOWN_SERVER_ERROR,
+                    "Data not found for topic {}, partition {} for group {}, in the in-memory state of share coordinator"
+            );
+        }
+
+        // Updating the leader map with the new leader epoch
+        leaderEpochMap.put(coordinatorKey, leaderEpoch);
+
+        // Returning the successfully retrieved snapshot value
+        return ReadShareGroupStateSummaryResponse.toResponseData(topicId, partition, offsetValue.startOffset(), offsetValue.stateEpoch());
+    }
+
     private Optional<CoordinatorResult<WriteShareGroupStateResponseData, CoordinatorRecord>> maybeGetWriteStateError(
         WriteShareGroupStateRequestData request
     ) {
@@ -562,6 +619,46 @@ public class ShareCoordinatorShard implements CoordinatorShard<CoordinatorRecord
             metadataImage.topics().getPartition(topicId, partitionId) == null) {
             log.error("Topic/TopicPartition not found in metadata image.");
             return Optional.of(ReadShareGroupStateResponse.toErrorResponseData(topicId, partitionId, Errors.UNKNOWN_TOPIC_OR_PARTITION, Errors.UNKNOWN_TOPIC_OR_PARTITION.message()));
+        }
+
+        return Optional.empty();
+    }
+
+    private Optional<ReadShareGroupStateSummaryResponseData> maybeGetReadStateSummaryError(ReadShareGroupStateSummaryRequestData request, Long offset) {
+        String groupId = request.groupId();
+        ReadShareGroupStateSummaryRequestData.ReadStateSummaryData topicData = request.topics().get(0);
+        ReadShareGroupStateSummaryRequestData.PartitionData partitionData = topicData.partitions().get(0);
+
+        Uuid topicId = topicData.topicId();
+        int partitionId = partitionData.partition();
+
+        if (topicId == null) {
+            log.error("Request topic id is null.");
+            return Optional.of(ReadShareGroupStateSummaryResponse.toErrorResponseData(
+                    null, partitionId, Errors.INVALID_REQUEST, NULL_TOPIC_ID.getMessage()));
+        }
+
+        if (partitionId < 0) {
+            log.error("Request partition id is negative.");
+            return Optional.of(ReadShareGroupStateSummaryResponse.toErrorResponseData(
+                    topicId, partitionId, Errors.INVALID_REQUEST, NEGATIVE_PARTITION_ID.getMessage()));
+        }
+
+        SharePartitionKey mapKey = SharePartitionKey.getInstance(groupId, topicId, partitionId);
+        if (leaderEpochMap.containsKey(mapKey, offset) && leaderEpochMap.get(mapKey, offset) > partitionData.leaderEpoch()) {
+            log.error("Request leader epoch id is smaller than last recorded.");
+            return Optional.of(ReadShareGroupStateSummaryResponse.toErrorResponseData(topicId, partitionId, Errors.FENCED_LEADER_EPOCH, Errors.FENCED_LEADER_EPOCH.message()));
+        }
+
+        if (metadataImage == null) {
+            log.error("Metadata image is null");
+            return Optional.of(ReadShareGroupStateSummaryResponse.toErrorResponseData(topicId, partitionId, Errors.UNKNOWN_TOPIC_OR_PARTITION, Errors.UNKNOWN_TOPIC_OR_PARTITION.message()));
+        }
+
+        if (metadataImage.topics().getTopic(topicId) == null ||
+                metadataImage.topics().getPartition(topicId, partitionId) == null) {
+            log.error("Topic/TopicPartition not found in metadata image.");
+            return Optional.of(ReadShareGroupStateSummaryResponse.toErrorResponseData(topicId, partitionId, Errors.UNKNOWN_TOPIC_OR_PARTITION, Errors.UNKNOWN_TOPIC_OR_PARTITION.message()));
         }
 
         return Optional.empty();

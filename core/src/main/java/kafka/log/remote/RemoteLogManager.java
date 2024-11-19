@@ -41,8 +41,8 @@ import org.apache.kafka.common.requests.FetchRequest;
 import org.apache.kafka.common.utils.BufferSupplier;
 import org.apache.kafka.common.utils.ChildFirstClassLoader;
 import org.apache.kafka.common.utils.CloseableIterator;
-import org.apache.kafka.common.utils.KafkaThread;
 import org.apache.kafka.common.utils.LogContext;
+import org.apache.kafka.common.utils.ThreadUtils;
 import org.apache.kafka.common.utils.Time;
 import org.apache.kafka.common.utils.Utils;
 import org.apache.kafka.server.common.CheckpointFile;
@@ -128,9 +128,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiConsumer;
@@ -162,7 +160,7 @@ import static org.apache.kafka.server.log.remote.storage.RemoteStorageMetrics.RE
 public class RemoteLogManager implements Closeable {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(RemoteLogManager.class);
-    private static final String REMOTE_LOG_READER_THREAD_NAME_PREFIX = "remote-log-reader";
+    private static final String REMOTE_LOG_READER_THREAD_NAME_PATTERN = "remote-log-reader-%d";
     private final RemoteLogManagerConfig rlmConfig;
     private final int brokerId;
     private final String logDir;
@@ -255,18 +253,18 @@ public class RemoteLogManager implements Closeable {
         indexCache = new RemoteIndexCache(rlmConfig.remoteLogIndexFileCacheTotalSizeBytes(), remoteLogStorageManager, logDir);
         delayInMs = rlmConfig.remoteLogManagerTaskIntervalMs();
         rlmCopyThreadPool = new RLMScheduledThreadPool(rlmConfig.remoteLogManagerCopierThreadPoolSize(),
-            "RLMCopyThreadPool", "kafka-rlm-copy-thread-pool-");
+            "RLMCopyThreadPool", "kafka-rlm-copy-thread-pool-%d");
         rlmExpirationThreadPool = new RLMScheduledThreadPool(rlmConfig.remoteLogManagerExpirationThreadPoolSize(),
-            "RLMExpirationThreadPool", "kafka-rlm-expiration-thread-pool-");
+            "RLMExpirationThreadPool", "kafka-rlm-expiration-thread-pool-%d");
         followerThreadPool = new RLMScheduledThreadPool(rlmConfig.remoteLogManagerThreadPoolSize(),
-            "RLMFollowerScheduledThreadPool", "kafka-rlm-follower-thread-pool-");
+            "RLMFollowerScheduledThreadPool", "kafka-rlm-follower-thread-pool-%d");
 
         metricsGroup.newGauge(REMOTE_LOG_MANAGER_TASKS_AVG_IDLE_PERCENT_METRIC, rlmCopyThreadPool::getIdlePercent);
         remoteReadTimer = metricsGroup.newTimer(REMOTE_LOG_READER_FETCH_RATE_AND_TIME_METRIC,
                 TimeUnit.MILLISECONDS, TimeUnit.SECONDS);
 
         remoteStorageReaderThreadPool = new RemoteStorageThreadPool(
-                REMOTE_LOG_READER_THREAD_NAME_PREFIX,
+                REMOTE_LOG_READER_THREAD_NAME_PATTERN,
                 rlmConfig.remoteLogReaderThreads(),
                 rlmConfig.remoteLogReaderMaxPendingTasks()
         );
@@ -288,6 +286,24 @@ public class RemoteLogManager implements Closeable {
     public void updateFetchQuota(long quota) {
         LOGGER.info("Updating remote fetch quota to {} bytes per second", quota);
         rlmFetchQuotaManager.updateQuota(new Quota(quota, true));
+    }
+
+    public void resizeCopierThreadPool(int newSize) {
+        int currentSize = rlmCopyThreadPool.getCorePoolSize();
+        LOGGER.info("Updating remote copy thread pool size from {} to {}", currentSize, newSize);
+        rlmCopyThreadPool.setCorePoolSize(newSize);
+    }
+
+    public void resizeExpirationThreadPool(int newSize) {
+        int currentSize = rlmExpirationThreadPool.getCorePoolSize();
+        LOGGER.info("Updating remote expiration thread pool size from {} to {}", currentSize, newSize);
+        rlmExpirationThreadPool.setCorePoolSize(newSize);
+    }
+
+    public void resizeReaderThreadPool(int newSize) {
+        int currentSize = remoteStorageReaderThreadPool.getCorePoolSize();
+        LOGGER.info("Updating remote reader thread pool size from {} to {}", currentSize, newSize);
+        remoteStorageReaderThreadPool.setCorePoolSize(newSize);
     }
 
     private void removeMetrics() {
@@ -2152,31 +2168,30 @@ public class RemoteLogManager implements Closeable {
     static class RLMScheduledThreadPool {
 
         private static final Logger LOGGER = LoggerFactory.getLogger(RLMScheduledThreadPool.class);
-        private final int poolSize;
         private final String threadPoolName;
-        private final String threadNamePrefix;
+        private final String threadNamePattern;
         private final ScheduledThreadPoolExecutor scheduledThreadPool;
 
-        public RLMScheduledThreadPool(int poolSize, String threadPoolName, String threadNamePrefix) {
-            this.poolSize = poolSize;
+        public RLMScheduledThreadPool(int poolSize, String threadPoolName, String threadNamePattern) {
             this.threadPoolName = threadPoolName;
-            this.threadNamePrefix = threadNamePrefix;
-            scheduledThreadPool = createPool();
+            this.threadNamePattern = threadNamePattern;
+            scheduledThreadPool = createPool(poolSize);
         }
 
-        private ScheduledThreadPoolExecutor createPool() {
+        public void setCorePoolSize(int newSize) {
+            scheduledThreadPool.setCorePoolSize(newSize);
+        }
+
+        public int getCorePoolSize() {
+            return scheduledThreadPool.getCorePoolSize();
+        }
+
+        private ScheduledThreadPoolExecutor createPool(int poolSize) {
             ScheduledThreadPoolExecutor threadPool = new ScheduledThreadPoolExecutor(poolSize);
             threadPool.setRemoveOnCancelPolicy(true);
             threadPool.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
             threadPool.setContinueExistingPeriodicTasksAfterShutdownPolicy(false);
-            threadPool.setThreadFactory(new ThreadFactory() {
-                private final AtomicInteger sequence = new AtomicInteger();
-
-                public Thread newThread(Runnable r) {
-                    return KafkaThread.daemon(threadNamePrefix + sequence.incrementAndGet(), r);
-                }
-            });
-
+            threadPool.setThreadFactory(ThreadUtils.createThreadFactory(threadNamePattern, true));
             return threadPool;
         }
 

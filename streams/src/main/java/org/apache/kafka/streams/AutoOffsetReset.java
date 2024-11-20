@@ -22,7 +22,7 @@ package org.apache.kafka.streams;
   * or {@link KTable} via {@link StreamsBuilder}.
   */
  
-import java.time.Duration;
+import java.time.Duration; 
 import java.util.Optional;
 public class AutoOffsetReset {
  

@@ -28,6 +28,7 @@ import org.apache.kafka.common.message.FindCoordinatorRequestData;
 import org.apache.kafka.common.message.FindCoordinatorResponseData;
 import org.apache.kafka.common.message.ReadShareGroupStateRequestData;
 import org.apache.kafka.common.message.ReadShareGroupStateResponseData;
+import org.apache.kafka.common.message.ReadShareGroupStateSummaryRequestData;
 import org.apache.kafka.common.message.ReadShareGroupStateSummaryResponseData;
 import org.apache.kafka.common.message.WriteShareGroupStateRequestData;
 import org.apache.kafka.common.message.WriteShareGroupStateResponseData;
@@ -810,7 +811,7 @@ public class PersisterStateManager {
                                 readStateBackoff.resetAttempts();
                                 ReadShareGroupStateSummaryResponseData.ReadStateSummaryResult result = ReadShareGroupStateSummaryResponse.toResponseReadStateSummaryResult(
                                         partitionKey().topicId(),
-                                        Collections.singletonList(partitionStateData.get())
+                                        List.of(partitionStateData.get())
                                 );
                                 this.result.complete(new ReadShareGroupStateSummaryResponse(new ReadShareGroupStateSummaryResponseData()
                                         .setResults(Collections.singletonList(result))));
@@ -820,9 +821,9 @@ public class PersisterStateManager {
                             case COORDINATOR_NOT_AVAILABLE:
                             case COORDINATOR_LOAD_IN_PROGRESS:
                             case NOT_COORDINATOR:
-                                log.warn("Received retriable error in read state RPC for key {}: {}", partitionKey(), error.message());
+                                log.warn("Received retriable error in read state summary RPC for key {}: {}", partitionKey(), error.message());
                                 if (!readStateBackoff.canAttempt()) {
-                                    log.error("Exhausted max retries for read state RPC for key {} without success.", partitionKey());
+                                    log.error("Exhausted max retries for read state summary RPC for key {} without success.", partitionKey());
                                     readStateSummaryErrorReponse(error, new Exception("Exhausted max retries to complete read state RPC without success."));
                                     return;
                                 }
@@ -831,7 +832,7 @@ public class PersisterStateManager {
                                 return;
 
                             default:
-                                log.error("Unable to perform read state RPC for key {}: {}", partitionKey(), error.message());
+                                log.error("Unable to perform read state summary RPC for key {}: {}", partitionKey(), error.message());
                                 readStateSummaryErrorReponse(error, null);
                                 return;
                         }
@@ -855,7 +856,7 @@ public class PersisterStateManager {
         @Override
         protected void findCoordinatorErrorResponse(Errors error, Exception exception) {
             this.result.complete(new ReadShareGroupStateSummaryResponse(
-                    ReadShareGroupStateSummaryResponse.toErrorResponseData(partitionKey().topicId(), partitionKey().partition(), error, "Error in read state RPC. " +
+                    ReadShareGroupStateSummaryResponse.toErrorResponseData(partitionKey().topicId(), partitionKey().partition(), error, "Error in read state summary RPC. " +
                             (exception == null ? error.message() : exception.getMessage()))));
         }
 
@@ -1056,6 +1057,8 @@ public class PersisterStateManager {
                     return coalesceWrites(groupId, handlers);
                 case READ:
                     return coalesceReads(groupId, handlers);
+                case SUMMARY:
+                    return coalesceReadSummarys(groupId, handlers);
                 default:
                     throw new RuntimeException("Unknown rpc type: " + rpcType);
             }
@@ -1111,6 +1114,28 @@ public class PersisterStateManager {
                     .map(entry -> new ReadShareGroupStateRequestData.ReadStateData()
                         .setTopicId(entry.getKey())
                         .setPartitions(entry.getValue()))
+                    .collect(Collectors.toList())));
+        }
+
+        private static AbstractRequest.Builder<? extends AbstractRequest> coalesceReadSummarys(String groupId, List<? extends PersisterStateManagerHandler> handlers) {
+            Map<Uuid, List<ReadShareGroupStateSummaryRequestData.PartitionData>> partitionData = new HashMap<>();
+            handlers.forEach(persHandler -> {
+                assert persHandler instanceof ReadStateSummaryHandler;
+                ReadStateSummaryHandler handler = (ReadStateSummaryHandler) persHandler;
+                partitionData.computeIfAbsent(handler.partitionKey().topicId(), topicId -> new LinkedList<>())
+                    .add(
+                        new ReadShareGroupStateSummaryRequestData.PartitionData()
+                            .setPartition(handler.partitionKey().partition())
+                            .setLeaderEpoch(handler.leaderEpoch)
+                    );
+            });
+
+            return new ReadShareGroupStateSummaryRequest.Builder(new ReadShareGroupStateSummaryRequestData()
+                .setGroupId(groupId)
+                .setTopics(partitionData.entrySet().stream()
+                    .map(entry -> new ReadShareGroupStateSummaryRequestData.ReadStateSummaryData()
+                         .setTopicId(entry.getKey())
+                         .setPartitions(entry.getValue()))
                     .collect(Collectors.toList())));
         }
     }

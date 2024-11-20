@@ -20,11 +20,14 @@ package org.apache.kafka.coordinator.share;
 import org.apache.kafka.common.Uuid;
 import org.apache.kafka.common.message.ReadShareGroupStateRequestData;
 import org.apache.kafka.common.message.ReadShareGroupStateResponseData;
+import org.apache.kafka.common.message.ReadShareGroupStateSummaryRequestData;
+import org.apache.kafka.common.message.ReadShareGroupStateSummaryResponseData;
 import org.apache.kafka.common.message.WriteShareGroupStateRequestData;
 import org.apache.kafka.common.message.WriteShareGroupStateResponseData;
 import org.apache.kafka.common.protocol.ApiMessage;
 import org.apache.kafka.common.protocol.Errors;
 import org.apache.kafka.common.requests.ReadShareGroupStateResponse;
+import org.apache.kafka.common.requests.ReadShareGroupStateSummaryResponse;
 import org.apache.kafka.common.requests.WriteShareGroupStateResponse;
 import org.apache.kafka.common.utils.LogContext;
 import org.apache.kafka.coordinator.common.runtime.CoordinatorMetrics;
@@ -653,6 +656,63 @@ class ShareCoordinatorShardTest {
         assertEquals(expectedData, result.response());
 
         assertEquals(leaderEpoch, shard.getLeaderMapValue(shareCoordinatorKey));
+    }
+
+    @Test
+    public void testReadStateSummarySuccess() {
+        ShareCoordinatorShard shard = new ShareCoordinatorShardBuilder().build();
+
+        SharePartitionKey coordinatorKey = SharePartitionKey.getInstance(GROUP_ID, TOPIC_ID, PARTITION);
+
+        writeAndReplayDefaultRecord(shard);
+
+        ReadShareGroupStateSummaryRequestData request = new ReadShareGroupStateSummaryRequestData()
+            .setGroupId(GROUP_ID)
+            .setTopics(Collections.singletonList(new ReadShareGroupStateSummaryRequestData.ReadStateSummaryData()
+                .setTopicId(TOPIC_ID)
+                .setPartitions(Collections.singletonList(new ReadShareGroupStateSummaryRequestData.PartitionData()
+                    .setPartition(PARTITION)
+                    .setLeaderEpoch(1)))));
+
+        ReadShareGroupStateSummaryResponseData result = shard.readStateSummary(request, 0L);
+
+        assertEquals(ReadShareGroupStateSummaryResponse.toResponseData(
+            TOPIC_ID,
+            PARTITION,
+            0,
+            0
+        ), result);
+
+        assertEquals(1, shard.getLeaderMapValue(coordinatorKey));
+    }
+
+    @Test
+    public void testReadStateSummaryInvalidRequestData() {
+        ShareCoordinatorShard shard = new ShareCoordinatorShardBuilder().build();
+
+        int partition = -1;
+
+        writeAndReplayDefaultRecord(shard);
+
+        SharePartitionKey shareCoordinatorKey = SharePartitionKey.getInstance(GROUP_ID, TOPIC_ID, PARTITION);
+
+        ReadShareGroupStateSummaryRequestData request = new ReadShareGroupStateSummaryRequestData()
+            .setGroupId(GROUP_ID)
+            .setTopics(Collections.singletonList(new ReadShareGroupStateSummaryRequestData.ReadStateSummaryData()
+                .setTopicId(TOPIC_ID)
+                .setPartitions(Collections.singletonList(new ReadShareGroupStateSummaryRequestData.PartitionData()
+                    .setPartition(partition)
+                    .setLeaderEpoch(5)))));
+
+        ReadShareGroupStateSummaryResponseData result = shard.readStateSummary(request, 0L);
+
+        ReadShareGroupStateSummaryResponseData expectedData = ReadShareGroupStateSummaryResponse.toErrorResponseData(
+            TOPIC_ID, partition, Errors.INVALID_REQUEST, ShareCoordinatorShard.NEGATIVE_PARTITION_ID.getMessage());
+
+        assertEquals(expectedData, result);
+
+        // Leader epoch should not be changed because the request failed
+        assertEquals(0, shard.getLeaderMapValue(shareCoordinatorKey));
     }
 
     @Test

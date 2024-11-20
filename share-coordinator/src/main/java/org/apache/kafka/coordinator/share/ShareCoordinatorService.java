@@ -625,8 +625,8 @@ public class ShareCoordinatorService implements ShareCoordinator {
         }
 
         // The request received here could have multiple keys of structure group:topic:partition. However,
-        // the readState method in ShareCoordinatorShard expects a single key in the request. Hence, we will
-        // be looping over the keys below and constructing new ReadShareGroupStateRequestData objects to pass
+        // the readStateSummary method in ShareCoordinatorShard expects a single key in the request. Hence, we will
+        // be looping over the keys below and constructing new ReadShareGroupStateSummaryRequestData objects to pass
         // onto the shard method.
 
         request.topics().forEach(topicData -> {
@@ -635,7 +635,7 @@ public class ShareCoordinatorService implements ShareCoordinator {
                 // Request object containing information of a single topic partition
                 ReadShareGroupStateSummaryRequestData requestForCurrentPartition = new ReadShareGroupStateSummaryRequestData()
                         .setGroupId(groupId)
-                        .setTopics(Collections.singletonList(new ReadShareGroupStateSummaryRequestData.ReadStateSummaryData()
+                        .setTopics(List.of(new ReadShareGroupStateSummaryRequestData.ReadStateSummaryData()
                                 .setTopicId(topicId)
                                 .setPartitions(Collections.singletonList(partitionData))));
                 SharePartitionKey coordinatorKey = SharePartitionKey.getInstance(request.groupId(), topicId, partitionData.partition());
@@ -645,7 +645,7 @@ public class ShareCoordinatorService implements ShareCoordinator {
                         topicPartitionFor(coordinatorKey),
                         (coordinator, offset) -> coordinator.readStateSummary(requestForCurrentPartition, offset)
                 ).exceptionally(exception -> handleOperationException(
-                        "read-share-group-state",
+                        "read-share-group-state-summary",
                         request,
                         exception,
                         (error, message) -> ReadShareGroupStateSummaryResponse.toErrorResponseData(

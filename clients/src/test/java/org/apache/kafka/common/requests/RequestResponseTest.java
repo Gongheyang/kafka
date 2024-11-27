@@ -1614,7 +1614,7 @@ public class RequestResponseTest {
                 .setCurrentVoters(singletonList(replicaState))
                 .setObservers(singletonList(replicaState));
         DescribeQuorumResponseData.TopicData topicData = new DescribeQuorumResponseData.TopicData()
-                .setTopicName("topic1")
+                .setTopicName("__cluster_metadata")
                 .setPartitions(singletonList(partitionData));
         DescribeQuorumResponseData data = new DescribeQuorumResponseData()
                 .setErrorCode(Errors.NONE.code())

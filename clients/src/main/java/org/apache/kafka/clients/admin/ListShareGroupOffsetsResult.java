@@ -47,9 +47,9 @@ public class ListShareGroupOffsetsResult {
         return KafkaFuture.allOf(futures.values().toArray(new KafkaFuture[0])).thenApply(
                 nil -> {
                     Map<String, Map<TopicPartition, Long>> offsets = new HashMap<>(futures.size());
-                    futures.forEach((key, future) -> {
+                    futures.forEach((groupId, future) -> {
                         try {
-                            offsets.put(key, future.get());
+                            offsets.put(groupId, future.get());
                         } catch (InterruptedException | ExecutionException e) {
                             // This should be unreachable, since the KafkaFuture#allOf already ensured
                             // that all the futures completed successfully.
@@ -65,10 +65,9 @@ public class ListShareGroupOffsetsResult {
      */
     public KafkaFuture<Map<TopicPartition, Long>> partitionsToOffset(String groupId) {
         KafkaFutureImpl<Map<TopicPartition, Long>> future = new KafkaFutureImpl<>();
-        if (futures.containsKey(groupId))
-            return futures.get(groupId);
-        else
-            future.completeExceptionally(new IllegalArgumentException("Group ID not found: " + groupId));
-        return future;
+        if (!futures.containsKey(groupId)) {
+            throw new IllegalArgumentException("Group ID not found: " + groupId);
+        }
+        return futures.get(groupId);
     }
 }

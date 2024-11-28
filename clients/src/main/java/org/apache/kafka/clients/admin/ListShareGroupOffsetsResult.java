@@ -36,7 +36,7 @@ public class ListShareGroupOffsetsResult {
 
     private final Map<String, KafkaFuture<Map<TopicPartition, Long>>> futures;
 
-    public ListShareGroupOffsetsResult(Map<String, KafkaFuture<Map<TopicPartition, Long>>> futures) {
+    ListShareGroupOffsetsResult(Map<String, KafkaFuture<Map<TopicPartition, Long>>> futures) {
         this.futures = futures;
     }
 

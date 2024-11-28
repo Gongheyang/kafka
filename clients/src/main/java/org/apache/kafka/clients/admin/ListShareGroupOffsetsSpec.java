@@ -23,6 +23,7 @@ import org.apache.kafka.common.annotation.InterfaceStability;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Specification of share group offsets to list using {@link Admin#listShareGroupOffsets(Map, ListShareGroupOffsetsOptions)}.
@@ -49,7 +50,31 @@ public class ListShareGroupOffsetsSpec {
     /**
      * Returns the topic partitions whose offsets are to be listed for a share group.
      */
-    Collection<TopicPartition> topicPartitions() {
+    public Collection<TopicPartition> topicPartitions() {
         return topicPartitions;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (!(o instanceof ListShareGroupOffsetsSpec)) {
+            return false;
+        }
+        ListShareGroupOffsetsSpec that = (ListShareGroupOffsetsSpec) o;
+        return Objects.equals(topicPartitions, that.topicPartitions);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(topicPartitions);
+    }
+
+    @Override
+    public String toString() {
+        return "ListShareGroupOffsetsSpec(" +
+            "topicPartitions=" + topicPartitions +
+            ')';
     }
 }

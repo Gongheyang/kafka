@@ -36,6 +36,8 @@ import org.apache.kafka.common.message.OffsetDeleteRequestData;
 import org.apache.kafka.common.message.OffsetDeleteResponseData;
 import org.apache.kafka.common.message.OffsetFetchRequestData;
 import org.apache.kafka.common.message.OffsetFetchResponseData;
+import org.apache.kafka.common.message.ReadShareGroupStateSummaryRequestData;
+import org.apache.kafka.common.message.ReadShareGroupStateSummaryResponseData;
 import org.apache.kafka.common.message.ShareGroupDescribeResponseData;
 import org.apache.kafka.common.message.ShareGroupHeartbeatRequestData;
 import org.apache.kafka.common.message.ShareGroupHeartbeatResponseData;
@@ -210,6 +212,18 @@ public interface GroupCoordinator {
         List<String> groupIds
     );
 
+    /**
+     * List share group Offsets.
+     *
+     * @param context           The coordinator request context.
+     * @param request           The ReadShareGroupStateSummaryRequest data.
+     *
+     * @return A future yielding the results or an exception.
+     */
+    CompletableFuture<ReadShareGroupStateSummaryResponseData> listShareGroupOffsets(
+        RequestContext context,
+        ReadShareGroupStateSummaryRequestData request
+    );
     /**
      * Delete Groups.
      *

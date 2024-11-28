@@ -40,6 +40,8 @@ import org.apache.kafka.common.message.OffsetDeleteRequestData;
 import org.apache.kafka.common.message.OffsetDeleteResponseData;
 import org.apache.kafka.common.message.OffsetFetchRequestData;
 import org.apache.kafka.common.message.OffsetFetchResponseData;
+import org.apache.kafka.common.message.ReadShareGroupStateSummaryRequestData;
+import org.apache.kafka.common.message.ReadShareGroupStateSummaryResponseData;
 import org.apache.kafka.common.message.ShareGroupDescribeResponseData;
 import org.apache.kafka.common.message.ShareGroupDescribeResponseData.DescribedGroup;
 import org.apache.kafka.common.message.ShareGroupHeartbeatRequestData;
@@ -710,6 +712,17 @@ public class GroupCoordinatorService implements GroupCoordinator {
         });
 
         return FutureUtils.combineFutures(futures, ArrayList::new, List::addAll);
+    }
+
+    /**
+     * See {@link GroupCoordinator#listShareGroupOffsets(RequestContext, ReadShareGroupStateSummaryRequestData)}.
+     */
+    @Override
+    public CompletableFuture<ReadShareGroupStateSummaryResponseData> listShareGroupOffsets(
+        RequestContext context,
+        ReadShareGroupStateSummaryRequestData requestData
+    ) {
+        return null;
     }
 
     /**

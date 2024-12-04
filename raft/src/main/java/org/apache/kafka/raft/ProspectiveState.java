@@ -1,0 +1,261 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.apache.kafka.raft;
+
+import org.apache.kafka.common.utils.LogContext;
+import org.apache.kafka.common.utils.Time;
+import org.apache.kafka.common.utils.Timer;
+import org.slf4j.Logger;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
+
+public class ProspectiveState implements VotingState {
+    private final int epoch;
+    private final int localId;
+    private final Optional<ReplicaKey> votedKey;
+    private final VoterSet voters;
+//    private final long electionTimeoutMs;
+//    private final Timer electionTimer;
+    private final Map<Integer, VoterState> voteStates = new HashMap<>();
+    private final Optional<LogOffsetMetadata> highWatermark;
+    private int retries;
+    private final int electionTimeoutMs;
+    private final Timer electionTimer;
+    private final Timer backoffTimer;
+    private final Logger log;
+
+    /**
+     * The lifetime of a prospective state is the following.
+     *
+     * 1. Once started, it will keep record of the received votes and continue to fetch from bootstrap voters.
+     * 2. If it receives a fetch response denoting a leader with a higher epoch, it will transition to follower state.
+     * 3. If majority votes granted, it will transition to leader state.
+     * 4. If majority votes rejected or election times out, it will enter a backing off phase;
+     *     after the backoff phase completes, it will send out another round of PreVote requests.
+     */
+    private boolean isBackingOff;
+
+    public ProspectiveState(
+        Time time,
+        int localId,
+        int epoch,
+        Optional<ReplicaKey> votedKey,
+        VoterSet voters,
+        Optional<LogOffsetMetadata> highWatermark,
+        int retries,
+        int electionTimeoutMs,
+        LogContext logContext
+    ) {
+        this.localId = localId;
+        this.epoch = epoch;
+        this.votedKey = votedKey;
+        this.voters = voters;
+        this.highWatermark = highWatermark;
+        this.retries = retries;
+        this.isBackingOff = false;
+        this.electionTimeoutMs = electionTimeoutMs;
+        this.electionTimer = time.timer(electionTimeoutMs);
+        this.backoffTimer = time.timer(0);
+        this.log = logContext.logger(ProspectiveState.class);
+
+        for (ReplicaKey voter : voters.voterKeys()) {
+            voteStates.put(voter.id(), new VoterState(voter));
+        }
+        voteStates.get(localId).setState(VoterState.State.GRANTED);
+    }
+
+    public int localId() {
+        return localId;
+    }
+
+    public Optional<ReplicaKey> votedKey() {
+        return votedKey;
+    }
+
+    @Override
+    public Map<Integer, VoterState> voteStates() {
+        return voteStates;
+    }
+
+    @Override
+    public boolean isBackingOff() {
+        return isBackingOff;
+    }
+
+    @Override
+    public int retries() {
+        return retries;
+    }
+
+    /**
+     * Record a granted vote from one of the voters.
+     *
+     * @param remoteNodeId The id of the voter
+     * @return true if the voter had not been previously recorded
+     * @throws IllegalArgumentException if the remote node is not a voter
+     */
+    public boolean recordGrantedVote(int remoteNodeId) {
+        VoterState voterState = voteStates.get(remoteNodeId);
+        if (voterState == null) {
+            throw new IllegalArgumentException("Attempt to grant vote to non-voter " + remoteNodeId);
+        }
+
+        boolean recorded = voterState.state().equals(VoterState.State.UNRECORDED);
+        voterState.setState(VoterState.State.GRANTED);
+
+        return recorded;
+    }
+
+    /**
+     * Record a rejected vote from one of the voters.
+     *
+     * @param remoteNodeId The id of the voter
+     * @return true if the rejected vote had not been previously recorded
+     * @throws IllegalArgumentException if the remote node is not a voter
+     */
+    public boolean recordRejectedVote(int remoteNodeId) {
+        VoterState voterState = voteStates.get(remoteNodeId);
+        if (voterState == null) {
+            throw new IllegalArgumentException("Attempt to reject vote to non-voter " + remoteNodeId);
+        }
+        if (remoteNodeId == localId) {
+            throw new IllegalStateException("Attempted to reject vote from ourselves");
+        }
+
+        boolean recorded = voterState.state().equals(VoterState.State.UNRECORDED);
+        voterState.setState(VoterState.State.REJECTED);
+
+        return recorded;
+    }
+
+//    /**
+//     * Restart the election timer since we've either received sufficient rejecting voters or election timed out
+//     */
+//    public void restartElectionTimer(long currentTimeMs, long electionTimeoutMs) {
+//        this.electionTimer.update(currentTimeMs);
+//        this.electionTimer.reset(electionTimeoutMs);
+//        this.isBackingOff = true;
+//    }
+
+    /**
+     * Record the current election has failed since we've either received sufficient rejecting voters or election timed out
+     */
+    public void startBackingOff(long currentTimeMs, long backoffDurationMs) {
+        this.backoffTimer.update(currentTimeMs);
+        this.backoffTimer.reset(backoffDurationMs);
+        this.isBackingOff = true;
+    }
+
+    @Override
+    public boolean canGrantVote(ReplicaKey replicaKey, boolean isLogUpToDate, boolean isPreVote) {
+        if (votedKey.isPresent()) {
+            ReplicaKey votedReplicaKey = votedKey.get();
+            if (votedReplicaKey.id() == replicaKey.id()) {
+                return votedReplicaKey.directoryId().isEmpty() || votedReplicaKey.directoryId().equals(replicaKey.directoryId());
+            }
+            log.debug(
+                "Rejecting Vote request with PreVote={} from replica ({}), already have voted for another " +
+                    "replica ({}) in epoch {}",
+                isPreVote,
+                replicaKey,
+                votedKey,
+                epoch
+            );
+            return false;
+        } else if (!isLogUpToDate) {
+            log.debug(
+                "Rejecting Vote request with PreVote={} from replica ({}) since replica epoch/offset is not up to date with us",
+                isPreVote,
+                replicaKey
+            );
+        }
+
+        return isLogUpToDate;
+    }
+
+    @Override
+    public boolean hasElectionTimeoutExpired(long currentTimeMs) {
+        electionTimer.update(currentTimeMs);
+        return electionTimer.isExpired();
+    }
+
+    @Override
+    public long remainingElectionTimeMs(long currentTimeMs) {
+        electionTimer.update(currentTimeMs);
+        return electionTimer.remainingMs();
+    }
+
+    @Override
+    public boolean isBackoffComplete(long currentTimeMs) {
+        backoffTimer.update(currentTimeMs);
+        return backoffTimer.isExpired();
+    }
+
+    @Override
+    public long remainingBackoffMs(long currentTimeMs) {
+        if (!isBackingOff) {
+            throw new IllegalStateException("Prospective is not currently backing off");
+        }
+        backoffTimer.update(currentTimeMs);
+        return backoffTimer.remainingMs();
+    }
+
+    @Override
+    public ElectionState election() {
+        if (votedKey.isPresent()) {
+            return ElectionState.withVotedCandidate(epoch, votedKey().get(), voters.voterIds());
+        } else {
+            return ElectionState.withUnknownLeader(epoch, voters.voterIds());
+        }
+    }
+
+    @Override
+    public int epoch() {
+        return epoch;
+    }
+
+    @Override
+    public Endpoints leaderEndpoints() {
+        return Endpoints.empty();
+    }
+
+    @Override
+    public Optional<LogOffsetMetadata> highWatermark() {
+        return highWatermark;
+    }
+
+    @Override
+    public String toString() {
+        return String.format(
+            "ProspectiveState(epoch=%d, votedKey=%s, voters=%s, highWatermark=%s)",
+            epoch,
+            votedKey,
+            voters,
+            highWatermark
+        );
+    }
+
+    @Override
+    public String name() {
+        return "Prospective";
+    }
+
+    @Override
+    public void close() {}
+}

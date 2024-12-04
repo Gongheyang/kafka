@@ -777,7 +777,7 @@ public class RemoteLogManager implements Closeable {
      * @return the leader epoch entries
      */
     List<EpochEntry> getLeaderEpochEntries(UnifiedLog log, long startOffset, long endOffset) {
-        if (log.leaderEpochCache().isDefined()) {
+        if (log.leaderEpochCache().isPresent()) {
             return log.leaderEpochCache().get().epochEntriesInRange(startOffset, endOffset);
         } else {
             return Collections.emptyList();
@@ -1249,7 +1249,7 @@ public class RemoteLogManager implements Closeable {
             }
 
             final UnifiedLog log = logOptional.get();
-            final Option<LeaderEpochFileCache> leaderEpochCacheOption = log.leaderEpochCache();
+            final Optional<LeaderEpochFileCache> leaderEpochCacheOption = log.leaderEpochCache();
             if (leaderEpochCacheOption.isEmpty()) {
                 logger.debug("No leader epoch cache available for partition: {}", topicIdPartition);
                 return;
@@ -1680,8 +1680,8 @@ public class RemoteLogManager implements Closeable {
         OptionalInt epoch = OptionalInt.empty();
 
         if (logOptional.isPresent()) {
-            Option<LeaderEpochFileCache> leaderEpochCache = logOptional.get().leaderEpochCache();
-            if (leaderEpochCache != null && leaderEpochCache.isDefined()) {
+            Optional<LeaderEpochFileCache> leaderEpochCache = logOptional.get().leaderEpochCache();
+            if (leaderEpochCache != null && leaderEpochCache.isPresent()) {
                 epoch = leaderEpochCache.get().epochForOffset(offset);
             }
         }
@@ -1819,7 +1819,7 @@ public class RemoteLogManager implements Closeable {
                                             UnifiedLog log) throws RemoteStorageException {
         TopicPartition tp = segmentMetadata.topicIdPartition().topicPartition();
         boolean isSearchComplete = false;
-        LeaderEpochFileCache leaderEpochCache = log.leaderEpochCache().getOrElse(null);
+        LeaderEpochFileCache leaderEpochCache = log.leaderEpochCache().orElse(null);
         Optional<RemoteLogSegmentMetadata> currentMetadataOpt = Optional.of(segmentMetadata);
         while (!isSearchComplete && currentMetadataOpt.isPresent()) {
             RemoteLogSegmentMetadata currentMetadata = currentMetadataOpt.get();
@@ -1866,7 +1866,7 @@ public class RemoteLogManager implements Closeable {
 
     // visible for testing.
     Optional<RemoteLogSegmentMetadata> findNextSegmentMetadata(RemoteLogSegmentMetadata segmentMetadata,
-                                                               Option<LeaderEpochFileCache> leaderEpochFileCacheOption) throws RemoteStorageException {
+                                                               Optional<LeaderEpochFileCache> leaderEpochFileCacheOption) throws RemoteStorageException {
         if (leaderEpochFileCacheOption.isEmpty()) {
             return Optional.empty();
         }
@@ -1933,8 +1933,8 @@ public class RemoteLogManager implements Closeable {
 
     OffsetAndEpoch findHighestRemoteOffset(TopicIdPartition topicIdPartition, UnifiedLog log) throws RemoteStorageException {
         OffsetAndEpoch offsetAndEpoch = null;
-        Option<LeaderEpochFileCache> leaderEpochCacheOpt = log.leaderEpochCache();
-        if (leaderEpochCacheOpt.isDefined()) {
+        Optional<LeaderEpochFileCache> leaderEpochCacheOpt = log.leaderEpochCache();
+        if (leaderEpochCacheOpt.isPresent()) {
             LeaderEpochFileCache cache = leaderEpochCacheOpt.get();
             Optional<EpochEntry> maybeEpochEntry = cache.latestEntry();
             while (offsetAndEpoch == null && maybeEpochEntry.isPresent()) {
@@ -1966,8 +1966,8 @@ public class RemoteLogManager implements Closeable {
 
     long findLogStartOffset(TopicIdPartition topicIdPartition, UnifiedLog log) throws RemoteStorageException {
         Optional<Long> logStartOffset = Optional.empty();
-        Option<LeaderEpochFileCache> maybeLeaderEpochFileCache = log.leaderEpochCache();
-        if (maybeLeaderEpochFileCache.isDefined()) {
+        Optional<LeaderEpochFileCache> maybeLeaderEpochFileCache = log.leaderEpochCache();
+        if (maybeLeaderEpochFileCache.isPresent()) {
             LeaderEpochFileCache cache = maybeLeaderEpochFileCache.get();
             OptionalInt earliestEpochOpt = cache.earliestEntry()
                     .map(epochEntry -> OptionalInt.of(epochEntry.epoch))

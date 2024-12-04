@@ -20,17 +20,16 @@ import org.apache.kafka.common.Uuid;
 import org.apache.kafka.common.utils.LogContext;
 import org.apache.kafka.common.utils.Time;
 import org.apache.kafka.common.utils.Timer;
+import org.apache.kafka.raft.VotingState.VoterState.State;
 
 import org.slf4j.Logger;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class CandidateState implements EpochState {
+public class CandidateState implements VotingState {
     private final int localId;
     private final Uuid localDirectoryId;
     private final int epoch;
@@ -45,10 +44,10 @@ public class CandidateState implements EpochState {
     /**
      * The lifetime of a candidate state is the following.
      *
-     *  1. Once started, it would keep record of the received votes.
-     *  2. If majority votes granted, it can then end its life and will be replaced by a leader state;
-     *  3. If majority votes rejected or election timed out, it would transit into a backing off phase;
-     *     after the backoff phase completes, it would end its left and be replaced by a new candidate state with bumped retry.
+     *  1. Once started, it will keep record of the received votes.
+     *  2. If majority votes granted, it will transition to leader state.
+     *  3. If majority votes rejected or election timed out, it will enter a backing off phase;
+     *     after the backoff phase completes, it will be replaced by a new candidate state with bumped retry.
      */
     private boolean isBackingOff;
 
@@ -95,18 +94,23 @@ public class CandidateState implements EpochState {
         return localId;
     }
 
-    public int majoritySize() {
-        return voteStates.size() / 2 + 1;
+    @Override
+    public Map<Integer, VoterState> voteStates() {
+        return voteStates;
     }
 
-    private long numGranted() {
-        return votersInState(State.GRANTED).count();
-    }
-
-    private long numUnrecorded() {
-        return votersInState(State.UNRECORDED).count();
-    }
-
+//    public int majoritySize() {
+//        return voteStates.size() / 2 + 1;
+//    }
+//
+//    public long numGranted() {
+//        return votersInState(State.GRANTED).count();
+//    }
+//
+//    public long numUnrecorded() {
+//        return votersInState(State.UNRECORDED).count();
+//    }
+//
     /**
      * Check if the candidate is backing off for the next election
      */
@@ -192,34 +196,34 @@ public class CandidateState implements EpochState {
         this.isBackingOff = true;
     }
 
-    /**
-     * Get the set of voters which have not been counted as granted or rejected yet.
-     *
-     * @return The set of unrecorded voters
-     */
-    public Set<ReplicaKey> unrecordedVoters() {
-        return votersInState(State.UNRECORDED).collect(Collectors.toSet());
-    }
+//    /**
+//     * Get the set of voters which have not been counted as granted or rejected yet.
+//     *
+//     * @return The set of unrecorded voters
+//     */
+//    public Set<ReplicaKey> unrecordedVoters() {
+//        return votersInState(State.UNRECORDED).collect(Collectors.toSet());
+//    }
 
-    /**
-     * Get the set of voters that have granted our vote requests.
-     *
-     * @return The set of granting voters, which should always contain the ID of the candidate
-     */
-    public Set<Integer> grantingVoters() {
-        return votersInState(State.GRANTED).map(ReplicaKey::id).collect(Collectors.toSet());
-    }
+//    /**
+//     * Get the set of voters that have granted our vote requests.
+//     *
+//     * @return The set of granting voters, which should always contain the ID of the candidate
+//     */
+//    public Set<Integer> grantingVoters() {
+//        return votersInState(State.GRANTED).map(ReplicaKey::id).collect(Collectors.toSet());
+//    }
+//
+//    /**
+//     * Get the set of voters that have rejected our candidacy.
+//     *
+//     * @return The set of rejecting voters
+//     */
+//    public Set<Integer> rejectingVoters() {
+//        return votersInState(State.REJECTED).map(ReplicaKey::id).collect(Collectors.toSet());
+//    }
 
-    /**
-     * Get the set of voters that have rejected our candidacy.
-     *
-     * @return The set of rejecting voters
-     */
-    public Set<Integer> rejectingVoters() {
-        return votersInState(State.REJECTED).map(ReplicaKey::id).collect(Collectors.toSet());
-    }
-
-    private Stream<ReplicaKey> votersInState(State state) {
+    public Stream<ReplicaKey> votersInState(State state) {
         return voteStates
             .values()
             .stream()
@@ -227,27 +231,31 @@ public class CandidateState implements EpochState {
             .map(VoterState::replicaKey);
     }
 
+    @Override
     public boolean hasElectionTimeoutExpired(long currentTimeMs) {
         electionTimer.update(currentTimeMs);
         return electionTimer.isExpired();
     }
 
+    @Override
+    public long remainingElectionTimeMs(long currentTimeMs) {
+        electionTimer.update(currentTimeMs);
+        return electionTimer.remainingMs();
+    }
+
+    @Override
     public boolean isBackoffComplete(long currentTimeMs) {
         backoffTimer.update(currentTimeMs);
         return backoffTimer.isExpired();
     }
 
+    @Override
     public long remainingBackoffMs(long currentTimeMs) {
         if (!isBackingOff) {
             throw new IllegalStateException("Candidate is not currently backing off");
         }
         backoffTimer.update(currentTimeMs);
         return backoffTimer.remainingMs();
-    }
-
-    public long remainingElectionTimeMs(long currentTimeMs) {
-        electionTimer.update(currentTimeMs);
-        return electionTimer.remainingMs();
     }
 
     @Override
@@ -275,7 +283,7 @@ public class CandidateState implements EpochState {
     }
 
     @Override
-    public boolean canGrantVote(
+    public boolean canGrantVote(// maybe this needs to grant prevotes
         ReplicaKey replicaKey,
         boolean isLogUpToDate
     ) {
@@ -326,30 +334,30 @@ public class CandidateState implements EpochState {
     @Override
     public void close() {}
 
-    private static final class VoterState {
-        private final ReplicaKey replicaKey;
-        private State state = State.UNRECORDED;
-
-        private VoterState(ReplicaKey replicaKey) {
-            this.replicaKey = replicaKey;
-        }
-
-        public State state() {
-            return state;
-        }
-
-        public void setState(State state) {
-            this.state = state;
-        }
-
-        public ReplicaKey replicaKey() {
-            return replicaKey;
-        }
-    }
-
-    private enum State {
-        UNRECORDED,
-        GRANTED,
-        REJECTED
-    }
+//    private static final class VoterState {
+//        private final ReplicaKey replicaKey;
+//        private State state = State.UNRECORDED;
+//
+//        private VoterState(ReplicaKey replicaKey) {
+//            this.replicaKey = replicaKey;
+//        }
+//
+//        public State state() {
+//            return state;
+//        }
+//
+//        public void setState(State state) {
+//            this.state = state;
+//        }
+//
+//        public ReplicaKey replicaKey() {
+//            return replicaKey;
+//        }
+//    }
+//
+//    private enum State {
+//        UNRECORDED,
+//        GRANTED,
+//        REJECTED
+//    }
 }

@@ -130,8 +130,7 @@ public class CommonClientConfigs {
     public static final String METRICS_CONTEXT_PREFIX = "metrics.context.";
 
     public static final String SECURITY_PROTOCOL_CONFIG = "security.protocol";
-    public static final String SECURITY_PROTOCOL_DOC = "Protocol used to communicate with brokers. Valid values are: " +
-        String.join(", ", SecurityProtocol.names()) + ".";
+    public static final String SECURITY_PROTOCOL_DOC = "Protocol used to communicate with brokers.";
     public static final String DEFAULT_SECURITY_PROTOCOL = "PLAINTEXT";
 
     public static final String SOCKET_CONNECTION_SETUP_TIMEOUT_MS_CONFIG = "socket.connection.setup.timeout.ms";
@@ -230,8 +229,15 @@ public class CommonClientConfigs {
             "Brokers appear unavailable when disconnected and no current retry attempt is in-progress. " +
             "Consider increasing <code>reconnect.backoff.ms</code> and <code>reconnect.backoff.max.ms</code> and " +
             "decreasing <code>socket.connection.setup.timeout.ms</code> and <code>socket.connection.setup.timeout.max.ms</code> " +
-            "for the client.";
-    public static final String DEFAULT_METADATA_RECOVERY_STRATEGY = MetadataRecoveryStrategy.NONE.name;
+            "for the client. Rebootstrap is also triggered if connection cannot be established to any of the brokers for " +
+            "<code>metadata.recovery.rebootstrap.trigger.ms</code> milliseconds or if server requests rebootstrap.";
+    public static final String DEFAULT_METADATA_RECOVERY_STRATEGY = MetadataRecoveryStrategy.REBOOTSTRAP.name;
+
+    public static final String METADATA_RECOVERY_REBOOTSTRAP_TRIGGER_MS_CONFIG = "metadata.recovery.rebootstrap.trigger.ms";
+    public static final String METADATA_RECOVERY_REBOOTSTRAP_TRIGGER_MS_DOC = "If a client configured to rebootstrap using " +
+            "<code>metadata.recovery.strategy=rebootstrap</code> is unable to obtain metadata from any of the brokers in the last known " +
+            "metadata for this interval, client repeats the bootstrap process using <code>bootstrap.servers</code> configuration.";
+    public static final long DEFAULT_METADATA_RECOVERY_REBOOTSTRAP_TRIGGER_MS = 300 * 1000;
 
     /**
      * Postprocess the configuration so that exponential backoff is disabled when reconnect backoff

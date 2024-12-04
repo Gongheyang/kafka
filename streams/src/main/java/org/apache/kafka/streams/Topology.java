@@ -34,7 +34,7 @@ import org.apache.kafka.streams.processor.internals.ProcessorNode;
 import org.apache.kafka.streams.processor.internals.ProcessorTopology;
 import org.apache.kafka.streams.processor.internals.SinkNode;
 import org.apache.kafka.streams.processor.internals.SourceNode;
-import org.apache.kafka.streams.processor.internals.StoreBuilderWrapper;
+import org.apache.kafka.streams.processor.internals.StoreDelegatingProcessorSupplier;
 import org.apache.kafka.streams.state.StoreBuilder;
 
 import java.util.Set;
@@ -714,8 +714,10 @@ public class Topology {
     public synchronized <KIn, VIn, KOut, VOut> Topology addProcessor(final String name,
                                                                      final ProcessorSupplier<KIn, VIn, KOut, VOut> supplier,
                                                                      final String... parentNames) {
-        internalTopologyBuilder.addProcessor(name, supplier, parentNames);
-        final Set<StoreBuilder<?>> stores = supplier.stores();
+        final ProcessorSupplier<KIn, VIn, KOut, VOut> wrapped = internalTopologyBuilder.wrapProcessorSupplier(name, supplier);
+        internalTopologyBuilder.addProcessor(name, wrapped, parentNames);
+        final Set<StoreBuilder<?>> stores = wrapped.stores();
+
         if (stores != null) {
             for (final StoreBuilder<?> storeBuilder : stores) {
                 internalTopologyBuilder.addStateStore(storeBuilder, name);
@@ -851,14 +853,13 @@ public class Topology {
                                                            final String processorName,
                                                            final ProcessorSupplier<KIn, VIn, Void, Void> stateUpdateSupplier) {
         internalTopologyBuilder.addGlobalStore(
-            new StoreBuilderWrapper(storeBuilder),
             sourceName,
             null,
             keyDeserializer,
             valueDeserializer,
             topic,
             processorName,
-            stateUpdateSupplier,
+            new StoreDelegatingProcessorSupplier<>(stateUpdateSupplier, Set.of(storeBuilder)),
             true
         );
         return this;
@@ -897,14 +898,13 @@ public class Topology {
                                                            final String processorName,
                                                            final ProcessorSupplier<KIn, VIn, Void, Void> stateUpdateSupplier) {
         internalTopologyBuilder.addGlobalStore(
-            new StoreBuilderWrapper(storeBuilder),
             sourceName,
             timestampExtractor,
             keyDeserializer,
             valueDeserializer,
             topic,
             processorName,
-            stateUpdateSupplier,
+            new StoreDelegatingProcessorSupplier<>(stateUpdateSupplier, Set.of(storeBuilder)),
             true
         );
         return this;

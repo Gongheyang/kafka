@@ -23,7 +23,7 @@ import org.apache.kafka.clients.consumer.ConsumerRebalanceListener;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.InvalidOffsetException;
-import org.apache.kafka.clients.consumer.OffsetResetStrategy;
+import org.apache.kafka.clients.consumer.internals.AutoOffsetResetStrategy;
 import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.KafkaFuture;
 import org.apache.kafka.common.Metric;
@@ -46,8 +46,8 @@ import org.apache.kafka.streams.ThreadMetadata;
 import org.apache.kafka.streams.errors.StreamsException;
 import org.apache.kafka.streams.errors.TaskCorruptedException;
 import org.apache.kafka.streams.errors.TaskMigratedException;
-import org.apache.kafka.streams.internals.StreamsConfigUtils;
 import org.apache.kafka.streams.internals.metrics.ClientMetrics;
+import org.apache.kafka.streams.internals.metrics.StreamsThreadMetricsDelegatingReporter;
 import org.apache.kafka.streams.processor.StandbyUpdateListener;
 import org.apache.kafka.streams.processor.StateRestoreListener;
 import org.apache.kafka.streams.processor.TaskId;
@@ -80,12 +80,14 @@ import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 import static org.apache.kafka.streams.internals.StreamsConfigUtils.eosEnabled;
-import static org.apache.kafka.streams.internals.StreamsConfigUtils.processingMode;
 import static org.apache.kafka.streams.processor.internals.ClientUtils.adminClientId;
 import static org.apache.kafka.streams.processor.internals.ClientUtils.consumerClientId;
 import static org.apache.kafka.streams.processor.internals.ClientUtils.restoreConsumerClientId;
 
 public class StreamThread extends Thread implements ProcessingThread {
+
+    private static final String THREAD_ID_SUBSTRING = "-StreamThread-";
+    private static final String STATE_UPDATER_ID_SUBSTRING = "-StateUpdater-";
 
     /**
      * Stream thread states are the possible states that a stream thread can be in.
@@ -342,7 +344,6 @@ public class StreamThread extends Thread implements ProcessingThread {
     private final AtomicLong cacheResizeSize = new AtomicLong(-1L);
     private final AtomicBoolean leaveGroupRequested = new AtomicBoolean(false);
     private final boolean eosEnabled;
-    private final StreamsConfigUtils.ProcessingMode processingMode;
     private final boolean stateUpdaterEnabled;
     private final boolean processingThreadsEnabled;
 
@@ -367,10 +368,16 @@ public class StreamThread extends Thread implements ProcessingThread {
                                       final int threadIdx,
                                       final Runnable shutdownErrorHook,
                                       final BiConsumer<Throwable, Boolean> streamsUncaughtExceptionHandler) {
-        final String threadId = clientId + "-StreamThread-" + threadIdx;
+
+        final boolean stateUpdaterEnabled = InternalConfig.stateUpdaterEnabled(config.originals());
+
+        final String threadId = clientId + THREAD_ID_SUBSTRING + threadIdx;
+        final String stateUpdaterId = threadId.replace(THREAD_ID_SUBSTRING, STATE_UPDATER_ID_SUBSTRING);
+        final String restorationThreadId = stateUpdaterEnabled ? stateUpdaterId : threadId;
 
         final String logPrefix = String.format("stream-thread [%s] ", threadId);
         final LogContext logContext = new LogContext(logPrefix);
+        final LogContext restorationLogContext = stateUpdaterEnabled ? new LogContext(String.format("state-updater [%s] ", restorationThreadId)) : logContext;
         final Logger log = logContext.logger(StreamThread.class);
 
         final ReferenceContainer referenceContainer = new ReferenceContainer();
@@ -380,13 +387,13 @@ public class StreamThread extends Thread implements ProcessingThread {
         referenceContainer.clientTags = config.getClientTags();
 
         log.info("Creating restore consumer client");
-        final Map<String, Object> restoreConsumerConfigs = config.getRestoreConsumerConfigs(restoreConsumerClientId(threadId));
+        final Map<String, Object> restoreConsumerConfigs = config.getRestoreConsumerConfigs(restoreConsumerClientId(restorationThreadId));
         final Consumer<byte[], byte[]> restoreConsumer = clientSupplier.getRestoreConsumer(restoreConsumerConfigs);
 
         final StoreChangelogReader changelogReader = new StoreChangelogReader(
             time,
             config,
-            logContext,
+            restorationLogContext,
             adminClient,
             restoreConsumer,
             userStateRestoreListener,
@@ -395,7 +402,6 @@ public class StreamThread extends Thread implements ProcessingThread {
 
         final ThreadCache cache = new ThreadCache(logContext, cacheSizeBytes, streamsMetrics);
 
-        final boolean stateUpdaterEnabled = InternalConfig.stateUpdaterEnabled(config.originals());
         final boolean proceessingThreadsEnabled = InternalConfig.processingThreadsEnabled(config.originals());
         final ActiveTaskCreator activeTaskCreator = new ActiveTaskCreator(
             topologyMetadata,
@@ -473,6 +479,9 @@ public class StreamThread extends Thread implements ProcessingThread {
         taskManager.setMainConsumer(mainConsumer);
         referenceContainer.mainConsumer = mainConsumer;
 
+        final StreamsThreadMetricsDelegatingReporter reporter = new StreamsThreadMetricsDelegatingReporter(mainConsumer, threadId, stateUpdaterId);
+        streamsMetrics.metricsRegistry().addReporter(reporter);
+
         final StreamThread streamThread = new StreamThread(
             time,
             config,
@@ -533,7 +542,7 @@ public class StreamThread extends Thread implements ProcessingThread {
                                                                 final String clientId,
                                                                 final int threadIdx) {
         if (stateUpdaterEnabled) {
-            final String name = clientId + "-StateUpdater-" + threadIdx;
+            final String name = clientId + STATE_UPDATER_ID_SUBSTRING + threadIdx;
             final StateUpdater stateUpdater = new DefaultStateUpdater(
                 name,
                 streamsMetrics.metricsRegistry(),
@@ -605,6 +614,14 @@ public class StreamThread extends Thread implements ProcessingThread {
             streamsMetrics,
             time.milliseconds()
         );
+        ThreadMetrics.addThreadStateTelemetryMetric(
+            threadId,
+            streamsMetrics,
+            (metricConfig, now) -> this.state().ordinal());
+        ThreadMetrics.addThreadStateMetric(
+            threadId,
+            streamsMetrics,
+            (metricConfig, now) -> this.state());
         ThreadMetrics.addThreadBlockedTimeMetric(
             threadId,
             new StreamThreadTotalBlockedTime(
@@ -640,7 +657,6 @@ public class StreamThread extends Thread implements ProcessingThread {
 
         this.numIterations = 1;
         this.eosEnabled = eosEnabled(config);
-        this.processingMode = processingMode(config);
         this.stateUpdaterEnabled = InternalConfig.stateUpdaterEnabled(config.originals());
         this.processingThreadsEnabled = InternalConfig.processingThreadsEnabled(config.originals());
         this.logSummaryIntervalMs = config.getLong(StreamsConfig.LOG_SUMMARY_INTERVAL_MS_CONFIG);
@@ -1278,29 +1294,26 @@ public class StreamThread extends Thread implements ProcessingThread {
         final Set<TopicPartition> notReset = new HashSet<>();
 
         for (final TopicPartition partition : partitions) {
-            final OffsetResetStrategy offsetResetStrategy = topologyMetadata.offsetResetStrategy(partition.topic());
+            final AutoOffsetResetStrategy offsetResetStrategy = topologyMetadata.offsetResetStrategy(partition.topic());
 
             // This may be null if the task we are currently processing was apart of a named topology that was just removed.
             // TODO KAFKA-13713: keep the StreamThreads and TopologyMetadata view of named topologies in sync until final thread has acked
             if (offsetResetStrategy != null) {
-                switch (offsetResetStrategy) {
-                    case EARLIEST:
-                        addToResetList(partition, seekToBeginning, "Setting topic '{}' to consume from {} offset", "earliest", loggedTopics);
-                        break;
-                    case LATEST:
-                        addToResetList(partition, seekToEnd, "Setting topic '{}' to consume from {} offset", "latest", loggedTopics);
-                        break;
-                    case NONE:
-                        if ("earliest".equals(originalReset)) {
-                            addToResetList(partition, seekToBeginning, "No custom setting defined for topic '{}' using original config '{}' for offset reset", "earliest", loggedTopics);
-                        } else if ("latest".equals(originalReset)) {
-                            addToResetList(partition, seekToEnd, "No custom setting defined for topic '{}' using original config '{}' for offset reset", "latest", loggedTopics);
-                        } else {
-                            notReset.add(partition);
-                        }
-                        break;
-                    default:
-                        throw new IllegalStateException("Unable to locate topic " + partition.topic() + " in the topology");
+                if (offsetResetStrategy == AutoOffsetResetStrategy.EARLIEST) {
+                    addToResetList(partition, seekToBeginning, "Setting topic '{}' to consume from {} offset", "earliest", loggedTopics);
+                } else if (offsetResetStrategy == AutoOffsetResetStrategy.LATEST) {
+                    addToResetList(partition, seekToEnd, "Setting topic '{}' to consume from {} offset", "latest", loggedTopics);
+                } else if (offsetResetStrategy == AutoOffsetResetStrategy.NONE) {
+                    final AutoOffsetResetStrategy autoOffsetResetStrategy = AutoOffsetResetStrategy.fromString(originalReset);
+                    if (AutoOffsetResetStrategy.EARLIEST == autoOffsetResetStrategy) {
+                        addToResetList(partition, seekToBeginning, "No custom setting defined for topic '{}' using original config '{}' for offset reset", "earliest", loggedTopics);
+                    } else if (AutoOffsetResetStrategy.LATEST == autoOffsetResetStrategy) {
+                        addToResetList(partition, seekToEnd, "No custom setting defined for topic '{}' using original config '{}' for offset reset", "latest", loggedTopics);
+                    } else {
+                        notReset.add(partition);
+                    }
+                } else {
+                    throw new IllegalStateException("Unable to locate topic " + partition.topic() + " in the topology");
                 }
             }
         }

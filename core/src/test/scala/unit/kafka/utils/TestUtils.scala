@@ -106,6 +106,10 @@ object TestUtils extends Logging {
   val MockZkPort = 1
   /** ZooKeeper connection string to use for unit tests that mock/don't require a real ZK server. */
   val MockZkConnect = "127.0.0.1:" + MockZkPort
+
+  val MockKraftPort = 1
+
+  val MockKraftConnect = "127.0.0.1:" + MockKraftPort
   // CN in SSL certificates - this is used for endpoint validation when enabled
   val SslCertificateCn = "localhost"
 
@@ -496,6 +500,23 @@ object TestUtils extends Logging {
     )
   }
 
+  def createTransactionStateTopicWithAdmin[B <: KafkaBroker](
+    admin: Admin,
+    brokers: Seq[B],
+    controllers: Seq[ControllerServer]
+  ): Map[Int, Int] = {
+    val broker = brokers.head
+    createTopicWithAdmin(
+      admin = admin,
+      topic = Topic.TRANSACTION_STATE_TOPIC_NAME,
+      numPartitions = broker.config.getInt(TransactionLogConfig.TRANSACTIONS_TOPIC_PARTITIONS_CONFIG),
+      replicationFactor = broker.config.getShort(TransactionLogConfig.TRANSACTIONS_TOPIC_REPLICATION_FACTOR_CONFIG).toInt,
+      brokers = brokers,
+      controllers = controllers,
+      topicConfig = new Properties(),
+    )
+  }
+
   def deleteTopicWithAdmin[B <: KafkaBroker](
     admin: Admin,
     topic: String,
@@ -662,6 +683,7 @@ object TestUtils extends Logging {
    * Create a consumer with a few pre-configured properties.
    */
   def createConsumer[K, V](brokerList: String,
+                           groupProtocol: GroupProtocol,
                            groupId: String = "group",
                            autoOffsetReset: String = "earliest",
                            enableAutoCommit: Boolean = true,
@@ -671,8 +693,7 @@ object TestUtils extends Logging {
                            trustStoreFile: Option[File] = None,
                            saslProperties: Option[Properties] = None,
                            keyDeserializer: Deserializer[K] = new ByteArrayDeserializer,
-                           valueDeserializer: Deserializer[V] = new ByteArrayDeserializer,
-                           groupProtocol: GroupProtocol = GroupProtocol.CLASSIC): Consumer[K, V] = {
+                           valueDeserializer: Deserializer[V] = new ByteArrayDeserializer): Consumer[K, V] = {
     val consumerProps = new Properties
     consumerProps.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, brokerList)
     consumerProps.put(ConsumerConfig.GROUP_PROTOCOL_CONFIG, groupProtocol.toString)
@@ -1014,8 +1035,8 @@ object TestUtils extends Logging {
     TestUtils.waitUntilTrue(
       () => {
         brokers.forall { broker =>
-          val metadataOffset = broker.asInstanceOf[BrokerServer].sharedServer.loader.lastAppliedOffset()
-          metadataOffset >= controllerOffset
+          val loader = broker.asInstanceOf[BrokerServer].sharedServer.loader
+          loader == null || loader.lastAppliedOffset() >= controllerOffset
         }
       }, msg)
   }
@@ -1303,11 +1324,13 @@ object TestUtils extends Logging {
       brokers: Seq[B],
       topic: String,
       numMessages: Int,
+      groupProtocol: GroupProtocol,
       groupId: String = "group",
       securityProtocol: SecurityProtocol = SecurityProtocol.PLAINTEXT,
       trustStoreFile: Option[File] = None,
       waitTime: Long = JTestUtils.DEFAULT_MAX_WAIT_MS): Seq[ConsumerRecord[Array[Byte], Array[Byte]]] = {
     val consumer = createConsumer(bootstrapServers(brokers, ListenerName.forSecurityProtocol(securityProtocol)),
+      groupProtocol,
       groupId = groupId,
       securityProtocol = securityProtocol,
       trustStoreFile = trustStoreFile)

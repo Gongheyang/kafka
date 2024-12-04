@@ -16,7 +16,7 @@
  */
 package org.apache.kafka.streams.processor.internals;
 
-import org.apache.kafka.clients.consumer.OffsetResetStrategy;
+import org.apache.kafka.clients.consumer.internals.AutoOffsetResetStrategy;
 import org.apache.kafka.common.KafkaFuture;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.internals.KafkaFutureImpl;
@@ -274,11 +274,7 @@ public class TopologyMetadata {
      * @return A boolean indicating if the topology is paused.
      */
     public boolean isPaused(final String topologyName) {
-        if (topologyName == null) {
-            return pausedTopologies.contains(UNNAMED_TOPOLOGY);
-        } else {
-            return pausedTopologies.contains(topologyName);
-        }
+        return pausedTopologies.contains(getTopologyNameOrElseUnnamed(topologyName));
     }
 
     /**
@@ -431,7 +427,7 @@ public class TopologyMetadata {
         return hasNamedTopologies() || evaluateConditionIsTrueForAnyBuilders(InternalTopologyBuilder::hasOffsetResetOverrides);
     }
 
-    public OffsetResetStrategy offsetResetStrategy(final String topic) {
+    public AutoOffsetResetStrategy offsetResetStrategy(final String topic) {
         for (final InternalTopologyBuilder builder : builders.values()) {
             if (builder.containsTopic(topic)) {
                 return builder.offsetResetStrategy(topic);
@@ -463,7 +459,7 @@ public class TopologyMetadata {
 
         applyToEachBuilder(b -> {
             final String patternString = b.sourceTopicPatternString();
-            if (patternString.length() > 0) {
+            if (!patternString.isEmpty()) {
                 patternBuilder.append(patternString).append("|");
             }
         });
@@ -629,11 +625,7 @@ public class TopologyMetadata {
      *         else returns {@code null} if {@code topologyName} is non-null but no such NamedTopology exists
      */
     public InternalTopologyBuilder lookupBuilderForNamedTopology(final String topologyName) {
-        if (topologyName == null) {
-            return builders.get(UNNAMED_TOPOLOGY);
-        } else {
-            return builders.get(topologyName);
-        }
+        return builders.get(getTopologyNameOrElseUnnamed(topologyName));
     }
 
     private boolean evaluateConditionIsTrueForAnyBuilders(final Function<InternalTopologyBuilder, Boolean> condition) {

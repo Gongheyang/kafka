@@ -49,7 +49,7 @@ class DeleteTopicsRequestWithDeletionDisabledTest extends BaseRequestTest {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = Array("zk", "kraft"))
+  @ValueSource(strings = Array("kraft"))
   def testDeleteRecordsRequest(quorum: String): Unit = {
     val topic = "topic-1"
     val request = new DeleteTopicsRequest.Builder(
@@ -71,7 +71,7 @@ class DeleteTopicsRequestWithDeletionDisabledTest extends BaseRequestTest {
     connectAndReceive[DeleteTopicsResponse](
       request,
       controllerSocketServer,
-      if (isKRaftTest()) ListenerName.normalised("CONTROLLER") else listenerName
+      ListenerName.normalised("CONTROLLER")
     )
   }
 

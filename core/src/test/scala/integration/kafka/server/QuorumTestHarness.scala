@@ -22,7 +22,7 @@ import kafka.controller.ControllerEventManager
 import java.io.File
 import java.net.InetSocketAddress
 import java.util
-import java.util.{Collections, Optional, OptionalInt, Properties}
+import java.util.{Collections, Locale, Optional, OptionalInt, Properties, stream}
 import java.util.concurrent.{CompletableFuture, TimeUnit}
 import javax.security.auth.login.Configuration
 import kafka.utils.{CoreUtils, Logging, TestInfoUtils, TestUtils}
@@ -42,8 +42,8 @@ import org.apache.kafka.metadata.storage.Formatter
 import org.apache.kafka.network.SocketServerConfigs
 import org.apache.kafka.queue.KafkaEventQueue
 import org.apache.kafka.raft.QuorumConfig
-import org.apache.kafka.server.ClientMetricsManager
-import org.apache.kafka.server.common.{MetadataVersion, TransactionVersion}
+import org.apache.kafka.server.{ClientMetricsManager, ServerSocketFactory}
+import org.apache.kafka.server.common.{EligibleLeaderReplicasVersion, MetadataVersion, TransactionVersion}
 import org.apache.kafka.server.config.{KRaftConfigs, ServerConfigs, ServerLogConfigs}
 import org.apache.kafka.server.fault.{FaultHandler, MockFaultHandler}
 import org.apache.kafka.server.util.timer.SystemTimer
@@ -51,6 +51,7 @@ import org.apache.zookeeper.client.ZKClientConfig
 import org.apache.zookeeper.{WatchedEvent, Watcher, ZooKeeper}
 import org.junit.jupiter.api.Assertions._
 import org.junit.jupiter.api.{AfterAll, AfterEach, BeforeAll, BeforeEach, Tag, TestInfo}
+import org.junit.jupiter.params.provider.Arguments
 
 import java.nio.file.{Files, Paths}
 import scala.collection.Seq
@@ -137,7 +138,8 @@ class KRaftQuorumImplementation(
       new Metrics(),
       controllerQuorumVotersFuture,
       controllerQuorumVotersFuture.get().values(),
-      faultHandlerFactory
+      faultHandlerFactory,
+      ServerSocketFactory.INSTANCE,
     )
     var broker: BrokerServer = null
     try {
@@ -195,16 +197,21 @@ abstract class QuorumTestHarness extends Logging {
     TestInfoUtils.isKRaft(testInfo)
   }
 
-  def isZkMigrationTest(): Boolean = {
-    TestInfoUtils.isZkMigrationTest(testInfo)
-  }
-
   def isShareGroupTest(): Boolean = {
     TestInfoUtils.isShareGroupTest(testInfo)
   }
 
-  def maybeGroupProtocolSpecified(testInfo: TestInfo): Option[GroupProtocol] = {
+  def maybeGroupProtocolSpecified(): Option[GroupProtocol] = {
     TestInfoUtils.maybeGroupProtocolSpecified(testInfo)
+  }
+
+  def groupProtocolFromTestParameters(): GroupProtocol = {
+    val gp = maybeGroupProtocolSpecified()
+
+    if (gp.isEmpty)
+      throw new IllegalStateException("Please specify the \"groupProtocol\" parameter when writing the test")
+
+    gp.get
   }
 
   def checkIsZKTest(): Unit = {
@@ -369,6 +376,12 @@ abstract class QuorumTestHarness extends Logging {
       } else TransactionVersion.TV_1.featureLevel()
     formatter.setFeatureLevel(TransactionVersion.FEATURE_NAME, transactionVersion)
 
+    val elrVersion =
+      if (TestInfoUtils.isEligibleLeaderReplicasV1Enabled(testInfo)) {
+        EligibleLeaderReplicasVersion.ELRV_1.featureLevel()
+      } else EligibleLeaderReplicasVersion.ELRV_0.featureLevel()
+    formatter.setFeatureLevel(EligibleLeaderReplicasVersion.FEATURE_NAME, elrVersion)
+
     addFormatterSettings(formatter)
     formatter.run()
     val bootstrapMetadata = formatter.bootstrapMetadata()
@@ -387,7 +400,8 @@ abstract class QuorumTestHarness extends Logging {
       new Metrics(),
       controllerQuorumVotersFuture,
       Collections.emptyList(),
-      faultHandlerFactory
+      faultHandlerFactory,
+      ServerSocketFactory.INSTANCE,
     )
     var controllerServer: ControllerServer = null
     try {
@@ -529,4 +543,41 @@ object QuorumTestHarness {
       s"Found ${unexpected.size} unexpected threads during $context: " +
         s"${unexpected.mkString("`", ",", "`")}")
   }
+
+  // We want to test the following combinations:
+  // * KRaft and the classic group protocol
+  // * KRaft and the consumer group protocol
+  def getTestQuorumAndGroupProtocolParametersAll: java.util.stream.Stream[Arguments] = {
+    stream.Stream.of(
+      Arguments.of("kraft", GroupProtocol.CLASSIC.name.toLowerCase(Locale.ROOT)),
+      Arguments.of("kraft", GroupProtocol.CONSUMER.name.toLowerCase(Locale.ROOT))
+    )
+  }
+
+  // For tests that only work with the classic group protocol, we want to test the following combinations:
+  // * KRaft and the classic group protocol
+  def getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly: java.util.stream.Stream[Arguments] = {
+    stream.Stream.of(
+      Arguments.of("kraft", GroupProtocol.CLASSIC.name.toLowerCase(Locale.ROOT))
+    )
+  }
+
+  // For tests that only work with the consumer group protocol, we want to test the following combination:
+  // * KRaft and the consumer group protocol
+  def getTestQuorumAndGroupProtocolParametersConsumerGroupProtocolOnly: stream.Stream[Arguments] = {
+    stream.Stream.of(
+      Arguments.of("kraft", GroupProtocol.CONSUMER.name.toLowerCase(Locale.ROOT))
+    )
+  }
+
+  // The following is for tests that only work with the classic group protocol because of relying on Zookeeper
+  def getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly_ZK_implicit: java.util.stream.Stream[Arguments] = stream.Stream.of(Arguments.of("zk", GroupProtocol.CLASSIC.name.toLowerCase(Locale.ROOT)))
+
+  // The following parameter groups are to *temporarily* avoid bugs with the CONSUMER group protocol Consumer
+  // implementation that would otherwise cause tests to fail.
+  def getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly_KAFKA_16176: stream.Stream[Arguments] = getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly
+  def getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly_KAFKA_17696: stream.Stream[Arguments] = getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly
+  def getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly_KAFKA_17960: stream.Stream[Arguments] = getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly
+  def getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly_KAFKA_17961: stream.Stream[Arguments] = getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly
+  def getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly_KAFKA_17964: stream.Stream[Arguments] = getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly
 }

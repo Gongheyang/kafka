@@ -121,8 +121,6 @@ public class KStreamImpl<K, V> extends AbstractStream<K, V> implements KStream<K
 
     private static final String KEY_SELECT_NAME = "KSTREAM-KEY-SELECT-";
 
-    private static final String TRANSFORM_NAME = "KSTREAM-TRANSFORM-";
-
     private static final String TRANSFORMVALUES_NAME = "KSTREAM-TRANSFORMVALUES-";
 
     private static final String FOREACH_NAME = "KSTREAM-FOREACH-";
@@ -660,10 +658,7 @@ public class KStreamImpl<K, V> extends AbstractStream<K, V> implements KStream<K
             subTopologySourceNodes = this.subTopologySourceNodes;
         }
 
-        final KTableSource<K, V> tableSource = new KTableSource<>(
-            materializedInternal.storeName(),
-            materializedInternal.queryableStoreName()
-        );
+        final KTableSource<K, V> tableSource = new KTableSource<>(materializedInternal);
         final ProcessorParameters<K, V, ?, ?> processorParameters = new ProcessorParameters<>(tableSource, name);
         final GraphNode tableNode = new StreamToTableNode<>(
             name,
@@ -1173,7 +1168,7 @@ public class KStreamImpl<K, V> extends AbstractStream<K, V> implements KStream<K
             bufferStoreName = Optional.of(name + "-Buffer");
             final RocksDBTimeOrderedKeyValueBuffer.Builder<Object, Object> storeBuilder =
                     new RocksDBTimeOrderedKeyValueBuffer.Builder<>(bufferStoreName.get(), joinedInternal.gracePeriod(), name);
-            builder.addStateStore(new StoreBuilderWrapper(storeBuilder));
+            builder.addStateStore(StoreBuilderWrapper.wrapStoreBuilder(storeBuilder));
         }
 
         final ProcessorSupplier<K, V, K, ? extends VR> processorSupplier = new KStreamKTableJoin<>(
@@ -1206,137 +1201,6 @@ public class KStreamImpl<K, V> extends AbstractStream<K, V> implements KStream<K
             allSourceNodes,
             false,
             streamTableJoinNode,
-            builder);
-    }
-
-    @Override
-    @Deprecated
-    public <KR, VR> KStream<KR, VR> transform(final org.apache.kafka.streams.kstream.TransformerSupplier<? super K, ? super V, KeyValue<KR, VR>> transformerSupplier,
-                                              final String... stateStoreNames) {
-        Objects.requireNonNull(transformerSupplier, "transformerSupplier can't be null");
-        final String name = builder.newProcessorName(TRANSFORM_NAME);
-        return flatTransform(new TransformerSupplierAdapter<>(transformerSupplier), Named.as(name), stateStoreNames);
-    }
-
-    @Override
-    @Deprecated
-    public <KR, VR> KStream<KR, VR> transform(final org.apache.kafka.streams.kstream.TransformerSupplier<? super K, ? super V, KeyValue<KR, VR>> transformerSupplier,
-                                              final Named named,
-                                              final String... stateStoreNames) {
-        Objects.requireNonNull(transformerSupplier, "transformerSupplier can't be null");
-        return flatTransform(new TransformerSupplierAdapter<>(transformerSupplier), named, stateStoreNames);
-    }
-
-    @Override
-    @Deprecated
-    public <K1, V1> KStream<K1, V1> flatTransform(final org.apache.kafka.streams.kstream.TransformerSupplier<? super K, ? super V, Iterable<KeyValue<K1, V1>>> transformerSupplier,
-                                                  final String... stateStoreNames) {
-        Objects.requireNonNull(transformerSupplier, "transformerSupplier can't be null");
-        final String name = builder.newProcessorName(TRANSFORM_NAME);
-        return flatTransform(transformerSupplier, Named.as(name), stateStoreNames);
-    }
-
-    @Override
-    @Deprecated
-    public <K1, V1> KStream<K1, V1> flatTransform(final org.apache.kafka.streams.kstream.TransformerSupplier<? super K, ? super V, Iterable<KeyValue<K1, V1>>> transformerSupplier,
-                                                  final Named named,
-                                                  final String... stateStoreNames) {
-        Objects.requireNonNull(transformerSupplier, "transformerSupplier can't be null");
-        Objects.requireNonNull(named, "named can't be null");
-        Objects.requireNonNull(stateStoreNames, "stateStoreNames can't be a null array");
-        ApiUtils.checkSupplier(transformerSupplier);
-        for (final String stateStoreName : stateStoreNames) {
-            Objects.requireNonNull(stateStoreName, "stateStoreNames can't contain `null` as store name");
-        }
-
-        final String name = new NamedInternal(named).name();
-        final StatefulProcessorNode<? super K, ? super V> transformNode = new StatefulProcessorNode<>(
-            name,
-            new ProcessorParameters<>(new KStreamFlatTransform<>(transformerSupplier), name),
-            stateStoreNames);
-        transformNode.keyChangingOperation(true);
-
-        builder.addGraphNode(graphNode, transformNode);
-
-        // cannot inherit key and value serde
-        return new KStreamImpl<>(
-            name,
-            null,
-            null,
-            subTopologySourceNodes,
-            true,
-            transformNode,
-            builder);
-    }
-
-    @Override
-    @Deprecated
-    public <VR> KStream<K, VR> transformValues(final org.apache.kafka.streams.kstream.ValueTransformerSupplier<? super V, ? extends VR> valueTransformerSupplier,
-                                               final String... stateStoreNames) {
-        Objects.requireNonNull(valueTransformerSupplier, "valueTransformerSupplier can't be null");
-        return doTransformValues(
-            toValueTransformerWithKeySupplier(valueTransformerSupplier),
-            NamedInternal.empty(),
-            stateStoreNames);
-    }
-
-    @Override
-    @Deprecated
-    public <VR> KStream<K, VR> transformValues(final org.apache.kafka.streams.kstream.ValueTransformerSupplier<? super V, ? extends VR> valueTransformerSupplier,
-                                               final Named named,
-                                               final String... stateStoreNames) {
-        Objects.requireNonNull(valueTransformerSupplier, "valueTransformerSupplier can't be null");
-        Objects.requireNonNull(named, "named can't be null");
-        return doTransformValues(
-            toValueTransformerWithKeySupplier(valueTransformerSupplier),
-            new NamedInternal(named),
-            stateStoreNames);
-    }
-
-    @Override
-    @Deprecated
-    public <VR> KStream<K, VR> transformValues(final ValueTransformerWithKeySupplier<? super K, ? super V, ? extends VR> valueTransformerSupplier,
-                                               final String... stateStoreNames) {
-        Objects.requireNonNull(valueTransformerSupplier, "valueTransformerSupplier can't be null");
-        return doTransformValues(valueTransformerSupplier, NamedInternal.empty(), stateStoreNames);
-    }
-
-    @Override
-    @Deprecated
-    public <VR> KStream<K, VR> transformValues(final ValueTransformerWithKeySupplier<? super K, ? super V, ? extends VR> valueTransformerSupplier,
-                                               final Named named,
-                                               final String... stateStoreNames) {
-        Objects.requireNonNull(valueTransformerSupplier, "valueTransformerSupplier can't be null");
-        Objects.requireNonNull(named, "named can't be null");
-        return doTransformValues(valueTransformerSupplier, new NamedInternal(named), stateStoreNames);
-    }
-
-    private <VR> KStream<K, VR> doTransformValues(final ValueTransformerWithKeySupplier<? super K, ? super V, ? extends VR> valueTransformerWithKeySupplier,
-                                                  final NamedInternal named,
-                                                  final String... stateStoreNames) {
-        Objects.requireNonNull(stateStoreNames, "stateStoreNames can't be a null array");
-        for (final String stateStoreName : stateStoreNames) {
-            Objects.requireNonNull(stateStoreName, "stateStoreNames can't contain `null` as store name");
-        }
-        ApiUtils.checkSupplier(valueTransformerWithKeySupplier);
-
-        final String name = named.orElseGenerateWithPrefix(builder, TRANSFORMVALUES_NAME);
-        final StatefulProcessorNode<? super K, ? super V> transformNode = new StatefulProcessorNode<>(
-            name,
-            new ProcessorParameters<>(new KStreamTransformValues<>(valueTransformerWithKeySupplier), name),
-            stateStoreNames);
-        transformNode.setValueChangingOperation(true);
-
-        builder.addGraphNode(graphNode, transformNode);
-
-        // cannot inherit value serde
-        return new KStreamImpl<>(
-            name,
-            keySerde,
-            null,
-            subTopologySourceNodes,
-            repartitionRequired,
-            transformNode,
             builder);
     }
 

@@ -54,17 +54,20 @@ versions += [
   apacheds: "2.0.0-M24",
   argparse4j: "0.7.0",
   bcpkix: "1.78.1",
-  caffeine: "2.9.3", // 3.x supports JDK 11 and above
+  // Version >=3.1.2 includes an improvement to prevent hash DOS attacks, 
+  // but currently, tests are failing in >=3.1.2. Therefore, we are temporarily using version 3.1.1. 
+  // The failing tests should be fixed under KAFKA-18089, allowing us to upgrade to >=3.1.2.
+  caffeine: "3.1.1",
   // when updating checkstyle, check whether the exclusion of
   // CVE-2023-2976 and CVE-2020-8908 can be dropped from
   // gradle/resources/dependencycheck-suppressions.xml
-  checkstyle: "8.36.2",
+  checkstyle: project.hasProperty('checkstyleVersion') ? checkstyleVersion : "8.36.2",
   commonsCli: "1.4",
   commonsIo: "2.14.0", // ZooKeeper dependency. Do not use, this is going away.
   commonsValidator: "1.9.0",
   classgraph: "4.8.173",
   dropwizardMetrics: "4.1.12.1",
-  gradle: "8.10",
+  gradle: "8.10.2",
   grgit: "4.1.1",
   httpclient: "4.5.14",
   jackson: "2.16.2",
@@ -108,12 +111,13 @@ versions += [
   kafka_36: "3.6.2",
   kafka_37: "3.7.1",
   kafka_38: "3.8.1",
+  kafka_39: "3.9.0",
   // When updating lz4 make sure the compression levels in org.apache.kafka.common.record.CompressionType are still valid
   lz4: "1.8.0",
   mavenArtifact: "3.9.6",
   metrics: "2.2.0",
   mockito: "5.14.2",
-  netty: "4.1.111.Final",
+  netty: "4.1.115.Final",
   opentelemetryProto: "1.0.0-alpha",
   protobuf: "3.25.5", // a dependency of opentelemetryProto
   pcollections: "4.0.1",
@@ -160,7 +164,7 @@ libs += [
   jacksonDataformatCsv: "com.fasterxml.jackson.dataformat:jackson-dataformat-csv:$versions.jackson",
   jacksonModuleScala: "com.fasterxml.jackson.module:jackson-module-scala_$versions.baseScala:$versions.jackson",
   jacksonJDK8Datatypes: "com.fasterxml.jackson.datatype:jackson-datatype-jdk8:$versions.jackson",
-  jacksonAfterburner: "com.fasterxml.jackson.module:jackson-module-afterburner:$versions.jackson",
+  jacksonBlackbird: "com.fasterxml.jackson.module:jackson-module-blackbird:$versions.jackson",
   jacksonJaxrsJsonProvider: "com.fasterxml.jackson.jaxrs:jackson-jaxrs-json-provider:$versions.jackson",
   jaxAnnotationApi: "javax.annotation:javax.annotation-api:$versions.jaxAnnotation",
   jaxbApi: "javax.xml.bind:jaxb-api:$versions.jaxb",
@@ -208,6 +212,7 @@ libs += [
   kafkaStreams_36: "org.apache.kafka:kafka-streams:$versions.kafka_36",
   kafkaStreams_37: "org.apache.kafka:kafka-streams:$versions.kafka_37",
   kafkaStreams_38: "org.apache.kafka:kafka-streams:$versions.kafka_38",
+  kafkaStreams_39: "org.apache.kafka:kafka-streams:$versions.kafka_39",
   lz4: "org.lz4:lz4-java:$versions.lz4",
   metrics: "com.yammer.metrics:metrics-core:$versions.metrics",
   dropwizardMetrics: "io.dropwizard.metrics:metrics-core:$versions.dropwizardMetrics",

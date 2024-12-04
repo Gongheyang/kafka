@@ -31,7 +31,6 @@ import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.AuthenticationException;
 import org.apache.kafka.common.errors.ClusterAuthorizationException;
 import org.apache.kafka.common.errors.GroupAuthorizationException;
-import org.apache.kafka.common.errors.InvalidPidMappingException;
 import org.apache.kafka.common.errors.InvalidProducerEpochException;
 import org.apache.kafka.common.errors.OutOfOrderSequenceException;
 import org.apache.kafka.common.errors.ProducerFencedException;
@@ -192,7 +191,7 @@ public class TransactionManager {
     private volatile RuntimeException lastError = null;
     private volatile ProducerIdAndEpoch producerIdAndEpoch;
     private volatile boolean transactionStarted = false;
-    private volatile boolean epochBumpRequired = false;
+    private volatile boolean clientSideEpochBumpRequired = false;
     private volatile long latestFinalizedFeaturesEpoch = -1;
     private volatile boolean isTransactionV2Enabled = false;
 
@@ -339,27 +338,24 @@ public class TransactionManager {
         if (!newPartitionsInTransaction.isEmpty())
             enqueueRequest(addPartitionsToTransactionHandler());
 
-        // If the error is an INVALID_PRODUCER_ID_MAPPING error, the server will not accept an EndTxnRequest, so skip
-        // directly to InitProducerId. Otherwise, we must first abort the transaction, because the producer will be
-        // fenced if we directly call InitProducerId.
-        if (!(lastError instanceof InvalidPidMappingException)) {
-            EndTxnRequest.Builder builder = new EndTxnRequest.Builder(
-                    new EndTxnRequestData()
-                            .setTransactionalId(transactionalId)
-                            .setProducerId(producerIdAndEpoch.producerId)
-                            .setProducerEpoch(producerIdAndEpoch.epoch)
-                            .setCommitted(transactionResult.id),
-                    isTransactionV2Enabled
-            );
+        EndTxnRequest.Builder builder = new EndTxnRequest.Builder(
+            new EndTxnRequestData()
+                .setTransactionalId(transactionalId)
+                .setProducerId(producerIdAndEpoch.producerId)
+                .setProducerEpoch(producerIdAndEpoch.epoch)
+                .setCommitted(transactionResult.id),
+            isTransactionV2Enabled
+        );
 
-            EndTxnHandler handler = new EndTxnHandler(builder);
-            enqueueRequest(handler);
-            if (!epochBumpRequired) {
-                return handler.result;
-            }
+        EndTxnHandler handler = new EndTxnHandler(builder);
+        enqueueRequest(handler);
+
+        // If an epoch bump is required for recovery, initialize the transaction after completing the EndTxn request.
+        if (clientSideEpochBumpRequired) {
+            return initializeTransactions(this.producerIdAndEpoch);
         }
 
-        return initializeTransactions(this.producerIdAndEpoch);
+        return handler.result;
     }
 
     public synchronized TransactionalRequestResult sendOffsetsToTransaction(final Map<TopicPartition, OffsetAndMetadata> offsets,
@@ -481,6 +477,26 @@ public class TransactionManager {
         }
     }
 
+    /**
+     * Transitions to an abortable error state if the coordinator can handle an abortable error or
+     * to a fatal error if not.
+     *
+     * @param abortableException    The exception in case of an abortable error.
+     * @param fatalException        The exception in case of a fatal error.
+     */
+    private void transitionToAbortableErrorOrFatalError(
+        RuntimeException abortableException,
+        RuntimeException fatalException
+    ) {
+        if (canHandleAbortableError()) {
+            if (needToTriggerEpochBumpFromClient())
+                clientSideEpochBumpRequired = true;
+            transitionToAbortableError(abortableException);
+        } else {
+            transitionToFatalError(fatalException);
+        }
+    }
+
     // visible for testing
     synchronized boolean isPartitionAdded(TopicPartition partition) {
         return partitionsInTransaction.contains(partition);
@@ -548,8 +564,11 @@ public class TransactionManager {
         this.partitionsWithUnresolvedSequences.clear();
     }
 
-    synchronized void requestEpochBumpForPartition(TopicPartition tp) {
-        epochBumpRequired = true;
+    /**
+     * This method is used to trigger an epoch bump for non-transactional idempotent producers.
+     */
+    synchronized void requestIdempotentEpochBumpForPartition(TopicPartition tp) {
+        clientSideEpochBumpRequired = true;
         this.partitionsToRewriteSequences.add(tp);
     }
 
@@ -568,12 +587,12 @@ public class TransactionManager {
         }
         this.partitionsToRewriteSequences.clear();
 
-        epochBumpRequired = false;
+        clientSideEpochBumpRequired = false;
     }
 
     synchronized void bumpIdempotentEpochAndResetIdIfNeeded() {
         if (!isTransactional()) {
-            if (epochBumpRequired) {
+            if (clientSideEpochBumpRequired) {
                 bumpIdempotentProducerEpoch();
             }
             if (currentState != State.INITIALIZING && !hasProducerId()) {
@@ -679,8 +698,8 @@ public class TransactionManager {
                 || exception instanceof UnsupportedVersionException) {
             transitionToFatalError(exception);
         } else if (isTransactional()) {
-            if (canBumpEpoch() && !isCompleting()) {
-                epochBumpRequired = true;
+            if (needToTriggerEpochBumpFromClient() && !isCompleting()) {
+                clientSideEpochBumpRequired = true;
             }
             transitionToAbortableError(exception);
         }
@@ -703,7 +722,7 @@ public class TransactionManager {
 
             // If we fail with an OutOfOrderSequenceException, we have a gap in the log. Bump the epoch for this
             // partition, which will reset the sequence number to 0 and allow us to continue
-            requestEpochBumpForPartition(batch.topicPartition);
+            requestIdempotentEpochBumpForPartition(batch.topicPartition);
         } else if (exception instanceof UnknownProducerIdException) {
             // If we get an UnknownProducerId for a partition, then the broker has no state for that producer. It will
             // therefore accept a write with sequence number 0. We reset the sequence number for the partition here so
@@ -714,7 +733,7 @@ public class TransactionManager {
         } else {
             if (adjustSequenceNumbers) {
                 if (!isTransactional()) {
-                    requestEpochBumpForPartition(batch.topicPartition);
+                    requestIdempotentEpochBumpForPartition(batch.topicPartition);
                 } else {
                     txnPartitionMap.adjustSequencesDueToFailedBatch(batch);
                 }
@@ -764,21 +783,17 @@ public class TransactionManager {
                         // For the transactional producer, we bump the epoch if possible, otherwise we transition to a fatal error
                         String unackedMessagesErr = "The client hasn't received acknowledgment for some previously " +
                                 "sent messages and can no longer retry them. ";
-                        if (canBumpEpoch()) {
-                            epochBumpRequired = true;
-                            KafkaException exception = new KafkaException(unackedMessagesErr + "It is safe to abort " +
-                                    "the transaction and continue.");
-                            transitionToAbortableError(exception);
-                        } else {
-                            KafkaException exception = new KafkaException(unackedMessagesErr + "It isn't safe to continue.");
-                            transitionToFatalError(exception);
-                        }
+                        KafkaException abortableException = new KafkaException(unackedMessagesErr + "It is safe to abort " +
+                                "the transaction and continue.");
+                        KafkaException fatalException = new KafkaException(unackedMessagesErr + "It isn't safe to continue.");
+
+                        transitionToAbortableErrorOrFatalError(abortableException, fatalException);
                     } else {
                         // For the idempotent producer, bump the epoch
                         log.info("No inflight batches remaining for {}, last ack'd sequence for partition is {}, next sequence is {}. " +
                                         "Going to bump epoch and reset sequence numbers.", topicPartition,
                                 lastAckedSequence(topicPartition).orElse(TxnPartitionEntry.NO_LAST_ACKED_SEQUENCE_NUMBER), sequenceNumber(topicPartition));
-                        requestEpochBumpForPartition(topicPartition);
+                        requestIdempotentEpochBumpForPartition(topicPartition);
                     }
 
                     iter.remove();
@@ -947,7 +962,7 @@ public class TransactionManager {
                 if (isTransactional()) {
                     txnPartitionMap.startSequencesAtBeginning(batch.topicPartition, this.producerIdAndEpoch);
                 } else {
-                    requestEpochBumpForPartition(batch.topicPartition);
+                    requestIdempotentEpochBumpForPartition(batch.topicPartition);
                 }
                 return true;
             }
@@ -955,7 +970,7 @@ public class TransactionManager {
             if (!isTransactional()) {
                 // For the idempotent producer, always retry UNKNOWN_PRODUCER_ID errors. If the batch has the current
                 // producer ID and epoch, request a bump of the epoch. Otherwise just retry the produce.
-                requestEpochBumpForPartition(batch.topicPartition);
+                requestIdempotentEpochBumpForPartition(batch.topicPartition);
                 return true;
             }
         } else if (error == Errors.OUT_OF_ORDER_SEQUENCE_NUMBER) {
@@ -971,7 +986,7 @@ public class TransactionManager {
                 // and wait to see if the sequence resolves
                 if (!hasUnresolvedSequence(batch.topicPartition) ||
                         isNextSequenceForUnresolvedPartition(batch.topicPartition, batch.baseSequence())) {
-                    requestEpochBumpForPartition(batch.topicPartition);
+                    requestIdempotentEpochBumpForPartition(batch.topicPartition);
                 }
                 return true;
             }
@@ -1168,23 +1183,59 @@ public class TransactionManager {
         return result;
     }
 
+    /**
+     * Determines if an epoch bump can be triggered manually based on the api versions.
+     *
+     * <b>NOTE:</b>
+     * This method should only be used for transactional producers.
+     * For non-transactional producers epoch bumping is always allowed.
+     *
+     * <ol>
+     *   <li><b>Client-Triggered Epoch Bump</b>:
+     *          If the coordinator supports epoch bumping (initProducerIdVersion.maxVersion() >= 3),
+     *          client-triggered epoch bumping is allowed, returns true.
+     *          <code>clientSideEpochBumpTriggerRequired</code> must be set to true in this case.</li>
+     *
+     *   <li><b>No Epoch Bump Allowed</b>:
+     *          If the coordinator does not support epoch bumping, returns false.</li>
+     *
+     *   <li><b>Server-Triggered Only</b>:
+     *          When TransactionV2 is enabled, epoch bumping is handled automatically
+     *          by the server in EndTxn, so manual epoch bumping is not required, returns false.</li>
+     * </ol>
+     *
+     * @return true if a client-triggered epoch bump is allowed, otherwise false.
+     */
     // package-private for testing
-    boolean canBumpEpoch() {
-        if (!isTransactional()) {
-            return true;
-        }
+    boolean needToTriggerEpochBumpFromClient() {
+        return coordinatorSupportsBumpingEpoch && !isTransactionV2Enabled;
+    }
 
-        return coordinatorSupportsBumpingEpoch;
+    /**
+     * Determines if the coordinator can handle an abortable error.
+     * Recovering from an abortable error requires an epoch bump which can be triggered by the client
+     * or automatically taken care of at the end of every transaction (Transaction V2).
+     * Use <code>needToTriggerEpochBumpFromClient</code> to check whether the epoch bump needs to be triggered
+     * manually.
+     *
+     * <b>NOTE:</b>
+     * This method should only be used for transactional producers.
+     * There is no concept of abortable errors for idempotent producers.
+     *
+     * @return true if an abortable error can be handled, otherwise false.
+     */
+    boolean canHandleAbortableError() {
+        return coordinatorSupportsBumpingEpoch || isTransactionV2Enabled;
     }
 
     private void completeTransaction() {
-        if (epochBumpRequired) {
+        if (clientSideEpochBumpRequired) {
             transitionTo(State.INITIALIZING);
         } else {
             transitionTo(State.READY);
         }
         lastError = null;
-        epochBumpRequired = false;
+        clientSideEpochBumpRequired = false;
         transactionStarted = false;
         newPartitionsInTransaction.clear();
         pendingPartitionsInTransaction.clear();
@@ -1213,9 +1264,23 @@ public class TransactionManager {
             transitionToAbortableError(e);
         }
 
+        /**
+         * Determines if an error should be treated as abortable or fatal, based on transaction state and configuration.
+         * <ol><l> NOTE: Only use this method for transactional producers </l></ol>
+         *
+         * - <b>Abortable Error</b>:
+         *     An abortable error can be handled effectively, if epoch bumping is supported.
+         *     1) If transactionV2 is enabled, automatic epoch bumping happens at the end of every transaction.
+         *     2) If the client can trigger an epoch bump, the abortable error can be handled.
+         *
+         *- <b>Fatal Error</b>:
+         *      If epoch bumping is not supported, the system cannot recover and the error must be treated as fatal.
+         * @param e the error to determine as either abortable or fatal.
+         */
         void abortableErrorIfPossible(RuntimeException e) {
-            if (canBumpEpoch()) {
-                epochBumpRequired = true;
+            if (canHandleAbortableError()) {
+                if (needToTriggerEpochBumpFromClient())
+                    clientSideEpochBumpRequired = true;
                 abortableError(e);
             } else {
                 fatalError(e);
@@ -1410,7 +1475,7 @@ public class TransactionManager {
                     fatalError(Errors.PRODUCER_FENCED.exception());
                     return;
                 } else if (error == Errors.TRANSACTIONAL_ID_AUTHORIZATION_FAILED ||
-                        error == Errors.INVALID_TXN_STATE) {
+                        error == Errors.INVALID_TXN_STATE || error == Errors.INVALID_PRODUCER_ID_MAPPING) {
                     fatalError(error.exception());
                     return;
                 } else if (error == Errors.TOPIC_AUTHORIZATION_FAILED) {
@@ -1419,7 +1484,7 @@ public class TransactionManager {
                     log.debug("Did not attempt to add partition {} to transaction because other partitions in the " +
                             "batch had errors.", topicPartition);
                     hasPartitionErrors = true;
-                } else if (error == Errors.UNKNOWN_PRODUCER_ID || error == Errors.INVALID_PRODUCER_ID_MAPPING) {
+                } else if (error == Errors.UNKNOWN_PRODUCER_ID) {
                     abortableErrorIfPossible(error.exception());
                     return;
                 } else if (error == Errors.TRANSACTION_ABORTABLE) {
@@ -1595,9 +1660,9 @@ public class TransactionManager {
                 // just treat it the same as PRODUCE_FENCED.
                 fatalError(Errors.PRODUCER_FENCED.exception());
             } else if (error == Errors.TRANSACTIONAL_ID_AUTHORIZATION_FAILED ||
-                    error == Errors.INVALID_TXN_STATE) {
+                    error == Errors.INVALID_TXN_STATE || error == Errors.INVALID_PRODUCER_ID_MAPPING) {
                 fatalError(error.exception());
-            } else if (error == Errors.UNKNOWN_PRODUCER_ID || error == Errors.INVALID_PRODUCER_ID_MAPPING) {
+            } else if (error == Errors.UNKNOWN_PRODUCER_ID) {
                 abortableErrorIfPossible(error.exception());
             } else if (error == Errors.TRANSACTION_ABORTABLE) {
                 abortableError(error.exception());
@@ -1648,14 +1713,14 @@ public class TransactionManager {
                 reenqueue();
             } else if (error.exception() instanceof RetriableException) {
                 reenqueue();
-            } else if (error == Errors.UNKNOWN_PRODUCER_ID || error == Errors.INVALID_PRODUCER_ID_MAPPING) {
+            } else if (error == Errors.UNKNOWN_PRODUCER_ID) {
                 abortableErrorIfPossible(error.exception());
             } else if (error == Errors.INVALID_PRODUCER_EPOCH || error == Errors.PRODUCER_FENCED) {
                 // We could still receive INVALID_PRODUCER_EPOCH from old versioned transaction coordinator,
                 // just treat it the same as PRODUCE_FENCED.
                 fatalError(Errors.PRODUCER_FENCED.exception());
             } else if (error == Errors.TRANSACTIONAL_ID_AUTHORIZATION_FAILED ||
-                    error == Errors.INVALID_TXN_STATE) {
+                    error == Errors.INVALID_TXN_STATE || error == Errors.INVALID_PRODUCER_ID_MAPPING) {
                 fatalError(error.exception());
             } else if (error == Errors.GROUP_AUTHORIZATION_FAILED) {
                 abortableError(GroupAuthorizationException.forGroupId(builder.data.groupId()));

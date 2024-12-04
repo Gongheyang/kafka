@@ -161,7 +161,8 @@ class ControllerServer(
         metrics,
         time,
         credentialProvider,
-        apiVersionManager)
+        apiVersionManager,
+        sharedServer.socketFactory)
 
       val listenerInfo = ListenerInfo
         .create(config.effectiveAdvertisedControllerListeners.map(_.toJava).asJava)
@@ -241,8 +242,7 @@ class ControllerServer(
           setDelegationTokenExpiryTimeMs(config.delegationTokenExpiryTimeMs).
           setDelegationTokenExpiryCheckIntervalMs(config.delegationTokenExpiryCheckIntervalMs).
           setUncleanLeaderElectionCheckIntervalMs(config.uncleanLeaderElectionCheckIntervalMs).
-          setInterBrokerListenerName(config.interBrokerListenerName.value()).
-          setEligibleLeaderReplicasEnabled(config.elrEnabled)
+          setInterBrokerListenerName(config.interBrokerListenerName.value())
       }
       controller = controllerBuilder.build()
 

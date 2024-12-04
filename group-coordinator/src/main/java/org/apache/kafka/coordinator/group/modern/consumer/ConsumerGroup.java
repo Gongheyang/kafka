@@ -26,6 +26,7 @@ import org.apache.kafka.common.errors.UnsupportedVersionException;
 import org.apache.kafka.common.message.ConsumerGroupDescribeResponseData;
 import org.apache.kafka.common.message.ConsumerProtocolSubscription;
 import org.apache.kafka.common.protocol.Errors;
+import org.apache.kafka.common.requests.JoinGroupRequest;
 import org.apache.kafka.coordinator.common.runtime.CoordinatorRecord;
 import org.apache.kafka.coordinator.group.GroupCoordinatorRecordHelpers;
 import org.apache.kafka.coordinator.group.OffsetExpirationCondition;
@@ -45,8 +46,10 @@ import org.apache.kafka.timeline.TimelineInteger;
 import org.apache.kafka.timeline.TimelineObject;
 
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -56,6 +59,7 @@ import java.util.Set;
 
 import static org.apache.kafka.coordinator.group.Utils.toOptional;
 import static org.apache.kafka.coordinator.group.Utils.toTopicPartitionMap;
+import static org.apache.kafka.coordinator.group.classic.ClassicGroupMember.EMPTY_ASSIGNMENT;
 import static org.apache.kafka.coordinator.group.modern.consumer.ConsumerGroup.ConsumerGroupState.ASSIGNING;
 import static org.apache.kafka.coordinator.group.modern.consumer.ConsumerGroup.ConsumerGroupState.EMPTY;
 import static org.apache.kafka.coordinator.group.modern.consumer.ConsumerGroup.ConsumerGroupState.RECONCILING;
@@ -130,6 +134,16 @@ public class ConsumerGroup extends ModernGroup<ConsumerGroupMember> {
      */
     private final TimelineHashMap<Uuid, TimelineHashMap<Integer, Integer>> currentPartitionEpoch;
 
+    /**
+     * The number of members subscribed to each regular expressions.
+     */
+    private final TimelineHashMap<String, Integer> subscribedRegularExpressions;
+
+    /**
+     * The resolved regular expressions.
+     */
+    private final TimelineHashMap<String, ResolvedRegularExpression> resolvedRegularExpressions;
+
     public ConsumerGroup(
         SnapshotRegistry snapshotRegistry,
         String groupId,
@@ -143,6 +157,8 @@ public class ConsumerGroup extends ModernGroup<ConsumerGroupMember> {
         this.numClassicProtocolMembers = new TimelineInteger(snapshotRegistry);
         this.classicProtocolMembersSupportedProtocols = new TimelineHashMap<>(snapshotRegistry, 0);
         this.currentPartitionEpoch = new TimelineHashMap<>(snapshotRegistry, 0);
+        this.subscribedRegularExpressions = new TimelineHashMap<>(snapshotRegistry, 0);
+        this.resolvedRegularExpressions = new TimelineHashMap<>(snapshotRegistry, 0);
     }
 
     /**
@@ -294,6 +310,7 @@ public class ConsumerGroup extends ModernGroup<ConsumerGroupMember> {
         maybeUpdateSubscribedTopicNamesAndGroupSubscriptionType(oldMember, newMember);
         maybeUpdateServerAssignors(oldMember, newMember);
         maybeUpdatePartitionEpoch(oldMember, newMember);
+        maybeUpdateSubscribedRegularExpression(oldMember, newMember);
         updateStaticMember(newMember);
         maybeUpdateGroupState();
         maybeUpdateNumClassicProtocolMembers(oldMember, newMember);
@@ -317,6 +334,7 @@ public class ConsumerGroup extends ModernGroup<ConsumerGroupMember> {
         maybeUpdateSubscribedTopicNamesAndGroupSubscriptionType(oldMember, null);
         maybeUpdateServerAssignors(oldMember, null);
         maybeRemovePartitionEpoch(oldMember);
+        maybeUpdateSubscribedRegularExpression(oldMember, null);
         removeStaticMember(oldMember);
         maybeUpdateGroupState();
         maybeUpdateNumClassicProtocolMembers(oldMember, null);
@@ -332,6 +350,94 @@ public class ConsumerGroup extends ModernGroup<ConsumerGroupMember> {
         if (oldMember != null && oldMember.instanceId() != null) {
             staticMembers.remove(oldMember.instanceId());
         }
+    }
+
+    /**
+     * Update the resolved regular expression.
+     *
+     * @param regex                         The regular expression.
+     * @param newResolvedRegularExpression  The regular expression's metadata.
+     */
+    public void updateResolvedRegularExpression(
+        String regex,
+        ResolvedRegularExpression newResolvedRegularExpression
+    ) {
+        removeResolvedRegularExpression(regex);
+        if (newResolvedRegularExpression != null) {
+            resolvedRegularExpressions.put(regex, newResolvedRegularExpression);
+            newResolvedRegularExpression.topics.forEach(topicName -> subscribedTopicNames.compute(topicName, Utils::incValue));
+        }
+    }
+
+    /**
+     * Remove the resolved regular expression.
+     *
+     * @param regex The regular expression.
+     */
+    public void removeResolvedRegularExpression(String regex) {
+        ResolvedRegularExpression oldResolvedRegularExpression = resolvedRegularExpressions.remove(regex);
+        if (oldResolvedRegularExpression != null) {
+            oldResolvedRegularExpression.topics.forEach(topicName -> subscribedTopicNames.compute(topicName, Utils::decValue));
+        }
+    }
+
+    /**
+     * @return The last time resolved regular expressions were refreshed or Long.MIN_VALUE if
+     * there are no resolved regular expression. Note that we use the timestamp of the first
+     * entry as a proxy for all of them. They are always resolved together.
+     */
+    public long lastResolvedRegularExpressionRefreshTimeMs() {
+        Iterator<ResolvedRegularExpression> iterator = resolvedRegularExpressions.values().iterator();
+        if (iterator.hasNext()) {
+            return iterator.next().timestamp;
+        } else {
+            return Long.MIN_VALUE;
+        }
+    }
+
+    /**
+     * @return The version of the regular expressions or Zero if there are no resolved regular expression.
+     */
+    public long lastResolvedRegularExpressionVersion() {
+        Iterator<ResolvedRegularExpression> iterator = resolvedRegularExpressions.values().iterator();
+        if (iterator.hasNext()) {
+            return iterator.next().version;
+        } else {
+            return 0L;
+        }
+    }
+
+    /**
+     * Return an optional containing the resolved regular expression corresponding to the provided regex
+     * or an empty optional.
+     *
+     * @param regex The regular expression.
+     * @return The optional containing the resolved regular expression or an empty optional.
+     */
+    public Optional<ResolvedRegularExpression> resolvedRegularExpression(String regex) {
+        return Optional.ofNullable(resolvedRegularExpressions.get(regex));
+    }
+
+    /**
+     * @return The number of resolved regular expressions.
+     */
+    public int numResolvedRegularExpressions() {
+        return resolvedRegularExpressions.size();
+    }
+
+    /**
+     * @return The number of members subscribed to the provided regex.
+     */
+    public int numSubscribedMembers(String regex) {
+        return subscribedRegularExpressions.getOrDefault(regex, 0);
+    }
+
+    /**
+     * @return An immutable map containing all the subscribed regular expressions
+     *         with the subscribers counts.
+     */
+    public Map<String, Integer> subscribedRegularExpressions() {
+        return Collections.unmodifiableMap(subscribedRegularExpressions);
     }
 
     /**
@@ -356,6 +462,13 @@ public class ConsumerGroup extends ModernGroup<ConsumerGroupMember> {
     }
 
     /**
+     * @return An immutable Map containing all the resolved regular expressions.
+     */
+    public Map<String, ResolvedRegularExpression> resolvedRegularExpressions() {
+        return Collections.unmodifiableMap(resolvedRegularExpressions);
+    }
+
+    /**
      * Returns the current epoch of a partition or -1 if the partition
      * does not have one.
      *
@@ -365,7 +478,8 @@ public class ConsumerGroup extends ModernGroup<ConsumerGroupMember> {
      * @return The epoch or -1.
      */
     public int currentPartitionEpoch(
-        Uuid topicId, int partitionId
+        Uuid topicId,
+        int partitionId
     ) {
         Map<Integer, Integer> partitions = currentPartitionEpoch.get(topicId);
         if (partitions == null) {
@@ -442,6 +556,12 @@ public class ConsumerGroup extends ModernGroup<ConsumerGroupMember> {
         // or a consumer which does not use the group management facility. In this case,
         // the request can commit offsets if the group is empty.
         if (memberEpoch < 0 && members().isEmpty()) return;
+
+        // The TxnOffsetCommit API does not require the member id, the generation id and the group instance id fields.
+        // Hence, they are only validated if any of them is provided
+        if (isTransactional && memberEpoch == JoinGroupRequest.UNKNOWN_GENERATION_ID &&
+            memberId.equals(JoinGroupRequest.UNKNOWN_MEMBER_ID) && groupInstanceId == null)
+            return;
 
         final ConsumerGroupMember member = getOrMaybeCreateMember(memberId, false);
 
@@ -666,6 +786,26 @@ public class ConsumerGroup extends ModernGroup<ConsumerGroupMember> {
     }
 
     /**
+     * Updates the number of the members that use the regular expression.
+     *
+     * @param oldMember The old member.
+     * @param newMember The new member.
+     */
+    private void maybeUpdateSubscribedRegularExpression(
+        ConsumerGroupMember oldMember,
+        ConsumerGroupMember newMember
+    ) {
+        // Decrement the count of the old regex.
+        if (oldMember != null && oldMember.subscribedTopicRegex() != null && !oldMember.subscribedTopicRegex().isEmpty()) {
+            subscribedRegularExpressions.compute(oldMember.subscribedTopicRegex(), Utils::decValue);
+        }
+        // Increment the count of the new regex.
+        if (newMember != null && newMember.subscribedTopicRegex() != null && !newMember.subscribedTopicRegex().isEmpty()) {
+            subscribedRegularExpressions.compute(newMember.subscribedTopicRegex(), Utils::incValue);
+        }
+    }
+
+    /**
      * Updates the number of the members that use the classic protocol.
      *
      * @param oldMember The old member.
@@ -850,12 +990,22 @@ public class ConsumerGroup extends ModernGroup<ConsumerGroupMember> {
         consumerGroup.setTargetAssignmentEpoch(classicGroup.generationId());
 
         classicGroup.allMembers().forEach(classicGroupMember -> {
-            Map<Uuid, Set<Integer>> assignedPartitions = toTopicPartitionMap(
-                ConsumerProtocol.deserializeConsumerProtocolAssignment(
-                    ByteBuffer.wrap(classicGroupMember.assignment())
-                ),
-                topicsImage
-            );
+            // The assigned partition can be empty if the member just joined and has never synced.
+            // We should accept the empty assignment.
+            Map<Uuid, Set<Integer>> assignedPartitions;
+            if (Arrays.equals(classicGroupMember.assignment(), EMPTY_ASSIGNMENT)) {
+                assignedPartitions = Collections.emptyMap();
+            } else {
+                assignedPartitions = toTopicPartitionMap(
+                    ConsumerProtocol.deserializeConsumerProtocolAssignment(
+                        ByteBuffer.wrap(classicGroupMember.assignment())
+                    ),
+                    topicsImage
+                );
+            }
+
+            // Every member is guaranteed to have metadata set when it joins,
+            // so we don't check for empty subscription here.
             ConsumerProtocolSubscription subscription = ConsumerProtocol.deserializeConsumerProtocolSubscription(
                 ByteBuffer.wrap(classicGroupMember.metadata(classicGroup.protocolName().get()))
             );

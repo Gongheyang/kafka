@@ -37,7 +37,6 @@ import org.apache.kafka.clients.admin.AlterReplicaLogDirsOptions;
 import org.apache.kafka.clients.admin.AlterReplicaLogDirsResult;
 import org.apache.kafka.clients.admin.AlterUserScramCredentialsOptions;
 import org.apache.kafka.clients.admin.AlterUserScramCredentialsResult;
-import org.apache.kafka.clients.admin.Config;
 import org.apache.kafka.clients.admin.CreateAclsOptions;
 import org.apache.kafka.clients.admin.CreateAclsResult;
 import org.apache.kafka.clients.admin.CreateDelegationTokenOptions;
@@ -58,6 +57,8 @@ import org.apache.kafka.clients.admin.DeleteTopicsOptions;
 import org.apache.kafka.clients.admin.DeleteTopicsResult;
 import org.apache.kafka.clients.admin.DescribeAclsOptions;
 import org.apache.kafka.clients.admin.DescribeAclsResult;
+import org.apache.kafka.clients.admin.DescribeClassicGroupsOptions;
+import org.apache.kafka.clients.admin.DescribeClassicGroupsResult;
 import org.apache.kafka.clients.admin.DescribeClientQuotasOptions;
 import org.apache.kafka.clients.admin.DescribeClientQuotasResult;
 import org.apache.kafka.clients.admin.DescribeClusterOptions;
@@ -100,12 +101,12 @@ import org.apache.kafka.clients.admin.ListConsumerGroupOffsetsResult;
 import org.apache.kafka.clients.admin.ListConsumerGroupOffsetsSpec;
 import org.apache.kafka.clients.admin.ListConsumerGroupsOptions;
 import org.apache.kafka.clients.admin.ListConsumerGroupsResult;
+import org.apache.kafka.clients.admin.ListGroupsOptions;
+import org.apache.kafka.clients.admin.ListGroupsResult;
 import org.apache.kafka.clients.admin.ListOffsetsOptions;
 import org.apache.kafka.clients.admin.ListOffsetsResult;
 import org.apache.kafka.clients.admin.ListPartitionReassignmentsOptions;
 import org.apache.kafka.clients.admin.ListPartitionReassignmentsResult;
-import org.apache.kafka.clients.admin.ListShareGroupsOptions;
-import org.apache.kafka.clients.admin.ListShareGroupsResult;
 import org.apache.kafka.clients.admin.ListTopicsOptions;
 import org.apache.kafka.clients.admin.ListTopicsResult;
 import org.apache.kafka.clients.admin.ListTransactionsOptions;
@@ -213,12 +214,6 @@ public class TestingMetricsInterceptingAdminClient extends AdminClient {
     }
 
     @Override
-    @SuppressWarnings("deprecation")
-    public AlterConfigsResult alterConfigs(final Map<ConfigResource, Config> configs, final AlterConfigsOptions options) {
-        return adminDelegate.alterConfigs(configs, options);
-    }
-
-    @Override
     public AlterConfigsResult incrementalAlterConfigs(final Map<ConfigResource, Collection<AlterConfigOp>> configs, final AlterConfigsOptions options) {
         return adminDelegate.incrementalAlterConfigs(configs, options);
     }
@@ -266,6 +261,11 @@ public class TestingMetricsInterceptingAdminClient extends AdminClient {
     @Override
     public DescribeDelegationTokenResult describeDelegationToken(final DescribeDelegationTokenOptions options) {
         return adminDelegate.describeDelegationToken(options);
+    }
+
+    @Override
+    public ListGroupsResult listGroups(final ListGroupsOptions options) {
+        return adminDelegate.listGroups(options);
     }
 
     @Override
@@ -414,18 +414,20 @@ public class TestingMetricsInterceptingAdminClient extends AdminClient {
     }
 
     @Override
-    public ListShareGroupsResult listShareGroups(final ListShareGroupsOptions options) {
-        return adminDelegate.listShareGroups(options);
+    public DescribeClassicGroupsResult describeClassicGroups(final Collection<String> groupIds, final DescribeClassicGroupsOptions options) {
+        return adminDelegate.describeClassicGroups(groupIds, options);
     }
 
     @Override
     public void registerMetricForSubscription(final KafkaMetric metric) {
-        throw new UnsupportedOperationException("not implemented");
+        passedMetrics.add(metric);
+        adminDelegate.registerMetricForSubscription(metric);
     }
 
     @Override
     public void unregisterMetricFromSubscription(final KafkaMetric metric) {
-        throw new UnsupportedOperationException("not implemented");
+        passedMetrics.remove(metric);
+        adminDelegate.unregisterMetricFromSubscription(metric);
     }
 
     @Override

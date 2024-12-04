@@ -20,6 +20,7 @@ package kafka.server
 import java.nio.ByteBuffer
 import java.util.{Collections, Properties}
 import kafka.utils.TestUtils
+import org.apache.kafka.clients.admin.{Admin, TopicDescription}
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.compress.Compression
 import org.apache.kafka.common.config.TopicConfig
@@ -35,7 +36,7 @@ import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.{Arguments, MethodSource}
 import org.junit.jupiter.params.provider.ValueSource
 
-import scala.annotation.nowarn
+import java.util.concurrent.TimeUnit
 import scala.jdk.CollectionConverters._
 
 /**
@@ -47,7 +48,7 @@ class ProduceRequestTest extends BaseRequestTest {
   val metricsKeySet = KafkaYammerMetrics.defaultRegistry.allMetrics.keySet.asScala
 
   @ParameterizedTest
-  @ValueSource(strings = Array("zk", "kraft"))
+  @ValueSource(strings = Array("kraft"))
   def testSimpleProduceRequest(quorum: String): Unit = {
     val (partition, leader) = createTopicAndFindPartitionWithLeader("topic")
 
@@ -84,14 +85,41 @@ class ProduceRequestTest extends BaseRequestTest {
       new SimpleRecord(System.currentTimeMillis(), "key2".getBytes, "value2".getBytes)), 1)
   }
 
-  @ParameterizedTest
+  private def getPartitionToLeader(
+    admin: Admin,
+    topic: String
+  ): Map[Int, Int] = {
+    var topicDescription: TopicDescription = null
+    TestUtils.waitUntilTrue(() => {
+      val topicMap = admin.
+        describeTopics(java.util.Arrays.asList(topic)).
+          allTopicNames().get(10, TimeUnit.MINUTES)
+      topicDescription = topicMap.get(topic)
+      topicDescription != null
+    }, "Timed out waiting to describe topic " + topic)
+    topicDescription.partitions().asScala.map(p => {
+      p.partition() -> p.leader().id()
+    }).toMap
+  }
+
+  @ParameterizedTest(name = "quorum=kraft")
   @MethodSource(Array("timestampConfigProvider"))
   def testProduceWithInvalidTimestamp(messageTimeStampConfig: String, recordTimestamp: Long): Unit = {
     val topic = "topic"
     val partition = 0
     val topicConfig = new Properties
     topicConfig.setProperty(messageTimeStampConfig, "1000")
-    val partitionToLeader = TestUtils.createTopic(zkClient, topic, 1, 1, servers, topicConfig)
+    val admin = createAdminClient()
+    TestUtils.createTopicWithAdmin(
+      admin = admin,
+      topic = topic,
+      brokers = brokers,
+      controllers = controllerServers,
+      numPartitions = 1,
+      replicationFactor = 1,
+      topicConfig = topicConfig
+    )
+    val partitionToLeader = getPartitionToLeader(admin, topic)
     val leader = partitionToLeader(partition)
 
     def createRecords(magicValue: Byte, timestamp: Long, codec: Compression): MemoryRecords = {
@@ -132,13 +160,20 @@ class ProduceRequestTest extends BaseRequestTest {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = Array("zk", "kraft"))
+  @ValueSource(strings = Array("kraft"))
   def testProduceToNonReplica(quorum: String): Unit = {
     val topic = "topic"
     val partition = 0
 
     // Create a single-partition topic and find a broker which is not the leader
-    val partitionToLeader = createTopic(topic)
+    val admin = createAdminClient()
+    TestUtils.createTopicWithAdmin(
+      admin = admin,
+      topic = topic,
+      brokers = brokers,
+      controllers = controllerServers
+    )
+    val partitionToLeader = getPartitionToLeader(admin, topic)
     val leader = partitionToLeader(partition)
     val nonReplicaOpt = brokers.find(_.config.brokerId != leader)
     assertTrue(nonReplicaOpt.isDefined)
@@ -175,7 +210,7 @@ class ProduceRequestTest extends BaseRequestTest {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = Array("zk", "kraft"))
+  @ValueSource(strings = Array("kraft"))
   def testCorruptLz4ProduceRequest(quorum: String): Unit = {
     val (partition, leader) = createTopicAndFindPartitionWithLeader("topic")
     val timestamp = 1000000
@@ -210,7 +245,7 @@ class ProduceRequestTest extends BaseRequestTest {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = Array("zk", "kraft"))
+  @ValueSource(strings = Array("kraft"))
   def testZSTDProduceRequest(quorum: String): Unit = {
     val topic = "topic"
     val partition = 0
@@ -263,11 +298,9 @@ class ProduceRequestTest extends BaseRequestTest {
 
 object ProduceRequestTest {
 
-  @nowarn("cat=deprecation") // See `TopicConfig.MESSAGE_FORMAT_VERSION_CONFIG` for deprecation details
   def timestampConfigProvider: java.util.stream.Stream[Arguments] = {
     val fiveMinutesInMs: Long = 5 * 60 * 60 * 1000L
     java.util.stream.Stream.of[Arguments](
-      Arguments.of(TopicConfig.MESSAGE_TIMESTAMP_DIFFERENCE_MAX_MS_CONFIG, Long.box(System.currentTimeMillis() - fiveMinutesInMs)),
       Arguments.of(TopicConfig.MESSAGE_TIMESTAMP_BEFORE_MAX_MS_CONFIG, Long.box(System.currentTimeMillis() - fiveMinutesInMs)),
       Arguments.of(TopicConfig.MESSAGE_TIMESTAMP_AFTER_MAX_MS_CONFIG, Long.box(System.currentTimeMillis() + fiveMinutesInMs))
     )

@@ -48,6 +48,8 @@ public class TestKitNodes {
     public static final int BROKER_ID_OFFSET = 0;
     public static final SecurityProtocol DEFAULT_BROKER_SECURITY_PROTOCOL = SecurityProtocol.PLAINTEXT;
     public static final String DEFAULT_BROKER_LISTENER_NAME = "EXTERNAL";
+    public static final SecurityProtocol DEFAULT_CONTROLLER_SECURITY_PROTOCOL = SecurityProtocol.PLAINTEXT;
+    public static final String DEFAULT_CONTROLLER_LISTENER_NAME = "CONTROLLER";
 
     public static class Builder {
         private boolean combined;
@@ -57,12 +59,21 @@ public class TestKitNodes {
         private int numBrokerNodes;
         private int numDisksPerBroker = 1;
         private Map<Integer, Map<String, String>> perServerProperties = Collections.emptyMap();
-        private BootstrapMetadata bootstrapMetadata = BootstrapMetadata.
-            fromVersion(MetadataVersion.latestTesting(), "testkit");
-        // The brokerListenerName and brokerSecurityProtocol configurations must
+        private BootstrapMetadata bootstrapMetadata;
+
+        public Builder() {
+            this(BootstrapMetadata.fromVersion(MetadataVersion.latestTesting(), "testkit"));
+        }
+
+        public Builder(BootstrapMetadata bootstrapMetadata) {
+            this.bootstrapMetadata = bootstrapMetadata;
+        }
+        // The broker and controller listener name and SecurityProtocol configurations must
         // be kept in sync with the default values in ClusterTest.
         private ListenerName brokerListenerName = ListenerName.normalised(DEFAULT_BROKER_LISTENER_NAME);
         private SecurityProtocol brokerSecurityProtocol = DEFAULT_BROKER_SECURITY_PROTOCOL;
+        private ListenerName controllerListenerName = ListenerName.normalised(DEFAULT_CONTROLLER_LISTENER_NAME);
+        private SecurityProtocol controllerSecurityProtocol = DEFAULT_CONTROLLER_SECURITY_PROTOCOL;
 
         public Builder setClusterId(String clusterId) {
             this.clusterId = clusterId;
@@ -70,12 +81,18 @@ public class TestKitNodes {
         }
 
         public Builder setBootstrapMetadataVersion(MetadataVersion metadataVersion) {
-            this.bootstrapMetadata = BootstrapMetadata.fromVersion(metadataVersion, "testkit");
+            this.bootstrapMetadata = bootstrapMetadata.copyWithFeatureRecord(
+                    MetadataVersion.FEATURE_NAME, metadataVersion.featureLevel());
             return this;
         }
 
         public Builder setBootstrapMetadata(BootstrapMetadata bootstrapMetadata) {
             this.bootstrapMetadata = bootstrapMetadata;
+            return this;
+        }
+
+        public Builder setFeature(String featureName, short level) {
+            this.bootstrapMetadata = bootstrapMetadata.copyWithFeatureRecord(featureName, level);
             return this;
         }
 
@@ -121,6 +138,16 @@ public class TestKitNodes {
             return this;
         }
 
+        public Builder setControllerListenerName(ListenerName listenerName) {
+            this.controllerListenerName = listenerName;
+            return this;
+        }
+
+        public Builder setControllerSecurityProtocol(SecurityProtocol securityProtocol) {
+            this.controllerSecurityProtocol = securityProtocol;
+            return this;
+        }
+
         public TestKitNodes build() {
             if (numControllerNodes < 0) {
                 throw new IllegalArgumentException("Invalid negative value for numControllerNodes");
@@ -132,7 +159,7 @@ public class TestKitNodes {
                 throw new IllegalArgumentException("Invalid value for numDisksPerBroker");
             }
             // TODO: remove this assertion after https://issues.apache.org/jira/browse/KAFKA-16680 is finished
-            if (brokerSecurityProtocol != SecurityProtocol.PLAINTEXT) {
+            if (brokerSecurityProtocol != SecurityProtocol.PLAINTEXT || controllerSecurityProtocol != SecurityProtocol.PLAINTEXT) {
                 throw new IllegalArgumentException("Currently only support PLAINTEXT security protocol");
             }
             if (baseDirectory == null) {
@@ -190,7 +217,7 @@ public class TestKitNodes {
             }
 
             return new TestKitNodes(baseDirectory.toFile().getAbsolutePath(), clusterId, bootstrapMetadata, controllerNodes, brokerNodes,
-                brokerListenerName, brokerSecurityProtocol, new ListenerName("CONTROLLER"), SecurityProtocol.PLAINTEXT);
+                brokerListenerName, brokerSecurityProtocol, controllerListenerName, controllerSecurityProtocol);
         }
     }
 

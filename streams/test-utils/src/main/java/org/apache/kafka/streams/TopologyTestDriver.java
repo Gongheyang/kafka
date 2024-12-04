@@ -21,7 +21,7 @@ import org.apache.kafka.clients.consumer.ConsumerGroupMetadata;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.MockConsumer;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
-import org.apache.kafka.clients.consumer.OffsetResetStrategy;
+import org.apache.kafka.clients.consumer.internals.AutoOffsetResetStrategy;
 import org.apache.kafka.clients.producer.MockProducer;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerRecord;
@@ -29,7 +29,6 @@ import org.apache.kafka.common.Metric;
 import org.apache.kafka.common.MetricName;
 import org.apache.kafka.common.PartitionInfo;
 import org.apache.kafka.common.TopicPartition;
-import org.apache.kafka.common.errors.ProducerFencedException;
 import org.apache.kafka.common.header.Headers;
 import org.apache.kafka.common.metrics.MetricConfig;
 import org.apache.kafka.common.metrics.Metrics;
@@ -115,7 +114,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 
-import static org.apache.kafka.streams.internals.StreamsConfigUtils.ProcessingMode.AT_LEAST_ONCE;
 import static org.apache.kafka.streams.internals.StreamsConfigUtils.ProcessingMode.EXACTLY_ONCE_V2;
 import static org.apache.kafka.streams.state.ValueAndTimestamp.getValueOrNull;
 
@@ -233,7 +231,7 @@ public class TopologyTestDriver implements Closeable {
 
     private final MockConsumer<byte[], byte[]> consumer;
     private final MockProducer<byte[], byte[]> producer;
-    private final TestDriverProducer testDriverProducer;
+    private final StreamsProducer testDriverProducer;
 
     private final Map<String, TopicPartition> partitionsByInputTopic = new HashMap<>();
     private final Map<String, TopicPartition> globalPartitionsByInputTopic = new HashMap<>();
@@ -337,19 +335,20 @@ public class TopologyTestDriver implements Closeable {
             streamsMetrics
         );
 
-        consumer = new MockConsumer<>(OffsetResetStrategy.EARLIEST);
+        consumer = new MockConsumer<>(AutoOffsetResetStrategy.EARLIEST.name());
         final Serializer<byte[]> bytesSerializer = new ByteArraySerializer();
-        producer = new MockProducer<byte[], byte[]>(true, bytesSerializer, bytesSerializer) {
+        producer = new MockProducer<>(true, bytesSerializer, bytesSerializer) {
             @Override
             public List<PartitionInfo> partitionsFor(final String topic) {
                 return Collections.singletonList(new PartitionInfo(topic, PARTITION_ID, null, null, null));
             }
         };
-        testDriverProducer = new TestDriverProducer(
-            StreamsConfigUtils.processingMode(streamsConfig),
+
+        testDriverProducer = new StreamsProducer(
             producer,
-            logContext,
-            mockWallClockTime
+            StreamsConfigUtils.processingMode(streamsConfig),
+            mockWallClockTime,
+            logContext
         );
 
         setupGlobalTask(mockWallClockTime, streamsConfig, streamsMetrics, cache);
@@ -380,9 +379,10 @@ public class TopologyTestDriver implements Closeable {
         metrics = new Metrics(metricConfig, mockWallClockTime);
 
         final StreamsMetricsImpl streamsMetrics = new StreamsMetricsImpl(
-            metrics,
-            "test-client",
-            mockWallClockTime
+                metrics,
+                "test-client",
+                "processId",
+                mockWallClockTime
         );
         TaskMetrics.droppedRecordsSensor(threadId, TASK_ID.toString(), streamsMetrics);
 
@@ -411,7 +411,7 @@ public class TopologyTestDriver implements Closeable {
                                  final StreamsMetricsImpl streamsMetrics,
                                  final ThreadCache cache) {
         if (globalTopology != null) {
-            final MockConsumer<byte[], byte[]> globalConsumer = new MockConsumer<>(OffsetResetStrategy.NONE);
+            final MockConsumer<byte[], byte[]> globalConsumer = new MockConsumer<>(AutoOffsetResetStrategy.NONE.name());
             for (final String topicName : globalTopology.sourceTopics()) {
                 final TopicPartition partition = new TopicPartition(topicName, 0);
                 globalPartitionsByInputTopic.put(topicName, partition);
@@ -738,7 +738,14 @@ public class TopologyTestDriver implements Closeable {
     public final <K, V> TestInputTopic<K, V> createInputTopic(final String topicName,
                                                               final Serializer<K> keySerializer,
                                                               final Serializer<V> valueSerializer) {
-        return new TestInputTopic<>(this, topicName, keySerializer, valueSerializer, Instant.now(), Duration.ZERO);
+        return new TestInputTopic<>(
+            this,
+            topicName,
+            keySerializer,
+            valueSerializer,
+            Instant.ofEpochMilli(mockWallClockTime.milliseconds()),
+            Duration.ZERO
+        );
     }
 
     /**
@@ -985,7 +992,7 @@ public class TopologyTestDriver implements Closeable {
     public <K, V> KeyValueStore<K, V> getKeyValueStore(final String name) {
         final StateStore store = getStateStore(name, false);
         if (store instanceof TimestampedKeyValueStore) {
-            log.info("Method #getTimestampedKeyValueStore() should be used to access a TimestampedKeyValueStore.");
+            log.warn("Method #getTimestampedKeyValueStore() should be used to access a TimestampedKeyValueStore.");
             return new KeyValueStoreFacade<>((TimestampedKeyValueStore<K, V>) store);
         }
         return store instanceof KeyValueStore ? (KeyValueStore<K, V>) store : null;
@@ -1063,7 +1070,7 @@ public class TopologyTestDriver implements Closeable {
     public <K, V> WindowStore<K, V> getWindowStore(final String name) {
         final StateStore store = getStateStore(name, false);
         if (store instanceof TimestampedWindowStore) {
-            log.info("Method #getTimestampedWindowStore() should be used to access a TimestampedWindowStore.");
+            log.warn("Method #getTimestampedWindowStore() should be used to access a TimestampedWindowStore.");
             return new WindowStoreFacade<>((TimestampedWindowStore<K, V>) store);
         }
         return store instanceof WindowStore ? (WindowStore<K, V>) store : null;
@@ -1138,9 +1145,8 @@ public class TopologyTestDriver implements Closeable {
                          " {} configuration during TopologyTestDriver#close().",
                      StreamsConfig.MAX_TASK_IDLE_MS_CONFIG);
         }
-        if (processingMode == AT_LEAST_ONCE) {
-            producer.close();
-        }
+        producer.close();
+        consumer.close();
         stateDirectory.clean();
     }
 
@@ -1352,19 +1358,4 @@ public class TopologyTestDriver implements Closeable {
         }
     }
 
-    private static class TestDriverProducer extends StreamsProducer {
-
-        public TestDriverProducer(final StreamsConfigUtils.ProcessingMode processingMode,
-                                  final Producer<byte[], byte[]> producer,
-                                  final LogContext logContext,
-                                  final Time time) {
-            super(processingMode, producer, logContext, time);
-        }
-
-        @Override
-        public void commitTransaction(final Map<TopicPartition, OffsetAndMetadata> offsets,
-                                      final ConsumerGroupMetadata consumerGroupMetadata) throws ProducerFencedException {
-            super.commitTransaction(offsets, consumerGroupMetadata);
-        }
-    }
 }

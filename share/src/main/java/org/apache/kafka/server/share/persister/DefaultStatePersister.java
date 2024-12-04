@@ -31,7 +31,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
 /**
@@ -79,8 +78,13 @@ public class DefaultStatePersister implements Persister {
      * @param request WriteShareGroupStateParameters
      * @return A completable future of WriteShareGroupStateResult
      */
-    public CompletableFuture<WriteShareGroupStateResult> writeState(WriteShareGroupStateParameters request) throws IllegalArgumentException {
-        validate(request);
+    public CompletableFuture<WriteShareGroupStateResult> writeState(WriteShareGroupStateParameters request) {
+        try {
+            validate(request);
+        } catch (Exception e) {
+            log.error("Unable to validate write state request", e);
+            return CompletableFuture.failedFuture(e);
+        }
         GroupTopicPartitionData<PartitionStateBatchData> gtp = request.groupTopicPartitionData();
         String groupId = gtp.groupId();
 
@@ -119,7 +123,14 @@ public class DefaultStatePersister implements Persister {
         return combinedFuture.thenApply(v -> writeResponsesToResult(futureMap));
     }
 
-    private WriteShareGroupStateResult writeResponsesToResult(
+    /**
+     * Takes in a list of COMPLETED futures and combines the results,
+     * taking care of errors if any, into a single WriteShareGroupStateResult
+     * @param futureMap - HashMap of {topic -> {part -> future}}
+     * @return Object representing combined result of type WriteShareGroupStateResult
+     */
+    // visible for testing
+    WriteShareGroupStateResult writeResponsesToResult(
         Map<Uuid, Map<Integer, CompletableFuture<WriteShareGroupStateResponse>>> futureMap
     ) {
         List<TopicData<PartitionErrorData>> topicsData = futureMap.keySet().stream()
@@ -129,14 +140,15 @@ public class DefaultStatePersister implements Persister {
                         int partition = partitionFuture.getKey();
                         CompletableFuture<WriteShareGroupStateResponse> future = partitionFuture.getValue();
                         try {
-                            WriteShareGroupStateResponse partitionResponse = future.get();
+                            // already completed because of allOf application in the caller
+                            WriteShareGroupStateResponse partitionResponse = future.join();
                             return partitionResponse.data().results().get(0).partitions().stream()
                                 .map(partitionResult -> PartitionFactory.newPartitionErrorData(
                                     partitionResult.partition(),
                                     partitionResult.errorCode(),
                                     partitionResult.errorMessage()))
                                 .collect(Collectors.toList());
-                        } catch (InterruptedException | ExecutionException e) {
+                        } catch (Exception e) {
                             log.error("Unexpected exception while writing data to share coordinator", e);
                             return Collections.singletonList(PartitionFactory.newPartitionErrorData(
                                 partition,
@@ -162,8 +174,13 @@ public class DefaultStatePersister implements Persister {
      * @param request ReadShareGroupStateParameters
      * @return A completable future of ReadShareGroupStateResult
      */
-    public CompletableFuture<ReadShareGroupStateResult> readState(ReadShareGroupStateParameters request) throws IllegalArgumentException {
-        validate(request);
+    public CompletableFuture<ReadShareGroupStateResult> readState(ReadShareGroupStateParameters request) {
+        try {
+            validate(request);
+        } catch (Exception e) {
+            log.error("Unable to validate read state request", e);
+            return CompletableFuture.failedFuture(e);
+        }
         GroupTopicPartitionData<PartitionIdLeaderEpochData> gtp = request.groupTopicPartitionData();
         String groupId = gtp.groupId();
         Map<Uuid, Map<Integer, CompletableFuture<ReadShareGroupStateResponse>>> futureMap = new HashMap<>();
@@ -201,7 +218,14 @@ public class DefaultStatePersister implements Persister {
         return combinedFuture.thenApply(v -> readResponsesToResult(futureMap));
     }
 
-    private ReadShareGroupStateResult readResponsesToResult(
+    /**
+     * Takes in a list of COMPLETED futures and combines the results,
+     * taking care of errors if any, into a single ReadShareGroupStateResult
+     * @param futureMap - HashMap of {topic -> {part -> future}}
+     * @return Object representing combined result of type ReadShareGroupStateResult
+     */
+    // visible for testing
+    ReadShareGroupStateResult readResponsesToResult(
         Map<Uuid, Map<Integer, CompletableFuture<ReadShareGroupStateResponse>>> futureMap
     ) {
         List<TopicData<PartitionAllData>> topicsData = futureMap.keySet().stream()
@@ -211,7 +235,8 @@ public class DefaultStatePersister implements Persister {
                         int partition = partitionFuture.getKey();
                         CompletableFuture<ReadShareGroupStateResponse> future = partitionFuture.getValue();
                         try {
-                            ReadShareGroupStateResponse partitionResponse = future.get();
+                            // already completed because of allOf call in the caller
+                            ReadShareGroupStateResponse partitionResponse = future.join();
                             return partitionResponse.data().results().get(0).partitions().stream()
                                 .map(partitionResult -> PartitionFactory.newPartitionAllData(
                                     partitionResult.partition(),
@@ -222,7 +247,7 @@ public class DefaultStatePersister implements Persister {
                                     partitionResult.stateBatches().stream().map(PersisterStateBatch::from).collect(Collectors.toList())
                                 ))
                                 .collect(Collectors.toList());
-                        } catch (InterruptedException | ExecutionException e) {
+                        } catch (Exception e) {
                             log.error("Unexpected exception while getting data from share coordinator", e);
                             return Collections.singletonList(PartitionFactory.newPartitionAllData(
                                 partition,

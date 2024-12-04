@@ -16,9 +16,11 @@
 {
   "apiKey": 69,
   "type": "request",
-  "listeners": ["zkBroker", "broker"],
+  "listeners": ["broker"],
   "name": "ConsumerGroupDescribeRequest",
-  "validVersions": "0",
+  // Version 1 adds MemberType field to ConsumerGroupDescribeResponse (KIP-1099).
+  // For ConsumerGroupDescribeRequest, version 1 is same as version 0.
+  "validVersions": "0-1",
   "flexibleVersions": "0+",
   "fields": [
     { "name": "GroupIds", "type": "[]string", "versions": "0+", "entityType": "groupId",

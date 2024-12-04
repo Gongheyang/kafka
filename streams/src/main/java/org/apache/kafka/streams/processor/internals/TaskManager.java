@@ -337,7 +337,7 @@ public class TaskManager {
                     // replace our dummy values with the real ones, now we know our thread and assignment
                     final Set<TopicPartition> inputPartitions = entry.getValue();
                     task.stateManager().assignToStreamThread(new LogContext(threadLogPrefix), changelogReader, inputPartitions);
-                    task.updateInputPartitions(inputPartitions, topologyMetadata.nodeToSourceTopics(taskId));
+                    updateInputPartitionsOfStandbyTaskIfTheyChanged(task, inputPartitions);
 
                     assignedTasks.put(task, inputPartitions);
                 }
@@ -1076,7 +1076,8 @@ public class TaskManager {
         } catch (final LockException lockException) {
             // The state directory may still be locked by another thread, when the rebalance just happened.
             // Retry in the next iteration.
-            log.info("Encountered lock exception. Reattempting locking the state in the next iteration.", lockException);
+            log.info("Encountered lock exception. Reattempting locking the state in the next iteration. Error message was: {}",
+                     lockException.getMessage());
             tasks.addPendingTasksToInit(Collections.singleton(task));
             updateOrCreateBackoffRecord(task.id(), nowMs);
         }

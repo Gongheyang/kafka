@@ -85,8 +85,12 @@ public class AutoOffsetReset {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         AutoOffsetReset that = (AutoOffsetReset) o;
         return type == that.type && duration.equals(that.duration);
     }

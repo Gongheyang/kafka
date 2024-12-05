@@ -40,7 +40,7 @@ public class AutoOffsetReset {
      * @return an AutoOffsetReset instance with the specified duration.
      * @throws IllegalArgumentException if the duration is negative.
      */
-    public static AutoOffsetReset duration(Duration duration) {
+    public static AutoOffsetReset byDuration(final Duration duration) {
         if (duration.isNegative()) {
             throw new IllegalArgumentException("Duration cannot be negative");
         }

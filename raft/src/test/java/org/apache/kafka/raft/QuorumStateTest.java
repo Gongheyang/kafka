@@ -25,6 +25,7 @@ import org.apache.kafka.raft.internals.KRaftControlRecordStateMachine;
 import org.apache.kafka.server.common.Feature;
 import org.apache.kafka.server.common.KRaftVersion;
 
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.Mockito;
@@ -40,6 +41,7 @@ import java.util.Set;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import static org.apache.kafka.server.common.KRaftVersion.KRAFT_VERSION_1;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -1493,7 +1495,7 @@ public class QuorumStateTest {
 
     @ParameterizedTest
     @EnumSource(value = KRaftVersion.class)
-    public void testObserverCannotBecomeCandidateOrLeader(KRaftVersion kraftVersion) {
+    public void testObserverCannotBecomeProspectiveOrCandidateOrLeader(KRaftVersion kraftVersion) {
         boolean withDirectoryId = kraftVersion.featureLevel() > 0;
         int otherNodeId = 1;
         VoterSet voters = VoterSetTest.voterSet(
@@ -1502,6 +1504,7 @@ public class QuorumStateTest {
         QuorumState state = initializeEmptyState(voters, kraftVersion);
         state.initialize(new OffsetAndEpoch(0L, logEndEpoch));
         assertTrue(state.isObserver());
+        assertThrows(IllegalStateException.class, state::transitionToProspective);
         assertThrows(IllegalStateException.class, state::transitionToCandidate);
         assertThrows(IllegalStateException.class, () -> state.transitionToLeader(0L, accumulator));
     }
@@ -1710,4 +1713,60 @@ public class QuorumStateTest {
         QuorumState state2 = buildQuorumState(OptionalInt.empty(), voters, kraftVersion);
         assertThrows(IllegalStateException.class, () -> state2.initialize(new OffsetAndEpoch(0, 0)));
     }
+
+    // testUnattachedVotedToProspective
+    @Test
+    public void testUnattachedVotedToProspective() {
+        int node1 = 1;
+        Uuid node1DirectoryId = Uuid.randomUuid();
+        int node2 = 2;
+        VoterSet voters = localWithRemoteVoterSet(IntStream.of(node1, node2), KRAFT_VERSION_1);
+        QuorumState state = initializeEmptyState(voters, KRAFT_VERSION_1);
+        state.initialize(new OffsetAndEpoch(0L, logEndEpoch));
+        state.transitionToUnattachedVotedState(5, ReplicaKey.of(node1, node1DirectoryId));
+
+        state.transitionToProspective();
+        assertTrue(state.isProspective());
+        ProspectiveState prospectiveState = state.prospectiveStateOrThrow();
+        assertEquals(5, prospectiveState.epoch());
+        assertEquals(electionTimeoutMs, prospectiveState.remainingElectionTimeMs(time.milliseconds()));
+        assertEquals(
+            Optional.of(
+                ElectionState.withVotedCandidate(
+                    5,
+                    persistedVotedKey(ReplicaKey.of(node1, node1DirectoryId), KRAFT_VERSION_1),
+                    persistedVoters(voters.voterIds(), KRAFT_VERSION_1)
+                )
+            ),
+            store.readElectionState()
+        );
+    }
+
+    // testUnattachedWithLeaderToProspective
+
+    // testIllegalTransitionsToProspective
+
+    // testIllegalTransitionsFromProspective
+
+    // testProspectiveToProspective
+
+    // testProspectiveVotedToProspective
+
+    // testProspectiveWithLeaderToProspective
+
+    // testProspectiveToCandidate
+
+    // testProspectiveVotedToCandidate
+
+    // testCandidateToProspective (can include votedKey which is erased)
+
+    // testProspectiveToUnattached (can include votedkey which is erased)
+
+    // testProspectiveVotedToProspective (votedkey needs to be kept)
+
+    // testProspectiveToUnattachedSameEpoch
+
+    // testProspectiveToProspectiveHigherEpoch
+
+    // testProspectiveToFollowerHigherEpoch
 }

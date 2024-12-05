@@ -32,7 +32,7 @@ public class ProspectiveState implements VotingState {
     private final VoterSet voters;
 //    private final long electionTimeoutMs;
 //    private final Timer electionTimer;
-    private final Map<Integer, VoterState> voteStates = new HashMap<>();
+    private final Map<Integer, VoterState> preVoteStates = new HashMap<>();
     private final Optional<LogOffsetMetadata> highWatermark;
     private int retries;
     private final int electionTimeoutMs;
@@ -75,9 +75,9 @@ public class ProspectiveState implements VotingState {
         this.log = logContext.logger(ProspectiveState.class);
 
         for (ReplicaKey voter : voters.voterKeys()) {
-            voteStates.put(voter.id(), new VoterState(voter));
+            preVoteStates.put(voter.id(), new VoterState(voter));
         }
-        voteStates.get(localId).setState(VoterState.State.GRANTED);
+        preVoteStates.get(localId).setState(VoterState.State.GRANTED);
     }
 
     public int localId() {
@@ -90,7 +90,7 @@ public class ProspectiveState implements VotingState {
 
     @Override
     public Map<Integer, VoterState> voteStates() {
-        return voteStates;
+        return preVoteStates;
     }
 
     @Override
@@ -111,7 +111,7 @@ public class ProspectiveState implements VotingState {
      * @throws IllegalArgumentException if the remote node is not a voter
      */
     public boolean recordGrantedVote(int remoteNodeId) {
-        VoterState voterState = voteStates.get(remoteNodeId);
+        VoterState voterState = preVoteStates.get(remoteNodeId);
         if (voterState == null) {
             throw new IllegalArgumentException("Attempt to grant vote to non-voter " + remoteNodeId);
         }
@@ -130,7 +130,7 @@ public class ProspectiveState implements VotingState {
      * @throws IllegalArgumentException if the remote node is not a voter
      */
     public boolean recordRejectedVote(int remoteNodeId) {
-        VoterState voterState = voteStates.get(remoteNodeId);
+        VoterState voterState = preVoteStates.get(remoteNodeId);
         if (voterState == null) {
             throw new IllegalArgumentException("Attempt to reject vote to non-voter " + remoteNodeId);
         }
@@ -163,16 +163,15 @@ public class ProspectiveState implements VotingState {
     }
 
     @Override
-    public boolean canGrantVote(ReplicaKey replicaKey, boolean isLogUpToDate, boolean isPreVote) {
+    public boolean canGrantVote(ReplicaKey replicaKey, boolean isLogUpToDate) {
         if (votedKey.isPresent()) {
             ReplicaKey votedReplicaKey = votedKey.get();
             if (votedReplicaKey.id() == replicaKey.id()) {
                 return votedReplicaKey.directoryId().isEmpty() || votedReplicaKey.directoryId().equals(replicaKey.directoryId());
             }
             log.debug(
-                "Rejecting Vote request with PreVote={} from replica ({}), already have voted for another " +
-                    "replica ({}) in epoch {}",
-                isPreVote,
+                "Rejecting Vote request from candidate ({}), already have voted for another " +
+                    "candidate ({}) in epoch {}",
                 replicaKey,
                 votedKey,
                 epoch
@@ -180,8 +179,19 @@ public class ProspectiveState implements VotingState {
             return false;
         } else if (!isLogUpToDate) {
             log.debug(
-                "Rejecting Vote request with PreVote={} from replica ({}) since replica epoch/offset is not up to date with us",
-                isPreVote,
+                "Rejecting Vote request from candidate ({}) since replica epoch/offset is not up to date with us",
+                replicaKey
+            );
+        }
+
+        return isLogUpToDate;
+    }
+
+    @Override
+    public boolean canGrantPreVote(ReplicaKey replicaKey, boolean isLogUpToDate) {
+        if (!isLogUpToDate) {
+            log.debug(
+                "Rejecting PreVote request from prospective ({}) since prospective epoch/offset is not up to date with us",
                 replicaKey
             );
         }

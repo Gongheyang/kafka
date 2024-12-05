@@ -208,9 +208,8 @@ public class ProspectiveStateTest {
     }
 
     @ParameterizedTest
-    @CsvSource({ "true,true,true", "true,true,false", "true,false,true", "true,false,false",
-        "false,true,true", "false,true,false", "false,false,true", "false,false,false" })
-    public void testGrantVote(boolean isLogUpToDate, boolean withDirectoryId, boolean isPreVote) {
+    @CsvSource({ "true,true", "true,false", "false,true", "false,false" })
+    public void testGrantVote(boolean isLogUpToDate, boolean withDirectoryId) {
         ReplicaKey node0 = replicaKey(0, withDirectoryId);
         ReplicaKey node1 = replicaKey(1, withDirectoryId);
         ReplicaKey node2 = replicaKey(2, withDirectoryId);
@@ -220,10 +219,46 @@ public class ProspectiveStateTest {
             voterSetWithLocal(Stream.of(node1, node2, node3), withDirectoryId)
         );
 
-        assertEquals(isLogUpToDate, state.canGrantVote(node0, isLogUpToDate, isPreVote));
-        assertEquals(isLogUpToDate, state.canGrantVote(node1, isLogUpToDate, isPreVote));
-        assertEquals(isLogUpToDate, state.canGrantVote(node2, isLogUpToDate, isPreVote));
-        assertEquals(isLogUpToDate, state.canGrantVote(node3, isLogUpToDate, isPreVote));
+        assertEquals(isLogUpToDate, state.canGrantPreVote(node0, isLogUpToDate));
+        assertEquals(isLogUpToDate, state.canGrantPreVote(node1, isLogUpToDate));
+        assertEquals(isLogUpToDate, state.canGrantPreVote(node2, isLogUpToDate));
+        assertEquals(isLogUpToDate, state.canGrantPreVote(node3, isLogUpToDate));
+
+        assertEquals(isLogUpToDate, state.canGrantVote(node0, isLogUpToDate));
+        assertEquals(isLogUpToDate, state.canGrantVote(node1, isLogUpToDate));
+        assertEquals(isLogUpToDate, state.canGrantVote(node2, isLogUpToDate));
+        assertEquals(isLogUpToDate, state.canGrantVote(node3, isLogUpToDate));
+    }
+
+    @ParameterizedTest
+    @CsvSource({ "true,true", "true,false", "false,true", "false,false" })
+    public void testGrantVoteWithVotedKey(boolean isLogUpToDate, boolean withDirectoryId) {
+        ReplicaKey node0 = replicaKey(0, withDirectoryId);
+        ReplicaKey node1 = replicaKey(1, withDirectoryId);
+        ReplicaKey node2 = replicaKey(2, withDirectoryId);
+        ReplicaKey node3 = replicaKey(3, withDirectoryId);
+
+        ProspectiveState state = new ProspectiveState(
+            time,
+            localReplicaKey.id(),
+            epoch,
+            Optional.of(node1),
+            voterSetWithLocal(Stream.of(node1, node2, node3), withDirectoryId),
+            Optional.empty(),
+            0,
+            electionTimeoutMs,
+            logContext
+        );
+
+        assertEquals(isLogUpToDate, state.canGrantPreVote(node0, isLogUpToDate));
+        assertEquals(isLogUpToDate, state.canGrantPreVote(node1, isLogUpToDate));
+        assertEquals(isLogUpToDate, state.canGrantPreVote(node2, isLogUpToDate));
+        assertEquals(isLogUpToDate, state.canGrantPreVote(node3, isLogUpToDate));
+
+        assertFalse(state.canGrantVote(node0, isLogUpToDate));
+        assertTrue(state.canGrantVote(node1, isLogUpToDate));
+        assertFalse(state.canGrantVote(node2, isLogUpToDate));
+        assertFalse(state.canGrantVote(node3, isLogUpToDate));
     }
 
     @ParameterizedTest

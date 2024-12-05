@@ -57,15 +57,6 @@ public class AutoOffsetReset {
     }
 
     /**
-     * Retrieves the offset reset duration if specified.
-     * 
-     * @return an Optional containing the duration in milliseconds, or empty if "latest" or "earliest".
-     */
-    public Optional<Long> getDuration() {
-        return duration;
-    }
-
-    /**
      * Provides a human-readable description of the offset reset type and duration.
      * 
      * @return a string describing the offset reset configuration.

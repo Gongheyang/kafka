@@ -22,6 +22,7 @@ import org.apache.kafka.clients.admin.ConfigEntry;
 import org.apache.kafka.common.config.ConfigException;
 import org.apache.kafka.common.config.ConfigResource;
 import org.apache.kafka.common.config.ConfigResource.Type;
+import org.apache.kafka.common.config.TopicConfig;
 import org.apache.kafka.common.config.types.Password;
 import org.apache.kafka.common.metadata.ConfigRecord;
 import org.apache.kafka.common.protocol.Errors;
@@ -29,6 +30,7 @@ import org.apache.kafka.common.requests.ApiError;
 import org.apache.kafka.common.utils.LogContext;
 import org.apache.kafka.metadata.KafkaConfigSchema;
 import org.apache.kafka.server.common.ApiMessageAndVersion;
+import org.apache.kafka.server.common.EligibleLeaderReplicasVersion;
 import org.apache.kafka.server.mutable.BoundedList;
 import org.apache.kafka.server.policy.AlterConfigPolicy;
 import org.apache.kafka.server.policy.AlterConfigPolicy.RequestMetadata;
@@ -41,6 +43,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -50,6 +53,7 @@ import java.util.Optional;
 import java.util.function.Consumer;
 
 import static org.apache.kafka.clients.admin.AlterConfigOp.OpType.APPEND;
+import static org.apache.kafka.common.config.TopicConfig.MIN_IN_SYNC_REPLICAS_CONFIG;
 import static org.apache.kafka.common.config.TopicConfig.UNCLEAN_LEADER_ELECTION_ENABLE_CONFIG;
 import static org.apache.kafka.common.protocol.Errors.INVALID_CONFIG;
 import static org.apache.kafka.controller.QuorumController.MAX_RECORDS_PER_USER_OP;
@@ -67,6 +71,7 @@ public class ConfigurationControlManager {
     private final TimelineHashMap<ConfigResource, TimelineHashMap<String, String>> configData;
     private final Map<String, Object> staticConfig;
     private final ConfigResource currentController;
+    private final ReplicationControlAccessor replicationControlAccessor;
 
     static class Builder {
         private LogContext logContext = null;
@@ -76,10 +81,18 @@ public class ConfigurationControlManager {
         private Optional<AlterConfigPolicy> alterConfigPolicy = Optional.empty();
         private ConfigurationValidator validator = ConfigurationValidator.NO_OP;
         private Map<String, Object> staticConfig = Collections.emptyMap();
+        private ReplicationControlAccessor replicationControlAccessor;
         private int nodeId = 0;
 
         Builder setLogContext(LogContext logContext) {
             this.logContext = logContext;
+            return this;
+        }
+
+        Builder setReplicationControlAccessor(
+            ReplicationControlAccessor replicationControlAccessor
+        ) {
+            this.replicationControlAccessor = replicationControlAccessor;
             return this;
         }
 
@@ -124,6 +137,9 @@ public class ConfigurationControlManager {
             if (configSchema == null) {
                 throw new RuntimeException("You must set the configSchema.");
             }
+            if (replicationControlAccessor == null) {
+                throw new RuntimeException("You must specify ReplicationControlAccessor");
+            }
             return new ConfigurationControlManager(
                 logContext,
                 snapshotRegistry,
@@ -132,7 +148,8 @@ public class ConfigurationControlManager {
                 alterConfigPolicy,
                 validator,
                 staticConfig,
-                nodeId);
+                nodeId,
+                replicationControlAccessor);
         }
     }
 
@@ -143,7 +160,8 @@ public class ConfigurationControlManager {
             Optional<AlterConfigPolicy> alterConfigPolicy,
             ConfigurationValidator validator,
             Map<String, Object> staticConfig,
-            int nodeId) {
+            int nodeId,
+            ReplicationControlAccessor replicationControlAccessor) {
         this.log = logContext.logger(ConfigurationControlManager.class);
         this.snapshotRegistry = snapshotRegistry;
         this.configSchema = configSchema;
@@ -153,6 +171,7 @@ public class ConfigurationControlManager {
         this.configData = new TimelineHashMap<>(snapshotRegistry, 0);
         this.staticConfig = Collections.unmodifiableMap(new HashMap<>(staticConfig));
         this.currentController = new ConfigResource(Type.BROKER, Integer.toString(nodeId));
+        this.replicationControlAccessor = replicationControlAccessor;
     }
 
     SnapshotRegistry snapshotRegistry() {
@@ -264,6 +283,7 @@ public class ConfigurationControlManager {
         if (error.isFailure()) {
             return error;
         }
+        outputRecords.addAll(maybeTriggerPartitionUpdateOnMinIsrChange(newRecords));
         outputRecords.addAll(newRecords);
         return ApiError.NONE;
     }
@@ -314,6 +334,68 @@ public class ConfigurationControlManager {
             return apiError;
         }
         return ApiError.NONE;
+    }
+
+    List<ApiMessageAndVersion> maybeTriggerPartitionUpdateOnMinIsrChange(List<ApiMessageAndVersion> records) {
+        int minIsrRecordCount = 0;
+        Map<String, Integer> topicToMinIsrValueMap = new HashMap<>();
+        HashSet<String> configRemovedTopicSet = new HashSet<>();
+        int currentClusterLevelMinIsr = -1;
+        if (clusterConfig().containsKey(MIN_IN_SYNC_REPLICAS_CONFIG)) {
+            currentClusterLevelMinIsr = Integer.parseInt(clusterConfig().get(MIN_IN_SYNC_REPLICAS_CONFIG));
+        }
+        int clusterLevelMinIsr = currentClusterLevelMinIsr;
+        for (ApiMessageAndVersion record : records) {
+            ConfigRecord configRecord = (ConfigRecord) record.message();
+            if (configRecord.name().equals(MIN_IN_SYNC_REPLICAS_CONFIG)) {
+                minIsrRecordCount += 1;
+                if (Type.forId(configRecord.resourceType()) == Type.TOPIC) {
+                    if (configRecord.value() != null)
+                        topicToMinIsrValueMap.put(configRecord.resourceName(), Integer.parseInt(configRecord.value()));
+                    else
+                        configRemovedTopicSet.add(configRecord.resourceName());
+                } else {
+                    // we already reject the min ISR updates on broker level, so it is a cluster level update, and it
+                    // should be a new value.
+                    clusterLevelMinIsr = Integer.parseInt(configRecord.value());
+                }
+            }
+        }
+
+        if (minIsrRecordCount == 0) return Collections.emptyList();
+        List<ApiMessageAndVersion> newRecords = BoundedList.newArrayBacked(MAX_RECORDS_PER_USER_OP);
+        final Integer defaultMinIsr = clusterLevelMinIsr;
+        if (minIsrRecordCount == topicToMinIsrValueMap.size() + configRemovedTopicSet.size() || currentClusterLevelMinIsr <= clusterLevelMinIsr) {
+            // All the updates are for topic config or the cluster level config increases, we can use a simple path.
+            if (!topicToMinIsrValueMap.isEmpty()) {
+                newRecords.addAll(replicationControlAccessor.get().getPartitionElrUpdatesForConfigChanges(
+                    new ArrayList<>(topicToMinIsrValueMap.keySet()),
+                    topicName -> topicToMinIsrValueMap.get(topicName))
+                );
+            }
+            if (!configRemovedTopicSet.isEmpty()) {
+                newRecords.addAll(replicationControlAccessor.get().getPartitionElrUpdatesForConfigChanges(
+                    new ArrayList<>(configRemovedTopicSet),
+                    topicName -> defaultMinIsr)
+                );
+            }
+            return newRecords;
+        }
+
+        // Now we have a cluster level config decrease and may be combined with topic level update.
+        newRecords.addAll(replicationControlAccessor.get().getPartitionElrUpdatesForConfigChanges(
+            Collections.emptyList(),
+            topicName -> {
+                if (topicToMinIsrValueMap.containsKey(topicName)) {
+                    return topicToMinIsrValueMap.get(topicName);
+                } else if (configRemovedTopicSet.contains(topicName) ||
+                    !currentTopicConfig(topicName).containsKey(MIN_IN_SYNC_REPLICAS_CONFIG)) {
+                    return defaultMinIsr;
+                }
+                return Integer.parseInt(getTopicConfig(topicName, MIN_IN_SYNC_REPLICAS_CONFIG).value());
+            })
+        );
+        return newRecords;
     }
 
     /**
@@ -381,8 +463,11 @@ public class ConfigurationControlManager {
             outputResults.put(configResource, error);
             return;
         }
-        outputRecords.addAll(recordsExplicitlyAltered);
-        outputRecords.addAll(recordsImplicitlyDeleted);
+        List<ApiMessageAndVersion> newRecords = new ArrayList<>();
+        newRecords.addAll(recordsExplicitlyAltered);
+        newRecords.addAll(recordsImplicitlyDeleted);
+        outputRecords.addAll(maybeTriggerPartitionUpdateOnMinIsrChange(newRecords));
+        outputRecords.addAll(newRecords);
         outputResults.put(configResource, ApiError.NONE);
     }
 
@@ -534,5 +619,10 @@ public class ConfigurationControlManager {
     Map<String, String> currentTopicConfig(String topicName) {
         Map<String, String> result = configData.get(new ConfigResource(Type.TOPIC, topicName));
         return (result == null) ? Collections.emptyMap() : result;
+    }
+
+    @FunctionalInterface
+    interface ReplicationControlAccessor {
+        ReplicationControlManager get();
     }
 }

@@ -1499,6 +1499,7 @@ public final class QuorumController implements Controller {
             setValidator(configurationValidator).
             setStaticConfig(staticConfig).
             setNodeId(nodeId).
+            setReplicationControlAccessor(this::replicationControl).
             build();
         this.clientQuotaControlManager = new ClientQuotaControlManager.Builder().
             setLogContext(logContext).

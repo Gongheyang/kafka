@@ -105,6 +105,7 @@ import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.Mockito;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -219,7 +220,8 @@ public class ReplicationControlManagerTest {
         final FeatureControlManager featureControl;
         final ClusterControlManager clusterControl;
         final ConfigurationControlManager configurationControl;
-        final ReplicationControlManager replicationControl;
+        // Will be initialized shortly. Just for the convenience of the configuration initialization.
+        ReplicationControlManager replicationControl = Mockito.mock(ReplicationControlManager.class);
         final OffsetControlManager offsetControlManager;
 
         void replay(List<ApiMessageAndVersion> records) {
@@ -239,6 +241,7 @@ public class ReplicationControlManagerTest {
             this.configurationControl = new ConfigurationControlManager.Builder().
                 setSnapshotRegistry(snapshotRegistry).
                 setStaticConfig(staticConfig).
+                setReplicationControlAccessor(() -> this.replicationControl).
                 setKafkaConfigSchema(FakeKafkaConfigSchema.INSTANCE).
                 build();
             this.featureControl = new FeatureControlManager.Builder().
@@ -1146,6 +1149,41 @@ public class ReplicationControlManagerTest {
         assertEquals(OptionalInt.of(0), ctx.currentLeader(topicIdPartition));
         ctx.alterTopicConfig("foo", TopicConfig.MIN_IN_SYNC_REPLICAS_CONFIG, "5");
         assertEquals(3, replicationControl.getTopicEffectiveMinIsr("foo"));
+    }
+
+    @Test
+    public void testEligibleLeaderReplicas_OnMinIsrConfigChange() throws Exception {
+        ReplicationControlTestContext ctx = new ReplicationControlTestContext.Builder().setIsElrEnabled(true).build();
+        ReplicationControlManager replicationControl = ctx.replicationControl;
+        ctx.registerBrokers(0, 1, 2, 3);
+        ctx.unfenceBrokers(0, 1, 2, 3);
+        CreatableTopicResult createTopicResult = ctx.createTestTopic("foo",
+            new int[][]{new int[]{0, 1, 2, 3}});
+
+        TopicIdPartition topicIdPartition = new TopicIdPartition(createTopicResult.topicId(), 0);
+        assertEquals(OptionalInt.of(0), ctx.currentLeader(topicIdPartition));
+        ctx.alterTopicConfig("foo", TopicConfig.MIN_IN_SYNC_REPLICAS_CONFIG, "3");
+
+        ctx.fenceBrokers(Set.of(2, 3));
+
+        PartitionRegistration partition = replicationControl.getPartition(topicIdPartition.topicId(), topicIdPartition.partitionId());
+        assertTrue(Arrays.equals(new int[]{3}, partition.elr), partition.toString());
+        assertTrue(Arrays.equals(new int[]{}, partition.lastKnownElr), partition.toString());
+
+        // Increase min ISR should have no effect.
+        List<ApiMessageAndVersion> records = replicationControl.getPartitionElrUpdatesForConfigChanges(
+            Arrays.asList("foo"),
+            topic -> 4);
+        assertTrue(records.isEmpty());
+
+        // Decrease min ISR.
+        records = replicationControl.getPartitionElrUpdatesForConfigChanges(
+            Arrays.asList("foo"),
+            topic -> 2);
+        assertEquals(1, records.size());
+        PartitionChangeRecord partitionChangeRecord = (PartitionChangeRecord) records.get(0).message();
+        assertEquals(null, partitionChangeRecord.isr());
+        assertEquals(0, partitionChangeRecord.eligibleLeaderReplicas().size());
     }
 
     @Test

@@ -9,9 +9,18 @@ import java.util.Optional;
  * or {@link KTable} via {@link StreamsBuilder}.
  */
 public class AutoOffsetReset {
-    protected final Optional<Long> duration;
 
-    protected AutoOffsetReset(Optional<Long> duration) {
+    private enum OffsetResetType {
+        LATEST,
+        EARLIEST,
+        BY_DURATION
+    }
+
+    private final OffsetResetType type;
+    private final Optional<Long> duration;
+
+    private AutoOffsetReset(OffsetResetType type, Optional<Long> duration) {
+        this.type = type;
         this.duration = duration;
     }
 
@@ -21,7 +30,7 @@ public class AutoOffsetReset {
      * @return an AutoOffsetReset instance for the "latest" offset.
      */
     public static AutoOffsetReset latest() {
-        return new AutoOffsetReset(Optional.empty());
+        return new AutoOffsetReset(OffsetResetType.LATEST, Optional.empty());
     }
 
     /**
@@ -30,7 +39,7 @@ public class AutoOffsetReset {
      * @return an AutoOffsetReset instance for the "earliest" offset.
      */
     public static AutoOffsetReset earliest() {
-        return new AutoOffsetReset(Optional.of(0L));
+        return new AutoOffsetReset(OffsetResetType.EARLIEST, Optional.empty());
     }
 
     /**
@@ -44,21 +53,34 @@ public class AutoOffsetReset {
         if (duration.isNegative()) {
             throw new IllegalArgumentException("Duration cannot be negative");
         }
-        return new AutoOffsetReset(Optional.of(duration.toMillis()));
+        return new AutoOffsetReset(OffsetResetType.BY_DURATION, Optional.of(duration.toMillis()));
     }
 
     /**
      * Retrieves the offset reset duration if specified.
      * 
-     * @return an Optional containing the duration in milliseconds, or empty if "latest".
+     * @return an Optional containing the duration in milliseconds, or empty if "latest" or "earliest".
      */
     public Optional<Long> getDuration() {
         return duration;
     }
 
-    @Override
-    public String toString() {
-        return duration.map(d -> "Duration: " + d + "ms").orElse("Latest");
+    /**
+     * Provides a human-readable description of the offset reset type and duration.
+     * 
+     * @return a string describing the offset reset configuration.
+     */
+    public String describe() {
+        switch (type) {
+            case LATEST:
+                return "Offset: Latest";
+            case EARLIEST:
+                return "Offset: Earliest";
+            case BY_DURATION:
+                return "Offset by duration: " + duration.map(d -> d + "ms").orElse("Invalid duration");
+            default:
+                throw new IllegalStateException("Unexpected type: " + type);
+        }
     }
 
     @Override
@@ -66,11 +88,13 @@ public class AutoOffsetReset {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         AutoOffsetReset that = (AutoOffsetReset) o;
-        return duration.equals(that.duration);
+        return type == that.type && duration.equals(that.duration);
     }
 
     @Override
     public int hashCode() {
-        return duration.hashCode();
+        int result = type.hashCode();
+        result = 31 * result + duration.hashCode();
+        return result;
     }
 }

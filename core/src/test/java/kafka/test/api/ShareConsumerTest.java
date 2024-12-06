@@ -84,7 +84,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -1228,54 +1227,60 @@ public class ShareConsumerTest {
         ExecutorService consumerExecutorService = Executors.newFixedThreadPool(consumerCount);
         ExecutorService producerExecutorService = Executors.newFixedThreadPool(producerCount);
 
-        for (int i = 0; i < producerCount; i++) {
-            Runnable task = () -> produceMessages(messagesPerProducer);
-            producerExecutorService.submit(task);
-        }
-
-        ConcurrentLinkedQueue<CompletableFuture<Integer>> futuresSuccess = new ConcurrentLinkedQueue<>();
-
-        CountDownLatch startSignal = new CountDownLatch(1);
-
-        int maxBytes = 1000000;
-
-        consumerExecutorService.submit(() -> {
-            // The "failing" consumer polls but immediately closes, which releases the records for the other consumers
-            CompletableFuture<Integer> future = new CompletableFuture<>();
-            AtomicInteger failedMessagesConsumed = new AtomicInteger(0);
-            consumeMessages(failedMessagesConsumed, producerCount * messagesPerProducer, groupId, 0, 1, false, future);
-            startSignal.countDown();
-        });
-
-        // Wait for the failed consumer to run
         try {
-            boolean signalled = startSignal.await(15, TimeUnit.SECONDS);
-            assertTrue(signalled);
-        } catch (InterruptedException e) {
-            fail("Exception awaiting start signal");
-        }
 
-        for (int i = 0; i < consumerCount; i++) {
-            final int consumerNumber = i + 1;
-            consumerExecutorService.submit(() -> {
-                CompletableFuture<Integer> future = new CompletableFuture<>();
-                futuresSuccess.add(future);
-                consumeMessages(totalMessagesConsumed, producerCount * messagesPerProducer, groupId, consumerNumber, 40, true, future, maxBytes);
-            });
-        }
-        producerExecutorService.shutdown();
-        consumerExecutorService.shutdown();
-        try {
-            producerExecutorService.awaitTermination(60, TimeUnit.SECONDS); // Wait for all producer threads to complete
-            consumerExecutorService.awaitTermination(60, TimeUnit.SECONDS); // Wait for all consumer threads to complete
-            int totalSuccessResult = 0;
-            for (CompletableFuture<Integer> future : futuresSuccess) {
-                totalSuccessResult += future.get();
+            for (int i = 0; i < producerCount; i++) {
+                Runnable task = () -> produceMessages(messagesPerProducer);
+                producerExecutorService.submit(task);
             }
-            assertEquals(producerCount * messagesPerProducer, totalMessagesConsumed.get());
-            assertEquals(producerCount * messagesPerProducer, totalSuccessResult);
-        } catch (Exception e) {
-            fail("Exception occurred : " + e.getMessage());
+
+            ConcurrentLinkedQueue<CompletableFuture<Integer>> futuresSuccess = new ConcurrentLinkedQueue<>();
+
+            CountDownLatch startSignal = new CountDownLatch(1);
+
+            int maxBytes = 1000000;
+
+            consumerExecutorService.submit(() -> {
+                // The "failing" consumer polls but immediately closes, which releases the records for the other consumers
+                CompletableFuture<Integer> future = new CompletableFuture<>();
+                AtomicInteger failedMessagesConsumed = new AtomicInteger(0);
+                consumeMessages(failedMessagesConsumed, producerCount * messagesPerProducer, groupId, 0, 1, false, future);
+                startSignal.countDown();
+            });
+
+            // Wait for the failed consumer to run
+            try {
+                boolean signalled = startSignal.await(15, TimeUnit.SECONDS);
+                assertTrue(signalled);
+            } catch (InterruptedException e) {
+                fail("Exception awaiting start signal");
+            }
+
+            for (int i = 0; i < consumerCount; i++) {
+                final int consumerNumber = i + 1;
+                consumerExecutorService.submit(() -> {
+                    CompletableFuture<Integer> future = new CompletableFuture<>();
+                    futuresSuccess.add(future);
+                    consumeMessages(totalMessagesConsumed, producerCount * messagesPerProducer, groupId, consumerNumber, 40, true, future, maxBytes);
+                });
+            }
+            producerExecutorService.shutdown();
+            consumerExecutorService.shutdown();
+            try {
+                producerExecutorService.awaitTermination(60, TimeUnit.SECONDS); // Wait for all producer threads to complete
+                consumerExecutorService.awaitTermination(60, TimeUnit.SECONDS); // Wait for all consumer threads to complete
+                int totalSuccessResult = 0;
+                for (CompletableFuture<Integer> future : futuresSuccess) {
+                    totalSuccessResult += future.get();
+                }
+                assertEquals(producerCount * messagesPerProducer, totalMessagesConsumed.get());
+                assertEquals(producerCount * messagesPerProducer, totalSuccessResult);
+            } catch (Exception e) {
+                fail("Exception occurred : " + e.getMessage());
+            }
+        } finally {
+            producerExecutorService.shutdown();
+            consumerExecutorService.shutdown();
         }
     }
 
@@ -1981,7 +1986,7 @@ public class ShareConsumerTest {
         return new KafkaShareConsumer<>(props, keyDeserializer, valueDeserializer);
     }
 
-    private void warmup() throws InterruptedException, ExecutionException, TimeoutException {
+    private void warmup() throws InterruptedException {
         createTopic(warmupTp.topic());
         TestUtils.waitForCondition(() ->
                 !cluster.brokers().get(0).metadataCache().getAliveBrokerNodes(new ListenerName("EXTERNAL")).isEmpty(),

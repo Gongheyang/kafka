@@ -58,6 +58,7 @@ public class SmokeTestDriverIntegrationTest {
     public static void startCluster() throws IOException {
         final Properties props = new Properties();
         props.setProperty(GroupCoordinatorConfig.GROUP_COORDINATOR_REBALANCE_PROTOCOLS_CONFIG, "classic,consumer,streams");
+        props.setProperty(GroupCoordinatorConfig.STREAMS_GROUP_NUM_STANDBY_REPLICAS_CONFIG, "1");
         props.setProperty(ServerConfigs.UNSTABLE_API_VERSIONS_ENABLE_CONFIG, "true");
         cluster = new EmbeddedKafkaCluster(3, props);
         cluster.start();
@@ -109,7 +110,7 @@ public class SmokeTestDriverIntegrationTest {
     // We set 2 timeout condition to fail the test before passing the verification:
     // (1) 10 min timeout, (2) 30 tries of polling without getting any data
     @ParameterizedTest
-    @CsvSource({"false, false, true"})
+    @CsvSource({"false, false, true", "true, false, true"})
 //    @CsvSource({"false, false", "true, false", "true, true"})
     public void shouldWorkWithRebalance(
         final boolean stateUpdaterEnabled,

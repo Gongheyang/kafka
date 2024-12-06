@@ -119,7 +119,7 @@ public class TestUtils {
 
     public static StoreFactory mockStoreFactory(final String name) {
         final StoreFactory storeFactory = Mockito.mock(StoreFactory.class);
-        Mockito.when(storeFactory.name()).thenReturn(name);
+        Mockito.when(storeFactory.storeName()).thenReturn(name);
         return storeFactory;
     }
 
@@ -133,6 +133,7 @@ public class TestUtils {
 
         private WrapperRecorder recorder;
 
+        @SuppressWarnings("unchecked")
         @Override
         public void configure(final Map<String, ?> configs) {
             if (configs.containsKey(PROCESSOR_WRAPPER_COUNTER_CONFIG)) {

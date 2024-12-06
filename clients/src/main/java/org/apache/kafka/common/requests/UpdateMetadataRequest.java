@@ -17,6 +17,7 @@
 package org.apache.kafka.common.requests;
 
 import org.apache.kafka.common.Uuid;
+import org.apache.kafka.common.errors.UnsupportedProtocolFieldException;
 import org.apache.kafka.common.errors.UnsupportedVersionException;
 import org.apache.kafka.common.message.UpdateMetadataRequestData;
 import org.apache.kafka.common.message.UpdateMetadataRequestData.UpdateMetadataBroker;
@@ -33,6 +34,7 @@ import org.apache.kafka.common.utils.FlattenedIterator;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -78,8 +80,13 @@ public final class UpdateMetadataRequest extends AbstractControlRequest {
                     if (version == 0) {
                         if (broker.endpoints().size() != 1)
                             throw new UnsupportedVersionException("UpdateMetadataRequest v0 requires a single endpoint");
-                        if (broker.endpoints().get(0).securityProtocol() != SecurityProtocol.PLAINTEXT.id)
-                            throw new UnsupportedVersionException("UpdateMetadataRequest v0 only handles PLAINTEXT endpoints");
+                        if (broker.endpoints().get(0).securityProtocol() != SecurityProtocol.PLAINTEXT.id) {
+                            String unsupportedProtocol = Arrays.stream(SecurityProtocol.values())
+                                .filter(protocol -> protocol != SecurityProtocol.PLAINTEXT)
+                                .map(SecurityProtocol::name)
+                                .collect(Collectors.joining(","));
+                            throw new UnsupportedProtocolFieldException(unsupportedProtocol, apiKey().name(), version, 1);
+                        }
                         // Don't null out `endpoints` since it's ignored by the generated code if version >= 1
                         UpdateMetadataEndpoint endpoint = broker.endpoints().get(0);
                         broker.setV0Host(endpoint.host());

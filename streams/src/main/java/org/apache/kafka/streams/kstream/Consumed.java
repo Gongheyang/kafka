@@ -17,6 +17,7 @@
 package org.apache.kafka.streams.kstream;
 
 import org.apache.kafka.common.serialization.Serde;
+import org.apache.kafka.streams.Topology;
 import org.apache.kafka.streams.AutoOffsetReset;
 import org.apache.kafka.streams.StreamsBuilder;
 import org.apache.kafka.streams.processor.TimestampExtractor;
@@ -56,7 +57,22 @@ public class Consumed<K, V> implements NamedOperation<Consumed<K, V>> {
     protected Serde<V> valueSerde;
     protected TimestampExtractor timestampExtractor;
     protected AutoOffsetReset resetPolicy;
+    @Deprecated
+    protected Topology.AutoOffsetReset resetPolicy; // Replaced with new AutoOffsetReset class introduced in 4.0. 
     protected String processorName;
+
+    @Deprecated
+    private Consumed(final Serde<K> keySerde,
+                     final Serde<V> valueSerde,
+                     final TimestampExtractor timestampExtractor,
+                     final Topology.AutoOffsetReset resetPolicy,
+                     final String processorName) {
+        this.keySerde = keySerde;
+        this.valueSerde = valueSerde;
+        this.timestampExtractor = timestampExtractor;
+        this.resetPolicy = resetPolicy;
+        this.processorName = processorName;
+    }
 
     private Consumed(final Serde<K> keySerde,
                      final Serde<V> valueSerde,
@@ -96,11 +112,19 @@ public class Consumed<K, V> implements NamedOperation<Consumed<K, V>> {
      *
      * @return a new instance of {@link Consumed}
      */
+    @Deprecated
     public static <K, V> Consumed<K, V> with(final Serde<K> keySerde,
                                              final Serde<V> valueSerde,
                                              final TimestampExtractor timestampExtractor,
-                                             org.apache.kafka.streams.AutoOffsetReset resetPolicyy) {
-        return new Consumed<>(keySerde, valueSerde, timestampExtractor, resetPolicyy, null);
+                                             final Topology.AutoOffsetReset resetPolicy) {
+        return new Consumed<>(keySerde, valueSerde, timestampExtractor, resetPolicy, null);
+    }
+
+    public static <K, V> Consumed<K, V> with(final Serde<K> keySerde,
+                                             final Serde<V> valueSerde,
+                                             final TimestampExtractor timestampExtractor,
+                                             final AutoOffsetReset resetPolicy) {
+        return new Consumed<>(keySerde, valueSerde, timestampExtractor, resetPolicy, null);
     }
 
     /**
@@ -147,6 +171,11 @@ public class Consumed<K, V> implements NamedOperation<Consumed<K, V>> {
      *
      * @return a new instance of {@link Consumed}
      */
+    @Deprecated
+    public static <K, V> Consumed<K, V> with(final Topology.AutoOffsetReset resetPolicy) {
+        return new Consumed<>(null, null, null, resetPolicy, null);
+    }
+
     public static <K, V> Consumed<K, V> with(final AutoOffsetReset resetPolicy) {
         return new Consumed<>(null, null, null, resetPolicy, null);
     }
@@ -210,6 +239,11 @@ public class Consumed<K, V> implements NamedOperation<Consumed<K, V>> {
      *
      * @return a new instance of {@link Consumed}
      */
+    @Deprecated
+    public Consumed<K, V> withOffsetResetPolicy(final Topology.AutoOffsetReset resetPolicy) {
+        return new Consumed<K, V>(keySerde, valueSerde, timestampExtractor, resetPolicy, processorName);
+    }
+    
     public Consumed<K, V> withOffsetResetPolicy(final AutoOffsetReset resetPolicy) {
         return new Consumed<K, V>(keySerde, valueSerde, timestampExtractor, resetPolicy, processorName);
     }

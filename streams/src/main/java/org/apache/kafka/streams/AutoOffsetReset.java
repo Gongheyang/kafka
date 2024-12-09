@@ -52,7 +52,7 @@ public class AutoOffsetReset {
     /**
      * Creates an AutoOffsetReset instance representing "earliest".
      * 
-     * @return an AutoOffsetReset instance for the "earliest" offset.
+     * @return An {@link AutoOffsetReset} instance for the "earliest" offset.
      */
     public static AutoOffsetReset earliest() {
         return new AutoOffsetReset(OffsetResetType.EARLIEST, Optional.empty());

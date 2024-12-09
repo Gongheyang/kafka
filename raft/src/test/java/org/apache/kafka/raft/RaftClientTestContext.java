@@ -65,7 +65,7 @@ import org.apache.kafka.common.utils.MockTime;
 import org.apache.kafka.common.utils.Utils;
 import org.apache.kafka.raft.internals.BatchBuilder;
 import org.apache.kafka.raft.internals.StringSerde;
-import org.apache.kafka.server.common.Features;
+import org.apache.kafka.server.common.Feature;
 import org.apache.kafka.server.common.KRaftVersion;
 import org.apache.kafka.server.common.serialization.RecordSerde;
 import org.apache.kafka.snapshot.RecordsSnapshotWriter;
@@ -420,7 +420,7 @@ public final class RaftClientTestContext {
                 clusterId,
                 computedBootstrapServers,
                 localListeners,
-                Features.KRAFT_VERSION.supportedVersionRange(),
+                Feature.KRAFT_VERSION.supportedVersionRange(),
                 logContext,
                 random,
                 quorumConfig
@@ -1368,6 +1368,14 @@ public final class RaftClientTestContext {
         return beginEpochRequest(clusterId, epoch, leaderId);
     }
 
+    BeginQuorumEpochRequestData beginEpochRequest(int epoch, int leaderId, Endpoints endpoints) {
+        ReplicaKey localReplicaKey = kip853Rpc ?
+            ReplicaKey.of(localIdOrThrow(), localDirectoryId) :
+            ReplicaKey.of(-1, ReplicaKey.NO_DIRECTORY_ID);
+
+        return beginEpochRequest(clusterId, epoch, leaderId, endpoints, localReplicaKey);
+    }
+
     BeginQuorumEpochRequestData beginEpochRequest(String clusterId, int epoch, int leaderId) {
         ReplicaKey localReplicaKey = kip853Rpc ?
             ReplicaKey.of(localIdOrThrow(), localDirectoryId) :
@@ -1382,12 +1390,28 @@ public final class RaftClientTestContext {
         int leaderId,
         ReplicaKey voterKey
     ) {
+        return beginEpochRequest(
+            clusterId,
+            epoch,
+            leaderId,
+            startingVoters.listeners(leaderId),
+            voterKey
+        );
+    }
+
+    BeginQuorumEpochRequestData beginEpochRequest(
+        String clusterId,
+        int epoch,
+        int leaderId,
+        Endpoints endpoints,
+        ReplicaKey voterKey
+    ) {
         return RaftUtil.singletonBeginQuorumEpochRequest(
             metadataPartition,
             clusterId,
             epoch,
             leaderId,
-            startingVoters.listeners(leaderId),
+            endpoints,
             voterKey
         );
     }

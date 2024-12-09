@@ -21,7 +21,7 @@ import kafka.cluster.{Broker, EndPoint}
 import kafka.common.GenerateBrokerIdException
 import kafka.controller.KafkaController
 import kafka.coordinator.group.GroupCoordinatorAdapter
-import kafka.coordinator.transaction.{ProducerIdManager, TransactionCoordinator}
+import kafka.coordinator.transaction.{TransactionCoordinator, ZkProducerIdManager}
 import kafka.log.LogManager
 import kafka.log.remote.RemoteLogManager
 import kafka.metrics.KafkaMetricsReporter
@@ -46,6 +46,7 @@ import org.apache.kafka.common.security.{JaasContext, JaasUtils}
 import org.apache.kafka.common.utils.{AppInfoParser, LogContext, Time, Utils}
 import org.apache.kafka.common.{Endpoint, Node, TopicPartition}
 import org.apache.kafka.coordinator.group.GroupCoordinator
+import org.apache.kafka.coordinator.transaction.ProducerIdManager
 import org.apache.kafka.image.loader.metrics.MetadataLoaderMetrics
 import org.apache.kafka.metadata.properties.MetaPropertiesEnsemble.VerificationFlag
 import org.apache.kafka.metadata.properties.MetaPropertiesEnsemble.VerificationFlag.REQUIRE_V0
@@ -54,10 +55,10 @@ import org.apache.kafka.metadata.{BrokerState, MetadataRecordSerde, VersionRange
 import org.apache.kafka.raft.QuorumConfig
 import org.apache.kafka.raft.Endpoints
 import org.apache.kafka.security.CredentialProvider
-import org.apache.kafka.server.NodeToControllerChannelManager
+import org.apache.kafka.server.BrokerFeatures
 import org.apache.kafka.server.authorizer.Authorizer
 import org.apache.kafka.server.common.MetadataVersion._
-import org.apache.kafka.server.common.{ApiMessageAndVersion, MetadataVersion}
+import org.apache.kafka.server.common.{ApiMessageAndVersion, MetadataVersion, NodeToControllerChannelManager}
 import org.apache.kafka.server.config.{ConfigType, ZkConfigs}
 import org.apache.kafka.server.fault.LoggingFaultHandler
 import org.apache.kafka.server.log.remote.storage.RemoteLogManagerConfig
@@ -76,8 +77,8 @@ import java.util.concurrent._
 import java.util.concurrent.atomic.{AtomicBoolean, AtomicInteger}
 import java.util.{Optional, OptionalInt, OptionalLong}
 import scala.collection.{Map, Seq}
-import scala.compat.java8.OptionConverters.RichOptionForJava8
 import scala.jdk.CollectionConverters._
+import scala.jdk.OptionConverters.RichOption
 
 object KafkaServer {
   def zkClientConfigFromKafkaConfig(config: KafkaConfig, forceZkSslClientEnable: Boolean = false): ZKClientConfig = {
@@ -259,8 +260,7 @@ class KafkaServer(
         initialMetaPropsEnsemble.verify(Optional.of(_clusterId), verificationId, verificationFlags)
 
         /* generate brokerId */
-        config._brokerId = getOrGenerateBrokerId(initialMetaPropsEnsemble)
-        config._nodeId = config.brokerId
+        config.brokerId = getOrGenerateBrokerId(initialMetaPropsEnsemble)
         logContext = new LogContext(s"[KafkaServer id=${config.brokerId}] ")
         this.logIdent = logContext.logPrefix
 
@@ -472,7 +472,7 @@ class KafkaServer(
               setSecurityProtocol(ep.securityProtocol.id))
           }
 
-          val features = BrokerFeatures.createDefaultFeatureMap(BrokerFeatures.createDefault(config.unstableFeatureVersionsEnabled))
+          val features = BrokerFeatures.createDefaultFeatureMap(BrokerFeatures.createDefault(config.unstableFeatureVersionsEnabled)).asScala
 
           // Even though ZK brokers don't use "metadata.version" feature, we need to overwrite it with our IBP as part of registration
           // so the KRaft controller can verify that all brokers are on the same IBP before starting the migration.
@@ -511,11 +511,11 @@ class KafkaServer(
           ProducerIdManager.rpc(
             config.brokerId,
             time,
-            brokerEpochSupplier = brokerEpochSupplier,
+            () => brokerEpochSupplier(),
             clientToControllerChannelManager
           )
         } else {
-          ProducerIdManager.zk(config.brokerId, zkClient)
+          new ZkProducerIdManager(config.brokerId, zkClient)
         }
         /* start transaction coordinator, with a separate background thread scheduler for transaction expiration and log loading */
         // Hardcode Time.SYSTEM for now as some Streams tests fail otherwise, it would be good to fix the underlying issue
@@ -570,7 +570,7 @@ class KafkaServer(
               .orElse(throw new ConfigException(RemoteLogManagerConfig.REMOTE_LOG_METADATA_MANAGER_LISTENER_NAME_PROP,
                 listenerName, "Should be set as a listener name within valid broker listener name list: "
                   + brokerInfo.broker.endPoints.map(_.listenerName).mkString(",")))
-              .foreach(e => rlm.onEndPointCreated(e))
+              .foreach(e => rlm.onEndPointCreated(e.toJava))
           }
           rlm.startup()
         }
@@ -702,7 +702,7 @@ class KafkaServer(
   protected def createRemoteLogManager(): Option[RemoteLogManager] = {
     if (config.remoteLogManagerConfig.isRemoteStorageSystemEnabled()) {
       Some(new RemoteLogManager(config.remoteLogManagerConfig, config.brokerId, config.logDirs.head, clusterId, time,
-        (tp: TopicPartition) => logManager.getLog(tp).asJava,
+        (tp: TopicPartition) => logManager.getLog(tp).toJava,
         (tp: TopicPartition, remoteLogStartOffset: java.lang.Long) => {
           logManager.getLog(tp).foreach { log =>
             log.updateLogStartOffsetFromRemoteTier(remoteLogStartOffset)
@@ -1015,7 +1015,7 @@ class KafkaServer(
           CoreUtils.swallow(dataPlaneRequestProcessor.close(), this)
         if (controlPlaneRequestProcessor != null)
           CoreUtils.swallow(controlPlaneRequestProcessor.close(), this)
-        CoreUtils.swallow(authorizer.foreach(_.close()), this)
+        authorizer.foreach(Utils.closeQuietly(_, "authorizer"))
         if (adminManager != null)
           CoreUtils.swallow(adminManager.shutdown(), this)
 
@@ -1048,13 +1048,12 @@ class KafkaServer(
         // Close remote log manager before stopping processing requests, to give a chance to any
         // of its underlying clients (especially in RemoteStorageManager and RemoteLogMetadataManager)
         // to close gracefully.
-        CoreUtils.swallow(remoteLogManagerOpt.foreach(_.close()), this)
+        remoteLogManagerOpt.foreach(Utils.closeQuietly(_, "remote log manager"))
 
         if (featureChangeListener != null)
           CoreUtils.swallow(featureChangeListener.close(), this)
 
-        if (zkClient != null)
-          CoreUtils.swallow(zkClient.close(), this)
+        Utils.closeQuietly(zkClient, "zk client")
 
         if (quotaManagers != null)
           CoreUtils.swallow(quotaManagers.shutdown(), this)
@@ -1065,10 +1064,8 @@ class KafkaServer(
         if (socketServer != null)
           CoreUtils.swallow(socketServer.shutdown(), this)
         unregisterCurrentControllerIdMetric()
-        if (metrics != null)
-          CoreUtils.swallow(metrics.close(), this)
-        if (brokerTopicStats != null)
-          CoreUtils.swallow(brokerTopicStats.close(), this)
+        Utils.closeQuietly(metrics, "metrics")
+        Utils.closeQuietly(brokerTopicStats, "broker topic stats")
 
         // Clear all reconfigurable instances stored in DynamicBrokerConfig
         config.dynamicConfig.clear()

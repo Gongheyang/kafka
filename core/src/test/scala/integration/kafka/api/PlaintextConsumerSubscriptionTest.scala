@@ -15,16 +15,15 @@ package kafka.api
 import kafka.utils.{TestInfoUtils, TestUtils}
 import org.apache.kafka.clients.consumer._
 import org.apache.kafka.common.TopicPartition
-import org.apache.kafka.common.errors.InvalidTopicException
+import org.apache.kafka.common.errors.{InvalidRegularExpression, InvalidTopicException}
 import org.junit.jupiter.api.Assertions._
 import org.junit.jupiter.api.Timeout
 import org.junit.jupiter.api.function.Executable
 import org.junit.jupiter.params.ParameterizedTest
-import org.junit.jupiter.params.provider.{Arguments, MethodSource}
+import org.junit.jupiter.params.provider.MethodSource
 
 import java.time.Duration
 import java.util.regex.Pattern
-import java.util.stream.Stream
 import scala.jdk.CollectionConverters._
 
 /**
@@ -180,6 +179,49 @@ class PlaintextConsumerSubscriptionTest extends AbstractConsumerTest {
   }
 
   @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
+  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersConsumerGroupProtocolOnly"))
+  def testRe2JPatternSubscription(quorum: String, groupProtocol: String): Unit = {
+    val topic1 = "tblablac" // matches subscribed pattern
+    createTopic(topic1, 2, brokerCount)
+
+    val topic2 = "tblablak" // does not match subscribed pattern
+    createTopic(topic2, 2, brokerCount)
+
+    val topic3 = "tblab1" // does not match subscribed pattern
+    createTopic(topic3, 2, brokerCount)
+
+    val consumer = createConsumer()
+    assertEquals(0, consumer.assignment().size)
+
+    val pattern = new SubscriptionPattern("t.*c")
+    consumer.subscribe(pattern)
+
+    val assignment = Set(
+      new TopicPartition(topic, 0),
+      new TopicPartition(topic, 1),
+      new TopicPartition(topic1, 0),
+      new TopicPartition(topic1, 1))
+    awaitAssignment(consumer, assignment)
+    consumer.unsubscribe()
+    assertEquals(0, consumer.assignment().size)
+  }
+
+  @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
+  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersConsumerGroupProtocolOnly"))
+  def testRe2JPatternSubscriptionInvalidRegex(quorum: String, groupProtocol: String): Unit = {
+    val consumer = createConsumer()
+    assertEquals(0, consumer.assignment().size)
+
+    val pattern = new SubscriptionPattern("(t.*c")
+    consumer.subscribe(pattern)
+
+    TestUtils.tryUntilNoAssertionError() {
+      assertThrows(classOf[InvalidRegularExpression], () => consumer.poll(Duration.ZERO))
+    }
+    consumer.unsubscribe()
+  }
+
+  @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
   @MethodSource(Array("getTestQuorumAndGroupProtocolParametersAll"))
   def testExpandingTopicSubscriptions(quorum: String, groupProtocol: String): Unit = {
     val otherTopic = "other"
@@ -212,8 +254,10 @@ class PlaintextConsumerSubscriptionTest extends AbstractConsumerTest {
   @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
   @MethodSource(Array("getTestQuorumAndGroupProtocolParametersAll"))
   def testUnsubscribeTopic(quorum: String, groupProtocol: String): Unit = {
-    this.consumerConfig.setProperty(ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG, "100") // timeout quickly to avoid slow test
-    this.consumerConfig.setProperty(ConsumerConfig.HEARTBEAT_INTERVAL_MS_CONFIG, "30")
+    if (groupProtocol.equals(GroupProtocol.CLASSIC.name)) {
+      this.consumerConfig.setProperty(ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG, "100") // timeout quickly to avoid slow test
+      this.consumerConfig.setProperty(ConsumerConfig.HEARTBEAT_INTERVAL_MS_CONFIG, "30")
+    }
     val consumer = createConsumer()
 
     val listener = new TestConsumerReassignmentListener()
@@ -232,6 +276,11 @@ class PlaintextConsumerSubscriptionTest extends AbstractConsumerTest {
     val consumer = createConsumer()
 
     setupSubscribeInvalidTopic(consumer)
+    if(groupProtocol == "consumer") {
+      // Must ensure memberId is not empty before sending leave group heartbeat. This is a temporary solution before KIP-1082.
+      TestUtils.waitUntilTrue(() => consumer.groupMetadata().memberId().nonEmpty,
+        waitTimeMs = 30000, msg = "Timeout waiting for first consumer group heartbeat response")
+    }
     assertDoesNotThrow(new Executable {
       override def execute(): Unit = consumer.unsubscribe()
     })
@@ -264,9 +313,4 @@ class PlaintextConsumerSubscriptionTest extends AbstractConsumerTest {
 
     assertEquals(s"Invalid topics: [${invalidTopicName}]", exception.getMessage)
   }
-}
-
-object PlaintextConsumerSubscriptionTest {
-  def getTestQuorumAndGroupProtocolParametersAll: Stream[Arguments] =
-    BaseConsumerTest.getTestQuorumAndGroupProtocolParametersAll()
 }

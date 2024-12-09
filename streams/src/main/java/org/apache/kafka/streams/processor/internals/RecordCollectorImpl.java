@@ -210,7 +210,10 @@ public class RecordCollectorImpl implements RecordCollector {
                 key,
                 keySerializer,
                 exception);
-        } catch (final RuntimeException serializationException) {
+        } catch (final Exception serializationException) {
+            // while Java distinguishes checked vs unchecked exceptions, other languages
+            // like Scala or Kotlin do not, and thus we need to catch `Exception`
+            // (instead of `RuntimeException`) to work well with those languages
             handleException(
                 ProductionExceptionHandler.SerializationExceptionOrigin.KEY,
                 topic,
@@ -221,7 +224,8 @@ public class RecordCollectorImpl implements RecordCollector {
                 timestamp,
                 processorNodeId,
                 context,
-                serializationException);
+                serializationException
+            );
             return;
         }
 
@@ -234,7 +238,10 @@ public class RecordCollectorImpl implements RecordCollector {
                 value,
                 valueSerializer,
                 exception);
-        } catch (final RuntimeException serializationException) {
+        } catch (final Exception serializationException) {
+            // while Java distinguishes checked vs unchecked exceptions, other languages
+            // like Scala or Kotlin do not, and thus we need to catch `Exception`
+            // (instead of `RuntimeException`) to work well with those languages
             handleException(
                 ProductionExceptionHandler.SerializationExceptionOrigin.VALUE,
                 topic,
@@ -312,7 +319,7 @@ public class RecordCollectorImpl implements RecordCollector {
                                         final Long timestamp,
                                         final String processorNodeId,
                                         final InternalProcessorContext<Void, Void> context,
-                                        final RuntimeException serializationException) {
+                                        final Exception serializationException) {
         log.debug(String.format("Error serializing record for topic %s", topic), serializationException);
 
         final ProducerRecord<K, V> record = new ProducerRecord<>(topic, partition, timestamp, key, value, headers);
@@ -328,7 +335,10 @@ public class RecordCollectorImpl implements RecordCollector {
                 ),
                 "Invalid ProductionExceptionHandler response."
             );
-        } catch (final RuntimeException fatalUserException) {
+        } catch (final Exception fatalUserException) {
+            // while Java distinguishes checked vs unchecked exceptions, other languages
+            // like Scala or Kotlin do not, and thus we need to catch `Exception`
+            // (instead of `RuntimeException`) to work well with those languages
             log.error(
                 String.format(
                     "Production error callback failed after serialization error for record %s: %s",
@@ -337,7 +347,11 @@ public class RecordCollectorImpl implements RecordCollector {
                 ),
                 serializationException
             );
-            throw new FailedProcessingException("Fatal user code error in production error callback", fatalUserException);
+            throw new FailedProcessingException(
+                "Fatal user code error in production error callback",
+                processorNodeId,
+                fatalUserException
+            );
         }
 
         if (maybeFailResponse(response) == ProductionExceptionHandlerResponse.FAIL) {
@@ -438,13 +452,21 @@ public class RecordCollectorImpl implements RecordCollector {
                     ),
                     "Invalid ProductionExceptionHandler response."
                 );
-            } catch (final RuntimeException fatalUserException) {
+            } catch (final Exception fatalUserException) {
+                // while Java distinguishes checked vs unchecked exceptions, other languages
+                // like Scala or Kotlin do not, and thus we need to catch `Exception`
+                // (instead of `RuntimeException`) to work well with those languages
                 log.error(
                     "Production error callback failed after production error for record {}",
                     serializedRecord,
                     productionException
                 );
-                sendException.set(new FailedProcessingException("Fatal user code error in production error callback", fatalUserException));
+                sendException.set(new FailedProcessingException(
+                    "Fatal user code error in production error callback",
+                    processorNodeId,
+                    fatalUserException
+                    )
+                );
                 return;
             }
 

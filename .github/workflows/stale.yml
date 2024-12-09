@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name: 'Handle stale PRs'
+name: Stale PRs
 on:
   schedule:
     - cron: '30 3 * * *'    # Run at 3:30 UTC nightly
@@ -41,7 +41,7 @@ jobs:
       - uses: actions/stale@v9
         with:
           debug-only: ${{ inputs.dryRun || false }}
-          operations-per-run: ${{ inputs.operationsPerRun || 100 }}
+          operations-per-run: ${{ inputs.operationsPerRun || 500 }}
           ascending: true
           days-before-stale: 90
           days-before-close: 30  # Since adding 'stale' will update the PR, days-before-close is relative to that.

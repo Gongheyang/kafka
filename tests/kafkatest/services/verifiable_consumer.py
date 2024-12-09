@@ -21,7 +21,7 @@ from ducktape.services.background_thread import BackgroundThreadService
 from kafkatest.directory_layout.kafka_path import KafkaPathResolverMixin
 from kafkatest.services.kafka import TopicPartition, consumer_group
 from kafkatest.services.verifiable_client import VerifiableClientMixin
-from kafkatest.version import DEV_BRANCH, V_2_3_0, V_2_3_1, V_3_7_0, V_0_10_0_0
+from kafkatest.version import DEV_BRANCH, V_2_3_0, V_2_3_1, V_3_7_0, V_4_0_0
 
 
 class ConsumerState:
@@ -317,10 +317,6 @@ class VerifiableConsumer(KafkaPathResolverMixin, VerifiableClientMixin, Backgrou
                 "Version %s does not support static membership (must be 2.3 or higher)" % str(node.version)
             node.group_instance_id = self.group_id + "-instance-" + str(idx)
 
-        if self.assignment_strategy:
-            assert node.version >= V_0_10_0_0, \
-                "Version %s does not setting an assignment strategy (must be 0.10.0 or higher)" % str(node.version)
-
         cmd = self.start_cmd(node)
         self.logger.debug("VerifiableConsumer %d command: %s" % (idx, cmd))
 
@@ -416,9 +412,13 @@ class VerifiableConsumer(KafkaPathResolverMixin, VerifiableClientMixin, Backgrou
         if self.enable_autocommit:
             cmd += " --enable-autocommit "
 
-        cmd += " --reset-policy %s --group-id %s --topic %s --broker-list %s --session-timeout %s" % \
+        if node.version < V_4_0_0:
+            cmd += " --broker-list %s" % self.kafka.bootstrap_servers(self.security_config.security_protocol)
+        else:
+            cmd += " --bootstrap-server %s" % self.kafka.bootstrap_servers(self.security_config.security_protocol)
+
+        cmd += " --reset-policy %s --group-id %s --topic %s --session-timeout %s" % \
                (self.reset_policy, self.group_id, self.topic,
-                self.kafka.bootstrap_servers(self.security_config.security_protocol),
                 self.session_timeout_sec*1000)
                
         if self.max_messages > 0:

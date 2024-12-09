@@ -23,7 +23,7 @@ import org.apache.kafka.coordinator.share.generated.ShareSnapshotValue;
 import org.apache.kafka.coordinator.share.generated.ShareUpdateKey;
 import org.apache.kafka.coordinator.share.generated.ShareUpdateValue;
 import org.apache.kafka.server.common.ApiMessageAndVersion;
-import org.apache.kafka.server.share.PersisterStateBatch;
+import org.apache.kafka.server.share.persister.PersisterStateBatch;
 
 import org.junit.jupiter.api.Test;
 
@@ -70,7 +70,7 @@ public class ShareCoordinatorRecordHelpersTest {
                             .setLastOffset(10L)
                             .setDeliveryState((byte) 0)
                             .setDeliveryCount((short) 1))),
-                (short) 0));
+                ShareCoordinator.SHARE_SNAPSHOT_RECORD_VALUE_VERSION));
 
         assertEquals(expectedRecord, record);
     }
@@ -112,7 +112,7 @@ public class ShareCoordinatorRecordHelpersTest {
                             .setLastOffset(10L)
                             .setDeliveryState((byte) 0)
                             .setDeliveryCount((short) 1))),
-                (short) 0));
+                ShareCoordinator.SHARE_UPDATE_RECORD_VALUE_VERSION));
 
         assertEquals(expectedRecord, record);
     }

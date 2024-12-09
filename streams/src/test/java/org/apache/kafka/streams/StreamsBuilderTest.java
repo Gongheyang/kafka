@@ -1817,6 +1817,93 @@ public class StreamsBuilderTest {
     }
 
     @Test
+    public void shouldWrapProcessorsForStreamStreamJoinWithSpuriousResultsFix() {
+        final Map<Object, Object> props = dummyStreamsConfigMap();
+        props.put(PROCESSOR_WRAPPER_CLASS_CONFIG, RecordingProcessorWrapper.class);
+
+        final WrapperRecorder counter = new WrapperRecorder();
+        props.put(PROCESSOR_WRAPPER_COUNTER_CONFIG, counter);
+
+        final StreamsBuilder builder = new StreamsBuilder(new TopologyConfig(new StreamsConfig(props)));
+
+        final KStream<String, String> stream1 = builder.stream("input-1", Consumed.as("source-1"));
+        final KStream<String, String> stream2 = builder.stream("input-2", Consumed.as("source-2"));
+
+        stream1.join(
+                stream2,
+                MockValueJoiner.TOSTRING_JOINER,
+                JoinWindows.ofTimeDifferenceAndGrace(Duration.ofDays(1), Duration.ofDays(1)),
+                StreamJoined.as("ss-join"))
+            .to("output", Produced.as("sink"));
+
+        builder.build();
+        assertThat(counter.wrappedProcessorNames(), Matchers.containsInAnyOrder(
+            "source-table", "st-join"
+        ));
+        assertThat(counter.numWrappedProcessors(), CoreMatchers.is(6));
+        assertThat(counter.numUniqueStateStores(), CoreMatchers.is(2));
+        assertThat(counter.numConnectedStateStores(), CoreMatchers.is(4));
+    }
+
+    @SuppressWarnings("deprecation")
+    @Test
+    public void shouldWrapProcessorsForStreamStreamJoinWithoutSpuriousResultsFix() {
+        final Map<Object, Object> props = dummyStreamsConfigMap();
+        props.put(PROCESSOR_WRAPPER_CLASS_CONFIG, RecordingProcessorWrapper.class);
+
+        final WrapperRecorder counter = new WrapperRecorder();
+        props.put(PROCESSOR_WRAPPER_COUNTER_CONFIG, counter);
+
+        final StreamsBuilder builder = new StreamsBuilder(new TopologyConfig(new StreamsConfig(props)));
+
+        final KStream<String, String> stream1 = builder.stream("input-1", Consumed.as("source-1"));
+        final KStream<String, String> stream2 = builder.stream("input-2", Consumed.as("source-2"));
+
+        stream1.join(
+                stream2,
+                MockValueJoiner.TOSTRING_JOINER,
+                JoinWindows.of(Duration.ofDays(1)), // intentionally uses deprecated version of this API!
+                StreamJoined.as("ss-join"))
+            .to("output", Produced.as("sink"));
+
+        builder.build();
+        assertThat(counter.wrappedProcessorNames(), Matchers.containsInAnyOrder(
+            "source-table", "ss-join"
+        ));
+        assertThat(counter.numWrappedProcessors(), CoreMatchers.is(2));
+        assertThat(counter.numUniqueStateStores(), CoreMatchers.is(1));
+        assertThat(counter.numConnectedStateStores(), CoreMatchers.is(1));
+    }
+
+    @Test
+    public void shouldWrapProcessorsForStreamStreamSelfJoin() {
+        final Map<Object, Object> props = dummyStreamsConfigMap();
+        props.put(PROCESSOR_WRAPPER_CLASS_CONFIG, RecordingProcessorWrapper.class);
+
+        final WrapperRecorder counter = new WrapperRecorder();
+        props.put(PROCESSOR_WRAPPER_COUNTER_CONFIG, counter);
+
+        final StreamsBuilder builder = new StreamsBuilder(new TopologyConfig(new StreamsConfig(props)));
+
+        final KStream<String, String> stream1 = builder.stream("input", Consumed.as("source"));
+
+        stream1.join(
+                stream1,
+                MockValueJoiner.TOSTRING_JOINER,
+                JoinWindows.ofTimeDifferenceWithNoGrace(Duration.ofDays(1)),
+                StreamJoined.as("ss-join"))
+            .to("output", Produced.as("sink"));
+
+        builder.build();
+        assertThat(counter.wrappedProcessorNames(), Matchers.containsInAnyOrder(
+            "st-join"
+        ));
+        assertThat(counter.numWrappedProcessors(), CoreMatchers.is(2));
+        assertThat(counter.numUniqueStateStores(), CoreMatchers.is(1));
+        assertThat(counter.numConnectedStateStores(), CoreMatchers.is(1));
+    }
+
+    @Test
     public void shouldAllowStreamsFromSameTopic() {
         builder.stream("topic");
         builder.stream("topic");

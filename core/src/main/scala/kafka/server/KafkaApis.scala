@@ -2328,14 +2328,11 @@ class KafkaApis(val requestChannel: RequestChannel,
         requestHelper.sendResponseMaybeThrottle(request, createResponse)
       }
 
-      // If the request is greater than version 4, we know the client supports transaction version 2.
-      val clientTransactionVersion = if (endTxnRequest.version() > 4) TransactionVersion.TV_2 else TransactionVersion.TV_0
-
       txnCoordinator.handleEndTransaction(endTxnRequest.data.transactionalId,
         endTxnRequest.data.producerId,
         endTxnRequest.data.producerEpoch,
         endTxnRequest.result(),
-        clientTransactionVersion,
+        TransactionVersion.transactionVersionForEndTxn(endTxnRequest),
         sendResponseCallback,
         requestLocal)
     } else
@@ -2608,16 +2605,13 @@ class KafkaApis(val requestChannel: RequestChannel,
             addResultAndMaybeSendResponse(addPartitionsToTxnRequest.errorResponseForTransaction(transactionalId, finalError))
           }
 
-          // If the request is greater than version 4, we know the client supports transaction version 2.
-          val clientTransactionVersion = if (addPartitionsToTxnRequest.version() > 4) TransactionVersion.TV_2 else TransactionVersion.TV_0
-
           if (!transaction.verifyOnly) {
             txnCoordinator.handleAddPartitionsToTransaction(transactionalId,
               transaction.producerId,
               transaction.producerEpoch,
               authorizedPartitions,
               sendResponseCallback,
-              clientTransactionVersion,
+              TransactionVersion.transactionVersionForAddPartitionsToTxn(addPartitionsToTxnRequest),
               requestLocal)
           } else {
             txnCoordinator.handleVerifyPartitionsInTransaction(transactionalId,

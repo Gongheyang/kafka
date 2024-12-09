@@ -39,6 +39,7 @@ import org.mockito.Mockito;
 
 import java.util.Collections;
 import java.util.Map;
+import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.OptionalLong;
 import java.util.Random;
@@ -141,6 +142,18 @@ public class KafkaRaftMetricsTest {
         assertEquals((double) 0, getMetric(metrics, "current-epoch").metricValue());
         assertEquals((double) -1L, getMetric(metrics, "high-watermark").metricValue());
 
+        if (kraftVersion.isReconfigSupported()) {
+            state.transitionToProspective();
+            assertEquals("prospective", getMetric(metrics, "current-state").metricValue());
+            assertEquals((double) -1L, getMetric(metrics, "current-leader").metricValue());
+            assertEquals((double) -1L, getMetric(metrics, "current-vote").metricValue());
+            assertEquals(
+                Uuid.ZERO_UUID.toString(),
+                getMetric(metrics, "current-vote-directory-id").metricValue()
+            );
+            assertEquals((double) 0, getMetric(metrics, "current-epoch").metricValue());
+            assertEquals((double) -1L, getMetric(metrics, "high-watermark").metricValue());
+        }
         state.transitionToCandidate();
         assertEquals("candidate", getMetric(metrics, "current-state").metricValue());
         assertEquals((double) -1L, getMetric(metrics, "current-leader").metricValue());
@@ -186,8 +199,21 @@ public class KafkaRaftMetricsTest {
         state.followerStateOrThrow().updateHighWatermark(OptionalLong.of(10L));
         assertEquals((double) 10L, getMetric(metrics, "high-watermark").metricValue());
 
-        state.transitionToUnattachedVotedState(3, ReplicaKey.of(2, ReplicaKey.NO_DIRECTORY_ID));
-        assertEquals("voted", getMetric(metrics, "current-state").metricValue());
+        if (kraftVersion.isReconfigSupported()) {
+            state.transitionToProspective();
+            assertEquals("prospective", getMetric(metrics, "current-state").metricValue());
+            assertEquals((double) 1L, getMetric(metrics, "current-leader").metricValue());
+            assertEquals((double) -1L, getMetric(metrics, "current-vote").metricValue());
+            assertEquals(
+                Uuid.ZERO_UUID.toString(),
+                getMetric(metrics, "current-vote-directory-id").metricValue()
+            );
+            assertEquals((double) 2, getMetric(metrics, "current-epoch").metricValue());
+            assertEquals((double) 10L, getMetric(metrics, "high-watermark").metricValue());
+        }
+
+        state.transitionToUnattached(3, Optional.of(ReplicaKey.of(2, ReplicaKey.NO_DIRECTORY_ID)));
+        assertEquals("unattached-voted", getMetric(metrics, "current-state").metricValue());
         assertEquals((double) -1, getMetric(metrics, "current-leader").metricValue());
         assertEquals((double) 2, getMetric(metrics, "current-vote").metricValue());
         assertEquals(
@@ -197,9 +223,9 @@ public class KafkaRaftMetricsTest {
         assertEquals((double) 3, getMetric(metrics, "current-epoch").metricValue());
         assertEquals((double) 10L, getMetric(metrics, "high-watermark").metricValue());
 
-        state.transitionToUnattached(4);
+        state.transitionToUnattached(4, OptionalInt.of(1));
         assertEquals("unattached", getMetric(metrics, "current-state").metricValue());
-        assertEquals((double) -1, getMetric(metrics, "current-leader").metricValue());
+        assertEquals((double) 1, getMetric(metrics, "current-leader").metricValue());
         assertEquals((double) -1, getMetric(metrics, "current-vote").metricValue());
         assertEquals(
             Uuid.ZERO_UUID.toString(),

@@ -17,6 +17,7 @@
 package org.apache.kafka.raft;
 
 import org.apache.kafka.common.Uuid;
+import org.apache.kafka.common.network.ListenerName;
 import org.apache.kafka.common.utils.LogContext;
 import org.apache.kafka.common.utils.MockTime;
 
@@ -25,8 +26,10 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import java.net.InetSocketAddress;
 import java.util.Collections;
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.Set;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -38,6 +41,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class ProspectiveStateTest {
     private final ReplicaKey localReplicaKey = ReplicaKey.of(0, Uuid.randomUuid());
+    private final Endpoints leaderEndpoints = Endpoints.fromInetSocketAddresses(
+        Collections.singletonMap(
+            ListenerName.normalised("CONTROLLER"),
+            InetSocketAddress.createUnresolved("mock-host-3", 1234)
+        )
+    );
     private final int epoch = 5;
     private final MockTime time = new MockTime();
     private final int electionTimeoutMs = 5000;
@@ -48,10 +57,26 @@ public class ProspectiveStateTest {
             time,
             localReplicaKey.id(),
             epoch,
+            OptionalInt.of(3),
+            Optional.empty(),
             Optional.empty(),
             voters,
             Optional.empty(),
-            0,
+            electionTimeoutMs,
+            logContext
+        );
+    }
+
+    private ProspectiveState newProspectiveStateWithLeaderEndpoints(VoterSet voters) {
+        return new ProspectiveState(
+            time,
+            localReplicaKey.id(),
+            epoch,
+            OptionalInt.of(3),
+            Optional.of(leaderEndpoints),
+            Optional.empty(),
+            voters,
+            Optional.empty(),
             electionTimeoutMs,
             logContext
         );
@@ -242,10 +267,11 @@ public class ProspectiveStateTest {
             time,
             localReplicaKey.id(),
             epoch,
+            OptionalInt.empty(),
+            Optional.empty(),
             Optional.of(node1),
             voterSetWithLocal(Stream.of(node1, node2, node3), withDirectoryId),
             Optional.empty(),
-            0,
             electionTimeoutMs,
             logContext
         );

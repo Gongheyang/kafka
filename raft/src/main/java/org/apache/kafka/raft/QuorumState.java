@@ -379,10 +379,48 @@ public class QuorumState {
      * but we do not yet know of the elected leader.
      */
     public void transitionToUnattached(int epoch) {
+        transitionToUnattached(epoch, Optional.empty(), OptionalInt.empty());
+    }
+
+    /**
+     * Transition to the "unattached" state with votedKey. This means we have found an epoch greater than the
+     * current epoch, but we do not yet know of the elected leader. Note, if we are transitioning from unattached and
+     * no epoch change, we take the path of unattachedTransitionToUnattachedVotedState instead.
+     */
+    public void transitionToUnattached(int epoch, Optional<ReplicaKey> votedKey) {
+        transitionToUnattached(epoch, votedKey, OptionalInt.empty());
+    }
+
+    public void transitionToUnattached(int epoch, OptionalInt leaderId) {
+        transitionToUnattached(epoch, Optional.empty(), leaderId);
+    }
+
+    /**
+     * Transition to the "unattached" state with votedKey. This means we have found an epoch greater than the
+     * current epoch, but we do not yet know of the elected leader. Note, if we are transitioning from unattached and
+     * no epoch change, we take the path of unattachedTransitionToUnattachedVotedState instead.
+     * It is invalid to have a votedKey AND leaderId in Unattached state (or any state).
+     */
+    private void transitionToUnattached(int epoch, Optional<ReplicaKey> votedKey, OptionalInt leaderId) {
         int currentEpoch = state.epoch();
-        if (epoch <= currentEpoch) {
-            throw new IllegalStateException("Cannot transition to Unattached with epoch= " + epoch +
-                " from current state " + state);
+        if (votedKey.isPresent() && leaderId.isPresent()) {
+            throw new IllegalStateException(
+                String.format(
+                    "Cannot transition to Unattached with epoch= %d with both votedKey= %s and leaderId= %d from current state %s",
+                    currentEpoch,
+                    votedKey.get(),
+                    leaderId.getAsInt(),
+                    state
+                )
+            );
+        } else if (epoch < currentEpoch || (epoch == currentEpoch && !isProspective())) {
+            throw new IllegalStateException(
+                String.format(
+                    "Cannot transition to Unattached with epoch= %d from current state %s",
+                    epoch,
+                    state
+                )
+            );
         }
 
         final long electionTimeoutMs;
@@ -392,6 +430,8 @@ public class QuorumState {
             electionTimeoutMs = candidateStateOrThrow().remainingElectionTimeMs(time.milliseconds());
         } else if (isUnattached()) {
             electionTimeoutMs = unattachedStateOrThrow().remainingElectionTimeMs(time.milliseconds());
+        } else if (isProspective() && !prospectiveStateOrThrow().isBackingOff()) {
+            electionTimeoutMs = prospectiveStateOrThrow().remainingElectionTimeMs(time.milliseconds());
         } else {
             electionTimeoutMs = randomElectionTimeoutMs();
         }
@@ -399,8 +439,8 @@ public class QuorumState {
         durableTransitionTo(new UnattachedState(
             time,
             epoch,
-            OptionalInt.empty(),
-            Optional.empty(),
+            leaderId,
+            votedKey,
             partitionState.lastVoterSet().voterIds(),
             state.highWatermark(),
             electionTimeoutMs,
@@ -409,12 +449,10 @@ public class QuorumState {
     }
 
     /**
-     * Grant a vote to a candidate. We will transition/remain in Unattached
-     * state until either the election timeout expires or a leader is elected. In particular,
-     * we do not begin fetching until the election has concluded and
-     * {@link #transitionToFollower(int, int, Endpoints)} is invoked.
+     * Grant a vote to a candidate as Unattached. We will transition to Unattached with votedKey
+     * state and remain there until either the election timeout expires or we discover the leader.
      */
-    public void transitionToUnattachedVotedState(
+    public void unattachedAddVotedState(
         int epoch,
         ReplicaKey candidateKey
     ) {
@@ -457,7 +495,7 @@ public class QuorumState {
             new UnattachedState(
                 time,
                 epoch,
-                OptionalInt.empty(),
+                state.election().optionalLeaderId(),
                 Optional.of(candidateKey),
                 partitionState.lastVoterSet().voterIds(),
                 state.highWatermark(),
@@ -551,22 +589,21 @@ public class QuorumState {
                     partitionState.lastVoterSet()
                 )
             );
-        } else if (isLeader() || isCandidate()) {
+        } else if (isLeader() || isProspective()) {
             throw new IllegalStateException("Cannot transition to Prospective since the local broker.id=" + localId +
                 " is state " + state);
         }
-
-        int retries = isProspective() ? prospectiveStateOrThrow().retries() + 1 : 1;
 
         durableTransitionTo(new ProspectiveState(
             time,
             localIdOrThrow(),
             epoch(),
+            leaderId(),
+            Optional.of(state.leaderEndpoints()),
             state.election().optionalVotedKey(),
             partitionState.lastVoterSet(),
             state.highWatermark(),
             randomElectionTimeoutMs(),
-            retries,
             logContext
         ));
     }
@@ -604,7 +641,7 @@ public class QuorumState {
             );
         }
         if (partitionState.lastKraftVersion().isReconfigSupported()) {
-            if (!isCandidate() && !isProspective()) {
+            if (!isProspective()) {
                 throw new IllegalStateException("Cannot transition to Candidate since the local broker.id=" + localId +
                     " is state " + state);
             }

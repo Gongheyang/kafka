@@ -359,8 +359,7 @@ public final class VoterSetTest {
     }
 
     public static VoterSet.VoterNode voterNode(ReplicaKey replicaKey) {
-        return new VoterSet.VoterNode(
-            replicaKey,
+        return voterNode(replicaKey,
             Endpoints.fromInetSocketAddresses(
                 Collections.singletonMap(
                     DEFAULT_LISTENER_NAME,
@@ -369,7 +368,14 @@ public final class VoterSetTest {
                         9990 + replicaKey.id()
                     )
                 )
-            ),
+            )
+        );
+    }
+
+    public static VoterSet.VoterNode voterNode(ReplicaKey replicaKey, Endpoints endpoints) {
+        return new VoterSet.VoterNode(
+            replicaKey,
+            endpoints,
             Feature.KRAFT_VERSION.supportedVersionRange()
         );
     }

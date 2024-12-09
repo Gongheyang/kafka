@@ -97,10 +97,6 @@ interface VotingState extends EpochState {
 
     long remainingElectionTimeMs(long currentTimeMs);
 
-    boolean isBackoffComplete(long currentTimeMs);
-
-    long remainingBackoffMs(long currentTimeMs);
-
     /**
      * Get the set of voters which have not been counted as granted or rejected yet.
      *

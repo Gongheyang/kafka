@@ -17,18 +17,23 @@
 
 package org.apache.kafka.controller;
 
+import org.apache.kafka.common.config.ConfigResource;
+import org.apache.kafka.common.config.TopicConfig;
 import org.apache.kafka.common.metadata.AbortTransactionRecord;
 import org.apache.kafka.common.metadata.BeginTransactionRecord;
+import org.apache.kafka.common.metadata.ConfigRecord;
 import org.apache.kafka.common.metadata.EndTransactionRecord;
 import org.apache.kafka.metadata.bootstrap.BootstrapMetadata;
 import org.apache.kafka.metadata.migration.ZkMigrationState;
 import org.apache.kafka.server.common.ApiMessageAndVersion;
+import org.apache.kafka.server.common.EligibleLeaderReplicasVersion;
 import org.apache.kafka.server.common.MetadataVersion;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 
+import static org.apache.kafka.common.metadata.MetadataRecordType.CONFIG_RECORD;
 import static org.apache.kafka.metadata.migration.ZkMigrationState.NONE;
 import static org.apache.kafka.metadata.migration.ZkMigrationState.POST_MIGRATION;
 
@@ -38,7 +43,9 @@ public class ActivationRecordsGenerator {
         Consumer<String> activationMessageConsumer,
         long transactionStartOffset,
         BootstrapMetadata bootstrapMetadata,
-        MetadataVersion metadataVersion
+        MetadataVersion metadataVersion,
+        boolean isElrEnabled,
+        ConfigurationControlManager configurationControl
     ) {
         StringBuilder logMessageBuilder = new StringBuilder("Performing controller activation. ");
         List<ApiMessageAndVersion> records = new ArrayList<>();
@@ -94,6 +101,10 @@ public class ActivationRecordsGenerator {
             logMessageBuilder.append("Setting the ZK migration state to NONE since this is a de-novo " +
                 "KRaft cluster. ");
             records.add(NONE.toRecord());
+        }
+
+        if (isElrEnabled) {
+            configurationControl.maybeResetMinIsrConfig(records);
         }
 
         activationMessageConsumer.accept(logMessageBuilder.toString().trim());
@@ -177,11 +188,16 @@ public class ActivationRecordsGenerator {
         long transactionStartOffset,
         BootstrapMetadata bootstrapMetadata,
         ZkMigrationState zkMigrationState,
-        MetadataVersion curMetadataVersion
-    ) {
+        MetadataVersion curMetadataVersion,
+        ConfigurationControlManager configurationControl) {
         if (isEmpty) {
             return recordsForEmptyLog(activationMessageConsumer, transactionStartOffset,
-                    bootstrapMetadata, bootstrapMetadata.metadataVersion());
+                    bootstrapMetadata, bootstrapMetadata.metadataVersion(),
+                    FeatureControlManager.isElrFeatureEnabled(
+                        bootstrapMetadata.metadataVersion(),
+                        bootstrapMetadata.featureLevel(EligibleLeaderReplicasVersion.FEATURE_NAME)
+                    ),
+                    configurationControl);
         } else {
             return recordsForNonEmptyLog(activationMessageConsumer, transactionStartOffset,
                     zkMigrationState, curMetadataVersion);

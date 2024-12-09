@@ -18,21 +18,27 @@
 package org.apache.kafka.controller;
 
 import org.apache.kafka.clients.admin.AlterConfigOp;
+import org.apache.kafka.clients.admin.FeatureUpdate;
 import org.apache.kafka.common.Endpoint;
 import org.apache.kafka.common.Uuid;
 import org.apache.kafka.common.config.ConfigDef;
+import org.apache.kafka.common.config.ConfigException;
 import org.apache.kafka.common.config.ConfigResource;
 import org.apache.kafka.common.config.TopicConfig;
 import org.apache.kafka.common.errors.PolicyViolationException;
 import org.apache.kafka.common.errors.UnknownTopicOrPartitionException;
 import org.apache.kafka.common.metadata.ConfigRecord;
+import org.apache.kafka.common.metadata.FeatureLevelRecord;
 import org.apache.kafka.common.protocol.Errors;
 import org.apache.kafka.common.requests.ApiError;
 import org.apache.kafka.common.security.auth.SecurityProtocol;
 import org.apache.kafka.metadata.BrokerRegistration;
 import org.apache.kafka.metadata.KafkaConfigSchema;
 import org.apache.kafka.metadata.RecordTestUtils;
+import org.apache.kafka.metadata.VersionRange;
 import org.apache.kafka.server.common.ApiMessageAndVersion;
+import org.apache.kafka.server.common.Feature;
+import org.apache.kafka.server.common.MetadataVersion;
 import org.apache.kafka.server.config.ConfigSynonym;
 import org.apache.kafka.server.policy.AlterConfigPolicy;
 import org.apache.kafka.server.policy.AlterConfigPolicy.RequestMetadata;
@@ -55,6 +61,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
 import static java.util.Arrays.asList;
+import static java.util.Collections.emptyList;
 import static org.apache.kafka.clients.admin.AlterConfigOp.OpType.APPEND;
 import static org.apache.kafka.clients.admin.AlterConfigOp.OpType.DELETE;
 import static org.apache.kafka.clients.admin.AlterConfigOp.OpType.SET;
@@ -62,8 +69,11 @@ import static org.apache.kafka.clients.admin.AlterConfigOp.OpType.SUBTRACT;
 import static org.apache.kafka.common.config.ConfigResource.Type.BROKER;
 import static org.apache.kafka.common.config.ConfigResource.Type.TOPIC;
 import static org.apache.kafka.common.metadata.MetadataRecordType.CONFIG_RECORD;
+import static org.apache.kafka.controller.FeatureControlManagerTest.createFakeClusterFeatureSupportDescriber;
 import static org.apache.kafka.server.config.ConfigSynonym.HOURS_TO_MILLISECONDS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 
@@ -125,8 +135,12 @@ public class ConfigurationControlManagerTest {
 
     @Test
     public void testReplay() throws Exception {
+        ClusterControlManager clusterControl = Mockito.mock(ClusterControlManager.class);
+        FeatureControlManager featureControl = Mockito.mock(FeatureControlManager.class);
         ConfigurationControlManager manager = new ConfigurationControlManager.Builder().
             setKafkaConfigSchema(SCHEMA).
+            setClusterControl(clusterControl).
+            setFeatureControl(featureControl).
             build();
         assertEquals(Collections.emptyMap(), manager.getConfigs(BROKER0));
         manager.replay(new ConfigRecord().
@@ -151,8 +165,12 @@ public class ConfigurationControlManagerTest {
 
     @Test
     public void testIncrementalAlterConfigs() {
+        ClusterControlManager clusterControl = Mockito.mock(ClusterControlManager.class);
+        FeatureControlManager featureControl = Mockito.mock(FeatureControlManager.class);
         ConfigurationControlManager manager = new ConfigurationControlManager.Builder().
             setKafkaConfigSchema(SCHEMA).
+            setClusterControl(clusterControl).
+            setFeatureControl(featureControl).
             build();
 
         ControllerResult<Map<ConfigResource, ApiError>> result = manager.
@@ -182,8 +200,12 @@ public class ConfigurationControlManagerTest {
 
     @Test
     public void testIncrementalAlterConfig() {
+        ClusterControlManager clusterControl = Mockito.mock(ClusterControlManager.class);
+        FeatureControlManager featureControl = Mockito.mock(FeatureControlManager.class);
         ConfigurationControlManager manager = new ConfigurationControlManager.Builder().
             setKafkaConfigSchema(SCHEMA).
+            setClusterControl(clusterControl).
+            setFeatureControl(featureControl).
             build();
         Map<String, Entry<AlterConfigOp.OpType, String>> keyToOps = toMap(entry("abc", entry(APPEND, "123")));
 
@@ -206,8 +228,12 @@ public class ConfigurationControlManagerTest {
 
     @Test
     public void testIncrementalAlterMultipleConfigValues() {
+        ClusterControlManager clusterControl = Mockito.mock(ClusterControlManager.class);
+        FeatureControlManager featureControl = Mockito.mock(FeatureControlManager.class);
         ConfigurationControlManager manager = new ConfigurationControlManager.Builder().
             setKafkaConfigSchema(SCHEMA).
+            setClusterControl(clusterControl).
+            setFeatureControl(featureControl).
             build();
 
         ControllerResult<Map<ConfigResource, ApiError>> result = manager.
@@ -252,9 +278,13 @@ public class ConfigurationControlManagerTest {
 
     @Test
     public void testIncrementalAlterConfigsWithoutExistence() {
+        ClusterControlManager clusterControl = Mockito.mock(ClusterControlManager.class);
+        FeatureControlManager featureControl = Mockito.mock(FeatureControlManager.class);
         ConfigurationControlManager manager = new ConfigurationControlManager.Builder().
             setKafkaConfigSchema(SCHEMA).
             setExistenceChecker(TestExistenceChecker.INSTANCE).
+            setClusterControl(clusterControl).
+            setFeatureControl(featureControl).
             build();
         ConfigResource existingTopic = new ConfigResource(TOPIC, "ExistingTopic");
 
@@ -307,6 +337,8 @@ public class ConfigurationControlManagerTest {
 
     @Test
     public void testIncrementalAlterConfigsWithPolicy() {
+        ClusterControlManager clusterControl = Mockito.mock(ClusterControlManager.class);
+        FeatureControlManager featureControl = Mockito.mock(FeatureControlManager.class);
         MockAlterConfigsPolicy policy = new MockAlterConfigsPolicy(asList(
             new RequestMetadata(MYTOPIC, Collections.emptyMap()),
             new RequestMetadata(BROKER0, toMap(
@@ -316,6 +348,8 @@ public class ConfigurationControlManagerTest {
         ConfigurationControlManager manager = new ConfigurationControlManager.Builder().
             setKafkaConfigSchema(SCHEMA).
             setAlterConfigPolicy(Optional.of(policy)).
+            setClusterControl(clusterControl).
+            setFeatureControl(featureControl).
             build();
         // Existing configs should not be passed to the policy
         manager.replay(new ConfigRecord().setResourceType(BROKER.id()).setResourceName("0").
@@ -371,9 +405,13 @@ public class ConfigurationControlManagerTest {
 
     @Test
     public void testLegacyAlterConfigs() {
+        ClusterControlManager clusterControl = Mockito.mock(ClusterControlManager.class);
+        FeatureControlManager featureControl = Mockito.mock(FeatureControlManager.class);
         ConfigurationControlManager manager = new ConfigurationControlManager.Builder().
             setKafkaConfigSchema(SCHEMA).
             setAlterConfigPolicy(Optional.of(new CheckForNullValuesPolicy())).
+            setClusterControl(clusterControl).
+            setFeatureControl(featureControl).
             build();
         List<ApiMessageAndVersion> expectedRecords1 = asList(
             new ApiMessageAndVersion(new ConfigRecord().
@@ -406,8 +444,10 @@ public class ConfigurationControlManagerTest {
     @Test
     public void testResetMinIsrConfigsWithDefaultConfig() {
         ClusterControlManager clusterControl = Mockito.mock(ClusterControlManager.class);
+        FeatureControlManager featureControl = Mockito.mock(FeatureControlManager.class);
         ConfigurationControlManager manager = new ConfigurationControlManager.Builder().
             setClusterControl(clusterControl).
+            setFeatureControl(featureControl).
             setKafkaConfigSchema(SCHEMA).
             build();
         Map<String, Entry<AlterConfigOp.OpType, String>> keyToOps = toMap(entry(TopicConfig.MIN_IN_SYNC_REPLICAS_CONFIG, entry(SET, "3")));
@@ -446,8 +486,10 @@ public class ConfigurationControlManagerTest {
     @Test
     public void testResetMinIsrConfigsWithStaticConfig() {
         ClusterControlManager clusterControl = Mockito.mock(ClusterControlManager.class);
+        FeatureControlManager featureControl = Mockito.mock(FeatureControlManager.class);
         ConfigurationControlManager manager = new ConfigurationControlManager.Builder().
             setClusterControl(clusterControl).
+            setFeatureControl(featureControl).
             setStaticConfig(Map.of(TopicConfig.MIN_IN_SYNC_REPLICAS_CONFIG, "2")).
             setKafkaConfigSchema(SCHEMA).
             build();
@@ -482,5 +524,86 @@ public class ConfigurationControlManagerTest {
             new ApiMessageAndVersion(new ConfigRecord().setResourceType(BROKER.id()).setResourceName("1").
                 setName(TopicConfig.MIN_IN_SYNC_REPLICAS_CONFIG).setValue(null), CONFIG_RECORD.highestSupportedVersion())),
             records);
+    }
+
+    @Test
+    public void testRejectMinIsrClusterLevelRemoveWhenElrEnabled() {
+        ClusterControlManager clusterControl = Mockito.mock(ClusterControlManager.class);
+        FeatureControlManager featureControl = Mockito.mock(FeatureControlManager.class);
+        ConfigurationControlManager manager = new ConfigurationControlManager.Builder().
+            setClusterControl(clusterControl).
+            setFeatureControl(featureControl).
+            setStaticConfig(Map.of(TopicConfig.MIN_IN_SYNC_REPLICAS_CONFIG, "2")).
+            setKafkaConfigSchema(SCHEMA).
+            build();
+        when(featureControl.isElrFeatureEnabled()).thenReturn(true);
+        Map<String, Entry<AlterConfigOp.OpType, String>> keyToOps = toMap(entry(TopicConfig.MIN_IN_SYNC_REPLICAS_CONFIG, entry(SET, "3")));
+        ConfigResource brokerConfigResource = new ConfigResource(ConfigResource.Type.BROKER, "");
+        ControllerResult<ApiError> result = manager.incrementalAlterConfig(brokerConfigResource, keyToOps, true);
+
+        assertEquals(ControllerResult.atomicOf(Collections.singletonList(new ApiMessageAndVersion(
+                new ConfigRecord().setResourceType(BROKER.id()).setResourceName("").
+                    setName(TopicConfig.MIN_IN_SYNC_REPLICAS_CONFIG).setValue("3"), CONFIG_RECORD.highestSupportedVersion())),
+            ApiError.NONE), result);
+
+        RecordTestUtils.replayAll(manager, result.records());
+
+        keyToOps = toMap(entry(TopicConfig.MIN_IN_SYNC_REPLICAS_CONFIG, entry(DELETE, null)));
+        brokerConfigResource = new ConfigResource(ConfigResource.Type.BROKER, "");
+        result = manager.incrementalAlterConfig(brokerConfigResource, keyToOps, true);
+
+        assertEquals(Errors.INVALID_CONFIG, result.response().error());
+    }
+
+    @Test
+    public void testRejectMinIsrBrokerLevelUpdateWhenElrEnabled() {
+        ClusterControlManager clusterControl = Mockito.mock(ClusterControlManager.class);
+        FeatureControlManager featureControl = Mockito.mock(FeatureControlManager.class);
+        ConfigurationControlManager manager = new ConfigurationControlManager.Builder().
+            setClusterControl(clusterControl).
+            setFeatureControl(featureControl).
+            setStaticConfig(Map.of(TopicConfig.MIN_IN_SYNC_REPLICAS_CONFIG, "2")).
+            setKafkaConfigSchema(SCHEMA).
+            build();
+        when(featureControl.isElrFeatureEnabled()).thenReturn(true);
+        Map<String, Entry<AlterConfigOp.OpType, String>> keyToOps = toMap(entry(TopicConfig.MIN_IN_SYNC_REPLICAS_CONFIG, entry(SET, "3")));
+        ConfigResource brokerConfigResource = new ConfigResource(ConfigResource.Type.BROKER, "1");
+        ControllerResult<ApiError> result = manager.incrementalAlterConfig(brokerConfigResource, keyToOps, true);
+        assertEquals(Errors.INVALID_CONFIG, result.response().error());
+    }
+
+    @Test
+    public void testUpgradeElrFeatureLevel() {
+        ClusterControlManager clusterControl = Mockito.mock(ClusterControlManager.class);
+        Map<String, VersionRange> localSupportedFeatures = new HashMap<>();
+        localSupportedFeatures.put(MetadataVersion.FEATURE_NAME, VersionRange.of(
+            MetadataVersion.IBP_4_0_IV1.featureLevel(), MetadataVersion.latestTesting().featureLevel()));
+        localSupportedFeatures.put(Feature.ELIGIBLE_LEADER_REPLICAS_VERSION.featureName(), VersionRange.of(0, 1));
+        FeatureControlManager featureControl = new FeatureControlManager.Builder().
+            setQuorumFeatures(new QuorumFeatures(0, localSupportedFeatures, emptyList())).
+            setClusterFeatureSupportDescriber(createFakeClusterFeatureSupportDescriber(
+                Collections.singletonList(new SimpleImmutableEntry<>(1, Collections.singletonMap(Feature.ELIGIBLE_LEADER_REPLICAS_VERSION.featureName(), VersionRange.of(0, 1)))),
+                emptyList())).
+            setMetadataVersion(MetadataVersion.IBP_4_0_IV1).
+            build();
+        ConfigurationControlManager configurationControl = new ConfigurationControlManager.Builder().
+            setClusterControl(clusterControl).
+            setFeatureControl(featureControl).
+            setStaticConfig(Map.of(TopicConfig.MIN_IN_SYNC_REPLICAS_CONFIG, "2")).
+            setKafkaConfigSchema(SCHEMA).
+            build();
+        ControllerResult<ApiError> result = configurationControl.updateFeatures(
+            Collections.singletonMap(Feature.ELIGIBLE_LEADER_REPLICAS_VERSION.featureName(), (short) 1),
+            Collections.singletonMap(Feature.ELIGIBLE_LEADER_REPLICAS_VERSION.featureName(), FeatureUpdate.UpgradeType.UPGRADE),
+            false);
+        assertEquals(ControllerResult.atomicOf(Arrays.asList(new ApiMessageAndVersion(
+                new FeatureLevelRecord().setName(Feature.ELIGIBLE_LEADER_REPLICAS_VERSION.featureName()).setFeatureLevel((short) 1), (short) 0),
+                new ApiMessageAndVersion(new ConfigRecord().setResourceType(ConfigResource.Type.BROKER.id()).setResourceName("").setName("min.insync.replicas").setValue("2"), (short) 0)),
+            ApiError.NONE), result);
+        assertEquals(2, result.records().size());
+        RecordTestUtils.replayAll(featureControl, Collections.singletonList(result.records().get(0)));
+        assertEquals(Optional.of((short) 1), featureControl.finalizedFeatures(Long.MAX_VALUE).get(Feature.ELIGIBLE_LEADER_REPLICAS_VERSION.featureName()));
+        RecordTestUtils.replayAll(configurationControl, Collections.singletonList(result.records().get(1)));
+        assertTrue(configurationControl.clusterConfig().containsKey(TopicConfig.MIN_IN_SYNC_REPLICAS_CONFIG));
     }
 }

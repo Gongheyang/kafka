@@ -46,6 +46,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 import static org.apache.kafka.common.metadata.MetadataRecordType.FEATURE_LEVEL_RECORD;
 import static org.apache.kafka.controller.QuorumController.MAX_RECORDS_PER_USER_OP;
@@ -58,7 +59,6 @@ public class FeatureControlManager {
         private QuorumFeatures quorumFeatures = null;
         private MetadataVersion metadataVersion = MetadataVersion.latestProduction();
         private MetadataVersion minimumBootstrapVersion = MetadataVersion.MINIMUM_BOOTSTRAP_VERSION;
-        private ConfigurationControlManager configurationControl = null;
         private ClusterFeatureSupportDescriber clusterSupportDescriber = new ClusterFeatureSupportDescriber() {
             @Override
             public Iterator<Entry<Integer, Map<String, VersionRange>>> brokerSupported() {
@@ -101,11 +101,6 @@ public class FeatureControlManager {
             return this;
         }
 
-        Builder setConfigurationControl(ConfigurationControlManager configurationControl) {
-            this.configurationControl = configurationControl;
-            return this;
-        }
-
         public FeatureControlManager build() {
             if (logContext == null) logContext = new LogContext();
             if (snapshotRegistry == null) snapshotRegistry = new SnapshotRegistry(logContext);
@@ -122,8 +117,7 @@ public class FeatureControlManager {
                 snapshotRegistry,
                 metadataVersion,
                 minimumBootstrapVersion,
-                clusterSupportDescriber,
-                configurationControl
+                clusterSupportDescriber
             );
         }
     }
@@ -160,19 +154,13 @@ public class FeatureControlManager {
      */
     private final ClusterFeatureSupportDescriber clusterSupportDescriber;
 
-    /**
-     * The Configuration Control Manager.
-     */
-    private final ConfigurationControlManager configurationControl;
-
     private FeatureControlManager(
         LogContext logContext,
         QuorumFeatures quorumFeatures,
         SnapshotRegistry snapshotRegistry,
         MetadataVersion metadataVersion,
         MetadataVersion minimumBootstrapVersion,
-        ClusterFeatureSupportDescriber clusterSupportDescriber,
-        ConfigurationControlManager configurationControl
+        ClusterFeatureSupportDescriber clusterSupportDescriber
     ) {
         this.log = logContext.logger(FeatureControlManager.class);
         this.quorumFeatures = quorumFeatures;
@@ -181,13 +169,17 @@ public class FeatureControlManager {
         this.minimumBootstrapVersion = minimumBootstrapVersion;
         this.migrationControlState = new TimelineObject<>(snapshotRegistry, ZkMigrationState.NONE);
         this.clusterSupportDescriber = clusterSupportDescriber;
-        this.configurationControl = configurationControl;
+    }
+
+    interface HandleConfigUpdatesWhenEnableElr {
+        void execute(List<ApiMessageAndVersion> records);
     }
 
     ControllerResult<ApiError> updateFeatures(
         Map<String, Short> updates,
         Map<String, FeatureUpdate.UpgradeType> upgradeTypes,
-        boolean validateOnly
+        boolean validateOnly,
+        HandleConfigUpdatesWhenEnableElr elrConfigHandler
     ) {
         List<ApiMessageAndVersion> records =
                 BoundedList.newArrayBacked(MAX_RECORDS_PER_USER_OP);
@@ -203,8 +195,8 @@ public class FeatureControlManager {
                 return ControllerResult.of(Collections.emptyList(), error);
             }
             if (entry.getKey() == EligibleLeaderReplicasVersion.FEATURE_NAME &&
-                entry.getValue() >= EligibleLeaderReplicasVersion.ELRV_1.featureLevel()) {
-                configurationControl.maybeResetMinIsrConfig(records);
+                isElrFeatureEnabled(metadataVersion() ,entry.getValue())) {
+                elrConfigHandler.execute(records);
             }
         }
 
@@ -464,8 +456,11 @@ public class FeatureControlManager {
     }
 
     boolean isElrFeatureEnabled() {
-        return metadataVersion().isElrSupported() &&
-            latestFinalizedFeatures().versionOrDefault(EligibleLeaderReplicasVersion.FEATURE_NAME, (short) 0) >=
-            EligibleLeaderReplicasVersion.ELRV_1.featureLevel();
+        return isElrFeatureEnabled(metadataVersion(), latestFinalizedFeatures().versionOrDefault(EligibleLeaderReplicasVersion.FEATURE_NAME, (short) 0));
+    }
+
+    static boolean isElrFeatureEnabled(MetadataVersion metadataVersion, short elrFeatureLevel) {
+        return metadataVersion.isElrSupported() &&
+            elrFeatureLevel >= EligibleLeaderReplicasVersion.ELRV_1.featureLevel();
     }
 }

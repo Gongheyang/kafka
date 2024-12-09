@@ -19,9 +19,11 @@ package org.apache.kafka.controller;
 
 import org.apache.kafka.clients.admin.AlterConfigOp.OpType;
 import org.apache.kafka.clients.admin.ConfigEntry;
+import org.apache.kafka.clients.admin.FeatureUpdate;
 import org.apache.kafka.common.config.ConfigException;
 import org.apache.kafka.common.config.ConfigResource;
 import org.apache.kafka.common.config.ConfigResource.Type;
+import org.apache.kafka.common.config.TopicConfig;
 import org.apache.kafka.common.config.types.Password;
 import org.apache.kafka.common.metadata.ConfigRecord;
 import org.apache.kafka.common.protocol.Errors;
@@ -73,6 +75,7 @@ public class ConfigurationControlManager {
     private final Map<String, Object> staticConfig;
     private final ConfigResource currentController;
     private final ClusterControlManager clusterControl;
+    private final FeatureControlManager featureControl;
 
     static class Builder {
         private LogContext logContext = null;
@@ -84,6 +87,7 @@ public class ConfigurationControlManager {
         private Map<String, Object> staticConfig = Collections.emptyMap();
         private int nodeId = 0;
         private ClusterControlManager clusterControl = null;
+        private FeatureControlManager featureControl = null;
 
         Builder setLogContext(LogContext logContext) {
             this.logContext = logContext;
@@ -130,11 +134,22 @@ public class ConfigurationControlManager {
             return this;
         }
 
+        Builder setFeatureControl(FeatureControlManager featureControl) {
+            this.featureControl = featureControl;
+            return this;
+        }
+
         ConfigurationControlManager build() {
             if (logContext == null) logContext = new LogContext();
             if (snapshotRegistry == null) snapshotRegistry = new SnapshotRegistry(logContext);
             if (configSchema == null) {
                 throw new RuntimeException("You must set the configSchema.");
+            }
+            if (clusterControl == null) {
+                throw new RuntimeException("You must set the cluster control manager.");
+            }
+            if (featureControl == null) {
+                throw new RuntimeException("You must set the feature control manager.");
             }
             return new ConfigurationControlManager(
                 logContext,
@@ -145,7 +160,8 @@ public class ConfigurationControlManager {
                 validator,
                 staticConfig,
                 nodeId,
-                clusterControl);
+                clusterControl,
+                featureControl);
         }
     }
 
@@ -157,7 +173,8 @@ public class ConfigurationControlManager {
             ConfigurationValidator validator,
             Map<String, Object> staticConfig,
             int nodeId,
-            ClusterControlManager clusterControl) {
+            ClusterControlManager clusterControl,
+            FeatureControlManager featureControl) {
         this.log = logContext.logger(ConfigurationControlManager.class);
         this.snapshotRegistry = snapshotRegistry;
         this.configSchema = configSchema;
@@ -168,6 +185,7 @@ public class ConfigurationControlManager {
         this.staticConfig = Collections.unmodifiableMap(new HashMap<>(staticConfig));
         this.currentController = new ConfigResource(Type.BROKER, Integer.toString(nodeId));
         this.clusterControl = clusterControl;
+        this.featureControl = featureControl;
     }
 
     SnapshotRegistry snapshotRegistry() {
@@ -298,6 +316,12 @@ public class ConfigurationControlManager {
         for (ApiMessageAndVersion newRecord : recordsExplicitlyAltered) {
             ConfigRecord configRecord = (ConfigRecord) newRecord.message();
             if (configRecord.value() == null) {
+                if (featureControl.isElrFeatureEnabled()) {
+                    if (configResource.equals(DEFAULT_NODE)) {
+                        if (configRecord.name() == MIN_IN_SYNC_REPLICAS_CONFIG )
+                            return new ApiError(INVALID_CONFIG, "It is not allowed to delete cluster level min isr config when ELR is enabled.");
+                    }
+                }
                 allConfigs.remove(configRecord.name());
             } else {
                 allConfigs.put(configRecord.name(), configRecord.value());
@@ -317,6 +341,14 @@ public class ConfigurationControlManager {
             }
             if (alterConfigPolicy.isPresent()) {
                 alterConfigPolicy.get().validate(new RequestMetadata(configResource, alteredConfigsForAlterConfigPolicyCheck));
+            }
+            if (featureControl.isElrFeatureEnabled()) {
+                if (configResource.type() == Type.BROKER && !configResource.name().isEmpty()) {
+                    for (Entry record : allConfigs.entrySet()) {
+                        if (record.getKey() == MIN_IN_SYNC_REPLICAS_CONFIG && record.getValue() != null)
+                            throw new ConfigException("It is not allowed to set broker level min isr config when ELR is enabled.");
+                    }
+                }
             }
         } catch (ConfigException e) {
             return new ApiError(INVALID_CONFIG, e.getMessage());
@@ -552,6 +584,21 @@ public class ConfigurationControlManager {
 
     void deleteTopicConfigs(String name) {
         configData.remove(new ConfigResource(Type.TOPIC, name));
+    }
+
+    // Due to the component dependency, we don't want the feature control to be depended on the configuration
+    // control manager, letting the configuration control manager handle the feature updates.
+    ControllerResult<ApiError> updateFeatures(
+            Map<String, Short> updates,
+            Map<String, FeatureUpdate.UpgradeType> upgradeTypes,
+            boolean validateOnly
+    ) {
+        return featureControl.updateFeatures(
+            updates,
+            upgradeTypes,
+            validateOnly,
+            records -> maybeResetMinIsrConfig(records)
+        );
     }
 
     /**

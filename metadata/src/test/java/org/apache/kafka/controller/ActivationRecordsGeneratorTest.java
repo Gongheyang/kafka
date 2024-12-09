@@ -17,17 +17,29 @@
 
 package org.apache.kafka.controller;
 
+import org.apache.kafka.common.config.ConfigResource;
+import org.apache.kafka.common.config.TopicConfig;
+import org.apache.kafka.common.metadata.ConfigRecord;
 import org.apache.kafka.metadata.bootstrap.BootstrapMetadata;
 import org.apache.kafka.metadata.migration.ZkMigrationState;
+import org.apache.kafka.server.common.ApiMessageAndVersion;
 import org.apache.kafka.server.common.MetadataVersion;
 
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
+import org.mockito.internal.matchers.Any;
+
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 /**
  * This class is for testing the log message or exception produced by ActivationRecordsGenerator. For tests that
@@ -38,12 +50,15 @@ public class ActivationRecordsGeneratorTest {
     @Test
     public void testActivationMessageForEmptyLog() {
         ControllerResult<Void> result;
+        ConfigurationControlManager configurationControl= Mockito.mock(ConfigurationControlManager.class);
         result = ActivationRecordsGenerator.recordsForEmptyLog(
             logMsg -> assertEquals("Performing controller activation. The metadata log appears to be empty. " +
                 "Appending 1 bootstrap record(s) at metadata.version 3.0-IV1 from bootstrap source 'test'.", logMsg),
             -1L,
             BootstrapMetadata.fromVersion(MetadataVersion.MINIMUM_BOOTSTRAP_VERSION, "test"),
-            MetadataVersion.MINIMUM_KRAFT_VERSION
+            MetadataVersion.MINIMUM_KRAFT_VERSION,
+            false,
+            configurationControl
         );
         assertTrue(result.isAtomic());
         assertEquals(1, result.records().size());
@@ -54,11 +69,12 @@ public class ActivationRecordsGeneratorTest {
                 "source 'test'. Setting the ZK migration state to NONE since this is a de-novo KRaft cluster.", logMsg),
             -1L,
             BootstrapMetadata.fromVersion(MetadataVersion.IBP_3_4_IV0, "test"),
-            MetadataVersion.IBP_3_4_IV0
+            MetadataVersion.IBP_3_4_IV0,
+            false,
+            configurationControl
         );
         assertTrue(result.isAtomic());
         assertEquals(2, result.records().size());
-
 
         result = ActivationRecordsGenerator.recordsForEmptyLog(
             logMsg -> assertEquals("Performing controller activation. The metadata log appears to be empty. " +
@@ -66,7 +82,9 @@ public class ActivationRecordsGeneratorTest {
                 "source 'test'. Setting the ZK migration state to NONE since this is a de-novo KRaft cluster.", logMsg),
             -1L,
             BootstrapMetadata.fromVersion(MetadataVersion.IBP_3_6_IV1, "test"),
-            MetadataVersion.IBP_3_6_IV1
+            MetadataVersion.IBP_3_6_IV1,
+            false,
+            configurationControl
         );
         assertFalse(result.isAtomic());
         assertEquals(4, result.records().size());
@@ -78,10 +96,38 @@ public class ActivationRecordsGeneratorTest {
                 "since this is a de-novo KRaft cluster.", logMsg),
             0L,
             BootstrapMetadata.fromVersion(MetadataVersion.IBP_3_6_IV1, "test"),
-            MetadataVersion.IBP_3_6_IV1
+            MetadataVersion.IBP_3_6_IV1,
+            false,
+            configurationControl
         );
         assertFalse(result.isAtomic());
         assertEquals(5, result.records().size());
+        verify(configurationControl, never()).maybeResetMinIsrConfig(any());
+
+        Mockito.doAnswer(invocation -> {
+            List<ApiMessageAndVersion> output = invocation.getArgument(0);
+            ConfigResource configResource = new ConfigResource(ConfigResource.Type.BROKER, "");
+            output.add(new ApiMessageAndVersion(new ConfigRecord().
+                setResourceType(configResource.type().id()).
+                setResourceName(configResource.name()).
+                setName(TopicConfig.MIN_IN_SYNC_REPLICAS_CONFIG).
+                setValue("2"), (short) 0));
+            return null;
+        }).when(configurationControl).maybeResetMinIsrConfig(any());
+
+        result = ActivationRecordsGenerator.recordsForEmptyLog(
+            logMsg -> assertEquals("Performing controller activation. Aborting partial bootstrap records " +
+                "transaction at offset 0. Re-appending 1 bootstrap record(s) in new metadata transaction at " +
+                "metadata.version 4.0-IV1 from bootstrap source 'test'. Setting the ZK migration state to NONE " +
+                "since this is a de-novo KRaft cluster.", logMsg),
+            0L,
+            BootstrapMetadata.fromVersion(MetadataVersion.IBP_4_0_IV1, "test"),
+            MetadataVersion.IBP_4_0_IV1,
+            true,
+            configurationControl
+        );
+        assertFalse(result.isAtomic());
+        assertEquals(6, result.records().size());
     }
 
     @Test

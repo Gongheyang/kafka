@@ -1846,7 +1846,7 @@ public class KafkaRaftClientTest {
         int otherNodeId = localId + 1;
         int leaderNodeId = localId + 2;
         int epoch = 5;
-        Set<Integer> voters = Utils.mkSet(localId, otherNodeId, leaderNodeId);
+        Set<Integer> voters = Set.of(localId, otherNodeId, leaderNodeId);
 
         RaftClientTestContext context = new RaftClientTestContext.Builder(localId, voters)
             .withUnknownLeader(epoch)
@@ -2725,7 +2725,7 @@ public class KafkaRaftClientTest {
         int leaderId = localId + 1;
         int otherNodeId = localId + 2;
         int epoch = 5;
-        Set<Integer> voters = Utils.mkSet(leaderId, localId, otherNodeId);
+        Set<Integer> voters = Set.of(leaderId, localId, otherNodeId);
         List<InetSocketAddress> bootstrapServers = voters
             .stream()
             .map(RaftClientTestContext::mockAddress)
@@ -2764,7 +2764,7 @@ public class KafkaRaftClientTest {
         int leaderId = localId + 1;
         int otherNodeId = localId + 2;
         int epoch = 5;
-        Set<Integer> voters = Utils.mkSet(leaderId, localId, otherNodeId);
+        Set<Integer> voters = Set.of(leaderId, localId, otherNodeId);
         List<InetSocketAddress> bootstrapServers = voters
             .stream()
             .map(RaftClientTestContext::mockAddress)

@@ -395,7 +395,7 @@ public class ShareCoordinatorShard implements CoordinatorShard<CoordinatorRecord
 
     /**
      * Method which returns the last known redundant offset from the partition
-     * lead by this shard.
+     * led by this shard.
      * @return CoordinatorResult containing empty record list and an Optional<Long> representing the offset.
      */
     public CoordinatorResult<Optional<Long>, CoordinatorRecord> lastRedundantOffset() {

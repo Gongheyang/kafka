@@ -22,7 +22,6 @@ import org.apache.kafka.clients.admin.FeatureUpdate;
 import org.apache.kafka.common.Endpoint;
 import org.apache.kafka.common.Uuid;
 import org.apache.kafka.common.config.ConfigDef;
-import org.apache.kafka.common.config.ConfigException;
 import org.apache.kafka.common.config.ConfigResource;
 import org.apache.kafka.common.config.TopicConfig;
 import org.apache.kafka.common.errors.PolicyViolationException;
@@ -73,7 +72,6 @@ import static org.apache.kafka.controller.FeatureControlManagerTest.createFakeCl
 import static org.apache.kafka.server.config.ConfigSynonym.HOURS_TO_MILLISECONDS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 
@@ -480,7 +478,7 @@ public class ConfigurationControlManagerTest {
                 setName(TopicConfig.MIN_IN_SYNC_REPLICAS_CONFIG).setValue("1"), CONFIG_RECORD.highestSupportedVersion()),
             new ApiMessageAndVersion(new ConfigRecord().setResourceType(BROKER.id()).setResourceName("1").
                 setName(TopicConfig.MIN_IN_SYNC_REPLICAS_CONFIG).setValue(null), CONFIG_RECORD.highestSupportedVersion())),
-        records);
+            records);
     }
 
     @Test

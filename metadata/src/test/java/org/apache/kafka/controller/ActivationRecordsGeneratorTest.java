@@ -27,7 +27,6 @@ import org.apache.kafka.server.common.MetadataVersion;
 
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
-import org.mockito.internal.matchers.Any;
 
 import java.util.List;
 
@@ -39,7 +38,6 @@ import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 /**
  * This class is for testing the log message or exception produced by ActivationRecordsGenerator. For tests that
@@ -50,7 +48,7 @@ public class ActivationRecordsGeneratorTest {
     @Test
     public void testActivationMessageForEmptyLog() {
         ControllerResult<Void> result;
-        ConfigurationControlManager configurationControl= Mockito.mock(ConfigurationControlManager.class);
+        ConfigurationControlManager configurationControl = Mockito.mock(ConfigurationControlManager.class);
         result = ActivationRecordsGenerator.recordsForEmptyLog(
             logMsg -> assertEquals("Performing controller activation. The metadata log appears to be empty. " +
                 "Appending 1 bootstrap record(s) at metadata.version 3.0-IV1 from bootstrap source 'test'.", logMsg),

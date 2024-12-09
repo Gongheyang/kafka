@@ -59,8 +59,8 @@ public enum TransactionVersion implements FeatureVersion {
     }
 
     public static TransactionVersion transactionVersionForAddPartitionsToTxn(AddPartitionsToTxnRequest request) {
-        // If the request is greater than version 4, we know the client supports transaction version 2.
-        return request.version() > 4 ? TV_2 : TV_0;
+        // If the request is greater than version 3, we know the client supports transaction version 2.
+        return request.version() > 3 ? TV_2 : TV_0;
     }
 
     public static TransactionVersion transactionVersionForEndTxn(EndTxnRequest request) {

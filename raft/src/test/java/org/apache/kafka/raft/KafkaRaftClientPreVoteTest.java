@@ -26,7 +26,6 @@ import org.junit.jupiter.params.provider.ValueSource;
 import java.util.OptionalInt;
 import java.util.Set;
 
-import static org.apache.kafka.raft.ElectionState.UNKNOWN_LEADER_ID;
 import static org.apache.kafka.raft.KafkaRaftClientTest.randomReplicaId;
 import static org.apache.kafka.raft.KafkaRaftClientTest.replicaKey;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -64,8 +63,7 @@ public class KafkaRaftClientPreVoteTest {
         context.pollUntilResponse();
 
         boolean voteGranted = !hasFetchedFromLeader;
-        int leaderId = voteGranted ? UNKNOWN_LEADER_ID : electedLeaderId;
-        context.assertSentPreVoteResponse(Errors.NONE, epoch, OptionalInt.of(leaderId), voteGranted);
+        context.assertSentPreVoteResponse(Errors.NONE, epoch, OptionalInt.of(electedLeaderId), voteGranted);
         context.assertElectedLeader(epoch, electedLeaderId);
 
         // follower will transition to unattached if pre-vote request has a higher epoch
@@ -193,8 +191,7 @@ public class KafkaRaftClientPreVoteTest {
         context.pollUntilResponse();
 
         boolean voteGranted = !hasFetchedFromLeader;
-        int expectedLeaderId = voteGranted ? UNKNOWN_LEADER_ID : leaderId;
-        context.assertSentPreVoteResponse(Errors.NONE, epoch, OptionalInt.of(expectedLeaderId), voteGranted);
+        context.assertSentPreVoteResponse(Errors.NONE, epoch, OptionalInt.of(leaderId), voteGranted);
         assertTrue(context.client.quorum().isFollower());
     }
 
@@ -427,7 +424,7 @@ public class KafkaRaftClientPreVoteTest {
         context.pollUntilResponse();
 
         assertTrue(context.client.quorum().isFollower());
-        context.assertSentPreVoteResponse(Errors.NONE, epoch, OptionalInt.empty(), true);
+        context.assertSentPreVoteResponse(Errors.NONE, epoch, OptionalInt.of(replica1.id()), true);
 
         // After fetching successfully from the leader once, we will no longer grant PreVotes
         context.pollUntilRequest();

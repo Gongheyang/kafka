@@ -165,12 +165,12 @@ public class ConnectorConfig extends AbstractConfig {
     public static final String CONFIG_RELOAD_ACTION_CONFIG = "config.action.reload";
     private static final String CONFIG_RELOAD_ACTION_DOC =
             "The action that Connect should take on the connector when changes in external " +
-                    "configuration providers result in a change in the connector's configuration properties. " +
-                    "A value of 'none' indicates that Connect will do nothing. " +
-                    "A value of 'restart' indicates that Connect should restart/reload the connector with the " +
-                    "updated configuration properties." +
-                    "The restart may actually be scheduled in the future if the external configuration provider " +
-                    "indicates that a configuration value will expire in the future.";
+            "configuration providers result in a change in the connector's configuration properties. " +
+            "A value of 'none' indicates that Connect will do nothing. " +
+            "A value of 'restart' indicates that Connect should restart/reload the connector with the " +
+            "updated configuration properties." +
+            "The restart may actually be scheduled in the future if the external configuration provider " +
+            "indicates that a configuration value will expire in the future.";
 
     private static final String CONFIG_RELOAD_ACTION_DISPLAY = "Reload Action";
     public static final String CONFIG_RELOAD_ACTION_NONE = Herder.ConfigReloadAction.NONE.name().toLowerCase(Locale.ROOT);

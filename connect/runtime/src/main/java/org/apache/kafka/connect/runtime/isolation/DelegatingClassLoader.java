@@ -139,6 +139,23 @@ public class DelegatingClassLoader extends URLClassLoader {
         return inner.lastKey().version();
     }
 
+    String versionInLocation(String classOrAlias, String location) {
+        if (classOrAlias == null) {
+            return null;
+        }
+        String fullName = aliases.getOrDefault(classOrAlias, classOrAlias);
+        SortedMap<PluginDesc<?>, ClassLoader> inner = pluginLoaders.get(fullName);
+        if (inner == null) {
+            return null;
+        }
+        for (Map.Entry<PluginDesc<?>, ClassLoader> entry : inner.entrySet()) {
+            if (entry.getKey().location().equals(location)) {
+                return entry.getKey().version();
+            }
+        }
+        return null;
+    }
+
     private ClassLoader findPluginLoader(
         SortedMap<PluginDesc<?>, ClassLoader> loaders,
         String pluginName,

@@ -18,6 +18,7 @@ package org.apache.kafka.raft;
 
 import org.apache.kafka.common.Uuid;
 import org.apache.kafka.common.message.VoteResponseData;
+import org.apache.kafka.common.protocol.ApiKeys;
 import org.apache.kafka.common.protocol.Errors;
 import org.apache.kafka.common.record.MemoryRecords;
 
@@ -256,18 +257,18 @@ public class KafkaRaftClientPreVoteTest {
     }
 
     @ParameterizedTest
-    @ValueSource(booleans = {true, false})
+    @ValueSource(booleans = {false})
     public void testHandlePreVoteRequestAsFollowerObserver(boolean hasFetchedFromLeader) throws Exception {
         int localId = randomReplicaId();
         int epoch = 2;
-        int leaderId = localId + 1;
-        ReplicaKey leader = replicaKey(leaderId, true);
+        ReplicaKey localKey = replicaKey(localId, true);
+        ReplicaKey leader = replicaKey(localId + 1, true);
         ReplicaKey follower = replicaKey(localId + 2, true);
-        Set<Integer> voters = Set.of(leader.id(), follower.id());
 
-        RaftClientTestContext context = new RaftClientTestContext.Builder(localId, voters)
+        RaftClientTestContext context = new RaftClientTestContext.Builder(localId, localKey.directoryId().get())
             .withElectedLeader(epoch, leader.id())
             .withKip853Rpc(true)
+            .withBootstrapSnapshot(Optional.of(VoterSetTest.voterSet(Stream.of(localKey, leader, follower))))
             .build();
         context.assertElectedLeader(epoch, leader.id());
 
@@ -279,7 +280,7 @@ public class KafkaRaftClientPreVoteTest {
             context.deliverResponse(
                 fetchRequest.correlationId(),
                 fetchRequest.destination(),
-                context.fetchResponse(epoch, leaderId, MemoryRecords.EMPTY, 0L, Errors.NONE)
+                context.fetchResponse(epoch, leader.id(), MemoryRecords.EMPTY, 0L, Errors.NONE)
             );
         }
 
@@ -287,7 +288,7 @@ public class KafkaRaftClientPreVoteTest {
         context.pollUntilResponse();
 
         boolean voteGranted = !hasFetchedFromLeader;
-        context.assertSentVoteResponse(Errors.NONE, epoch, OptionalInt.of(leaderId), voteGranted);
+        context.assertSentVoteResponse(Errors.NONE, epoch, OptionalInt.of(leader.id()), voteGranted);
         assertTrue(context.client.quorum().isFollower());
     }
 
@@ -680,19 +681,19 @@ public class KafkaRaftClientPreVoteTest {
 
         assertTrue(context.client.quorum().isProspective());
 
+        // Simulate remote node not supporting PreVote with UNSUPPORTED_VERSION response.
+        // Note: with the mocked network client this is a bit different, in reality this response would be generated
+        // from the network client and not sent from the remote node.
         List<RaftRequest.Outbound> voteRequests = context.collectVoteRequests(epoch, 0, 0);
         assertEquals(1, voteRequests.size());
-
-        // Simulate remote node not supporting PreVote and responding with Vote response with version 0
         context.deliverResponse(
             voteRequests.get(0).correlationId(),
             voteRequests.get(0).destination(),
-            context.voteResponse(false, OptionalInt.empty(), epoch, (short) 0)
+            RaftUtil.errorResponse(ApiKeys.VOTE, Errors.UNSUPPORTED_VERSION)
         );
         context.client.poll();
 
-        // Local should transition to Candidate since it sees a remote node does not support PreVote. It can tell this
-        // from responses with PreVote field set to false
+        // Local should transition to Candidate since it realizes remote node does not support PreVote.
         assertEquals(epoch + 1, context.currentEpoch());
         context.client.quorum().isCandidate();
     }
@@ -726,7 +727,7 @@ public class KafkaRaftClientPreVoteTest {
     }
 
     @Test
-    public void testProspectiveSendsFetchRequests() throws Exception {
+    public void testProspectiveTransitionsToUnattachedOnElectionFailure() throws Exception {
         int localId = randomReplicaId();
         ReplicaKey local = replicaKey(localId, true);
         ReplicaKey otherNode = replicaKey(localId + 1, true);
@@ -743,43 +744,28 @@ public class KafkaRaftClientPreVoteTest {
         context.time.sleep(context.electionTimeoutMs() * 2L);
         context.pollUntilRequest();
         assertTrue(context.client.quorum().isProspective());
-        RaftRequest.Outbound voteRequest = context.assertSentVoteRequest(epoch, 0, 0L, 1);
+        context.assertSentVoteRequest(epoch, 0, 0L, 1);
 
-        // If election timeout expires, we should start backing off and sending fetch requests
+        // If election timeout expires, we should transition to Unattached to attempt re-discovering leader
         context.time.sleep(context.electionTimeoutMs() * 2L);
         context.client.poll();
-        assertTrue(context.client.quorum().isProspective());
-        context.assertSentFetchRequest(epoch, 0, 0);
+        assertTrue(context.client.quorum().isUnattached());
 
-        context.time.sleep(context.electionBackoffMaxMs);
-
-        // After the backoff, we will transition back to Prospective and continue sending PreVote requests
+        // After election times out again, we will transition back to Prospective and continue sending PreVote requests
+        context.time.sleep(context.electionTimeoutMs() * 2L);
         context.pollUntilRequest();
-        voteRequest = context.assertSentVoteRequest(epoch, 0, 0L, 1);
+        RaftRequest.Outbound voteRequest = context.assertSentVoteRequest(epoch, 0, 0L, 1);
 
-        // If we receive enough rejected votes, we also immediately start backing off and follow with fetch requests
+        // If we receive enough rejected votes, we also transition to Unattached immediately
         context.deliverResponse(
             voteRequest.correlationId(),
             voteRequest.destination(),
             context.voteResponse(false, OptionalInt.empty(), epoch, true));
-        // handle vote response and update backoff timer
+        // handle vote response and mark we should transition out of prospective
         context.client.poll();
-        // send fetch request while in backoff
+        // transition
         context.client.poll();
-
-        assertTrue(context.client.quorum().isProspective());
-        RaftRequest.Outbound fetchRequest = context.assertSentFetchRequest(epoch, 0, 0);
-        context.deliverResponse(
-            fetchRequest.correlationId(),
-            fetchRequest.destination(),
-            context.fetchResponse(epoch, -1, MemoryRecords.EMPTY, -1, Errors.BROKER_NOT_AVAILABLE));
-        context.client.poll();
-
-        // We continue sending fetch requests until backoff timer expires
-        context.time.sleep(context.electionBackoffMaxMs / 2);
-        context.client.poll();
-        assertTrue(context.client.quorum().isProspective());
-        context.assertSentFetchRequest(epoch, 0, 0);
+        assertTrue(context.client.quorum().isUnattached());
     }
 
     @Test

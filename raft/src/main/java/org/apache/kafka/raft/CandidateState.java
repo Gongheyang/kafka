@@ -99,18 +99,6 @@ public class CandidateState implements VotingState {
         return voteStates;
     }
 
-//    public int majoritySize() {
-//        return voteStates.size() / 2 + 1;
-//    }
-//
-//    public long numGranted() {
-//        return votersInState(State.GRANTED).count();
-//    }
-//
-//    public long numUnrecorded() {
-//        return votersInState(State.UNRECORDED).count();
-//    }
-//
     /**
      * Check if the candidate is backing off for the next election
      */
@@ -196,33 +184,6 @@ public class CandidateState implements VotingState {
         this.isBackingOff = true;
     }
 
-//    /**
-//     * Get the set of voters which have not been counted as granted or rejected yet.
-//     *
-//     * @return The set of unrecorded voters
-//     */
-//    public Set<ReplicaKey> unrecordedVoters() {
-//        return votersInState(State.UNRECORDED).collect(Collectors.toSet());
-//    }
-
-//    /**
-//     * Get the set of voters that have granted our vote requests.
-//     *
-//     * @return The set of granting voters, which should always contain the ID of the candidate
-//     */
-//    public Set<Integer> grantingVoters() {
-//        return votersInState(State.GRANTED).map(ReplicaKey::id).collect(Collectors.toSet());
-//    }
-//
-//    /**
-//     * Get the set of voters that have rejected our candidacy.
-//     *
-//     * @return The set of rejecting voters
-//     */
-//    public Set<Integer> rejectingVoters() {
-//        return votersInState(State.REJECTED).map(ReplicaKey::id).collect(Collectors.toSet());
-//    }
-
     public Stream<ReplicaKey> votersInState(State state) {
         return voteStates
             .values()
@@ -243,13 +204,11 @@ public class CandidateState implements VotingState {
         return electionTimer.remainingMs();
     }
 
-    @Override
     public boolean isBackoffComplete(long currentTimeMs) {
         backoffTimer.update(currentTimeMs);
         return backoffTimer.isExpired();
     }
 
-    @Override
     public long remainingBackoffMs(long currentTimeMs) {
         if (!isBackingOff) {
             throw new IllegalStateException("Candidate is not currently backing off");
@@ -283,7 +242,7 @@ public class CandidateState implements VotingState {
     }
 
     @Override
-    public boolean canGrantVote(// maybe this needs to grant prevotes
+    public boolean canGrantVote(
         ReplicaKey replicaKey,
         boolean isLogUpToDate,
         boolean isPreVote
@@ -326,31 +285,4 @@ public class CandidateState implements VotingState {
 
     @Override
     public void close() {}
-
-//    private static final class VoterState {
-//        private final ReplicaKey replicaKey;
-//        private State state = State.UNRECORDED;
-//
-//        private VoterState(ReplicaKey replicaKey) {
-//            this.replicaKey = replicaKey;
-//        }
-//
-//        public State state() {
-//            return state;
-//        }
-//
-//        public void setState(State state) {
-//            this.state = state;
-//        }
-//
-//        public ReplicaKey replicaKey() {
-//            return replicaKey;
-//        }
-//    }
-//
-//    private enum State {
-//        UNRECORDED,
-//        GRANTED,
-//        REJECTED
-//    }
 }

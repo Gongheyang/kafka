@@ -24,20 +24,21 @@ import org.slf4j.Logger;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalInt;
 
 public class ProspectiveState implements VotingState {
-    private final int epoch;
     private final int localId;
+    private final int epoch;
+    private final OptionalInt leaderId;
+    private final Optional<Endpoints> leaderEndpoints;
     private final Optional<ReplicaKey> votedKey;
     private final VoterSet voters;
 //    private final long electionTimeoutMs;
 //    private final Timer electionTimer;
     private final Map<Integer, VoterState> preVoteStates = new HashMap<>();
     private final Optional<LogOffsetMetadata> highWatermark;
-    private int retries;
     private final int electionTimeoutMs;
     private final Timer electionTimer;
-    private final Timer backoffTimer;
     private final Logger log;
 
     /**
@@ -55,23 +56,24 @@ public class ProspectiveState implements VotingState {
         Time time,
         int localId,
         int epoch,
+        OptionalInt leaderId,
+        Optional<Endpoints> leaderEndpoints,
         Optional<ReplicaKey> votedKey,
         VoterSet voters,
         Optional<LogOffsetMetadata> highWatermark,
-        int retries,
         int electionTimeoutMs,
         LogContext logContext
     ) {
         this.localId = localId;
         this.epoch = epoch;
+        this.leaderId = leaderId;
+        this.leaderEndpoints = leaderEndpoints;
         this.votedKey = votedKey;
         this.voters = voters;
         this.highWatermark = highWatermark;
-        this.retries = retries;
         this.isBackingOff = false;
         this.electionTimeoutMs = electionTimeoutMs;
         this.electionTimer = time.timer(electionTimeoutMs);
-        this.backoffTimer = time.timer(0);
         this.log = logContext.logger(ProspectiveState.class);
 
         for (ReplicaKey voter : voters.voterKeys()) {
@@ -100,7 +102,7 @@ public class ProspectiveState implements VotingState {
 
     @Override
     public int retries() {
-        return retries;
+        return 1;
     }
 
     /**
@@ -144,21 +146,10 @@ public class ProspectiveState implements VotingState {
         return recorded;
     }
 
-//    /**
-//     * Restart the election timer since we've either received sufficient rejecting voters or election timed out
-//     */
-//    public void restartElectionTimer(long currentTimeMs, long electionTimeoutMs) {
-//        this.electionTimer.update(currentTimeMs);
-//        this.electionTimer.reset(electionTimeoutMs);
-//        this.isBackingOff = true;
-//    }
-
     /**
      * Record the current election has failed since we've either received sufficient rejecting voters or election timed out
      */
     public void startBackingOff(long currentTimeMs, long backoffDurationMs) {
-        this.backoffTimer.update(currentTimeMs);
-        this.backoffTimer.reset(backoffDurationMs);
         this.isBackingOff = true;
     }
 
@@ -212,24 +203,11 @@ public class ProspectiveState implements VotingState {
     }
 
     @Override
-    public boolean isBackoffComplete(long currentTimeMs) {
-        backoffTimer.update(currentTimeMs);
-        return backoffTimer.isExpired();
-    }
-
-    @Override
-    public long remainingBackoffMs(long currentTimeMs) {
-        if (!isBackingOff) {
-            throw new IllegalStateException("Prospective is not currently backing off");
-        }
-        backoffTimer.update(currentTimeMs);
-        return backoffTimer.remainingMs();
-    }
-
-    @Override
     public ElectionState election() {
         if (votedKey.isPresent()) {
             return ElectionState.withVotedCandidate(epoch, votedKey().get(), voters.voterIds());
+        } else if (leaderId.isPresent()) {
+            return ElectionState.withElectedLeader(epoch, leaderId.getAsInt(), voters.voterIds());
         } else {
             return ElectionState.withUnknownLeader(epoch, voters.voterIds());
         }
@@ -242,7 +220,7 @@ public class ProspectiveState implements VotingState {
 
     @Override
     public Endpoints leaderEndpoints() {
-        return Endpoints.empty();
+        return leaderEndpoints.orElse(Endpoints.empty());
     }
 
     @Override

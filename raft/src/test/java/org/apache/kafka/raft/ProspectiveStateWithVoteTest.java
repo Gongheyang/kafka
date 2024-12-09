@@ -26,6 +26,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 import java.util.Collections;
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
@@ -54,14 +55,18 @@ class ProspectiveStateWithVoteTest {
             time,
             localId,
             epoch,
+            OptionalInt.empty(),
+            Optional.empty(),
             votedKey,
             voters,
             Optional.empty(),
-            0,
             electionTimeoutMs,
             logContext
         );
     }
+
+    // todo: need with leader state
+    // todo: don't forget to fix quorum state keeping leaderid, and prospective to follower transition
 
     @Test
     public void testElectionTimeout() {

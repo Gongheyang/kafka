@@ -2755,7 +2755,7 @@ public final class KafkaRaftClient<T> implements RaftClient<T> {
             .setReplicaState(new FetchRequestData.ReplicaState().setReplicaId(quorum.localIdOrSentinel()));
     }
 
-    private long maybeSendAnyBootstrapFetch(long currentTimeMs) {
+    private long maybeSendToAnyBootstrap(long currentTimeMs) {
         Optional<Node> readyNode = requestManager.findReadyBootstrapServer(currentTimeMs);
         if (readyNode.isPresent()) {
             return maybeSendRequest(
@@ -3043,7 +3043,7 @@ public final class KafkaRaftClient<T> implements RaftClient<T> {
             backoffMs = maybeSendUpdateVoterRequest(state, currentTimeMs);
             state.resetUpdateVoterPeriod(currentTimeMs);
         } else {
-            backoffMs = maybeSendFetchToQuorum(state, currentTimeMs);
+            backoffMs = maybeSendFetchToBestNode(state, currentTimeMs);
         }
 
         return Math.min(
@@ -3057,13 +3057,13 @@ public final class KafkaRaftClient<T> implements RaftClient<T> {
 
     private long pollFollowerAsObserver(FollowerState state, long currentTimeMs) {
         if (state.hasFetchTimeoutExpired(currentTimeMs)) {
-            return maybeSendAnyBootstrapFetch(currentTimeMs);
+            return maybeSendToAnyBootstrap(currentTimeMs);
         } else {
-            return maybeSendFetchToQuorum(state, currentTimeMs);
+            return maybeSendFetchToBestNode(state, currentTimeMs);
         }
     }
 
-    private long maybeSendFetchToQuorum(FollowerState state, long currentTimeMs) {
+    private long maybeSendFetchToBestNode(FollowerState state, long currentTimeMs) {
         // If the current leader is backing off due to some failure or if the
         // request has timed out, then we attempt to send the Fetch to another
         // voter in order to discover if there has been a leader change.
@@ -3072,9 +3072,9 @@ public final class KafkaRaftClient<T> implements RaftClient<T> {
         if (requestManager.hasRequestTimedOut(leaderNode, currentTimeMs)) {
             // Once the request has timed out backoff the connection
             requestManager.reset(leaderNode);
-            backoffMs = maybeSendAnyBootstrapFetch(currentTimeMs);
+            backoffMs = maybeSendToAnyBootstrap(currentTimeMs);
         } else if (requestManager.isBackingOff(leaderNode, currentTimeMs)) {
-            backoffMs = maybeSendAnyBootstrapFetch(currentTimeMs);
+            backoffMs = maybeSendToAnyBootstrap(currentTimeMs);
         } else if (!requestManager.hasAnyInflightRequest(currentTimeMs)) {
             backoffMs = maybeSendFetchOrFetchSnapshot(state, currentTimeMs);
         } else {
@@ -3125,7 +3125,7 @@ public final class KafkaRaftClient<T> implements RaftClient<T> {
         if (quorum.isVoter()) {
             return pollUnattachedAsVoter(state, currentTimeMs);
         } else {
-            return pollUnattachedAsObserver(state, currentTimeMs);
+            return pollUnattachedCommon(state, currentTimeMs);
         }
     }
 
@@ -3139,12 +3139,12 @@ public final class KafkaRaftClient<T> implements RaftClient<T> {
             transitionToCandidate(currentTimeMs);
             return 0L;
         } else {
-            return pollUnattachedAsObserver(state, currentTimeMs);
+            return pollUnattachedCommon(state, currentTimeMs);
         }
     }
 
-    private long pollUnattachedAsObserver(UnattachedState state, long currentTimeMs) {
-        long fetchBackoffMs = maybeSendAnyBootstrapFetch(currentTimeMs);
+    private long pollUnattachedCommon(UnattachedState state, long currentTimeMs) {
+        long fetchBackoffMs = maybeSendToAnyBootstrap(currentTimeMs);
         return Math.min(fetchBackoffMs, state.remainingElectionTimeMs(currentTimeMs));
     }
 

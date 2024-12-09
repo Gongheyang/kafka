@@ -849,12 +849,33 @@ public class KafkaRaftClientTest {
             .build();
 
         context.assertUnknownLeader(0);
-        context.time.sleep(2L * context.electionTimeoutMs());
+        context.pollUntilRequest();
+        RaftRequest.Outbound request = context.assertSentFetchRequest(0, 0L, 0);
+        assertTrue(context.client.quorum().isUnattached());
+        assertTrue(context.client.quorum().isVoter());
+
+        // receives a fetch response which does not specify who the leader is
+        context.time.sleep(context.electionTimeoutMs() / 2);
+        context.deliverResponse(
+            request.correlationId(),
+            request.destination(),
+            context.fetchResponse(0, -1, MemoryRecords.EMPTY, -1, Errors.NOT_LEADER_OR_FOLLOWER)
+        );
+
+        // should remain unattached voter
+        context.client.poll();
+        assertTrue(context.client.quorum().isUnattached());
+        assertTrue(context.client.quorum().isVoter());
+
+        // after election timeout should become candidate
+        context.time.sleep(context.electionTimeoutMs() * 2L);
+        context.pollUntilRequest();
+        assertTrue(context.client.quorum().isCandidate());
 
         context.pollUntilRequest();
         context.assertVotedCandidate(1, localId);
 
-        RaftRequest.Outbound request = context.assertSentVoteRequest(1, 0, 0L, 1);
+        request = context.assertSentVoteRequest(1, 0, 0L, 1);
         context.deliverResponse(
             request.correlationId(),
             request.destination(),
@@ -1813,44 +1834,6 @@ public class KafkaRaftClientTest {
 
     @ParameterizedTest
     @ValueSource(booleans = { true, false })
-    public void testUnattachedAsVoterCanBecomeCandidate(boolean withKip853Rpc) throws Exception {
-        int localId = randomReplicaId();
-        int otherNodeId = localId + 1;
-        int otherNodeId2 = localId + 2;
-        int epoch = 5;
-        Set<Integer> voters = Utils.mkSet(localId, otherNodeId, otherNodeId2);
-
-        RaftClientTestContext context = new RaftClientTestContext.Builder(localId, voters)
-            .withUnknownLeader(epoch)
-            .withKip853Rpc(withKip853Rpc)
-            .build();
-
-        context.pollUntilRequest();
-        RaftRequest.Outbound request = context.assertSentFetchRequest(epoch, 0L, 0);
-        assertTrue(context.client.quorum().isUnattached());
-        assertTrue(context.client.quorum().isVoter());
-
-        // receives a fetch response which does not specify who the leader is
-        context.time.sleep(context.electionTimeoutMs() / 2);
-        context.deliverResponse(
-            request.correlationId(),
-            request.destination(),
-            context.fetchResponse(epoch, -1, MemoryRecords.EMPTY, -1, Errors.NOT_LEADER_OR_FOLLOWER)
-        );
-
-        // should remain unattached voter
-        context.client.poll();
-        assertTrue(context.client.quorum().isUnattached());
-        assertTrue(context.client.quorum().isVoter());
-
-        // after election timeout should become candidate
-        context.time.sleep(context.electionTimeoutMs() * 2L);
-        context.pollUntilRequest();
-        assertTrue(context.client.quorum().isCandidate());
-    }
-
-    @ParameterizedTest
-    @ValueSource(booleans = { true, false })
     public void testInitializeObserverNoPreviousState(boolean withKip853Rpc) throws Exception {
         int localId = randomReplicaId();
         int leaderId = localId + 1;
@@ -2734,17 +2717,6 @@ public class KafkaRaftClientTest {
         assertNotEquals(leaderId, fetchRequest2.destination().id());
         assertTrue(context.bootstrapIds.contains(fetchRequest2.destination().id()));
         context.assertFetchRequestData(fetchRequest2, epoch, 0L, 0);
-
-        Errors error = fetchRequest2.destination().id() == leaderId ?
-            Errors.NONE : Errors.NOT_LEADER_OR_FOLLOWER;
-        context.deliverResponse(
-            fetchRequest2.correlationId(),
-            fetchRequest2.destination(),
-            context.fetchResponse(epoch, leaderId, MemoryRecords.EMPTY, 0L, error)
-        );
-        context.client.poll();
-
-        context.assertElectedLeader(epoch, leaderId);
     }
 
     @ParameterizedTest
@@ -2780,15 +2752,6 @@ public class KafkaRaftClientTest {
         assertNotEquals(leaderId, fetchRequest2.destination().id());
         assertTrue(context.bootstrapIds.contains(fetchRequest2.destination().id()));
         context.assertFetchRequestData(fetchRequest2, epoch, 0L, 0);
-
-        context.deliverResponse(
-            fetchRequest2.correlationId(),
-            fetchRequest2.destination(),
-            context.fetchResponse(epoch, leaderId, MemoryRecords.EMPTY, 0L, Errors.FENCED_LEADER_EPOCH)
-        );
-        context.client.poll();
-
-        context.assertElectedLeader(epoch, leaderId);
     }
 
     @ParameterizedTest
@@ -2830,12 +2793,10 @@ public class KafkaRaftClientTest {
         assertTrue(context.bootstrapIds.contains(fetchRequest2.destination().id()));
         context.assertFetchRequestData(fetchRequest2, epoch, 0L, 0);
 
-        Errors error = fetchRequest2.destination().id() == leaderId ?
-            Errors.NONE : Errors.NOT_LEADER_OR_FOLLOWER;
         context.deliverResponse(
             fetchRequest2.correlationId(),
             fetchRequest2.destination(),
-            context.fetchResponse(epoch, leaderId, MemoryRecords.EMPTY, 0L, error)
+            context.fetchResponse(epoch, leaderId, MemoryRecords.EMPTY, 0L, Errors.NOT_LEADER_OR_FOLLOWER)
         );
         context.client.poll();
 

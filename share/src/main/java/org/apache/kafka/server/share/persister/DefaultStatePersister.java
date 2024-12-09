@@ -289,7 +289,12 @@ public class DefaultStatePersister implements Persister {
      * @return A completable future of  ReadShareGroupStateSummaryResult
      */
     public CompletableFuture<ReadShareGroupStateSummaryResult> readSummary(ReadShareGroupStateSummaryParameters request) {
-        validate(request);
+        try {
+            validate(request);
+        } catch (Exception e) {
+            log.error("Unable to validate read state summary request", e);
+            return CompletableFuture.failedFuture(e);
+        }
         GroupTopicPartitionData<PartitionIdLeaderEpochData> gtp = request.groupTopicPartitionData();
         String groupId = gtp.groupId();
         Map<Uuid, Map<Integer, CompletableFuture<ReadShareGroupStateSummaryResponse>>> futureMap = new HashMap<>();

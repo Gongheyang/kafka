@@ -70,6 +70,7 @@ public class Topology {
     }
 
     /**
+     * @deprecated Since 4.0. Use {@link org.apache.kafka.streams.AutoOffsetReset} instead.
      * Sets the {@code auto.offset.reset} configuration when
      * {@link #addSource(AutoOffsetReset, String, String...) adding a source processor} or when creating {@link KStream}
      * or {@link KTable} via {@link StreamsBuilder}.

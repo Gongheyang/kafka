@@ -33,7 +33,7 @@ import org.apache.kafka.common.message.BrokerRegistrationRequestData.{Listener, 
 import org.apache.kafka.common.network.ListenerName
 import org.apache.kafka.common.security.auth.SecurityProtocol.PLAINTEXT
 import org.apache.kafka.controller.ControllerRequestContextUtil
-import org.apache.kafka.server.common.{Features, MetadataVersion}
+import org.apache.kafka.server.common.{Feature, MetadataVersion}
 import org.apache.kafka.server.config.QuotaConfig
 import org.apache.kafka.server.quota.QuotaType
 import org.junit.jupiter.api.Assertions._
@@ -111,7 +111,7 @@ class ReplicationQuotasTest extends QuorumTestHarness {
     //replicate for each of the two follower brokers.
     if (!leaderThrottle) throttle = throttle * 3
 
-    Using(createAdminClient(brokers, listenerName)) { admin =>
+    Using.resource(createAdminClient(brokers, listenerName)) { admin =>
       (106 to 107).foreach(registerBroker)
       admin.createTopics(List(new NewTopic(topic, assignment.map(a => a._1.asInstanceOf[Integer] ->
         a._2.map(_.asInstanceOf[Integer]).toList.asJava).asJava)).asJava).all().get()
@@ -212,7 +212,7 @@ class ReplicationQuotasTest extends QuorumTestHarness {
     val expectedDuration = 4
     val throttle: Long = msg.length * msgCount / expectedDuration
 
-    Using(createAdminClient(brokers, listenerName)) { admin =>
+    Using.resource(createAdminClient(brokers, listenerName)) { admin =>
       registerBroker(101)
       admin.createTopics(
         List(new NewTopic(topic, Collections.singletonMap(0, List(100, 101).map(_.asInstanceOf[Integer]).asJava))).asJava
@@ -282,7 +282,7 @@ class ReplicationQuotasTest extends QuorumTestHarness {
       .setName(MetadataVersion.FEATURE_NAME)
       .setMinSupportedVersion(MetadataVersion.latestProduction().featureLevel())
       .setMaxSupportedVersion(MetadataVersion.latestTesting().featureLevel()))
-    Features.PRODUCTION_FEATURES.forEach { feature =>
+    Feature.PRODUCTION_FEATURES.forEach { feature =>
       features.add(new BrokerRegistrationRequestData.Feature()
         .setName(feature.featureName())
         .setMinSupportedVersion(feature.minimumProduction())

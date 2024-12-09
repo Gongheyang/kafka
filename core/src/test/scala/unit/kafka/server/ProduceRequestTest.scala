@@ -25,7 +25,7 @@ import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.compress.Compression
 import org.apache.kafka.common.config.TopicConfig
 import org.apache.kafka.common.message.ProduceRequestData
-import org.apache.kafka.common.protocol.Errors
+import org.apache.kafka.common.protocol.{ApiKeys, Errors}
 import org.apache.kafka.common.record._
 import org.apache.kafka.common.requests.{ProduceRequest, ProduceResponse}
 import org.apache.kafka.server.metrics.KafkaYammerMetrics
@@ -37,7 +37,6 @@ import org.junit.jupiter.params.provider.{Arguments, MethodSource}
 import org.junit.jupiter.params.provider.ValueSource
 
 import java.util.concurrent.TimeUnit
-import scala.annotation.nowarn
 import scala.jdk.CollectionConverters._
 
 /**
@@ -55,17 +54,18 @@ class ProduceRequestTest extends BaseRequestTest {
 
     def sendAndCheck(memoryRecords: MemoryRecords, expectedOffset: Long): Unit = {
       val topicPartition = new TopicPartition("topic", partition)
-      val produceResponse = sendProduceRequest(leader,
-          ProduceRequest.forCurrentMagic(new ProduceRequestData()
-            .setTopicData(new ProduceRequestData.TopicProduceDataCollection(Collections.singletonList(
-              new ProduceRequestData.TopicProduceData()
-                .setName(topicPartition.topic())
-                .setPartitionData(Collections.singletonList(new ProduceRequestData.PartitionProduceData()
-                  .setIndex(topicPartition.partition())
-                  .setRecords(memoryRecords)))).iterator))
-            .setAcks((-1).toShort)
-            .setTimeoutMs(3000)
-            .setTransactionalId(null)).build())
+      val produceRequest = ProduceRequest.forCurrentMagic(new ProduceRequestData()
+        .setTopicData(new ProduceRequestData.TopicProduceDataCollection(Collections.singletonList(
+          new ProduceRequestData.TopicProduceData()
+            .setName(topicPartition.topic())
+            .setPartitionData(Collections.singletonList(new ProduceRequestData.PartitionProduceData()
+              .setIndex(topicPartition.partition())
+              .setRecords(memoryRecords)))).iterator))
+        .setAcks((-1).toShort)
+        .setTimeoutMs(3000)
+        .setTransactionalId(null)).build()
+      assertEquals(ApiKeys.PRODUCE.latestVersion(), produceRequest.version())
+      val produceResponse = sendProduceRequest(leader, produceRequest)
       assertEquals(1, produceResponse.data.responses.size)
       val topicProduceResponse = produceResponse.data.responses.asScala.head
       assertEquals(1, topicProduceResponse.partitionResponses.size)   
@@ -299,11 +299,9 @@ class ProduceRequestTest extends BaseRequestTest {
 
 object ProduceRequestTest {
 
-  @nowarn("cat=deprecation") // See `TopicConfig.MESSAGE_FORMAT_VERSION_CONFIG` for deprecation details
   def timestampConfigProvider: java.util.stream.Stream[Arguments] = {
     val fiveMinutesInMs: Long = 5 * 60 * 60 * 1000L
     java.util.stream.Stream.of[Arguments](
-      Arguments.of(TopicConfig.MESSAGE_TIMESTAMP_DIFFERENCE_MAX_MS_CONFIG, Long.box(System.currentTimeMillis() - fiveMinutesInMs)),
       Arguments.of(TopicConfig.MESSAGE_TIMESTAMP_BEFORE_MAX_MS_CONFIG, Long.box(System.currentTimeMillis() - fiveMinutesInMs)),
       Arguments.of(TopicConfig.MESSAGE_TIMESTAMP_AFTER_MAX_MS_CONFIG, Long.box(System.currentTimeMillis() + fiveMinutesInMs))
     )

@@ -1,10 +1,10 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
+ * contributor license agreements. See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.
  * The ASF licenses this file to You under the Apache License, Version 2.0
  * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
+ * the License. You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -15,15 +15,15 @@
  * limitations under the License.
  */
 
-package kafka.common
+package org.apache.kafka.streams.processor.api;
 
 /**
- * Indicates the follower or the future replica received records from the leader (or current
- * replica) with first offset less than expected next offset. 
- * @param firstOffset The first offset of the records to append
- * @param lastOffset  The last offset of the records to append
+ * Marker interface for classes implementing {@link ProcessorSupplier}
+ * that have been wrapped via a {@link ProcessorWrapper}.
+ * <p>
+ * To convert a {@link ProcessorSupplier} instance into a {@link WrappedProcessorSupplier},
+ * use the {@link ProcessorWrapper#asWrapped(ProcessorSupplier)} method
  */
-class UnexpectedAppendOffsetException(val message: String,
-                                      val firstOffset: Long,
-                                      val lastOffset: Long) extends RuntimeException(message) {
+public interface WrappedProcessorSupplier<KIn, VIn, KOut, VOut> extends ProcessorSupplier<KIn, VIn, KOut, VOut> {
+
 }

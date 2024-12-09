@@ -1,10 +1,10 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
+ * contributor license agreements. See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.
  * The ASF licenses this file to You under the Apache License, Version 2.0
  * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
+ * the License. You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -14,27 +14,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package org.apache.kafka.storage.internals.log;
 
-package kafka.utils
+/**
+ * Indicates the follower received records with non-monotonically increasing offsets
+ */
+public class OffsetsOutOfOrderException extends RuntimeException {
 
-import org.apache.kafka.common.utils.AppInfoParser
-
-object VersionInfo {
-
-  def main(args: Array[String]): Unit = {
-    System.out.println(getVersionString)
-    System.exit(0)
-  }
-
-  def getVersion: String = {
-    AppInfoParser.getVersion
-  }
-
-  def getCommit: String = {
-    AppInfoParser.getCommitId
-  }
-
-  def getVersionString: String = {
-    s"$getVersion (Commit:$getCommit)"
-  }
+    public OffsetsOutOfOrderException(String message) {
+        super(message);
+    }
 }

@@ -487,41 +487,6 @@ public interface Admin extends AutoCloseable {
     DescribeConfigsResult describeConfigs(Collection<ConfigResource> resources, DescribeConfigsOptions options);
 
     /**
-     * Update the configuration for the specified resources with the default options.
-     * <p>
-     * This is a convenience method for {@link #alterConfigs(Map, AlterConfigsOptions)} with default options.
-     * See the overload for more details.
-     * <p>
-     * This operation is supported by brokers with version 0.11.0.0 or higher.
-     *
-     * @param configs The resources with their configs (topic is the only resource type with configs that can
-     *                be updated currently)
-     * @return The AlterConfigsResult
-     * @deprecated Since 2.3. Use {@link #incrementalAlterConfigs(Map)}.
-     */
-    @Deprecated
-    default AlterConfigsResult alterConfigs(Map<ConfigResource, Config> configs) {
-        return alterConfigs(configs, new AlterConfigsOptions());
-    }
-
-    /**
-     * Update the configuration for the specified resources with the default options.
-     * <p>
-     * Updates are not transactional so they may succeed for some resources while fail for others. The configs for
-     * a particular resource are updated atomically.
-     * <p>
-     * This operation is supported by brokers with version 0.11.0.0 or higher.
-     *
-     * @param configs The resources with their configs (topic is the only resource type with configs that can
-     *                be updated currently)
-     * @param options The options to use when describing configs
-     * @return The AlterConfigsResult
-     * @deprecated Since 2.3. Use {@link #incrementalAlterConfigs(Map, AlterConfigsOptions)}.
-     */
-    @Deprecated
-    AlterConfigsResult alterConfigs(Map<ConfigResource, Config> configs, AlterConfigsOptions options);
-
-    /**
      * Incrementally updates the configuration for the specified resources with default options.
      * <p>
      * This is a convenience method for {@link #incrementalAlterConfigs(Map, AlterConfigsOptions)} with default options.
@@ -1822,26 +1787,6 @@ public interface Admin extends AutoCloseable {
      */
     default DescribeShareGroupsResult describeShareGroups(Collection<String> groupIds) {
         return describeShareGroups(groupIds, new DescribeShareGroupsOptions());
-    }
-
-    /**
-     * List the share groups available in the cluster.
-     *
-     * @param options The options to use when listing the share groups.
-     * @return The ListShareGroupsResult.
-     */
-    ListShareGroupsResult listShareGroups(ListShareGroupsOptions options);
-
-    /**
-     * List the share groups available in the cluster with the default options.
-     * <p>
-     * This is a convenience method for {@link #listShareGroups(ListShareGroupsOptions)} with default options.
-     * See the overload for more details.
-     *
-     * @return The ListShareGroupsResult.
-     */
-    default ListShareGroupsResult listShareGroups() {
-        return listShareGroups(new ListShareGroupsOptions());
     }
 
     /**

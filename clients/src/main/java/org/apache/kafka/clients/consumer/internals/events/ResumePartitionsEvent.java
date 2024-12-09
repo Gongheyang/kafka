@@ -14,7 +14,29 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package kafka.log.remote;
 
-class CustomMetadataSizeLimitExceededException extends Exception {
+package org.apache.kafka.clients.consumer.internals.events;
+
+import org.apache.kafka.common.TopicPartition;
+
+import java.util.Collection;
+import java.util.Collections;
+
+public class ResumePartitionsEvent extends CompletableApplicationEvent<Void> {
+
+    private final Collection<TopicPartition> partitions;
+
+    public ResumePartitionsEvent(final Collection<TopicPartition> partitions, final long deadlineMs) {
+        super(Type.RESUME_PARTITIONS, deadlineMs);
+        this.partitions = Collections.unmodifiableCollection(partitions);
+    }
+
+    public Collection<TopicPartition> partitions() {
+        return partitions;
+    }
+
+    @Override
+    public String toStringBase() {
+        return super.toStringBase() + ", partitions=" + partitions;
+    }
 }

@@ -56,7 +56,7 @@ public class Consumed<K, V> implements NamedOperation<Consumed<K, V>> {
     protected Serde<K> keySerde;
     protected Serde<V> valueSerde;
     protected TimestampExtractor timestampExtractor;
-    protected AutoOffsetReset resetPolicy;
+    protected AutoOffsetReset autoOffsetResetPolicy;
     @Deprecated
     protected Topology.AutoOffsetReset resetPolicy; // Replaced with new AutoOffsetReset class introduced in 4.0. 
     protected String processorName;
@@ -77,7 +77,7 @@ public class Consumed<K, V> implements NamedOperation<Consumed<K, V>> {
     private Consumed(final Serde<K> keySerde,
                      final Serde<V> valueSerde,
                      final TimestampExtractor timestampExtractor,
-                     final AutoOffsetReset resetPolicy,
+                     final AutoOffsetReset autoOffsetResetPolicy,
                      final String processorName) {
         this.keySerde = keySerde;
         this.valueSerde = valueSerde;
@@ -243,7 +243,7 @@ public class Consumed<K, V> implements NamedOperation<Consumed<K, V>> {
     public Consumed<K, V> withOffsetResetPolicy(final Topology.AutoOffsetReset resetPolicy) {
         return new Consumed<K, V>(keySerde, valueSerde, timestampExtractor, resetPolicy, processorName);
     }
-    
+
     public Consumed<K, V> withOffsetResetPolicy(final AutoOffsetReset resetPolicy) {
         return new Consumed<K, V>(keySerde, valueSerde, timestampExtractor, resetPolicy, processorName);
     }

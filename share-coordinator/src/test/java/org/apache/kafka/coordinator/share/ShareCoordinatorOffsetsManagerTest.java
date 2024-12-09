@@ -55,7 +55,7 @@ public class ShareCoordinatorOffsetsManagerTest {
         assertEquals(Optional.of(10L), manager.lastRedundantOffset()); // [0-9] offsets are redundant.
 
         manager.updateState(KEY2, 15L);
-        assertEquals(Optional.empty(), manager.lastRedundantOffset());  // Not update to last redundant after adding 15L so, empty.
+        assertEquals(Optional.empty(), manager.lastRedundantOffset());  // No update to last redundant after adding 15L so, empty.
 
         assertEquals(10L, manager.curState().get(KEY1));
         assertEquals(15L, manager.curState().get(KEY2));

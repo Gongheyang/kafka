@@ -58,11 +58,7 @@ public class ShareCoordinatorOffsetsManager {
     /**
      * Method updates internal state with the supplied offset for the provided
      * share partition key. It then calculates the minimum offset, if possible,
-     * below which all offsets are redundant. This value is then returned as
-     * an optional.
-     * <p>
-     * The value returned is exclusive, in that all offsets below it but not including
-     * it are redundant.
+     * below which all offsets are redundant.
      *
      * @param key    - represents {@link SharePartitionKey} whose offset needs updating
      * @param offset - represents the latest partition offset for provided key

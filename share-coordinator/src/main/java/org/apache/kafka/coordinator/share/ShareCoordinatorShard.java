@@ -395,7 +395,7 @@ public class ShareCoordinatorShard implements CoordinatorShard<CoordinatorRecord
 
     /**
      * Method which returns the last known redundant offset from the partition
-     * lead my this shard.
+     * lead by this shard.
      * @return CoordinatorResult containing empty record list and an Optional<Long> representing the offset.
      */
     public CoordinatorResult<Optional<Long>, CoordinatorRecord> lastRedundantOffset() {
@@ -408,7 +408,7 @@ public class ShareCoordinatorShard implements CoordinatorShard<CoordinatorRecord
     /**
      * Util method to generate a ShareSnapshot or ShareUpdate type record for a key, based on various conditions.
      * <p>
-     * if no snapshot has been created for the key => create a new ShareSnapshot record
+     * If no snapshot has been created for the key => create a new ShareSnapshot record
      * else if number of ShareUpdate records for key >= max allowed per snapshot per key => create a new ShareSnapshot record
      * else create a new ShareUpdate record
      *

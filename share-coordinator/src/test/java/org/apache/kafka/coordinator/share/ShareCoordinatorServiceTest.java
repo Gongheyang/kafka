@@ -376,9 +376,9 @@ class ShareCoordinatorServiceTest {
             );
 
         when(runtime.scheduleReadOperation(
-            ArgumentMatchers.eq("read-share-group-state-summary"),
-            ArgumentMatchers.eq(new TopicPartition(Topic.SHARE_GROUP_STATE_TOPIC_NAME, 0)),
-            ArgumentMatchers.any()
+            eq("read-share-group-state-summary"),
+            eq(new TopicPartition(Topic.SHARE_GROUP_STATE_TOPIC_NAME, 0)),
+            any()
         ))
             .thenReturn(CompletableFuture.completedFuture(new ReadShareGroupStateSummaryResponseData()
                 .setResults(Collections.singletonList(topicData1))))

@@ -705,14 +705,14 @@ public abstract class AbstractHerder implements Herder, TaskStatus.Listener, Con
             Map<String, ConfigValue> validatedConnectorConfig;
             if (connector instanceof SourceConnector) {
                 connectorType = org.apache.kafka.connect.health.ConnectorType.SOURCE;
-                enrichedConfigDef = ConnectorConfig.enrich(plugins(), SourceConnectorConfig.enrichedConfigDef(plugins(), connectorProps, worker.config().originalsStrings()), connectorProps, false);
+                enrichedConfigDef = ConnectorConfig.enrich(plugins(), SourceConnectorConfig.enrichedConfigDef(plugins(), connectorProps, worker.config()), connectorProps, false);
                 stageDescription = "validating source connector-specific properties for the connector";
                 try (TemporaryStage stage = reportStage.apply(stageDescription)) {
                     validatedConnectorConfig = validateSourceConnectorConfig((SourceConnector) connector, enrichedConfigDef, connectorProps);
                 }
             } else {
                 connectorType = org.apache.kafka.connect.health.ConnectorType.SINK;
-                enrichedConfigDef = ConnectorConfig.enrich(plugins(), SinkConnectorConfig.enrichedConfigDef(plugins(), connectorProps, worker.config().originalsStrings()), connectorProps, false);
+                enrichedConfigDef = ConnectorConfig.enrich(plugins(), SinkConnectorConfig.enrichedConfigDef(plugins(), connectorProps, worker.config()), connectorProps, false);
                 stageDescription = "validating sink connector-specific properties for the connector";
                 try (TemporaryStage stage = reportStage.apply(stageDescription)) {
                     validatedConnectorConfig = validateSinkConnectorConfig((SinkConnector) connector, enrichedConfigDef, connectorProps);

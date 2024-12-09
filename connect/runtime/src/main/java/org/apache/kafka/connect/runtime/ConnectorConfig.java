@@ -89,7 +89,7 @@ public class ConnectorConfig extends AbstractConfig {
                     " or use \"FileStreamSink\" or \"FileStreamSinkConnector\" to make the configuration a bit shorter";
     private static final String CONNECTOR_CLASS_DISPLAY = "Connector class";
 
-    public static final String CONNECTOR_VERSION = "connector.version";
+    public static final String CONNECTOR_VERSION = "connector." + WorkerConfig.PLUGIN_VERSION_SUFFIX;
     private static final String CONNECTOR_VERSION_DOC = "Version of the connector.";
     private static final String CONNECTOR_VERSION_DISPLAY = "Connector version";
     private static final ConfigDef.Validator CONNECTOR_VERSION_VALIDATOR = new PluginVersionValidator();
@@ -276,15 +276,16 @@ public class ConnectorConfig extends AbstractConfig {
     }
 
     // ConfigDef with additional defaults and recommenders
-    public static ConfigDef enrichedConfigDef(Plugins plugins, Map<String, String> connProps, Map<String, String> workerProps) {
+    public static ConfigDef enrichedConfigDef(Plugins plugins, Map<String, String> connProps, WorkerConfig workerConfig) {
+        PluginsRecommenders recommender = new PluginsRecommenders(plugins);
         ConverterDefaults keyConverterDefaults = converterDefaults(plugins, KEY_CONVERTER_CLASS_CONFIG,
-                WorkerConfig.KEY_CONVERTER_CLASS_CONFIG, WorkerConfig.KEY_CONVERTER_VERSION, connProps, workerProps, Converter.class);
+                WorkerConfig.KEY_CONVERTER_CLASS_CONFIG, WorkerConfig.KEY_CONVERTER_VERSION, connProps, workerConfig, Converter.class);
         ConverterDefaults valueConverterDefaults = converterDefaults(plugins, VALUE_CONVERTER_CLASS_CONFIG,
-                WorkerConfig.VALUE_CONVERTER_CLASS_CONFIG, WorkerConfig.VALUE_CONVERTER_VERSION, connProps, workerProps, Converter.class);
+                WorkerConfig.VALUE_CONVERTER_CLASS_CONFIG, WorkerConfig.VALUE_CONVERTER_VERSION, connProps, workerConfig, Converter.class);
         ConverterDefaults headerConverterDefaults = converterDefaults(plugins, HEADER_CONVERTER_CLASS_CONFIG,
-                WorkerConfig.HEADER_CONVERTER_CLASS_CONFIG, WorkerConfig.HEADER_CONVERTER_VERSION, connProps, workerProps, HeaderConverter.class);
+                WorkerConfig.HEADER_CONVERTER_CLASS_CONFIG, WorkerConfig.HEADER_CONVERTER_VERSION, connProps, workerConfig, HeaderConverter.class);
         return configDef(plugins.latestVersion(connProps.get(ConnectorConfig.CONNECTOR_CLASS_CONFIG)),
-                keyConverterDefaults, valueConverterDefaults, headerConverterDefaults, plugins.recommender());
+                keyConverterDefaults, valueConverterDefaults, headerConverterDefaults, recommender);
     }
 
     public static ConfigDef enrichedConfigDef(Plugins plugins, String connectorClass) {
@@ -473,7 +474,7 @@ public class ConnectorConfig extends AbstractConfig {
             String workerConverterConfig,
             String workerConverterVersionConfig,
             Map<String, String> connectorProps,
-            Map<String, String> workerProps,
+            WorkerConfig workerConfig,
             Class<T> converterType
     ) {
         /*
@@ -499,7 +500,9 @@ public class ConnectorConfig extends AbstractConfig {
         should still show the correct default version regardless of the bug.
         */
         final String connectorConverter = connectorProps.get(connectorConverterConfig);
-        final String workerConverter = workerProps.get(workerConverterConfig);
+        // since header converter defines a default in the worker config we need to handle it separately
+        final String workerConverter = workerConverterConfig.equals(WorkerConfig.HEADER_CONVERTER_CLASS_CONFIG) ?
+                workerConfig.getClass(workerConverterConfig).getName() : workerConfig.originalsStrings().get(workerConverterConfig);
         final String connectorClass = connectorProps.get(ConnectorConfig.CONNECTOR_CLASS_CONFIG);
         final String connectorVersion = connectorProps.get(ConnectorConfig.CONNECTOR_VERSION);
         String type = null;
@@ -513,7 +516,7 @@ public class ConnectorConfig extends AbstractConfig {
         if (connectorConverter != null) {
             version = fetchPluginVersion(plugins, connectorClass, connectorVersion, connectorConverter, converterType);
         } else {
-            version = workerProps.get(workerConverterVersionConfig);
+            version = workerConfig.originalsStrings().get(workerConverterVersionConfig);
             if (version == null) {
                 version = plugins.latestVersion(workerConverter);
             }

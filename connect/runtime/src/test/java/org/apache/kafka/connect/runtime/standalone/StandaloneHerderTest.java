@@ -190,7 +190,6 @@ public class StandaloneHerderTest {
         when(transformer.transform(configCapture.capture())).thenAnswer(invocation -> configCapture.getValue());
         when(worker.getPlugins()).thenReturn(plugins);
         when(worker.config()).thenReturn(mock(WorkerConfig.class));
-        when(plugins.recommender()).thenReturn(mock(PluginsRecommenders.class));
         when(plugins.newConnector(anyString(), any())).thenReturn(connectorMock);
         when(plugins.pluginLoader(anyString(), any())).thenReturn(pluginLoader);
         when(plugins.withClassLoader(pluginLoader)).thenReturn(loaderSwap);
@@ -877,7 +876,6 @@ public class StandaloneHerderTest {
         when(transformer.transform(configCapture.capture())).thenAnswer(invocation -> configCapture.getValue());
         when(worker.config()).thenReturn(mock(WorkerConfig.class));
         when(worker.getPlugins()).thenReturn(plugins);
-        when(plugins.recommender()).thenReturn(mock(PluginsRecommenders.class));
         when(plugins.pluginLoader(anyString(), any())).thenReturn(pluginLoader);
         when(plugins.withClassLoader(pluginLoader)).thenReturn(loaderSwap);
         when(plugins.newConnector(anyString(), any())).thenReturn(connectorMock);
@@ -1229,7 +1227,6 @@ public class StandaloneHerderTest {
         final ArgumentCaptor<Map<String, String>> configCapture = ArgumentCaptor.forClass(Map.class);
         when(transformer.transform(configCapture.capture())).thenAnswer(invocation -> configCapture.getValue());
         when(worker.config()).thenReturn(mock(WorkerConfig.class));
-        when(plugins.recommender()).thenReturn(mock(PluginsRecommenders.class));
         when(plugins.pluginLoader(anyString(), any())).thenReturn(pluginLoader);
         when(plugins.withClassLoader(pluginLoader)).thenReturn(loaderSwap);
 

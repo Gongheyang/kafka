@@ -70,7 +70,7 @@ public class WorkerConfig extends AbstractConfig {
     public static final String CLIENT_DNS_LOOKUP_CONFIG = CommonClientConfigs.CLIENT_DNS_LOOKUP_CONFIG;
     public static final String CLIENT_DNS_LOOKUP_DOC = CommonClientConfigs.CLIENT_DNS_LOOKUP_DOC;
 
-    public static final String PLUGIN_VERSION_SUFFIX = "version";
+    public static final String PLUGIN_VERSION_SUFFIX = "plugin.version";
 
     public static final String KEY_CONVERTER_CLASS_CONFIG = "key.converter";
     public static final String KEY_CONVERTER_CLASS_DOC =

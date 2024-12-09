@@ -357,10 +357,6 @@ public class Plugins {
         return plugins;
     }
 
-    public PluginsRecommenders recommender() {
-        return new PluginsRecommenders(this);
-    }
-
     public Object newPlugin(String classOrAlias) throws ClassNotFoundException {
         Class<?> klass = pluginClass(delegatingLoader, classOrAlias, Object.class);
         return newPlugin(klass);

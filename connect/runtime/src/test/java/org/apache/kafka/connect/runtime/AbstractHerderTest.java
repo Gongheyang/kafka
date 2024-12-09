@@ -1280,7 +1280,6 @@ public class AbstractHerderTest {
     private void mockValidationIsolation(String connectorClass, Connector connector) {
         when(worker.config()).thenReturn(mock(WorkerConfig.class));
         when(plugins.newConnector(anyString(), any())).thenReturn(connector);
-        when(plugins.recommender()).thenReturn(mock(PluginsRecommenders.class));
         when(plugins.pluginLoader(connectorClass, null)).thenReturn(classLoader);
         when(plugins.withClassLoader(classLoader)).thenReturn(loaderSwap);
     }

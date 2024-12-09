@@ -35,22 +35,22 @@ public class AutoOffsetReset {
     private final OffsetResetType type;
     private final Optional<Long> duration;
 
-    private AutoOffsetReset(OffsetResetType type, Optional<Long> duration) {
+    private AutoOffsetReset(final OffsetResetType type, final Optional<Long> duration) {
         this.type = type;
         this.duration = duration;
     }
 
     /**
-     * Creates an AutoOffsetReset instance representing "latest".
+     * Creates an {@code AutoOffsetReset} instance representing "latest".
      * 
-     * @return an AutoOffsetReset instance for the "latest" offset.
+     * @return An {@code AutoOffsetReset} instance for the "latest" offset.
      */
     public static AutoOffsetReset latest() {
         return new AutoOffsetReset(OffsetResetType.LATEST, Optional.empty());
     }
 
     /**
-     * Creates an AutoOffsetReset instance representing "earliest".
+     * Creates an {@code AutoOffsetReset} instance representing "earliest".
      * 
      * @return An {@link AutoOffsetReset} instance for the "earliest" offset.
      */
@@ -59,11 +59,11 @@ public class AutoOffsetReset {
     }
 
     /**
-     * Creates an AutoOffsetReset instance with a custom duration.
+     * Creates an {@code AutoOffsetReset} instance for the specified reset duration.
      * 
-     * @param duration the duration to use for the offset reset; must be non-negative.
-     * @return an AutoOffsetReset instance with the specified duration.
-     * @throws IllegalArgumentException if the duration is negative.
+     * @param duration The duration to use for the offset reset; must be non-negative.
+     * @return An {@code AutoOffsetReset} instance with the specified duration.
+     * @throws IllegalArgumentException If the duration is negative.
      */
     public static AutoOffsetReset byDuration(final Duration duration) {
         if (duration.isNegative()) {
@@ -91,14 +91,14 @@ public class AutoOffsetReset {
     }
 
     @Override
-    public boolean equals(Object o) {
+    public boolean equals(final Object o) {
         if (this == o) {
             return true;
         }
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
-        AutoOffsetReset that = (AutoOffsetReset) o;
+        final AutoOffsetReset that = (AutoOffsetReset) o;
         return type == that.type && duration.equals(that.duration);
     }
 

@@ -23,7 +23,7 @@ from ducktape.cluster.remoteaccount import RemoteCommandError
 
 from kafkatest.directory_layout.kafka_path import KafkaPathResolverMixin
 from kafkatest.services.security.security_config import SecurityConfig
-from kafkatest.version import LATEST_3_9
+from kafkatest.version import LATEST_3_8
 
 
 class ZookeeperService(KafkaPathResolverMixin, Service):
@@ -43,9 +43,9 @@ class ZookeeperService(KafkaPathResolverMixin, Service):
             "collect_default": True}
     }
 
-    # After 4.0, zookeeper service is removed from source code. Using LATEST_3_9 for compatibility test cases.
+    # After 4.0, zookeeper service is removed from source code. Using LATEST_3_8 for compatibility test cases.
     def __init__(self, context, num_nodes, zk_sasl = False, zk_client_port = True, zk_client_secure_port = False,
-                 zk_tls_encrypt_only = False, version=LATEST_3_9):
+                 zk_tls_encrypt_only = False, version=LATEST_3_8):
         """
         :type context
         """

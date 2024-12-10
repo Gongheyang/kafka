@@ -18,6 +18,7 @@ package org.apache.kafka.common.message;
 
 import org.apache.kafka.common.protocol.ByteBufferAccessor;
 import org.apache.kafka.common.protocol.MessageUtil;
+import org.apache.kafka.common.protocol.ObjectSerializationCache;
 
 import org.junit.jupiter.api.Test;
 
@@ -27,46 +28,49 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-public class NullableStructMessageTest {
+public class StructMessageTest {
 
     @Test
     public void testDefaultValues() {
-        NullableStructMessageData message = new NullableStructMessageData();
+        StructMessageData message = new StructMessageData();
         assertNull(message.nullableStruct);
-        assertEquals(new NullableStructMessageData.MyStruct2(), message.nullableStruct2);
+        assertEquals(new StructMessageData.MyStruct2(), message.nullableStruct2);
         assertNull(message.nullableStruct3);
-        assertEquals(new NullableStructMessageData.MyStruct4(), message.nullableStruct4);
+        assertEquals(new StructMessageData.MyStruct4(), message.nullableStruct4);
 
         message = roundTrip(message, (short) 2);
         assertNull(message.nullableStruct);
-        assertEquals(new NullableStructMessageData.MyStruct2(), message.nullableStruct2);
+        assertEquals(new StructMessageData.MyStruct2(), message.nullableStruct2);
         assertNull(message.nullableStruct3);
-        assertEquals(new NullableStructMessageData.MyStruct4(), message.nullableStruct4);
+        assertEquals(new StructMessageData.MyStruct4(), message.nullableStruct4);
     }
 
     @Test
     public void testRoundTrip() {
-        NullableStructMessageData message = new NullableStructMessageData()
-            .setNullableStruct(new NullableStructMessageData.MyStruct()
+        StructMessageData message = new StructMessageData()
+            .setNullableStruct(new StructMessageData.MyStruct()
                 .setMyInt(1)
                 .setMyString("1"))
-            .setNullableStruct2(new NullableStructMessageData.MyStruct2()
+            .setNullableStruct2(new StructMessageData.MyStruct2()
                 .setMyInt(2)
                 .setMyString("2"))
-            .setNullableStruct3(new NullableStructMessageData.MyStruct3()
+            .setNullableStruct3(new StructMessageData.MyStruct3()
                 .setMyInt(3)
                 .setMyString("3"))
-            .setNullableStruct4(new NullableStructMessageData.MyStruct4()
+            .setNullableStruct4(new StructMessageData.MyStruct4()
                 .setMyInt(4)
-                .setMyString("4"));
+                .setMyString("4"))
+            .setNonNullableStruct(new StructMessageData.MyStruct5()
+                .setMyInt(5)
+                .setMyString("5"));
 
-        NullableStructMessageData newMessage = roundTrip(message, (short) 2);
+        StructMessageData newMessage = roundTrip(message, (short) 2);
         assertEquals(message, newMessage);
     }
 
     @Test
-    public void testNullForAllFields() {
-        NullableStructMessageData message = new NullableStructMessageData()
+    public void testNullForNullableFields() {
+        StructMessageData message = new StructMessageData()
             .setNullableStruct(null)
             .setNullableStruct2(null)
             .setNullableStruct3(null)
@@ -81,7 +85,7 @@ public class NullableStructMessageTest {
 
     @Test
     public void testNullableStruct2CanNotBeNullInVersion0() {
-        NullableStructMessageData message = new NullableStructMessageData()
+        StructMessageData message = new StructMessageData()
             .setNullableStruct2(null);
 
         assertThrows(NullPointerException.class, () -> roundTrip(message, (short) 0));
@@ -89,7 +93,7 @@ public class NullableStructMessageTest {
 
     @Test
     public void testToStringWithNullStructs() {
-        NullableStructMessageData message = new NullableStructMessageData()
+        StructMessageData message = new StructMessageData()
             .setNullableStruct(null)
             .setNullableStruct2(null)
             .setNullableStruct3(null)
@@ -98,18 +102,42 @@ public class NullableStructMessageTest {
         message.toString();
     }
 
-    private NullableStructMessageData deserialize(ByteBuffer buf, short version) {
-        NullableStructMessageData message = new NullableStructMessageData();
+    @Test
+    public void testTaggedStructSizing() {
+        StructMessageData message = new StructMessageData()
+            .setNullableStruct(null)
+            .setNullableStruct2(null)
+            .setNullableStruct3(null)
+            .setNullableStruct4(new StructMessageData.MyStruct4()
+                .setMyInt(4)
+                .setMyString(new String(new char[121])))
+            .setNonNullableStruct(new StructMessageData.MyStruct5()
+                .setMyInt(5)
+                .setMyString(new String(new char[121])));
+
+        // We want the structs to be 127 bytes long, so that the varint encoding of their size is
+        // one short of overflowing into a two-byte representation. An extra byte is added to the
+        // nullable struct size to account for the is-null flag.
+        assertEquals(127, message.nullableStruct4().size(new ObjectSerializationCache(), (short) 2));
+        assertEquals(127, message.nonNullableStruct().size(new ObjectSerializationCache(), (short) 2));
+
+        StructMessageData newMessage = roundTrip(message, (short) 2);
+        assertEquals(message, newMessage);
+    }
+
+    private StructMessageData deserialize(ByteBuffer buf, short version) {
+        StructMessageData message = new StructMessageData();
         message.read(new ByteBufferAccessor(buf.duplicate()), version);
         return message;
     }
 
-    private ByteBuffer serialize(NullableStructMessageData message, short version) {
+    private ByteBuffer serialize(StructMessageData message, short version) {
         return MessageUtil.toByteBuffer(message, version);
     }
 
-    private NullableStructMessageData roundTrip(NullableStructMessageData message, short version) {
+    private StructMessageData roundTrip(StructMessageData message, short version) {
         ByteBuffer buffer = serialize(message, version);
+        assertEquals(buffer.remaining(), message.size(new ObjectSerializationCache(), version));
         return deserialize(buffer.duplicate(), version);
     }
 }

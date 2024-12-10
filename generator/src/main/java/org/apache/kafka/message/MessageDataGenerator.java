@@ -1343,6 +1343,11 @@ public final class MessageDataGenerator implements MessageClassGenerator {
                         buffer.printf("int _sizeBeforeStruct = _size.totalSize();%n", field.camelCaseName());
                         buffer.printf("this.%s.addSize(_size, _cache, _version);%n", field.camelCaseName());
                         buffer.printf("int _structSize = _size.totalSize() - _sizeBeforeStruct;%n", field.camelCaseName());
+                        VersionConditional.forVersions(field.nullableVersions(), possibleVersions).
+                            ifMember(__ -> {
+                                buffer.printf("_structSize += 1;%n");
+                            }).
+                            generate(buffer);
                         buffer.printf("_size.addBytes(ByteUtils.sizeOfUnsignedVarint(_structSize));%n");
                     } else {
                         buffer.printf("this.%s.addSize(_size, _cache, _version);%n", field.camelCaseName());

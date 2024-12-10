@@ -119,6 +119,9 @@ public class KTableKTableJoinNode<K, V1, V2, VR> extends BaseJoinProcessorNode<K
         thisProcessorParameters().addProcessorTo(topologyBuilder, thisJoinSideNodeName());
         otherProcessorParameters().addProcessorTo(topologyBuilder, otherJoinSideNodeName());
         mergeProcessorParameters().addProcessorTo(topologyBuilder, thisProcessorName, otherProcessorName);
+
+        topologyBuilder.connectProcessorAndStateStores(thisProcessorName, joinOtherStoreNames);
+        topologyBuilder.connectProcessorAndStateStores(otherProcessorName, joinThisStoreNames);
     }
 
     @Override

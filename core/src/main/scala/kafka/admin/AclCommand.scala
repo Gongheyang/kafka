@@ -51,6 +51,7 @@ object AclCommand extends Logging {
 
     val aclCommandService = new AdminClientService(opts)
 
+    var exitCode = 0
     try {
       if (opts.options.has(opts.addOpt))
         aclCommandService.addAcls()
@@ -62,7 +63,9 @@ object AclCommand extends Logging {
       case e: Throwable =>
         println(s"Error while executing ACL command: ${e.getMessage}")
         println(Utils.stackTrace(e))
-        Exit.exit(1)
+        exitCode = 1
+    } finally {
+      Exit.exit(exitCode)
     }
   }
 

@@ -375,11 +375,8 @@ public class Plugins {
     }
 
     public Object newPlugin(String classOrAlias, VersionRange range, ClassLoader sourceLoader) throws ClassNotFoundException {
-        if (range == null) {
-            if (!(sourceLoader instanceof PluginClassLoader)) {
-                sourceLoader = delegatingLoader;
-            }
-            return sourceLoader.loadClass(classOrAlias);
+        if (range == null && sourceLoader instanceof PluginClassLoader) {
+            sourceLoader.loadClass(classOrAlias);
         }
         return newPlugin(classOrAlias, range);
     }

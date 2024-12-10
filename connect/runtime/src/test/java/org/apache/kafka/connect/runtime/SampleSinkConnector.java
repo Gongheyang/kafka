@@ -25,7 +25,7 @@ import java.util.Map;
 
 public class SampleSinkConnector extends SinkConnector {
 
-    public static final String VERSION = "latest";
+    public static final String VERSION = "some great version";
 
     @Override
     public String version() {

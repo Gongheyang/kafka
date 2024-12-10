@@ -782,8 +782,7 @@ public abstract class AbstractHerder implements Herder, TaskStatus.Listener, Con
                 .map(Map.Entry::getKey)
                 .forEach(prop ->
                         validatedConfig.computeIfAbsent(prop, ConfigValue::new)
-                                .addErrorMessage("Null value can not be supplied as the configuration value.")
-                );
+                                .addErrorMessage("Null value can not be supplied as the configuration value."));
     }
 
     private ConfigInfos invalidVersionedConnectorValidation(

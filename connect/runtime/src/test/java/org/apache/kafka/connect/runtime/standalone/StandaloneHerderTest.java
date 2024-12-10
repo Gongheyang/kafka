@@ -44,7 +44,6 @@ import org.apache.kafka.connect.runtime.distributed.SampleConnectorClientConfigO
 import org.apache.kafka.connect.runtime.isolation.LoaderSwap;
 import org.apache.kafka.connect.runtime.isolation.PluginClassLoader;
 import org.apache.kafka.connect.runtime.isolation.Plugins;
-import org.apache.kafka.connect.runtime.isolation.PluginsRecommenders;
 import org.apache.kafka.connect.runtime.rest.entities.ConnectorInfo;
 import org.apache.kafka.connect.runtime.rest.entities.ConnectorStateInfo;
 import org.apache.kafka.connect.runtime.rest.entities.ConnectorType;
@@ -58,6 +57,7 @@ import org.apache.kafka.connect.source.SourceTask;
 import org.apache.kafka.connect.storage.AppliedConnectorConfig;
 import org.apache.kafka.connect.storage.ClusterConfigState;
 import org.apache.kafka.connect.storage.MemoryConfigBackingStore;
+import org.apache.kafka.connect.storage.SimpleHeaderConverter;
 import org.apache.kafka.connect.storage.StatusBackingStore;
 import org.apache.kafka.connect.util.Callback;
 import org.apache.kafka.connect.util.ConnectorTaskId;
@@ -132,6 +132,8 @@ public class StandaloneHerderTest {
     @Mock
     protected Worker worker;
     @Mock
+    protected WorkerConfig workerConfig;
+    @Mock
     protected WorkerConfigTransformer transformer;
     @Mock
     private Plugins plugins;
@@ -177,6 +179,7 @@ public class StandaloneHerderTest {
     }
 
     @Test
+    @SuppressWarnings("rawtypes")
     public void testCreateConnectorFailedValidation() {
         initialize(false);
         // Basic validation should be performed and return an error, but should still evaluate the connector's config
@@ -189,7 +192,8 @@ public class StandaloneHerderTest {
         final ArgumentCaptor<Map<String, String>> configCapture = ArgumentCaptor.forClass(Map.class);
         when(transformer.transform(configCapture.capture())).thenAnswer(invocation -> configCapture.getValue());
         when(worker.getPlugins()).thenReturn(plugins);
-        when(worker.config()).thenReturn(mock(WorkerConfig.class));
+        when(worker.config()).thenReturn(workerConfig);
+        when(workerConfig.getClass(WorkerConfig.HEADER_CONVERTER_CLASS_CONFIG)).thenReturn((Class) SimpleHeaderConverter.class);
         when(plugins.newConnector(anyString(), any())).thenReturn(connectorMock);
         when(plugins.pluginLoader(anyString(), any())).thenReturn(pluginLoader);
         when(plugins.withClassLoader(pluginLoader)).thenReturn(loaderSwap);
@@ -854,6 +858,7 @@ public class StandaloneHerderTest {
     }
 
     @Test
+    @SuppressWarnings("rawtypes")
     public void testCorruptConfig() {
         initialize(false);
         Map<String, String> config = new HashMap<>();
@@ -874,8 +879,9 @@ public class StandaloneHerderTest {
         when(worker.configTransformer()).thenReturn(transformer);
         final ArgumentCaptor<Map<String, String>> configCapture = ArgumentCaptor.forClass(Map.class);
         when(transformer.transform(configCapture.capture())).thenAnswer(invocation -> configCapture.getValue());
-        when(worker.config()).thenReturn(mock(WorkerConfig.class));
+        when(worker.config()).thenReturn(workerConfig);
         when(worker.getPlugins()).thenReturn(plugins);
+        when(workerConfig.getClass(WorkerConfig.HEADER_CONVERTER_CLASS_CONFIG)).thenReturn((Class) SimpleHeaderConverter.class);
         when(plugins.pluginLoader(anyString(), any())).thenReturn(pluginLoader);
         when(plugins.withClassLoader(pluginLoader)).thenReturn(loaderSwap);
         when(plugins.newConnector(anyString(), any())).thenReturn(connectorMock);
@@ -1217,6 +1223,7 @@ public class StandaloneHerderTest {
         return generatedTaskProps;
     }
 
+    @SuppressWarnings("rawtypes")
     private void expectConfigValidation(
         SourceSink sourceSink,
         Map<String, String>... configs
@@ -1226,10 +1233,10 @@ public class StandaloneHerderTest {
         when(worker.configTransformer()).thenReturn(transformer);
         final ArgumentCaptor<Map<String, String>> configCapture = ArgumentCaptor.forClass(Map.class);
         when(transformer.transform(configCapture.capture())).thenAnswer(invocation -> configCapture.getValue());
-        when(worker.config()).thenReturn(mock(WorkerConfig.class));
+        when(worker.config()).thenReturn(workerConfig);
+        when(workerConfig.getClass(WorkerConfig.HEADER_CONVERTER_CLASS_CONFIG)).thenReturn((Class) SimpleHeaderConverter.class);
         when(plugins.pluginLoader(anyString(), any())).thenReturn(pluginLoader);
         when(plugins.withClassLoader(pluginLoader)).thenReturn(loaderSwap);
-
         // Assume the connector should always be created
         when(worker.getPlugins()).thenReturn(plugins);
         when(plugins.newConnector(anyString(), any())).thenReturn(connectorMock);

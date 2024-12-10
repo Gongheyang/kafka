@@ -37,7 +37,6 @@ import org.apache.kafka.connect.runtime.isolation.LoaderSwap;
 import org.apache.kafka.connect.runtime.isolation.PluginDesc;
 import org.apache.kafka.connect.runtime.isolation.PluginType;
 import org.apache.kafka.connect.runtime.isolation.Plugins;
-import org.apache.kafka.connect.runtime.isolation.PluginsRecommenders;
 import org.apache.kafka.connect.runtime.rest.entities.ConfigInfo;
 import org.apache.kafka.connect.runtime.rest.entities.ConfigInfos;
 import org.apache.kafka.connect.runtime.rest.entities.ConfigKeyInfo;
@@ -51,6 +50,7 @@ import org.apache.kafka.connect.runtime.rest.errors.BadRequestException;
 import org.apache.kafka.connect.storage.AppliedConnectorConfig;
 import org.apache.kafka.connect.storage.ClusterConfigState;
 import org.apache.kafka.connect.storage.ConfigBackingStore;
+import org.apache.kafka.connect.storage.SimpleHeaderConverter;
 import org.apache.kafka.connect.storage.StatusBackingStore;
 import org.apache.kafka.connect.transforms.Transformation;
 import org.apache.kafka.connect.transforms.predicates.Predicate;
@@ -178,6 +178,7 @@ public class AbstractHerderTest {
     private final ConnectorClientConfigOverridePolicy noneConnectorClientConfigOverridePolicy = new NoneConnectorClientConfigOverridePolicy();
 
     @Mock private Worker worker;
+    @Mock private WorkerConfig workerConfig;
     @Mock private WorkerConfigTransformer transformer;
     @Mock private ConfigBackingStore configStore;
     @Mock private StatusBackingStore statusStore;
@@ -1277,8 +1278,10 @@ public class AbstractHerderTest {
                 .defaultAnswer(CALLS_REAL_METHODS));
     }
 
+    @SuppressWarnings("unchecked, rawtypes")
     private void mockValidationIsolation(String connectorClass, Connector connector) {
-        when(worker.config()).thenReturn(mock(WorkerConfig.class));
+        when(workerConfig.getClass(WorkerConfig.HEADER_CONVERTER_CLASS_CONFIG)).thenReturn((Class) SimpleHeaderConverter.class);
+        when(worker.config()).thenReturn(workerConfig);
         when(plugins.newConnector(anyString(), any())).thenReturn(connector);
         when(plugins.pluginLoader(connectorClass, null)).thenReturn(classLoader);
         when(plugins.withClassLoader(classLoader)).thenReturn(loaderSwap);

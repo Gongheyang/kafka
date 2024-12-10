@@ -21,8 +21,8 @@ import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.config.ConfigException;
 import org.apache.kafka.common.serialization.Deserializer;
 import org.apache.kafka.common.serialization.Serializer;
-import org.apache.kafka.streams.AutoOffsetReset;
 import org.apache.kafka.streams.StreamsConfig;
+import org.apache.kafka.streams.Topology;
 import org.apache.kafka.streams.TopologyConfig;
 import org.apache.kafka.streams.errors.TopologyException;
 import org.apache.kafka.streams.internals.ApiUtils;
@@ -438,7 +438,8 @@ public class InternalTopologyBuilder {
         return this;
     }
 
-    public final void addSource(final AutoOffsetReset offsetReset,
+    @SuppressWarnings("deprecation")
+    public final void addSource(final Topology.AutoOffsetReset offsetReset,
                                 final String name,
                                 final TimestampExtractor timestampExtractor,
                                 final Deserializer<?> keyDeserializer,
@@ -465,7 +466,8 @@ public class InternalTopologyBuilder {
         nodeGroups = null;
     }
 
-    public final void addSource(final AutoOffsetReset offsetReset,
+    @SuppressWarnings("deprecation")
+    public final void addSource(final Topology.AutoOffsetReset offsetReset,
                                 final String name,
                                 final TimestampExtractor timestampExtractor,
                                 final Deserializer<?> keyDeserializer,
@@ -915,9 +917,10 @@ public class InternalTopologyBuilder {
 
     }
 
+    @SuppressWarnings("deprecation")
     private <T> void maybeAddToResetList(final Collection<T> earliestResets,
                                          final Collection<T> latestResets,
-                                         final AutoOffsetReset offsetReset,
+                                         final Topology.AutoOffsetReset offsetReset,
                                          final T item) {
         if (offsetReset != null) {
             switch (offsetReset) {

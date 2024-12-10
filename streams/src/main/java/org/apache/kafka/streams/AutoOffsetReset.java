@@ -16,28 +16,29 @@
  */
 package org.apache.kafka.streams;
 
+import org.apache.kafka.streams.internals.OffsetResetStrategy;
+import org.apache.kafka.streams.kstream.KStream;
+import org.apache.kafka.streams.kstream.KTable;
+
 import java.time.Duration;
 import java.util.Optional;
 
 /**
  * Sets the {@code auto.offset.reset} configuration when
- * {@link #addSource(AutoOffsetReset, String, String...) adding a source processor} or when creating {@link KStream}
- * or {@link KTable} via {@link StreamsBuilder}.
+ * {@link Topology#addSource(AutoOffsetReset, String, String...) adding a source processor}
+ * or when creating {@link KStream} or {@link KTable} via {@link StreamsBuilder}.
  */
 public class AutoOffsetReset {
+    protected final OffsetResetStrategy offsetResetStrategy;
+    protected final Optional<Duration> duration;
 
-    private enum OffsetResetStrategy {
-        LATEST,
-        EARLIEST,
-        BY_DURATION
+    private AutoOffsetReset(final OffsetResetStrategy offsetResetStrategy, final Optional<Duration> duration) {
+        this.offsetResetStrategy = offsetResetStrategy;
+        this.duration = duration;
     }
 
-    private final OffsetResetStrategy strategy;
-    private final Optional<Long> duration;
-
-    private AutoOffsetReset(final OffsetResetStrategy strategy, final Optional<Long> duration) {
-        this.strategy = strategy;
-        this.duration = duration;
+    protected AutoOffsetReset(final AutoOffsetReset autoOffsetReset) {
+        this(autoOffsetReset.offsetResetStrategy, autoOffsetReset.duration);
     }
 
     /**
@@ -69,7 +70,7 @@ public class AutoOffsetReset {
         if (duration.isNegative()) {
             throw new IllegalArgumentException("Duration cannot be negative");
         }
-        return new AutoOffsetReset(OffsetResetStrategy.BY_DURATION, Optional.of(duration.toMillis()));
+        return new AutoOffsetReset(OffsetResetStrategy.BY_DURATION, Optional.of(duration));
     }
 
     @Override
@@ -81,12 +82,12 @@ public class AutoOffsetReset {
             return false;
         }
         final AutoOffsetReset that = (AutoOffsetReset) o;
-        return strategy == that.strategy && duration.equals(that.duration);
+        return offsetResetStrategy == that.offsetResetStrategy && duration.equals(that.duration);
     }
 
     @Override
     public int hashCode() {
-        int result = strategy.hashCode();
+        int result = offsetResetStrategy.hashCode();
         result = 31 * result + duration.hashCode();
         return result;
     }

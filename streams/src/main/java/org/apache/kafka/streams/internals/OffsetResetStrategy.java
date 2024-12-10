@@ -16,21 +16,9 @@
  */
 package org.apache.kafka.streams.internals;
 
-import org.apache.kafka.streams.AutoOffsetReset;
-
-import java.time.Duration;
-import java.util.Optional;
-
-public class AutoOffsetResetInternal extends AutoOffsetReset {
-
-    public AutoOffsetResetInternal(final AutoOffsetReset autoOffsetReset) {
-        super(autoOffsetReset);
-    }
-
-    public OffsetResetStrategy offsetResetStrategy() {
-        return offsetResetStrategy;
-    }
-    public Optional<Duration> duration() {
-        return duration;
-    }
+public enum OffsetResetStrategy {
+    LATEST,
+    EARLIEST,
+    BY_DURATION
 }
+

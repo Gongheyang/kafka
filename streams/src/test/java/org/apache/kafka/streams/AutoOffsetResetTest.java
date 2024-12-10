@@ -16,41 +16,40 @@
  */
 package org.apache.kafka.streams;
 
-
+import org.apache.kafka.streams.internals.AutoOffsetResetInternal;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
-import java.util.Optional;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AutoOffsetResetTest {
 
     @Test
     void latestShouldReturnAnEmptyDuration() {
-        AutoOffsetReset latest = AutoOffsetReset.latest();
-        assertTrue(latest.getDuration().isEmpty(), "Latest should have an empty duration.");
-        assertEquals("Latest", latest.describe(), "toString() should return 'Latest' for latest offset.");
+        final AutoOffsetResetInternal latest = new AutoOffsetResetInternal(AutoOffsetReset.latest());
+        assertTrue(latest.duration().isEmpty(), "Latest should have an empty duration.");
     }
 
     @Test
-    void earliestShouldHaveDurationOfZero() {
-        AutoOffsetReset earliest = AutoOffsetReset.earliest();
-        assertEquals(Optional.of(0L), earliest.getDuration(), "Earliest should have a duration of 0ms.");
-        assertEquals("Duration: 0ms", earliest.describe(), "describe() should return 'Duration: 0ms' for earliest offset.");
+    void earliestShouldReturnAnEmptyDuration() {
+        final AutoOffsetResetInternal earliest = new AutoOffsetResetInternal(AutoOffsetReset.earliest());
+        assertTrue(earliest.duration().isEmpty(), "Earliest should have an empty duration.");
     }
 
     @Test
     void customDurationShouldMatchExpectedValue() {
-        Duration duration = Duration.ofSeconds(10);
-        AutoOffsetReset custom = AutoOffsetReset.duration(duration);
-        assertEquals(Optional.of(10000L), custom.getDuration(), "Duration should match the specified value in milliseconds.");
-        assertEquals("Duration: 10000ms", custom.describe(), "describe() should display the correct duration.");
+        final Duration duration = Duration.ofSeconds(10L);
+        final AutoOffsetResetInternal custom = new AutoOffsetResetInternal(AutoOffsetReset.byDuration(duration));
+        assertEquals(10L, custom.duration().get().toSeconds(), "Duration should match the specified value in milliseconds.");
     }
 
     @Test
     void shouldThrowExceptionIfDurationIsNegative() {
-        IllegalArgumentException exception = assertThrows(
+        final IllegalArgumentException exception = assertThrows(
             IllegalArgumentException.class,
             () -> AutoOffsetReset.byDuration(Duration.ofSeconds(-1)),
             "Creating an AutoOffsetReset with a negative duration should throw an IllegalArgumentException."
@@ -60,13 +59,13 @@ class AutoOffsetResetTest {
 
     @Test
     void twoInstancesCreatedAtTheSameTimeWithSameOptionsShouldBeEqual() {
-        AutoOffsetReset latest1 = AutoOffsetReset.latest();
-        AutoOffsetReset latest2 = AutoOffsetReset.latest();
-        AutoOffsetReset earliest1 = AutoOffsetReset.earliest();
-        AutoOffsetReset earliest2 = AutoOffsetReset.earliest();
-        AutoOffsetReset custom1 = AutoOffsetReset.duration(Duration.ofSeconds(5));
-        AutoOffsetReset custom2 = AutoOffsetReset.duration(Duration.ofSeconds(5));
-        AutoOffsetReset customDifferent = AutoOffsetReset.duration(Duration.ofSeconds(10));
+        final AutoOffsetReset latest1 = AutoOffsetReset.latest();
+        final AutoOffsetReset latest2 = AutoOffsetReset.latest();
+        final AutoOffsetReset earliest1 = AutoOffsetReset.earliest();
+        final  AutoOffsetReset earliest2 = AutoOffsetReset.earliest();
+        final AutoOffsetReset custom1 = AutoOffsetReset.byDuration(Duration.ofSeconds(5));
+        final AutoOffsetReset custom2 = AutoOffsetReset.byDuration(Duration.ofSeconds(5));
+        final AutoOffsetReset customDifferent = AutoOffsetReset.byDuration(Duration.ofSeconds(10));
 
         // Equals
         assertEquals(latest1, latest2, "Two latest instances should be equal.");

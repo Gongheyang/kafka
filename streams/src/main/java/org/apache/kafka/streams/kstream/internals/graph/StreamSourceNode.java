@@ -73,14 +73,16 @@ public class StreamSourceNode<K, V> extends SourceGraphNode<K, V> {
     public void writeToTopology(final InternalTopologyBuilder topologyBuilder) {
 
         if (topicPattern().isPresent()) {
-            topologyBuilder.addSource(consumedInternal().offsetResetPolicy(),
+            // TODO mjsax
+            topologyBuilder.addSource(consumedInternal().legacyOffsetResetPolicy(),
                                       nodeName(),
                                       consumedInternal().timestampExtractor(),
                                       consumedInternal().keyDeserializer(),
                                       consumedInternal().valueDeserializer(),
                                       topicPattern().get());
         } else {
-            topologyBuilder.addSource(consumedInternal().offsetResetPolicy(),
+            // TODO mjsax
+            topologyBuilder.addSource(consumedInternal().legacyOffsetResetPolicy(),
                                       nodeName(),
                                       consumedInternal().timestampExtractor(),
                                       consumedInternal().keyDeserializer(),

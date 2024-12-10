@@ -481,7 +481,6 @@ public class ConsoleConsumerTest {
         props.put(BOOTSTRAP_SERVERS_CONFIG, cluster.bootstrapServers());
         props.put(KEY_DESERIALIZER_CLASS_CONFIG, ByteArrayDeserializer.class.getName());
         props.put(VALUE_DESERIALIZER_CLASS_CONFIG, ByteArrayDeserializer.class.getName());
-        props.put(PARTITION_ASSIGNMENT_STRATEGY_CONFIG, RangeAssignor.class.getName());
         props.put(GROUP_ID_CONFIG, groupId);
         return props;
     }

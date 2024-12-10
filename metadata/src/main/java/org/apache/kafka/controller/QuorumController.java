@@ -94,6 +94,7 @@ import org.apache.kafka.common.utils.Utils;
 import org.apache.kafka.controller.errors.ControllerExceptions;
 import org.apache.kafka.controller.errors.EventHandlerExceptionInfo;
 import org.apache.kafka.controller.metrics.QuorumControllerMetrics;
+import org.apache.kafka.controller.metrics.SlowEventsLogger;
 import org.apache.kafka.deferred.DeferredEvent;
 import org.apache.kafka.deferred.DeferredEventQueue;
 import org.apache.kafka.metadata.BrokerHeartbeatReply;
@@ -151,6 +152,7 @@ import java.util.function.Supplier;
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
+import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.kafka.controller.QuorumController.ControllerOperationFlag.DOES_NOT_UPDATE_QUEUE_TIME;
 
 
@@ -525,6 +527,7 @@ public final class QuorumController implements Controller {
         long deltaNs = endProcessingTime - startProcessingTimeNs;
         log.debug("Processed {} in {} us", name,
             MICROSECONDS.convert(deltaNs, NANOSECONDS));
+        slowEventsLogger.maybeLog(name, deltaNs);
         controllerMetrics.updateEventQueueProcessingTime(NANOSECONDS.toMillis(deltaNs));
     }
 
@@ -1446,6 +1449,8 @@ public final class QuorumController implements Controller {
      */
     private final RecordRedactor recordRedactor;
 
+    private final SlowEventsLogger slowEventsLogger;
+
     private QuorumController(
         FaultHandler nonFatalFaultHandler,
         FaultHandler fatalFaultHandler,
@@ -1599,6 +1604,7 @@ public final class QuorumController implements Controller {
         log.info("Creating new QuorumController with clusterId {}", clusterId);
 
         this.raftClient.register(metaLogListener);
+        this.slowEventsLogger = new SlowEventsLogger(controllerMetrics::getEventQueueProcessingTimeP99, log, time);
     }
 
     /**

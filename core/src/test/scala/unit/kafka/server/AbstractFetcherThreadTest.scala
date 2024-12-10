@@ -28,7 +28,6 @@ import org.apache.kafka.server.metrics.KafkaYammerMetrics
 import org.apache.kafka.common.{KafkaException, TopicPartition, Uuid}
 import org.apache.kafka.storage.internals.log.LogAppendInfo
 import org.junit.jupiter.api.Assertions._
-import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.{BeforeEach, Test}
 import kafka.server.FetcherThreadTestUtils.{initialFetchState, mkBatch}
 
@@ -540,9 +539,9 @@ class AbstractFetcherThreadTest {
     assertEquals(2, replicaState.logEndOffset)
   }
 
-  @Test
-  def testTruncationOnFetchSkippedIfPartitionRemoved(): Unit = {
-    assumeTrue(truncateOnFetch)
+  @ParameterizedTest
+  @ValueSource(booleans = Array(true))
+  def testTruncationOnFetchSkippedIfPartitionRemoved(truncateOnFetch: Boolean): Unit = {
     val partition = new TopicPartition("topic", 0)
     var truncations = 0
     val mockLeaderEndpoint = new MockLeaderEndPoint(truncateOnFetch = truncateOnFetch, version = version)
@@ -789,22 +788,10 @@ class AbstractFetcherThreadTest {
     assertEquals(2L, replicaState.logEndOffset)
   }
 
-  @Test
-  def testLeaderEpochChangeDuringFencedFetchEpochsFromLeader(): Unit = {
-    // The leader is on the new epoch when the OffsetsForLeaderEpoch with old epoch is sent, so it
-    // returns the fence error. Validate that response is ignored if the leader epoch changes on
-    // the follower while OffsetsForLeaderEpoch request is in flight, but able to truncate and fetch
-    // in the next of round of "doWork"
-    testLeaderEpochChangeDuringFetchEpochsFromLeader(leaderEpochOnLeader = 1)
-  }
-
-  @Test
-  def testLeaderEpochChangeDuringSuccessfulFetchEpochsFromLeader(): Unit = {
-    // The leader is on the old epoch when the OffsetsForLeaderEpoch with old epoch is sent
-    // and returns the valid response. Validate that response is ignored if the leader epoch changes
-    // on the follower while OffsetsForLeaderEpoch request is in flight, but able to truncate and
-    // fetch once the leader is on the newer epoch (same as follower)
-    testLeaderEpochChangeDuringFetchEpochsFromLeader(leaderEpochOnLeader = 0)
+  @ParameterizedTest
+  @ValueSource(ints = {0, 1})
+  def testLeaderEpochChangeDuringFetchEpochsFromLeader(leaderEpochOnLeader: Int): Unit = {
+    testLeaderEpochChangeDuringFetchEpochsFromLeader(leaderEpochOnLeader)
   }
 
   private def testLeaderEpochChangeDuringFetchEpochsFromLeader(leaderEpochOnLeader: Int): Unit = {
@@ -1039,10 +1026,9 @@ class AbstractFetcherThreadTest {
     fetcher.verifyLastFetchedEpoch(partition, Some(5))
   }
 
-  @Test
-  def testTruncateOnFetchDoesNotProcessPartitionData(): Unit = {
-    assumeTrue(truncateOnFetch)
-
+  @ParameterizedTest
+  @ValueSource(booleans = Array(true))
+  def testTruncateOnFetchDoesNotProcessPartitionData(truncateOnFetch: Boolean): Unit = {
     val partition = new TopicPartition("topic", 0)
 
     var truncateCalls = 0

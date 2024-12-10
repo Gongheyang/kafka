@@ -115,8 +115,7 @@ public class CoordinatorRequestManagerTest {
             // Step 1: mark the coordinator as disconnected right after creation of the CoordinatorRequestManager.
             // Because the disconnect occurred immediately, no warning should be logged.
             coordinatorRequestManager.markCoordinatorUnknown("test", time.milliseconds());
-            Optional<Long> ms = millisFromLog(appender);
-            assertTrue(ms.isEmpty());
+            assertTrue(millisecondsFromLog(appender).isEmpty());
 
             // Step 2: sleep for one minute and mark the coordinator unknown again. Then verify that the warning was
             // logged and the reported time is accurate.
@@ -132,15 +131,15 @@ public class CoordinatorRequestManagerTest {
     }
 
     private void assertMillisecondEquals(LogCaptureAppender appender, long expected) {
-        Optional<Long> ms = millisFromLog(appender);
+        Optional<Long> ms = millisecondsFromLog(appender);
         assertTrue(ms.isPresent());
         long actual = ms.get();
         assertEquals(expected, actual);
     }
 
-    private Optional<Long> millisFromLog(LogCaptureAppender appender) {
+    private Optional<Long> millisecondsFromLog(LogCaptureAppender appender) {
         Pattern pattern = Pattern.compile("\\s+(?<millis>\\d+)+ms");
-        List<Long> millis = appender.getMessages().stream()
+        List<Long> milliseconds = appender.getMessages().stream()
             .map(pattern::matcher)
             .filter(Matcher::find)
             .map(matcher -> matcher.group("millis"))
@@ -154,8 +153,9 @@ public class CoordinatorRequestManagerTest {
             })
             .filter(Objects::nonNull)
             .collect(Collectors.toList());
-        // Return the most recent log entry, if present.
-        return millis.isEmpty() ? Optional.empty() : Optional.of(millis.get(millis.size() - 1));
+
+        // Return the most recent log entry that matches the message in markCoordinatorUnknown, if present.
+        return milliseconds.isEmpty() ? Optional.empty() : Optional.of(milliseconds.get(milliseconds.size() - 1));
     }
 
     @Test

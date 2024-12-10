@@ -61,7 +61,6 @@ public class Consumed<K, V> implements NamedOperation<Consumed<K, V>> {
     protected Topology.AutoOffsetReset legacyResetPolicy; 
     protected String processorName;
 
-    @Deprecated
     private Consumed(final Serde<K> keySerde,
                      final Serde<V> valueSerde,
                      final TimestampExtractor timestampExtractor,
@@ -104,8 +103,8 @@ public class Consumed<K, V> implements NamedOperation<Consumed<K, V>> {
     public static <K, V> Consumed<K, V> with(final Serde<K> keySerde,
                                              final Serde<V> valueSerde,
                                              final TimestampExtractor timestampExtractor,
-                                             final Topology.AutoOffsetReset resetPolicy) {
-        return new Consumed<>(keySerde, valueSerde, timestampExtractor, resetPolicy, convertOldToNew(resetPolicy), null);
+                                             final AutoOffsetReset resetPolicy) {
+        return new Consumed<>(keySerde, valueSerde, timestampExtractor, null, resetPolicy, null);
     }
 
     /**
@@ -123,7 +122,7 @@ public class Consumed<K, V> implements NamedOperation<Consumed<K, V>> {
      */
     public static <K, V> Consumed<K, V> with(final Serde<K> keySerde,
                                              final Serde<V> valueSerde) {
-        return new Consumed<>(keySerde, valueSerde, null, null, null);
+        return new Consumed<>(keySerde, valueSerde, null, null, null, null);
     }
 
     /**
@@ -138,7 +137,7 @@ public class Consumed<K, V> implements NamedOperation<Consumed<K, V>> {
      * @return a new instance of {@link Consumed}
      */
     public static <K, V> Consumed<K, V> with(final TimestampExtractor timestampExtractor) {
-        return new Consumed<>(null, null, timestampExtractor, null, null);
+        return new Consumed<>(null, null, timestampExtractor, null, null, null);
     }
 
     /**
@@ -154,11 +153,11 @@ public class Consumed<K, V> implements NamedOperation<Consumed<K, V>> {
      */
     @Deprecated
     public static <K, V> Consumed<K, V> with(final Topology.AutoOffsetReset resetPolicy) {
-        return new Consumed<>(null, null, null, resetPolicy, null);
+        return new Consumed<>(null, null, null, resetPolicy, convertOldToNew(resetPolicy), null);
     }
 
     public static <K, V> Consumed<K, V> with(final AutoOffsetReset resetPolicy) {
-        return new Consumed<>(null, null, null, resetPolicy, null);
+        return new Consumed<>(null, null, null, null, resetPolicy, null);
     }
 
     /**
@@ -173,7 +172,7 @@ public class Consumed<K, V> implements NamedOperation<Consumed<K, V>> {
      * @return a new instance of {@link Consumed}
      */
     public static <K, V> Consumed<K, V> as(final String processorName) {
-        return new Consumed<>(null, null, null, null, processorName);
+        return new Consumed<>(null, null, null, null, null, processorName);
     }
 
     /**
@@ -185,7 +184,7 @@ public class Consumed<K, V> implements NamedOperation<Consumed<K, V>> {
      * @return a new instance of {@link Consumed}
      */
     public Consumed<K, V> withKeySerde(final Serde<K> keySerde) {
-        return new Consumed<K, V>(keySerde, valueSerde, timestampExtractor, legacyResetPolicy, processorName);
+        return new Consumed<K, V>(keySerde, valueSerde, timestampExtractor, legacyResetPolicy, resetPolicy, processorName);
     }
 
     /**
@@ -197,7 +196,7 @@ public class Consumed<K, V> implements NamedOperation<Consumed<K, V>> {
      * @return a new instance of {@link Consumed}
      */
     public Consumed<K, V> withValueSerde(final Serde<V> valueSerde) {
-        return new Consumed<K, V>(keySerde, valueSerde, timestampExtractor, legacyResetPolicy, processorName);
+        return new Consumed<K, V>(keySerde, valueSerde, timestampExtractor, legacyResetPolicy, resetPolicy, processorName);
     }
 
     /**
@@ -209,7 +208,7 @@ public class Consumed<K, V> implements NamedOperation<Consumed<K, V>> {
      * @return a new instance of {@link Consumed}
      */
     public Consumed<K, V> withTimestampExtractor(final TimestampExtractor timestampExtractor) {
-        return new Consumed<K, V>(keySerde, valueSerde, timestampExtractor, legacyResetPolicy, processorName);
+        return new Consumed<K, V>(keySerde, valueSerde, timestampExtractor, legacyResetPolicy, resetPolicy, processorName);
     }
 
     /**
@@ -222,11 +221,11 @@ public class Consumed<K, V> implements NamedOperation<Consumed<K, V>> {
      */
     @Deprecated
     public Consumed<K, V> withOffsetResetPolicy(final Topology.AutoOffsetReset resetPolicy) {
-        return new Consumed<K, V>(keySerde, valueSerde, timestampExtractor, resetPolicy, processorName);
+        return new Consumed<K, V>(keySerde, valueSerde, timestampExtractor, resetPolicy, convertOldToNew(resetPolicy), processorName);
     }
 
     public Consumed<K, V> withOffsetResetPolicy(final AutoOffsetReset resetPolicy) {
-        return new Consumed<K, V>(keySerde, valueSerde, timestampExtractor, resetPolicy, processorName);
+        return new Consumed<K, V>(keySerde, valueSerde, timestampExtractor, null, resetPolicy, processorName);
     }
 
     /**
@@ -239,7 +238,7 @@ public class Consumed<K, V> implements NamedOperation<Consumed<K, V>> {
      */
     @Override
     public Consumed<K, V> withName(final String processorName) {
-        return new Consumed<K, V>(keySerde, valueSerde, timestampExtractor, legacyResetPolicy, processorName);
+        return new Consumed<K, V>(keySerde, valueSerde, timestampExtractor, legacyResetPolicy, resetPolicy, processorName);
     }
 
     @Override
@@ -254,12 +253,13 @@ public class Consumed<K, V> implements NamedOperation<Consumed<K, V>> {
         return Objects.equals(keySerde, consumed.keySerde) &&
                Objects.equals(valueSerde, consumed.valueSerde) &&
                Objects.equals(timestampExtractor, consumed.timestampExtractor) &&
-               legacyResetPolicy == consumed.legacyResetPolicy;
+               legacyResetPolicy == consumed.legacyResetPolicy &&
+               resetPolicy == consumed.resetPolicy;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(keySerde, valueSerde, timestampExtractor, legacyResetPolicy);
+        return Objects.hash(keySerde, valueSerde, timestampExtractor, legacyResetPolicy, resetPolicy);
     }
 
     private static AutoOffsetReset convertOldToNew(final TopologyAutoOffsetReset resetPolicy) {

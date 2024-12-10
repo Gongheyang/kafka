@@ -121,20 +121,17 @@ public class CoordinatorRequestManagerTest {
             // logged and the reported time is accurate.
             time.sleep(oneMinute);
             coordinatorRequestManager.markCoordinatorUnknown("test", time.milliseconds());
-            assertMillisecondEquals(appender, oneMinute);
+            Optional<Long> firstLogMs = millisecondsFromLog(appender);
+            assertTrue(firstLogMs.isPresent());
+            assertEquals(oneMinute, firstLogMs.get());
 
             // Step 3: sleep for *another* minute, mark the coordinator unknown again, and verify the accuracy.
             time.sleep(oneMinute);
             coordinatorRequestManager.markCoordinatorUnknown("test", time.milliseconds());
-            assertMillisecondEquals(appender, oneMinute * 2);
+            Optional<Long> secondLogMs = millisecondsFromLog(appender);
+            assertTrue(secondLogMs.isPresent());
+            assertEquals(oneMinute * 2, secondLogMs.get());
         }
-    }
-
-    private void assertMillisecondEquals(LogCaptureAppender appender, long expected) {
-        Optional<Long> ms = millisecondsFromLog(appender);
-        assertTrue(ms.isPresent());
-        long actual = ms.get();
-        assertEquals(expected, actual);
     }
 
     private Optional<Long> millisecondsFromLog(LogCaptureAppender appender) {

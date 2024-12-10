@@ -19,8 +19,10 @@ package org.apache.kafka.tools.consumer;
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.Consumer;
+import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
+import org.apache.kafka.clients.consumer.GroupProtocol;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.consumer.MockConsumer;
 import org.apache.kafka.clients.consumer.RangeAssignor;
@@ -75,6 +77,7 @@ import static org.apache.kafka.clients.CommonClientConfigs.BOOTSTRAP_SERVERS_CON
 import static org.apache.kafka.clients.consumer.ConsumerConfig.AUTO_OFFSET_RESET_CONFIG;
 import static org.apache.kafka.clients.consumer.ConsumerConfig.EXCLUDE_INTERNAL_TOPICS_CONFIG;
 import static org.apache.kafka.clients.consumer.ConsumerConfig.GROUP_ID_CONFIG;
+import static org.apache.kafka.clients.consumer.ConsumerConfig.GROUP_PROTOCOL_CONFIG;
 import static org.apache.kafka.clients.consumer.ConsumerConfig.ISOLATION_LEVEL_CONFIG;
 import static org.apache.kafka.clients.consumer.ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG;
 import static org.apache.kafka.clients.consumer.ConsumerConfig.PARTITION_ASSIGNMENT_STRATEGY_CONFIG;
@@ -453,18 +456,24 @@ public class ConsoleConsumerTest {
         Properties props = consumerProps(cluster);
         props.put(ISOLATION_LEVEL_CONFIG, "read_committed");
         props.put(AUTO_OFFSET_RESET_CONFIG, "earliest");
+        // TODO: review when addressing issue for formatter failures in console consumer for CONSUMER
+        props.put(GROUP_PROTOCOL_CONFIG, GroupProtocol.CLASSIC.name());
         return new KafkaConsumer<>(props);
     }
 
     private Consumer<byte[], byte[]> createOffsetConsumer(ClusterInstance cluster) {
         Properties props = consumerProps(cluster);
         props.put(EXCLUDE_INTERNAL_TOPICS_CONFIG, "false");
+        // TODO: review when addressing issue for formatter failures in console consumer for CONSUMER
+        props.put(GROUP_PROTOCOL_CONFIG, GroupProtocol.CLASSIC.name());
         return new KafkaConsumer<>(props);
     }
 
     private Consumer<byte[], byte[]> createGroupMetaDataConsumer(ClusterInstance cluster) {
         Properties props = consumerProps(cluster);
         props.put(AUTO_OFFSET_RESET_CONFIG, "earliest");
+        // TODO: review when addressing issue for formatter failures in console consumer for CONSUMER
+        props.put(ConsumerConfig.GROUP_PROTOCOL_CONFIG, GroupProtocol.CLASSIC.name());
         return new KafkaConsumer<>(props);
     }
     

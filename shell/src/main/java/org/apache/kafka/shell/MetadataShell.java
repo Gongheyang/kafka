@@ -57,7 +57,6 @@ import java.util.concurrent.TimeUnit;
  * The Kafka metadata shell entry point.
  */
 public final class MetadataShell {
-    private static final Logger log = LoggerFactory.getLogger(MetadataShell.class);
 
     public static class Builder {
         private KafkaRaftManager<ApiMessageAndVersion> raftManager = null;
@@ -226,7 +225,7 @@ public final class MetadataShell {
             try {
                 raftManager.shutdown();
             } catch (Exception e) {
-                log.error("Error shutting down RaftManager", e);
+                System.out.println("Error shutting down RaftManager, " + e);
             }
         }
         Utils.closeQuietly(snapshotFileReader, "raftManager");
@@ -234,7 +233,7 @@ public final class MetadataShell {
             try {
                 fileLock.destroy();
             } catch (Exception e) {
-                log.error("Error destroying fileLock", e);
+                System.out.println("Error destroying fileLock, " + e);
             } finally {
                 fileLock = null;
             }
@@ -258,11 +257,11 @@ public final class MetadataShell {
             builder.setSnapshotPath(res.getString("snapshot"));
             Path tempDir = Files.createTempDirectory("MetadataShell");
             Exit.addShutdownHook("agent-shutdown-hook", () -> {
-                log.debug("Removing temporary directory " + tempDir.toAbsolutePath());
+                System.out.println("Removing temporary directory " + tempDir.toAbsolutePath());
                 try {
                     Utils.delete(tempDir.toFile());
                 } catch (Exception e) {
-                    log.error("Got exception while removing temporary directory " +
+                    System.out.println("Got exception while removing temporary directory " +
                         tempDir.toAbsolutePath());
                 }
             });

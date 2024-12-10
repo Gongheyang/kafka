@@ -2737,10 +2737,21 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
         m += partition2 -> Optional.of(new NewPartitionReassignment(newAssignment.map(Int.box).asJava))
       client.alterPartitionReassignments(m.asJava).all().get()
 
+      var partition1UpdatedPreferredLeader = -1
+      var partition2UpdatedPreferredLeader = -1
+
       TestUtils.waitUntilTrue(
-        () => preferredLeader(partition1) == preferred && preferredLeader(partition2) == preferred,
-        s"Expected preferred leader to become $preferred, but is ${preferredLeader(partition1)} and ${preferredLeader(partition2)}",
-        10000)
+        () => {
+          partition1UpdatedPreferredLeader = preferredLeader(partition1)
+          partition2UpdatedPreferredLeader = preferredLeader(partition2)
+          partition1UpdatedPreferredLeader == preferred && partition2UpdatedPreferredLeader == preferred
+        },
+        s"""Expected preferred leader $preferred for both topic-partitions;
+           |found $partition1UpdatedPreferredLeader for topic-partition $partition1 and
+           |$partition2UpdatedPreferredLeader for topic-partition $partition2""".stripMargin,
+        10000
+      )
+
       // Check the leader hasn't moved
       TestUtils.assertLeader(client, partition1, prior1)
       TestUtils.assertLeader(client, partition2, prior2)

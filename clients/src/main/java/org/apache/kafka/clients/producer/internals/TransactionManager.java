@@ -446,6 +446,7 @@ public class TransactionManager {
         latestFinalizedFeaturesEpoch = info.finalizedFeaturesEpoch;
         Short transactionVersion = info.finalizedFeatures.get("transaction.version");
         isTransactionV2Enabled = transactionVersion != null && transactionVersion >= 2;
+        log.debug("Updating isTV2 enabled to {} at with FinalizedFeaturesEpoch {}", isTransactionV2Enabled, latestFinalizedFeaturesEpoch);
     }
 
     public boolean isTransactionV2Enabled() {

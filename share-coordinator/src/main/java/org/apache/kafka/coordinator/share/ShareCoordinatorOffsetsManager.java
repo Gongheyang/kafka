@@ -120,11 +120,16 @@ public class ShareCoordinatorOffsetsManager {
         if (value <= 0 || value == Long.MAX_VALUE) {
             return Optional.empty();
         }
+
         // We don't want to send the same value repeatedly
         // as caller might call delete records again and again
-        // reducing efficiency hence, once valid redundant value is
-        // returned lets set it to 0 so next time onwards
-        // empty Optional is returned.
+        // reducing efficiency. Hence, once valid redundant value is
+        // returned lets set the flag to true so that it is not sent
+        // repeatedly.
+        // This should be fine even if the caller failed to delete
+        // records since the offsets being monotonically
+        // increasing a future valid value would result in deleting
+        // previous redundant records as well.
         if (offsetExposed.compareAndSet(false, true)) {
             return Optional.of(value);
         }

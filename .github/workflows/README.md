@@ -77,6 +77,11 @@ opened by non-committers. This workflow consists of three files:
 
 _The pr-update.yml workflow includes pull_request_target!_
 
+For committers to avoid having this label added, their membership in the ASF GitHub
+organization must be public. Instructions for this are here:
+
+https://docs.github.com/en/account-and-profile/setting-up-and-managing-your-personal-account-on-github/managing-your-membership-in-organizations/publicizing-or-hiding-organization-membership
+
 ### CI Approved
 
 Due to a combination of GitHub security and ASF's policy, we required explicit

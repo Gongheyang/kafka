@@ -58,9 +58,11 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.OptionalInt;
 import java.util.Properties;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.IntSupplier;
@@ -249,18 +251,18 @@ public class ShareCoordinatorService implements ShareCoordinator {
 
         log.info("Starting up.");
         numPartitions = shareGroupTopicPartitionCount.getAsInt();
-        setupRecordPruning();
+        Map<TopicPartition, Long> offsets = new ConcurrentHashMap<>();
+        setupRecordPruning(offsets);
         log.info("Startup complete.");
     }
 
-    // visibility for tests
-    void setupRecordPruning() {
+    private void setupRecordPruning(Map<TopicPartition, Long> offsets) {
         log.info("Scheduling share state topic prune job.");
         timer.add(new TimerTask(config.shareCoordinatorTopicPruneIntervalMs()) {
             @Override
             public void run() {
                 List<CompletableFuture<Void>> futures = new ArrayList<>();
-                runtime.activeTopicPartitions().forEach(tp -> futures.add(performRecordPruning(tp)));
+                runtime.activeTopicPartitions().forEach(tp -> futures.add(performRecordPruning(tp, offsets)));
 
                 CompletableFuture.allOf(futures.toArray(new CompletableFuture[]{}))
                     .whenComplete((res, exp) -> {
@@ -268,14 +270,13 @@ public class ShareCoordinatorService implements ShareCoordinator {
                             log.error("Received error in share state topic prune.", exp);
                         }
                         // Perpetual recursion, failure or not.
-                        setupRecordPruning();
+                        setupRecordPruning(offsets);
                     });
             }
         });
     }
 
-    // visibility for tests
-    CompletableFuture<Void> performRecordPruning(TopicPartition tp) {
+    private CompletableFuture<Void> performRecordPruning(TopicPartition tp, Map<TopicPartition, Long> offsets) {
         // This future will always be completed normally, exception or not.
         CompletableFuture<Void> fut = new CompletableFuture<>();
         runtime.scheduleWriteOperation(
@@ -309,7 +310,14 @@ public class ShareCoordinatorService implements ShareCoordinator {
                     return;
                 }
 
+                if (offsets.containsKey(tp) && Objects.equals(offsets.get(tp), off)) {
+                    log.debug("{} already pruned at offset {}", tp, off);
+                    fut.complete(null);
+                    return;
+                }
+
                 log.info("Pruning records in {} till offset {}.", tp, off);
+
                 writer.deleteRecords(tp, off)
                     .whenComplete((res, exp) -> {
                         if (exp != null) {
@@ -320,6 +328,9 @@ public class ShareCoordinatorService implements ShareCoordinator {
                         }
                         // Should reschedule -> successful delete
                         fut.complete(null);
+                        // Update offsets map as we do not want to
+                        // issue repeated deleted
+                        offsets.put(tp, off);
                     });
             } else {
                 log.debug("No offset value for tp {} found.", tp);

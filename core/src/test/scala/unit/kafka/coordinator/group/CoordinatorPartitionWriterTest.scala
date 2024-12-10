@@ -270,17 +270,14 @@ class CoordinatorPartitionWriterTest {
       assertEquals(Errors.NOT_LEADER_OR_FOLLOWER.exception, exp)
     }
 
-    // Response does not contain topic queried.
+    // Empty response
     when(replicaManager.deleteRecords(
       ArgumentMatchers.anyLong(),
       ArgumentMatchers.any(),
       callbackCapture.capture(),
       ArgumentMatchers.eq(true)
     )).thenAnswer { _ =>
-      callbackCapture.getValue.apply(Map(
-        new TopicPartition("other-random-topic", 0) -> new DeleteRecordsPartitionResult()
-          .setErrorCode(Errors.NOT_LEADER_OR_FOLLOWER.code)
-      ))
+      callbackCapture.getValue.apply(Map[TopicPartition, DeleteRecordsPartitionResult]())
     }
 
     partitionRecordWriter.deleteRecords(

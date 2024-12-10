@@ -55,7 +55,7 @@ public class ShareCoordinatorOffsetsManagerTest {
         assertEquals(Optional.of(10L), manager.lastRedundantOffset()); // [0-9] offsets are redundant.
 
         manager.updateState(KEY2, 15L);
-        assertEquals(Optional.empty(), manager.lastRedundantOffset());  // No update to last redundant after adding 15L so, empty.
+        assertEquals(Optional.of(10L), manager.lastRedundantOffset());  // No update to last redundant after adding 15L so, still 10L.
 
         assertEquals(10L, manager.curState().get(KEY1));
         assertEquals(15L, manager.curState().get(KEY2));
@@ -98,16 +98,16 @@ public class ShareCoordinatorOffsetsManagerTest {
             new ShareOffsetTestHolder(
                 "no redundant state single key",
                 List.of(
-                    ShareOffsetTestHolder.TestTuple.instance(KEY1, 10L, Optional.empty())
+                    ShareOffsetTestHolder.TestTuple.instance(KEY1, 10L, Optional.of(10L))
                 )
             ),
 
             new ShareOffsetTestHolder(
                 "no redundant state multiple keys",
                 List.of(
-                    ShareOffsetTestHolder.TestTuple.instance(KEY1, 10L, Optional.empty()),
-                    ShareOffsetTestHolder.TestTuple.instance(KEY4, 11L, Optional.empty()),
-                    ShareOffsetTestHolder.TestTuple.instance(KEY2, 13L, Optional.empty())
+                    ShareOffsetTestHolder.TestTuple.instance(KEY1, 10L, Optional.of(10L)),
+                    ShareOffsetTestHolder.TestTuple.instance(KEY4, 11L, Optional.of(10L)),
+                    ShareOffsetTestHolder.TestTuple.instance(KEY2, 13L, Optional.of(10L))
                 )
             )
         );
@@ -118,7 +118,7 @@ public class ShareCoordinatorOffsetsManagerTest {
             new ShareOffsetTestHolder(
                 "redundant state single key",
                 List.of(
-                    ShareOffsetTestHolder.TestTuple.instance(KEY1, 10L, Optional.empty()),
+                    ShareOffsetTestHolder.TestTuple.instance(KEY1, 10L, Optional.of(10L)),
                     ShareOffsetTestHolder.TestTuple.instance(KEY1, 11L, Optional.of(11L)),
                     ShareOffsetTestHolder.TestTuple.instance(KEY1, 15L, Optional.of(15L))
                 )
@@ -130,10 +130,10 @@ public class ShareCoordinatorOffsetsManagerTest {
                 // KEY2: 11 16
                 // KEY3: 15
                 List.of(
-                    ShareOffsetTestHolder.TestTuple.instance(KEY1, 10L, Optional.empty()),
-                    ShareOffsetTestHolder.TestTuple.instance(KEY2, 11L, Optional.empty()),
-                    ShareOffsetTestHolder.TestTuple.instance(KEY3, 15L, Optional.empty()),
-                    ShareOffsetTestHolder.TestTuple.instance(KEY2, 16L, Optional.empty()),  // KEY2 11 redundant but should not be returned
+                    ShareOffsetTestHolder.TestTuple.instance(KEY1, 10L, Optional.of(10L)),
+                    ShareOffsetTestHolder.TestTuple.instance(KEY2, 11L, Optional.of(10L)),
+                    ShareOffsetTestHolder.TestTuple.instance(KEY3, 15L, Optional.of(10L)),
+                    ShareOffsetTestHolder.TestTuple.instance(KEY2, 16L, Optional.of(10L)),  // KEY2 11 redundant but should not be returned
                     ShareOffsetTestHolder.TestTuple.instance(KEY1, 17L, Optional.of(15L))
                 )
             )
@@ -147,27 +147,27 @@ public class ShareCoordinatorOffsetsManagerTest {
                 "redundant state reverse key order",
                 // Requests come in order KEY1, KEY2, KEY3, KEY3, KEY2, KEY1.
                 List.of(
-                    ShareOffsetTestHolder.TestTuple.instance(KEY1, 10L, Optional.empty()),
-                    ShareOffsetTestHolder.TestTuple.instance(KEY2, 11L, Optional.empty()),
-                    ShareOffsetTestHolder.TestTuple.instance(KEY3, 15L, Optional.empty()),
-                    ShareOffsetTestHolder.TestTuple.instance(KEY3, 18L, Optional.empty()),
-                    ShareOffsetTestHolder.TestTuple.instance(KEY2, 20L, Optional.empty()),
+                    ShareOffsetTestHolder.TestTuple.instance(KEY1, 10L, Optional.of(10L)),
+                    ShareOffsetTestHolder.TestTuple.instance(KEY2, 11L, Optional.of(10L)),
+                    ShareOffsetTestHolder.TestTuple.instance(KEY3, 15L, Optional.of(10L)),
+                    ShareOffsetTestHolder.TestTuple.instance(KEY3, 18L, Optional.of(10L)),
+                    ShareOffsetTestHolder.TestTuple.instance(KEY2, 20L, Optional.of(10L)),
                     ShareOffsetTestHolder.TestTuple.instance(KEY1, 25L, Optional.of(18L))
                 )
             ),
 
             new ShareOffsetTestHolder(
-                "redundant state cold partition",
+                "redundant state infrequently written partition.",
                 List.of(
-                    ShareOffsetTestHolder.TestTuple.instance(KEY1, 10L, Optional.empty()),
-                    ShareOffsetTestHolder.TestTuple.instance(KEY2, 11L, Optional.empty()),
-                    ShareOffsetTestHolder.TestTuple.instance(KEY3, 15L, Optional.empty()),
-                    ShareOffsetTestHolder.TestTuple.instance(KEY2, 18L, Optional.empty()),
-                    ShareOffsetTestHolder.TestTuple.instance(KEY3, 20L, Optional.empty()),
-                    ShareOffsetTestHolder.TestTuple.instance(KEY2, 22L, Optional.empty()),
-                    ShareOffsetTestHolder.TestTuple.instance(KEY3, 25L, Optional.empty()),
-                    ShareOffsetTestHolder.TestTuple.instance(KEY2, 27L, Optional.empty()),  // last redundant
-                    ShareOffsetTestHolder.TestTuple.instance(KEY3, 28L, Optional.empty()),
+                    ShareOffsetTestHolder.TestTuple.instance(KEY1, 10L, Optional.of(10L)),
+                    ShareOffsetTestHolder.TestTuple.instance(KEY2, 11L, Optional.of(10L)),
+                    ShareOffsetTestHolder.TestTuple.instance(KEY3, 15L, Optional.of(10L)),
+                    ShareOffsetTestHolder.TestTuple.instance(KEY2, 18L, Optional.of(10L)),
+                    ShareOffsetTestHolder.TestTuple.instance(KEY3, 20L, Optional.of(10L)),
+                    ShareOffsetTestHolder.TestTuple.instance(KEY2, 22L, Optional.of(10L)),
+                    ShareOffsetTestHolder.TestTuple.instance(KEY3, 25L, Optional.of(10L)),
+                    ShareOffsetTestHolder.TestTuple.instance(KEY2, 27L, Optional.of(10L)),
+                    ShareOffsetTestHolder.TestTuple.instance(KEY3, 28L, Optional.of(10L)),
                     ShareOffsetTestHolder.TestTuple.instance(KEY1, 30L, Optional.of(27L))
                 )
             )

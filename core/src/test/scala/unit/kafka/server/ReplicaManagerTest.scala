@@ -6663,21 +6663,18 @@ class ReplicaManagerTest {
 
   @Test
   def testDeleteRecordsInternalTopicDeleteDisallowed(): Unit = {
-    val mockLogMgr = TestUtils.createLogManager(config.logDirs.map(new File(_)))
-    val rm = new ReplicaManager(
-      metrics = metrics,
-      config = config,
-      time = time,
-      scheduler = new MockScheduler(time),
-      logManager = mockLogMgr,
-      quotaManagers = quotaManager,
-      metadataCache = MetadataCache.kRaftMetadataCache(config.brokerId, () => KRaftVersion.KRAFT_VERSION_0),
-      logDirFailureChannel = new LogDirFailureChannel(config.logDirs.size),
-      alterPartitionManager = alterPartitionManager,
-      threadNamePrefix = Option(this.getClass.getName))
+    val localId = 1
+    val topicPartition0 = new TopicIdPartition(FOO_UUID, 0, Topic.GROUP_METADATA_TOPIC_NAME)
+    val directoryEventHandler = mock(classOf[DirectoryEventHandler])
 
-    val tp = new TopicPartition(Topic.GROUP_METADATA_TOPIC_NAME, 0)
-    rm.createPartition(tp)
+    val rm = setupReplicaManagerWithMockedPurgatories(new MockTimer(time), localId, setupLogDirMetaProperties = true, directoryEventHandler = directoryEventHandler)
+    val directoryIds = rm.logManager.directoryIdsSet.toList
+    assertEquals(directoryIds.size, 2)
+    val leaderTopicsDelta: TopicsDelta = topicsCreateDelta(localId, isStartIdLeader = true, directoryIds = directoryIds)
+    val (partition: Partition, _) = rm.getOrCreatePartition(topicPartition0.topicPartition(), leaderTopicsDelta, FOO_UUID).get
+    partition.makeLeader(leaderAndIsrPartitionState(topicPartition0.topicPartition(), 1, localId, Seq(1, 2)),
+      new LazyOffsetCheckpoints(rm.highWatermarkCheckpoints.asJava),
+      None)
 
     def callback(responseStatus: Map[TopicPartition, DeleteRecordsResponseData.DeleteRecordsPartitionResult]): Unit = {
       assert(responseStatus.values.head.errorCode == Errors.INVALID_TOPIC_EXCEPTION.code)
@@ -6686,47 +6683,25 @@ class ReplicaManagerTest {
     // default internal topics delete disabled
     rm.deleteRecords(
       timeout = 0L,
-      Map[TopicPartition, Long](tp -> 10L),
+      Map[TopicPartition, Long](topicPartition0.topicPartition() -> 10L),
       responseCallback = callback
     )
   }
 
   @Test
   def testDeleteRecordsInternalTopicDeleteAllowed(): Unit = {
-    val props = TestUtils.createBrokerConfig(0, TestUtils.MockKraftConnect)
-    val config = KafkaConfig.fromProps(props)
-    val logManager = TestUtils.createLogManager(config.logDirs.map(new File(_)), new LogConfig(new Properties()))
-    val metadataCache: MetadataCache = mock(classOf[MetadataCache])
-    mockGetAliveBrokerFunctions(metadataCache, Seq(new Node(0, "host0", 0)))
-    when(metadataCache.metadataVersion()).thenReturn(config.interBrokerProtocolVersion)
-    val rm = new ReplicaManager(
-      metrics = metrics,
-      config = config,
-      time = time,
-      scheduler = new MockScheduler(time),
-      logManager = logManager,
-      quotaManagers = quotaManager,
-      metadataCache = metadataCache,
-      logDirFailureChannel = new LogDirFailureChannel(config.logDirs.size),
-      alterPartitionManager = alterPartitionManager)
+    val localId = 1
+    val topicPartition0 = new TopicIdPartition(FOO_UUID, 0, Topic.GROUP_METADATA_TOPIC_NAME)
+    val directoryEventHandler = mock(classOf[DirectoryEventHandler])
 
-    val partition = rm.createPartition(new TopicPartition(Topic.GROUP_METADATA_TOPIC_NAME, 0))
-    partition.createLogIfNotExists(isNew = false, isFutureReplica = false,
-      new LazyOffsetCheckpoints(rm.highWatermarkCheckpoints.asJava), None)
-
-    rm.becomeLeaderOrFollower(0, new LeaderAndIsrRequest.Builder(ApiKeys.LEADER_AND_ISR.latestVersion, 0, 0, brokerEpoch,
-      Seq(new LeaderAndIsrPartitionState()
-        .setTopicName(Topic.GROUP_METADATA_TOPIC_NAME)
-        .setPartitionIndex(0)
-        .setControllerEpoch(0)
-        .setLeader(0)
-        .setLeaderEpoch(0)
-        .setIsr(Seq[Integer](0).asJava)
-        .setPartitionEpoch(0)
-        .setReplicas(Seq[Integer](0).asJava)
-        .setIsNew(false)).asJava,
-      Collections.singletonMap(Topic.GROUP_METADATA_TOPIC_NAME, Uuid.randomUuid()),
-      Set(new Node(0, "host1", 0)).asJava).build(), (_, _) => ())
+    val rm = setupReplicaManagerWithMockedPurgatories(new MockTimer(time), localId, setupLogDirMetaProperties = true, directoryEventHandler = directoryEventHandler)
+      val directoryIds = rm.logManager.directoryIdsSet.toList
+      assertEquals(directoryIds.size, 2)
+      val leaderTopicsDelta: TopicsDelta = topicsCreateDelta(localId, isStartIdLeader = true, directoryIds = directoryIds)
+      val (partition: Partition, _) = rm.getOrCreatePartition(topicPartition0.topicPartition(), leaderTopicsDelta, FOO_UUID).get
+      partition.makeLeader(leaderAndIsrPartitionState(topicPartition0.topicPartition(), 1, localId, Seq(1, 2)),
+        new LazyOffsetCheckpoints(rm.highWatermarkCheckpoints.asJava),
+        None)
 
     def callback(responseStatus: Map[TopicPartition, DeleteRecordsResponseData.DeleteRecordsPartitionResult]): Unit = {
       assert(responseStatus.values.head.errorCode == Errors.NONE.code)
@@ -6735,7 +6710,7 @@ class ReplicaManagerTest {
     // internal topics delete allowed
     rm.deleteRecords(
       timeout = 0L,
-      Map[TopicPartition, Long](new TopicPartition(Topic.GROUP_METADATA_TOPIC_NAME, 0) -> 0L),
+      Map[TopicPartition, Long](topicPartition0.topicPartition() -> 0L),
       responseCallback = callback,
       allowInternalTopicDeletion = true
     )

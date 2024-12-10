@@ -24,7 +24,6 @@ import org.apache.kafka.timeline.TimelineLong;
 
 import java.util.Objects;
 import java.util.Optional;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Util class to track the offsets written into the internal topic
@@ -46,10 +45,6 @@ public class ShareCoordinatorOffsetsManager {
     // be invalidated via the snapshot registry. Hence, using timeline object
     // the values would automatically revert in accordance with the last committed offset.
     private final TimelineLong minOffset;
-    // Initially true because we don't want to send the offset
-    // until findRedundantOffset determines a redundant offset is
-    // indeed present.
-    private AtomicBoolean offsetExposed = new AtomicBoolean(true);
 
     public ShareCoordinatorOffsetsManager(SnapshotRegistry snapshotRegistry) {
         Objects.requireNonNull(snapshotRegistry);
@@ -71,10 +66,7 @@ public class ShareCoordinatorOffsetsManager {
         offsets.put(key, offset);
 
         Optional<Long> deleteTillOffset = findRedundantOffset();
-        deleteTillOffset.ifPresent(off -> {
-            minOffset.set(off);
-            offsetExposed.set(false);
-        });
+        deleteTillOffset.ifPresent(minOffset::set);
     }
 
     private Optional<Long> findRedundantOffset() {
@@ -102,7 +94,7 @@ public class ShareCoordinatorOffsetsManager {
             // but we do not have a contiguous prefix starting at minOffset
             // and we cannot proceed.
             if (soFar == minOffset.get()) {
-                return Optional.empty();
+                return Optional.of(soFar);
             }
         }
 
@@ -112,7 +104,6 @@ public class ShareCoordinatorOffsetsManager {
     /**
      * Most recent last redundant offset. This method is to be used
      * when the caller wants to query the value of such offset.
-     * After returning the value once, the redundant offset is reset.
      * @return Optional of type Long representing the offset or empty for invalid offset values
      */
     public Optional<Long> lastRedundantOffset() {
@@ -121,19 +112,7 @@ public class ShareCoordinatorOffsetsManager {
             return Optional.empty();
         }
 
-        // We don't want to send the same value repeatedly
-        // as caller might call delete records again and again
-        // reducing efficiency. Hence, once valid redundant value is
-        // returned lets set the flag to true so that it is not sent
-        // repeatedly.
-        // This should be fine even if the caller failed to delete
-        // records since the offsets being monotonically
-        // increasing a future valid value would result in deleting
-        // previous redundant records as well.
-        if (offsetExposed.compareAndSet(false, true)) {
-            return Optional.of(value);
-        }
-        return Optional.empty();
+        return Optional.of(value);
     }
 
     // visible for testing

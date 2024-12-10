@@ -514,7 +514,7 @@ public class ConnectorConfig extends AbstractConfig {
 
         String version = null;
         if (connectorConverter != null) {
-            version = fetchPluginVersion(plugins, connectorClass, connectorVersion, connectorConverter, converterType);
+            version = fetchPluginVersion(plugins, connectorConverter, connectorVersion, connectorConverter);
         } else {
             version = workerConfig.originalsStrings().get(workerConverterVersionConfig);
             if (version == null) {
@@ -535,20 +535,14 @@ public class ConnectorConfig extends AbstractConfig {
     }
 
     @SuppressWarnings("unchecked")
-    private static <T> String fetchPluginVersion(Plugins plugins, String connectorClass, String connectorVersion, String pluginName, Class<T> pluginClass) {
+    private static <T> String fetchPluginVersion(Plugins plugins, String connectorClass, String connectorVersion, String pluginName) {
         if (pluginName == null) {
             return null;
         }
         try {
             VersionRange range = PluginUtils.connectorVersionRequirement(connectorVersion);
-            ClassLoader connectorLoader = plugins.pluginLoader(connectorClass, range);
-            try (LoaderSwap loaderSwap = plugins.withClassLoader(connectorLoader)) {
-                T plugin = (T) plugins.newPlugin(pluginName, pluginClass, null);
-                if (plugin instanceof Versioned) {
-                    return ((Versioned) plugin).version();
-                }
-            }
-        } catch (InvalidVersionSpecificationException | ClassNotFoundException | VersionedPluginLoadingException e) {
+            return plugins.pluginVersion(pluginName, plugins.pluginLoader(connectorClass, range));
+        } catch (InvalidVersionSpecificationException | VersionedPluginLoadingException e) {
             // these errors should be captured in other places, so we can ignore them here
             log.warn("Failed to determine default plugin version for {}", connectorClass, e);
         }

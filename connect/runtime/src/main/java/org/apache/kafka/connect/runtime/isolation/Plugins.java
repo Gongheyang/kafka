@@ -269,6 +269,13 @@ public class Plugins {
         return delegatingLoader.latestVersion(classOrAlias);
     }
 
+    public String pluginVersion(String classOrAlias, ClassLoader sourceLoader) {
+        if (!(sourceLoader instanceof PluginClassLoader)) {
+            return latestVersion(classOrAlias);
+        }
+        return delegatingLoader.versionInLocation(classOrAlias, ((PluginClassLoader) sourceLoader).location());
+    }
+
     public DelegatingClassLoader delegatingLoader() {
         return delegatingLoader;
     }
@@ -367,11 +374,14 @@ public class Plugins {
         return newPlugin(klass);
     }
 
-    public <T> Object newPlugin(String classOrAlias, Class<T> baseClass, VersionRange range) throws ClassNotFoundException {
+    public Object newPlugin(String classOrAlias, VersionRange range, ClassLoader sourceLoader) throws ClassNotFoundException {
         if (range == null) {
-            return Utils.newInstance(classOrAlias, baseClass);
+            if (!(sourceLoader instanceof PluginClassLoader)) {
+                sourceLoader = delegatingLoader;
+            }
+            return sourceLoader.loadClass(classOrAlias);
         }
-        return  newPlugin(classOrAlias, range);
+        return newPlugin(classOrAlias, range);
     }
 
     public Connector newConnector(String connectorClassOrAlias) {

@@ -314,7 +314,7 @@ public class Consumed<K, V> implements NamedOperation<Consumed<K, V>> {
      */
     @Override
     public Consumed<K, V> withName(final String processorName) {
-        return new Consumed<K, V>(keySerde, valueSerde, timestampExtractor, legacyResetPolicy, resetPolicy, processorName);
+        return new Consumed<>(keySerde, valueSerde, timestampExtractor, legacyResetPolicy, resetPolicy, processorName);
     }
 
     @Override

@@ -212,6 +212,36 @@ if [  $JMX_PORT ]; then
   fi
 fi
 
+#Kafka MirrorMaker - PORT configurable purpose
+KAFKA_MIRRORMAKER_CONFIGFILE="$base_dir"/config/connect-mirror-maker.properties
+
+# Fetch Kafka Connect JMX port from the configuration file if it exists
+if [ -f "$KAFKA_MIRRORMAKER_CONFIGFILE" ]; then
+        MIRRORMAKER_JMX_PORT=$(grep "^kafka.mirrormaker.jmx.port=" "$KAFKA_MIRRORMAKER_CONFIGFILE" | cut -d'=' -f2)
+fi
+
+# Use the port from the config file if found, otherwise set a default
+if [ -z "$MIRRORMAKER_JMX_PORT" ]; then
+  KAFKA_MIRRORMAKER_JMX_PORT=9998  # Default JMX port
+else
+  KAFKA_MIRRORMAKER_JMX_PORT=$MIRRORMAKER_JMX_PORT
+fi
+
+# Check if the process is for Kafka mm
+IS_KAFKA_MIRRORMAKER=false
+for arg in "$@"; do
+  if [[ "$arg" == "org.apache.kafka.connect.mirror.MirrorMaker" ]]; then
+    IS_KAFKA_MIRRORMAKER=true
+    break
+  fi
+done
+
+# Set JMX options based on whether it's Kafka mm
+if $IS_KAFKA_MIRRORMAKER; then
+  # JMX options for Kafka MIRROR_MAKER
+  KAFKA_JMX_OPTS="-Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false -Dcom.sun.management.jmxremote.port=$KAFKA_MIRRORMAKER_JMX_PORT"
+fi
+
 # Log directory to use
 if [ "x$LOG_DIR" = "x" ]; then
   LOG_DIR="$base_dir/logs"

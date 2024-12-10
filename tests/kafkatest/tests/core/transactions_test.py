@@ -207,7 +207,7 @@ class TransactionsTest(Test):
         check_order=[True, False],
         use_group_metadata=[True, False],
         metadata_quorum=quorum.all_kraft,
-        use_new_coordinator=[False]
+        use_new_coordinator=[False],
         use_transactions_v2=[True, False]
     )
     @matrix(

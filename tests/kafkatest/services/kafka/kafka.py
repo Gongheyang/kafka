@@ -893,7 +893,7 @@ class KafkaService(KafkaPathResolverMixin, JmxMixin, Service):
                         self.standalone_controller_bootstrapped = True
             if self.use_transactions_v2:
                 cmd += " --feature transaction.version=2"
-            else
+            else:
                 if get_version(node).supports_feature_command():
                     cmd += " --feature transaction.version=1"
             self.logger.info("Running log directory format command...\n%s" % cmd)
@@ -944,7 +944,7 @@ class KafkaService(KafkaPathResolverMixin, JmxMixin, Service):
     def run_features_command(self, op, feature, new_version):
         cmd = self.path.script("kafka-features.sh ")
         cmd += "--bootstrap-server %s " % self.bootstrap_servers()
-        cmd += "%s --feature %s=%s" % (op, new_version)
+        cmd += "%s --feature %s=%s" % (op, feature, new_version)
         self.logger.info("Running %s command...\n%s" % (op, cmd))
         self.nodes[0].account.ssh(cmd)
 

@@ -456,16 +456,12 @@ public class ConsoleConsumerTest {
         Properties props = consumerProps(cluster);
         props.put(ISOLATION_LEVEL_CONFIG, "read_committed");
         props.put(AUTO_OFFSET_RESET_CONFIG, "earliest");
-        // TODO: review when addressing issue for formatter failures in console consumer for CONSUMER
-        props.put(GROUP_PROTOCOL_CONFIG, GroupProtocol.CLASSIC.name());
         return new KafkaConsumer<>(props);
     }
 
     private Consumer<byte[], byte[]> createOffsetConsumer(ClusterInstance cluster) {
         Properties props = consumerProps(cluster);
         props.put(EXCLUDE_INTERNAL_TOPICS_CONFIG, "false");
-        // TODO: review when addressing issue for formatter failures in console consumer for CONSUMER
-        props.put(GROUP_PROTOCOL_CONFIG, GroupProtocol.CLASSIC.name());
         return new KafkaConsumer<>(props);
     }
 

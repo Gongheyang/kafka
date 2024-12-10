@@ -39,7 +39,7 @@ public class RemoteLogOffsetReader implements Callable<Void> {
     private final long timestamp;
     private final long startingOffset;
     private final LeaderEpochFileCache leaderEpochCache;
-    private final Supplier<Option<FileRecords.TimestampAndOffset>> searchInLocalLog;
+    private final Supplier<Optional<FileRecords.TimestampAndOffset>> searchInLocalLog;
     private final Consumer<OffsetResultHolder.FileRecordsOrError> callback;
 
     public RemoteLogOffsetReader(RemoteLogManager rlm,
@@ -54,7 +54,7 @@ public class RemoteLogOffsetReader implements Callable<Void> {
         this.timestamp = timestamp;
         this.startingOffset = startingOffset;
         this.leaderEpochCache = leaderEpochCache;
-        this.searchInLocalLog = searchInLocalLog;
+        this.searchInLocalLog = () -> OptionConverters.toJava(searchInLocalLog.get());
         this.callback = callback;
     }
 
@@ -63,11 +63,9 @@ public class RemoteLogOffsetReader implements Callable<Void> {
         OffsetResultHolder.FileRecordsOrError result;
         try {
             // If it is not found in remote storage, then search in the local storage starting with local log start offset.
-            Option<FileRecords.TimestampAndOffset> timestampAndOffsetOpt =
-                    OptionConverters.toScala(rlm.findOffsetByTimestamp(tp, timestamp, startingOffset, leaderEpochCache))
-                    .orElse(searchInLocalLog::get);
-            result = new OffsetResultHolder.FileRecordsOrError(Optional.empty(),
-                    timestampAndOffsetOpt.isDefined() ? Optional.of(timestampAndOffsetOpt.get()) : Optional.empty());
+            Optional<FileRecords.TimestampAndOffset> timestampAndOffsetOpt = 
+                    rlm.findOffsetByTimestamp(tp, timestamp, startingOffset, leaderEpochCache).or(searchInLocalLog);
+            result = new OffsetResultHolder.FileRecordsOrError(Optional.empty(), timestampAndOffsetOpt);
         } catch (Exception e) {
             // NOTE: All the exceptions from the secondary storage are catched instead of only the KafkaException.
             LOGGER.error("Error occurred while reading the remote log offset for {}", tp, e);

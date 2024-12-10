@@ -45,6 +45,10 @@ public class OffsetResultHolder {
         this(timestampAndOffsetOpt, Optional.empty());
     }
 
+    public OffsetResultHolder(TimestampAndOffset timestampAndOffsetOpt) {
+        this(Optional.of(timestampAndOffsetOpt), Optional.empty());
+    }
+
     public Optional<TimestampAndOffset> timestampAndOffsetOpt() {
         return timestampAndOffsetOpt;
     }

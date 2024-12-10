@@ -185,9 +185,21 @@
     </p>
 
     <p>
+
+    </p>
+        <a href="https://cwiki.apache.org/confluence/display/KAFKA/KIP-1076%3A++Metrics+for+client+applications+KIP-714+extension">KIP-1076</a>
+        proposes adding methods to the Admin, Consumer, and Producer interfaces to allow applications embedding Kafka clients to register and push application-specific metrics,
+        supplementing the client metrics introduced in KIP-714.
+
+    <p>
         <a href="https://cwiki.apache.org/confluence/display/KAFKA/KIP-1077%3A+Deprecate+%60ForeachProcessor%60+and+move+to+internal+package">KIP-1077</a>
         deprecates the <code>ForeachProcessor</code> class and move it to an internal package.
         This change is aimed at improving the organization and clarity of the Kafka Streams API by ensuring that internal classes are not exposed in public packages.
+    </p>
+
+    <p>
+        <a href="https://cwiki.apache.org/confluence/display/KAFKA/KIP-1078%3A+Remove+Leaking+Getter+Methods+in+Joined+Helper+Class">KIP-1078</a> deprecates the leaking getter methods in the <code>Joined</code> helper class.
+        These methods should be deprecated for future removal as they are already available via <code>JoinedInternal</code> class.
     </p>
 
     <p>

@@ -207,7 +207,7 @@ class TransactionStateManagerTest {
     })
     loadingThread.start()
     TestUtils.waitForCondition(() => transactionManager.loadingPartitions.contains(partitionAndLeaderEpoch),
-      "Timed out waiting for loading partition", TestUtils.DEFAULT_MAX_WAIT_MS, 10)
+      TestUtils.DEFAULT_MAX_WAIT_MS, 10, () => "Timed out waiting for loading partition")
 
     transactionManager.removeTransactionsForTxnTopicPartition(partitionId)
     assertFalse(transactionManager.loadingPartitions.contains(partitionAndLeaderEpoch))
@@ -266,7 +266,7 @@ class TransactionStateManagerTest {
     })
     loadingThread.start()
     TestUtils.waitForCondition(() => transactionManager.loadingPartitions.contains(partitionAndLeaderEpoch),
-      "Timed out waiting for loading partition", TestUtils.DEFAULT_MAX_WAIT_MS, 10)
+      TestUtils.DEFAULT_MAX_WAIT_MS, 10, () => "Timed out waiting for loading partition")
 
     transactionManager.removeTransactionsForTxnTopicPartition(partitionId, coordinatorEpoch + 1)
     assertFalse(transactionManager.loadingPartitions.contains(partitionAndLeaderEpoch))

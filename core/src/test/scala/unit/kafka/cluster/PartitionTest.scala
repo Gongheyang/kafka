@@ -2755,7 +2755,7 @@ class PartitionTest extends AbstractPartitionTest {
     fetchFollower(partition, replicaId = follower3, fetchOffset = 10L)
 
     // Try avoiding a race
-    JTestUtils.waitForCondition(() => !partition.partitionState.isInflight, "Expected ISR state to be committed", 100)
+    JTestUtils.waitForCondition(() => !partition.partitionState.isInflight, 100L, "Expected ISR state to be committed")
 
     partition.partitionState match {
       case CommittedPartitionState(isr, _) => assertEquals(Set(brokerId, follower1, follower2, follower3), isr)

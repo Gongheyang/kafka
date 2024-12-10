@@ -734,9 +734,10 @@ class SaslSslAdminIntegrationTest extends BaseAdminIntegrationTest with SaslSetu
 
     val filter = new AclBindingFilter(resource.toFilter, accessControlEntryFilter)
     JTestUtils.waitForCondition(() => !authorizer.acls(filter).asScala.map(_.entry).toSet.contains(expectedToRemoved),
+      45000,
       s"expected acl to be removed : $expectedToRemoved" +
         s"but got:${authorizer.acls(filter).asScala.map(_.entry).mkString(newLine + "\t", newLine + "\t", newLine)}",
-      45000)
+    )
   }
 
   def waitAndVerifyAcl(expected: AccessControlEntry,
@@ -747,8 +748,9 @@ class SaslSslAdminIntegrationTest extends BaseAdminIntegrationTest with SaslSetu
 
     val filter = new AclBindingFilter(resource.toFilter, accessControlEntryFilter)
     JTestUtils.waitForCondition(() => authorizer.acls(filter).asScala.map(_.entry).toSet.contains(expected),
+      45000L,
       s"expected to contain acl: $expected" +
         s"but got:${authorizer.acls(filter).asScala.map(_.entry).mkString(newLine + "\t", newLine + "\t", newLine)}",
-      45000)
+    )
   }
 }

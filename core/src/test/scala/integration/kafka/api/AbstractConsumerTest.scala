@@ -154,7 +154,7 @@ abstract class AbstractConsumerTest extends BaseRequestTest {
     // until subscribe is called on all consumers
     JTestUtils.waitForCondition(() => {
       consumerPollers.forall { poller => poller.isSubscribeRequestProcessed }
-    }, s"Failed to call subscribe on all consumers in the group for subscription $subscriptions", 1000L)
+    }, 1000L, s"Failed to call subscribe on all consumers in the group for subscription $subscriptions")
 
     validateGroupAssignment(consumerPollers, subscriptions,
       Some(s"Did not get valid assignment for partitions ${subscriptions.asJava} after we changed subscription"))
@@ -375,7 +375,7 @@ abstract class AbstractConsumerTest extends BaseRequestTest {
       assignments.clear()
       consumerPollers.foreach(assignments += _.consumerAssignment())
       isPartitionAssignmentValid(assignments, subscriptions, expectedAssignment)
-    }, msg.getOrElse(s"Did not get valid assignment for partitions $subscriptions. Instead, got $assignments"), waitTime)
+    }, waitTime, msg.getOrElse(s"Did not get valid assignment for partitions $subscriptions. Instead, got $assignments"))
   }
 
   /**

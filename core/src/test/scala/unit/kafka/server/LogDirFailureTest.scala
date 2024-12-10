@@ -239,7 +239,7 @@ class LogDirFailureTest extends IntegrationTestHarness {
     }
 
     // Wait for ReplicaHighWatermarkCheckpoint to happen so that the log directory of the topic will be offline
-    JTestUtils.waitForCondition(() => !leaderBroker.logManager.isLogDirOnline(logDir.getAbsolutePath), "Expected log directory offline", 3000L)
+    JTestUtils.waitForCondition(() => !leaderBroker.logManager.isLogDirOnline(logDir.getAbsolutePath), 3000L, "Expected log directory offline")
     assertTrue(leaderBroker.replicaManager.localLog(partition).isEmpty)
     logDir
   }

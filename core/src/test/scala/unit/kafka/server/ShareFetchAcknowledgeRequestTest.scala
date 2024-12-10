@@ -273,7 +273,7 @@ class ShareFetchAcknowledgeRequestTest(cluster: ClusterInstance) extends GroupCo
         })
       }
       responses.size == 3
-    }, "Share fetch request failed", 5000)
+    }, 5000L, "Share fetch request failed")
 
     val expectedPartitionData1 = new ShareFetchResponseData.PartitionData()
       .setPartitionIndex(0)
@@ -880,7 +880,7 @@ class ShareFetchAcknowledgeRequestTest(cluster: ClusterInstance) extends GroupCo
       // 2. batch containing 10-19 offsets which were produced in the second produceData function call.
       acquiredRecords.size() == 2
 
-    }, "Share fetch request failed", 5000)
+    },  5000L, "Share fetch request failed")
 
     // All the records from offsets 0 to 19 will be fetched. Records from 0 to 9 will have delivery count as 2 because
     // they are re delivered, and records from 10 to 19 will have delivery count as 1 because they are newly acquired
@@ -2282,7 +2282,7 @@ class ShareFetchAcknowledgeRequestTest(cluster: ClusterInstance) extends GroupCo
         })
       }
       responses.size == 2
-    }, "Share fetch request failed", 5000)
+    },  5000L, "Share fetch request failed")
 
     // Producing 10 more records to the topic partitions created above
     produceData(topicIdPartition1, 10)
@@ -2329,7 +2329,7 @@ class ShareFetchAcknowledgeRequestTest(cluster: ClusterInstance) extends GroupCo
       })
 
       partitions.size() == topicIdPartitions.size
-    }, "Share fetch request failed", 5000)
+    }, 5000L, "Share fetch request failed")
   }
 
   private def expectedAcquiredRecords(firstOffsets: util.List[Long], lastOffsets: util.List[Long], deliveryCounts: util.List[Int]): util.List[AcquiredRecords] = {

@@ -230,16 +230,19 @@ class FetchRequestDownConversionConfigTest extends BaseRequestTest {
 
     def verifyMetrics(): Unit = {
       JTestUtils.waitForCondition(() => TestUtils.metersCount(BrokerTopicMetrics.FETCH_MESSAGE_CONVERSIONS_PER_SEC) > initialFetchMessageConversionsPerSec,
+        5000L,
         s"The `FetchMessageConversionsPerSec` metric count is not incremented after 5 seconds. " +
-          s"init: $initialFetchMessageConversionsPerSec final: ${TestUtils.metersCount(BrokerTopicMetrics.FETCH_MESSAGE_CONVERSIONS_PER_SEC)}", 5000)
+          s"init: $initialFetchMessageConversionsPerSec final: ${TestUtils.metersCount(BrokerTopicMetrics.FETCH_MESSAGE_CONVERSIONS_PER_SEC)}")
 
       JTestUtils.waitForCondition(() => TestUtils.metersCount(fetchMessageConversionsTimeMsMetricName) > initialFetchMessageConversionsTimeMs,
+        5000L,
         s"The `MessageConversionsTimeMs` in fetch request metric count is not incremented after 5 seconds. " +
-          s"init: $initialFetchMessageConversionsTimeMs final: ${TestUtils.metersCount(fetchMessageConversionsTimeMsMetricName)}", 5000)
+          s"init: $initialFetchMessageConversionsTimeMs final: ${TestUtils.metersCount(fetchMessageConversionsTimeMsMetricName)}")
 
       JTestUtils.waitForCondition(() => TestUtils.metersCount(fetchTemporaryMemoryBytesMetricName) > initialFetchTemporaryMemoryBytes,
+        5000L,
         s"The `TemporaryMemoryBytes` in fetch request metric count is not incremented after 5 seconds. " +
-          s"init: $initialFetchTemporaryMemoryBytes final: ${TestUtils.metersCount(fetchTemporaryMemoryBytesMetricName)}", 5000)
+          s"init: $initialFetchTemporaryMemoryBytes final: ${TestUtils.metersCount(fetchTemporaryMemoryBytesMetricName)}")
     }
 
     assertEquals(Errors.NONE, error(partitionWithDownConversionEnabled))

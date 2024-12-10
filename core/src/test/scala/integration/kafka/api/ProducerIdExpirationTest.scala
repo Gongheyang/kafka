@@ -189,7 +189,7 @@ class ProducerIdExpirationTest extends KafkaServerTestHarness {
 
     // Ensure producer ID does not expire within 4 seconds.
     assertThrows(classOf[AssertionFailedError], () =>
-      JTestUtils.waitForCondition(() => producerState.isEmpty, "Producer ID did not expire.", 4000)
+      JTestUtils.waitForCondition(() => producerState.isEmpty, 4000L, "Producer ID did not expire.")
     )
 
     // Update the expiration time to a low value again.

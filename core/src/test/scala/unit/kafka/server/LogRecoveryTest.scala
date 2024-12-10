@@ -265,7 +265,7 @@ class LogRecoveryTest extends QuorumTestHarness {
     }
 
     JTestUtils.waitForCondition(() => leaderExists.isDefined,
-      s"Did not find a leader for partition $tp after $timeout ms", timeout)
+      timeout, s"Did not find a leader for partition $tp after $timeout ms")
 
     leaderExists.get
   }

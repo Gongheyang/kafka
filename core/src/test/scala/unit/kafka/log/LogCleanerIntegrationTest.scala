@@ -77,11 +77,11 @@ class LogCleanerIntegrationTest extends AbstractLogCleanerIntegrationTest {
     val uncleanablePartitionsCountGauge = getGauge[Int]("uncleanable-partitions-count", uncleanableDirectory)
     val uncleanableBytesGauge = getGauge[Long]("uncleanable-bytes", uncleanableDirectory)
 
-    JTestUtils.waitForCondition(() => uncleanablePartitionsCountGauge.value() == 2, "There should be 2 uncleanable partitions", 2000L)
+    JTestUtils.waitForCondition(() => uncleanablePartitionsCountGauge.value() == 2, 2000L,"There should be 2 uncleanable partitions")
     val expectedTotalUncleanableBytes = LogCleanerManager.calculateCleanableBytes(log, 0, log.logSegments.asScala.last.baseOffset)._2 +
       LogCleanerManager.calculateCleanableBytes(log2, 0, log2.logSegments.asScala.last.baseOffset)._2
     JTestUtils.waitForCondition(() => uncleanableBytesGauge.value() == expectedTotalUncleanableBytes,
-      s"There should be $expectedTotalUncleanableBytes uncleanable bytes", 1000L)
+      1000L, s"There should be $expectedTotalUncleanableBytes uncleanable bytes")
 
     val uncleanablePartitions = cleaner.cleanerManager.uncleanablePartitions(uncleanableDirectory)
     assertTrue(uncleanablePartitions.contains(topicPartitions(0)))
@@ -95,8 +95,9 @@ class LogCleanerIntegrationTest extends AbstractLogCleanerIntegrationTest {
         time.sleep(1000)
         uncleanablePartitionsCountGauge.value() == 1
       },
+      2000L,
       "There should be 1 uncleanable partitions",
-      2000L)
+    )
 
     val uncleanablePartitions2 = cleaner.cleanerManager.uncleanablePartitions(uncleanableDirectory)
     assertFalse(uncleanablePartitions2.contains(topicPartitions(0)))

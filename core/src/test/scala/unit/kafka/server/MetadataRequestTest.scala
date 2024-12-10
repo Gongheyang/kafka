@@ -241,7 +241,7 @@ class MetadataRequestTest extends AbstractMetadataRequestTest {
     TestUtils.waitForCondition(() => {
       val response = sendMetadataRequest(new MetadataRequest.Builder(List(replicaDownTopic).asJava, true).build())
       !response.brokers.asScala.exists(_.id == downNode.dataPlaneRequestProcessor.brokerId)
-    }, "Replica was not found down", 50000)
+    }, 50000L, "Replica was not found down")
 
     // Validate version 0 still filters unavailable replicas and contains error
     val v0MetadataResponse = sendMetadataRequest(new MetadataRequest(requestData(List(replicaDownTopic), allowAutoTopicCreation = true), 0.toShort))

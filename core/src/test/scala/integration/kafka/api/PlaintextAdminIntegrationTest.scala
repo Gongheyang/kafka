@@ -3289,7 +3289,7 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
         all().get().get(broker0Resource).entries().asScala.map(entry => (entry.name, entry.value)).toMap
       ("123".equals(broker0Configs.getOrElse(QuotaConfig.LEADER_REPLICATION_THROTTLED_RATE_CONFIG, "")) &&
         "456".equals(broker0Configs.getOrElse(QuotaConfig.FOLLOWER_REPLICATION_THROTTLED_RATE_CONFIG, "")))
-    }, "Expected to see the broker properties we just set", DEFAULT_MAX_WAIT_MS, 25)
+    }, DEFAULT_MAX_WAIT_MS, 25, () => "Expected to see the broker properties we just set")
     client.incrementalAlterConfigs(Map(broker0Resource ->
       Seq(new AlterConfigOp(new ConfigEntry(QuotaConfig.LEADER_REPLICATION_THROTTLED_RATE_CONFIG, ""),
         AlterConfigOp.OpType.DELETE),
@@ -3304,7 +3304,7 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
       ("".equals(broker0Configs.getOrElse(QuotaConfig.LEADER_REPLICATION_THROTTLED_RATE_CONFIG, "")) &&
         "654".equals(broker0Configs.getOrElse(QuotaConfig.FOLLOWER_REPLICATION_THROTTLED_RATE_CONFIG, "")) &&
         "987".equals(broker0Configs.getOrElse(QuotaConfig.REPLICA_ALTER_LOG_DIRS_IO_MAX_BYTES_PER_SECOND_CONFIG, "")))
-    }, "Expected to see the broker properties we just modified", DEFAULT_MAX_WAIT_MS, 25)
+    }, DEFAULT_MAX_WAIT_MS, 25, () => "Expected to see the broker properties we just modified")
   }
 
   @ParameterizedTest
@@ -3326,7 +3326,7 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
       ("123".equals(broker0Configs.getOrElse(QuotaConfig.LEADER_REPLICATION_THROTTLED_RATE_CONFIG, "")) &&
         "456".equals(broker0Configs.getOrElse(QuotaConfig.FOLLOWER_REPLICATION_THROTTLED_RATE_CONFIG, "")) &&
         "789".equals(broker0Configs.getOrElse(QuotaConfig.REPLICA_ALTER_LOG_DIRS_IO_MAX_BYTES_PER_SECOND_CONFIG, "")))
-    }, "Expected to see the broker properties we just set", DEFAULT_MAX_WAIT_MS, 25)
+    }, DEFAULT_MAX_WAIT_MS, 25, () => "Expected to see the broker properties we just set")
     client.incrementalAlterConfigs(Map(broker0Resource ->
       Seq(new AlterConfigOp(new ConfigEntry(QuotaConfig.LEADER_REPLICATION_THROTTLED_RATE_CONFIG, ""),
         AlterConfigOp.OpType.DELETE),
@@ -3341,7 +3341,7 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
       ("".equals(broker0Configs.getOrElse(QuotaConfig.LEADER_REPLICATION_THROTTLED_RATE_CONFIG, "")) &&
         "".equals(broker0Configs.getOrElse(QuotaConfig.FOLLOWER_REPLICATION_THROTTLED_RATE_CONFIG, "")) &&
         "".equals(broker0Configs.getOrElse(QuotaConfig.REPLICA_ALTER_LOG_DIRS_IO_MAX_BYTES_PER_SECOND_CONFIG, "")))
-    }, "Expected to see the broker properties we just removed to be deleted", DEFAULT_MAX_WAIT_MS, 25)
+    }, DEFAULT_MAX_WAIT_MS, 25, () => "Expected to see the broker properties we just removed to be deleted")
   }
 
   @ParameterizedTest

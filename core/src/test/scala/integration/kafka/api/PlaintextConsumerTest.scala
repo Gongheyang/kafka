@@ -870,8 +870,8 @@ class PlaintextConsumerTest extends BaseConsumerTest {
             false
         }
       },
-      String.format("Consumer did not leave the consumer group within %s ms of close", leaveGroupTimeoutMs),
-      leaveGroupTimeoutMs
+      leaveGroupTimeoutMs,
+      String.format("Consumer did not leave the consumer group within %s ms of close", leaveGroupTimeoutMs)
     )
   }
 }

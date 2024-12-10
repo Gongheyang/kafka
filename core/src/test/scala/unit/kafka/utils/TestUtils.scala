@@ -840,7 +840,7 @@ object TestUtils extends Logging {
     JTestUtils.waitForCondition(() => {
       consumer.poll(Duration.ofMillis(100))
       action()
-    }, msg, 0L, waitTimeMs)
+    }, 0L, waitTimeMs, () => msg)
   }
 
   def pollRecordsUntilTrue[K, V](consumer: Consumer[K, V],
@@ -851,7 +851,7 @@ object TestUtils extends Logging {
     JTestUtils.waitForCondition(() => {
       val records = consumer.poll(Duration.ofMillis(pollTimeoutMs))
       action(records)
-    }, msg, waitTimeMs, 0L)
+    }, waitTimeMs, 0L, () => msg)
   }
 
 

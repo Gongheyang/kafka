@@ -255,7 +255,7 @@ class ReplicationQuotasTest extends QuorumTestHarness {
     JTestUtils.waitForCondition(() => {
       offset == brokerFor(brokerId).logManager.getLog(new TopicPartition(topic, partitionId))
         .map(_.logEndOffset).getOrElse(0)
-    }, s"Offsets did not match for partition $partitionId on broker $brokerId", 60000)
+    }, 60000, s"Offsets did not match for partition $partitionId on broker $brokerId")
   }
 
   private def brokerFor(id: Int): KafkaBroker = brokers.filter(_.config.brokerId == id).head

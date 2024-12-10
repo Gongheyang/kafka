@@ -1858,7 +1858,7 @@ class SocketServerTest {
       testableSelector.operationCounts.clear()
       val sockets = (1 to numConnections).map(_ => connect(testableServer))
       JTestUtils.waitForCondition(() => errors.nonEmpty || registeredConnectionCount == numConnections,
-        "Connections not registered", 15000)
+        15000L, "Connections not registered")
       assertEquals(Set.empty, errors)
       testableSelector.waitForOperations(SelectorOperation.Register, numConnections)
 
@@ -1985,7 +1985,7 @@ class SocketServerTest {
 
       // force all data to be transferred to the kafka broker by closing the client connection to proxy server
       sslSocket.close()
-      JTestUtils.waitForCondition(() => proxyServer.clientConnSocket.isClosed, "proxyServer.clientConnSocket is still not closed after 60000 ms", 60000)
+      JTestUtils.waitForCondition(() => proxyServer.clientConnSocket.isClosed, 60000, "proxyServer.clientConnSocket is still not closed after 60000 ms")
 
       // process the request and send the response
       processRequest(testableServer.dataPlaneRequestChannel, req1)

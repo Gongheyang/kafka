@@ -853,7 +853,7 @@ class TransactionsTest extends IntegrationTestHarness {
           val producerStateEntry = log.producerStateManager.activeProducers.get(producerId)
           producerStateEntry != null && producerStateEntry.producerEpoch > previousProducerEpoch
         }
-      }, "Timed out waiting for producer epoch to be incremented after second commit", 10000)
+      }, 10000L, "Timed out waiting for producer epoch to be incremented after second commit")
 
       // Now that we've verified that the producer epoch has increased,
       // update the previous producer epoch.
@@ -944,7 +944,7 @@ class TransactionsTest extends IntegrationTestHarness {
       // Wait until the producer epoch has been updated on the broker.
       JTestUtils.waitForCondition(() => {
           producerStateEntry != null && producerStateEntry.producerEpoch == initialProducerEpoch + 3
-      }, "Timed out waiting for producer epoch to be incremented after second commit", 10000)
+      }, 10000L, "Timed out waiting for producer epoch to be incremented after second commit")
     }
   }
 

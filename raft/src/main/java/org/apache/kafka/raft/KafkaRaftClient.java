@@ -2755,7 +2755,7 @@ public final class KafkaRaftClient<T> implements RaftClient<T> {
             .setReplicaState(new FetchRequestData.ReplicaState().setReplicaId(quorum.localIdOrSentinel()));
     }
 
-    private long maybeSendToAnyBootstrap(long currentTimeMs) {
+    private long maybeSendFetchToAnyBootstrap(long currentTimeMs) {
         Optional<Node> readyNode = requestManager.findReadyBootstrapServer(currentTimeMs);
         if (readyNode.isPresent()) {
             return maybeSendRequest(
@@ -3059,7 +3059,7 @@ public final class KafkaRaftClient<T> implements RaftClient<T> {
 
     private long pollFollowerAsObserver(FollowerState state, long currentTimeMs) {
         if (state.hasFetchTimeoutExpired(currentTimeMs)) {
-            return maybeSendToAnyBootstrap(currentTimeMs);
+            return maybeSendFetchToAnyBootstrap(currentTimeMs);
         } else {
             return maybeSendFetchToBestNode(state, currentTimeMs);
         }
@@ -3074,9 +3074,9 @@ public final class KafkaRaftClient<T> implements RaftClient<T> {
         if (requestManager.hasRequestTimedOut(leaderNode, currentTimeMs)) {
             // Once the request has timed out backoff the connection
             requestManager.reset(leaderNode);
-            backoffMs = maybeSendToAnyBootstrap(currentTimeMs);
+            backoffMs = maybeSendFetchToAnyBootstrap(currentTimeMs);
         } else if (requestManager.isBackingOff(leaderNode, currentTimeMs)) {
-            backoffMs = maybeSendToAnyBootstrap(currentTimeMs);
+            backoffMs = maybeSendFetchToAnyBootstrap(currentTimeMs);
         } else if (!requestManager.hasAnyInflightRequest(currentTimeMs)) {
             backoffMs = maybeSendFetchOrFetchSnapshot(state, currentTimeMs);
         } else {
@@ -3146,7 +3146,7 @@ public final class KafkaRaftClient<T> implements RaftClient<T> {
     }
 
     private long pollUnattachedCommon(UnattachedState state, long currentTimeMs) {
-        long fetchBackoffMs = maybeSendToAnyBootstrap(currentTimeMs);
+        long fetchBackoffMs = maybeSendFetchToAnyBootstrap(currentTimeMs);
         return Math.min(fetchBackoffMs, state.remainingElectionTimeMs(currentTimeMs));
     }
 

@@ -1219,11 +1219,22 @@ public class KafkaProducer<K, V> implements Producer<K, V> {
      * flush all buffered records before performing the commit. This ensures that all the {@link #send(ProducerRecord)}
      * calls made since the previous {@link #beginTransaction()} are completed before the commit.
      * </p>
+     * <p>
+     * <b>Important:</b> This method must not be called from within the callback provided to
+     * {@link #send(ProducerRecord, Callback)}. Invoking <code>flush()</code> in this context will result in a
+     * {@link KafkaException} being thrown, as it will cause a deadlock.
+     * </p>
      *
      * @throws InterruptException If the thread is interrupted while blocked
+     * @throws KafkaException If the method is invoked inside a {@link #send(ProducerRecord, Callback)} callback
      */
     @Override
     public void flush() {
+        if (Thread.currentThread() == this.ioThread) {
+            log.error("KafkaProducer.flush() invocation inside a callback is not permitted because it may lead to deadlock.");
+            throw new KafkaException("KafkaProducer.flush() invocation inside a callback is not permitted because it may lead to deadlock.");
+        }
+
         log.trace("Flushing accumulated records in producer.");
 
         long start = time.nanoseconds();

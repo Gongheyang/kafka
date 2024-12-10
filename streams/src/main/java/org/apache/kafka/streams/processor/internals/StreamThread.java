@@ -38,6 +38,7 @@ import org.apache.kafka.common.serialization.ByteArrayDeserializer;
 import org.apache.kafka.common.utils.LogContext;
 import org.apache.kafka.common.utils.Time;
 import org.apache.kafka.common.utils.Utils;
+import org.apache.kafka.streams.ClientInstanceIds;
 import org.apache.kafka.streams.KafkaClientSupplier;
 import org.apache.kafka.streams.StreamsConfig;
 import org.apache.kafka.streams.StreamsConfig.InternalConfig;
@@ -73,10 +74,13 @@ import java.util.Optional;
 import java.util.Queue;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.apache.kafka.streams.internals.StreamsConfigUtils.eosEnabled;
@@ -600,6 +604,7 @@ public class StreamThread extends Thread implements ProcessingThread {
         this.shutdownErrorHook = shutdownErrorHook;
         this.streamsUncaughtExceptionHandler = streamsUncaughtExceptionHandler;
         this.cacheResizer = cacheResizer;
+        this.time = time;
 
         // The following sensors are created here but their references are not stored in this object, since within
         // this object they are not recorded. The sensors are created here so that the stream threads starts with all
@@ -608,14 +613,30 @@ public class StreamThread extends Thread implements ProcessingThread {
         // tasks would never be added to the metrics.
         ThreadMetrics.createTaskSensor(threadId, streamsMetrics);
         ThreadMetrics.closeTaskSensor(threadId, streamsMetrics);
+        final Map<String, KafkaFuture<Uuid>> clientInstanceIds;
+        String consumerInstanceId = "";
+        String producerInstanceId = "";
+        synchronized (this) {
+            clientInstanceIds = clientInstanceIds(Duration.ofSeconds(10));
+        }
+        try {
+            consumerInstanceId = clientInstanceIds.get(getName() + "-consumer").get(30, TimeUnit.SECONDS).toString();
+            producerInstanceId = clientInstanceIds.get(getName() + "-producer").get(30, TimeUnit.SECONDS).toString();
+        } catch (java.util.concurrent.TimeoutException | ExecutionException e) {
+           throw new RuntimeException("Failed to get consumer instance id", e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
 
         ThreadMetrics.addThreadStartTimeMetric(
             threadId,
             streamsMetrics,
             time.milliseconds()
         );
-        ThreadMetrics.addThreadStateTelemetryMetric(
+        ThreadMetrics.addThreadStateTelemetryMetricWithInstanceIds(
             threadId,
+            consumerInstanceId,
+            producerInstanceId,
             streamsMetrics,
             (metricConfig, now) -> this.state().ordinal());
         ThreadMetrics.addThreadStateMetric(
@@ -632,7 +653,7 @@ public class StreamThread extends Thread implements ProcessingThread {
             streamsMetrics
         );
 
-        this.time = time;
+
         this.topologyMetadata = topologyMetadata;
         this.topologyMetadata.registerThread(getName());
         this.logPrefix = logContext.logPrefix();

@@ -37,6 +37,7 @@ import org.apache.kafka.server.authorizer.AuthorizableRequestContext;
 import org.apache.kafka.server.telemetry.ClientTelemetry;
 import org.apache.kafka.server.telemetry.ClientTelemetryPayload;
 import org.apache.kafka.server.telemetry.ClientTelemetryReceiver;
+import org.apache.kafka.shaded.io.opentelemetry.proto.common.v1.KeyValue;
 import org.apache.kafka.shaded.io.opentelemetry.proto.metrics.v1.MetricsData;
 import org.apache.kafka.streams.ClientInstanceIds;
 import org.apache.kafka.streams.KafkaClientSupplier;
@@ -82,6 +83,8 @@ import java.util.stream.Stream;
 import static org.apache.kafka.common.utils.Utils.mkEntry;
 import static org.apache.kafka.common.utils.Utils.mkMap;
 import static org.apache.kafka.common.utils.Utils.mkObjectProperties;
+import static org.apache.kafka.streams.processor.internals.metrics.StreamsMetricsImpl.CONSUMER_INSTANCE_ID_TAG;
+import static org.apache.kafka.streams.processor.internals.metrics.StreamsMetricsImpl.PRODUCER_INSTANCE_ID_TAG;
 import static org.apache.kafka.streams.utils.TestUtils.safeUniqueTestName;
 import static org.apache.kafka.test.TestUtils.waitForCondition;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -163,6 +166,10 @@ public class KafkaStreamsTelemetryIntegrationTest {
                             && !entry.getKey().endsWith("GlobalStreamThread-global-consumer"))
                     .map(Map.Entry::getValue)
                     .findFirst().orElseThrow();
+            final Uuid producerInstanceId = clientInstanceIds.consumerInstanceIds().entrySet().stream()
+                    .filter(entry -> entry.getKey().endsWith("-producer"))
+                    .map(Map.Entry::getValue)
+                    .findFirst().orElseThrow();
             assertNotNull(adminInstanceId);
             assertNotNull(mainConsumerInstanceId);
             LOG.info("Main consumer instance id {}", mainConsumerInstanceId);
@@ -202,6 +209,8 @@ public class KafkaStreamsTelemetryIntegrationTest {
                     "Never received the process id");
 
             assertEquals(expectedProcessId, TelemetryPlugin.processId);
+            assertEquals(TelemetryPlugin.consumerInstanceId, mainConsumerInstanceId.toString());
+            assertEquals(TelemetryPlugin.producerInstanceId, producerInstanceId.toString());
         }
     }
 
@@ -474,6 +483,8 @@ public class KafkaStreamsTelemetryIntegrationTest {
 
         public static final Map<Uuid, List<String>> SUBSCRIBED_METRICS = new ConcurrentHashMap<>();
         public static String processId;
+        public static String consumerInstanceId;
+        public static String producerInstanceId;
         public TelemetryPlugin() {
         }
 
@@ -520,7 +531,21 @@ public class KafkaStreamsTelemetryIntegrationTest {
                         .map(keyValue -> keyValue.getValue().getStringValue())
                         .findFirst();
 
+                final Map<String, String> instanceIds = data.getResourceMetricsList()
+                        .stream()
+                        .flatMap(rm -> rm.getScopeMetricsList().stream())
+                        .flatMap(sm -> sm.getMetricsList().stream())
+                        .map(metric -> metric.getGauge())
+                        .flatMap(gauge -> gauge.getDataPointsList().stream())
+                        .flatMap(numberDataPoint -> numberDataPoint.getAttributesList().stream())
+                        .filter(keyValue -> keyValue.getKey().equals(CONSUMER_INSTANCE_ID_TAG) || keyValue.getKey().equals(PRODUCER_INSTANCE_ID_TAG))
+                        .collect(Collectors.toMap(KeyValue::getKey, keyValue -> keyValue.getValue().getStringValue()));
+
+                consumerInstanceId = instanceIds.get(CONSUMER_INSTANCE_ID_TAG);
+                producerInstanceId = instanceIds.get(PRODUCER_INSTANCE_ID_TAG);
+                
                 processIdOption.ifPresent(pid -> processId = pid);
+
 
                 final Uuid clientId = payload.clientInstanceId();
                 final List<String> metricNames = data.getResourceMetricsList()

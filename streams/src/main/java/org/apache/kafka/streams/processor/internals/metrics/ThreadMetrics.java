@@ -307,6 +307,21 @@ public class ThreadMetrics {
         );
     }
 
+    public static void addThreadStateTelemetryMetricWithInstanceIds(final String threadId,
+                                                     final String consumerInstanceId,
+                                                     final String processorInstanceId,
+                                                     final StreamsMetricsImpl streamsMetrics,
+                                                     final Gauge<Integer> threadStateProvider) {
+        streamsMetrics.addThreadLevelMutableMetricWithInstanceIds(
+                THREAD_STATE,
+                THREAD_STATE_DESCRIPTION,
+                threadId,
+                consumerInstanceId,
+                processorInstanceId,
+                threadStateProvider
+        );
+    }
+
     public static void addThreadStateMetric(final String threadId,
                                             final StreamsMetricsImpl streamsMetrics,
                                             final Gauge<StreamThread.State> threadStateProvider) {

@@ -117,6 +117,8 @@ public class StreamsMetricsImpl implements StreamsMetrics {
     public static final String CLIENT_ID_TAG = "client-id";
     public static final String PROCESS_ID_TAG = "process-id";
     public static final String THREAD_ID_TAG = "thread-id";
+    public static final String CONSUMER_INSTANCE_ID_TAG = "consumer-instance-id";
+    public static final String PRODUCER_INSTANCE_ID_TAG = "producer-instance-id";
     public static final String TASK_ID_TAG = "task-id";
     public static final String PROCESSOR_NODE_ID_TAG = "processor-node-id";
     public static final String TOPIC_NAME_TAG = "topic";
@@ -242,6 +244,23 @@ public class StreamsMetricsImpl implements StreamsMetrics {
         }
     }
 
+    public <T> void addThreadLevelMutableMetricWithInstanceIds(final String name,
+                                                               final String description,
+                                                               final String threadId,
+                                                               final String consumerInstanceId,
+                                                               final String producerInstanceId,
+                                                               final Gauge<T> valueProvider) {
+        final MetricName metricName = metrics.metricName(
+                name, THREAD_LEVEL_GROUP, description, threadLevelTagMap(threadId, consumerInstanceId, producerInstanceId));
+        synchronized (threadLevelMetrics) {
+            threadLevelMetrics.computeIfAbsent(
+                    threadSensorPrefix(threadId),
+                    tid -> new LinkedList<>()
+            ).add(metricName);
+            metrics.addMetric(metricName, valueProvider);
+        }
+    }
+
     public final Sensor clientLevelSensor(final String sensorName,
                                           final RecordingLevel recordingLevel,
                                           final Sensor... parents) {
@@ -280,6 +299,16 @@ public class StreamsMetricsImpl implements StreamsMetrics {
     public Map<String, String> threadLevelTagMap(final String threadId) {
         final Map<String, String> tagMap = new LinkedHashMap<>();
         tagMap.put(THREAD_ID_TAG, threadId);
+        return tagMap;
+    }
+
+    public Map<String, String> threadLevelTagMap(final String threadId,
+                                                 final String consumerInstanceId,
+                                                 final String producerInstanceId) {
+        final Map<String, String> tagMap = new LinkedHashMap<>();
+        tagMap.put(THREAD_ID_TAG, threadId);
+        tagMap.put(CONSUMER_INSTANCE_ID_TAG, consumerInstanceId);
+        tagMap.put(PRODUCER_INSTANCE_ID_TAG, producerInstanceId);
         return tagMap;
     }
 

@@ -52,29 +52,22 @@ public class PredicateDoc {
         .sorted(Comparator.comparing(docInfo -> docInfo.predicateName))
         .collect(Collectors.toList());
 
-    private static void printPredicateHtml(DocInfo docInfo) {
-        System.out.println("<div id=\"" + docInfo.predicateName + "\">");
-
-        System.out.print("<h5>");
-        System.out.print("<a href=\"#" + docInfo.predicateName + "\">" + docInfo.predicateName + "</a>");
-        System.out.println("</h5>");
-
-        System.out.println(docInfo.overview);
-
-        System.out.println("<p/>");
-
-        System.out.println(docInfo.configDef.toHtml(6, key -> docInfo.predicateName + "_" + key));
-
-        System.out.println("</div>");
-    }
-
-    private static void printHtml() {
+    private static String toHtml() {
+        StringBuilder b = new StringBuilder();
         for (final DocInfo docInfo : PREDICATES) {
-            printPredicateHtml(docInfo);
+            b.append("<div id=\"" + docInfo.predicateName + "\">\n");
+            b.append("<h5>");
+            b.append("<a href=\"#" + docInfo.predicateName + "\">" + docInfo.predicateName + "</a>");
+            b.append("</h5>\n");
+            b.append(docInfo.overview + "\n");
+            b.append("<p/>\n");
+            b.append(docInfo.configDef.toHtml(6, key -> docInfo.predicateName + "_" + key) + "\n");
+            b.append("</div>\n");
         }
+        return b.toString();
     }
 
     public static void main(String... args) {
-        printHtml();
+        System.out.println(toHtml());
     }
 }

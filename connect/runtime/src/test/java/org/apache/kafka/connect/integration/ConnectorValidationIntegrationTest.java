@@ -549,7 +549,12 @@ public class ConnectorValidationIntegrationTest {
         }
     }
 
-    public static class TestConverterWithNoConfigDef extends TestConverter { }
+    public static class TestConverterWithNoConfigDef extends TestConverter {
+        @Override
+        public ConfigDef config() {
+            return null;
+        }
+    }
 
     private Map<String, String> defaultSourceConnectorProps() {
         // setup up props for the source connector

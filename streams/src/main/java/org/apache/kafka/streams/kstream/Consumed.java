@@ -105,13 +105,18 @@ public class Consumed<K, V> implements NamedOperation<Consumed<K, V>> {
     /**
      * Create an instance of {@link Consumed} with the supplied arguments. {@code null} values are acceptable.
      *
-     * @param keySerde           the key serde. If {@code null} the default key serde from config will be used
-     * @param valueSerde         the value serde. If {@code null} the default value serde from config will be used
-     * @param timestampExtractor the timestamp extractor to used. If {@code null} the default timestamp extractor from config will be used
-     * @param resetPolicy        the offset reset policy to be used. If {@code null} the default reset policy from config will be used
-     * @param <K>                key type
-     * @param <V>                value type
-     * @return a new instance of {@link Consumed}
+     * @param keySerde
+     *        the key serde. If {@code null} the default key serde from config will be used
+     * @param valueSerde
+     *        the value serde. If {@code null} the default value serde from config will be used
+     * @param timestampExtractor
+     *        the timestamp extractor to used. If {@code null} the default timestamp extractor from config will be used
+     * @param resetPolicy
+     *        the offset reset policy to be used. If {@code null} the default reset policy from config will be used
+     *
+     * @param <K> key type
+     * @param <V> value type
+     *
      * @deprecated Since 4.0. Use {@link #with(Serde, Serde, TimestampExtractor, AutoOffsetReset)} instead.
      */
     @Deprecated
@@ -143,10 +148,14 @@ public class Consumed<K, V> implements NamedOperation<Consumed<K, V>> {
     /**
      * Create an instance of {@link Consumed} with key and value {@link Serde}s.
      *
-     * @param keySerde   the key serde. If {@code null} the default key serde from config will be used
-     * @param valueSerde the value serde. If {@code null} the default value serde from config will be used
-     * @param <K>        key type
-     * @param <V>        value type
+     * @param keySerde
+     *        the key serde. If {@code null} the default key serde from config will be used
+     * @param valueSerde
+     *        the value serde. If {@code null} the default value serde from config will be used
+     *
+     * @param <K> key type
+     * @param <V> value type
+     *
      * @return a new instance of {@link Consumed}
      */
     public static <K, V> Consumed<K, V> with(final Serde<K> keySerde,
@@ -157,9 +166,12 @@ public class Consumed<K, V> implements NamedOperation<Consumed<K, V>> {
     /**
      * Create an instance of {@link Consumed} with a {@link TimestampExtractor}.
      *
-     * @param timestampExtractor the timestamp extractor to used. If {@code null} the default timestamp extractor from config will be used
-     * @param <K>                key type
-     * @param <V>                value type
+     * @param timestampExtractor
+     *        the timestamp extractor to used. If {@code null} the default timestamp extractor from config will be used
+     *
+     * @param <K> key type
+     * @param <V> value type
+     *
      * @return a new instance of {@link Consumed}
      */
     public static <K, V> Consumed<K, V> with(final TimestampExtractor timestampExtractor) {
@@ -169,10 +181,14 @@ public class Consumed<K, V> implements NamedOperation<Consumed<K, V>> {
     /**
      * Create an instance of {@link Consumed} with a {@link org.apache.kafka.streams.Topology.AutoOffsetReset Topology.AutoOffsetReset}.
      *
-     * @param resetPolicy the offset reset policy to be used. If {@code null} the default reset policy from config will be used
-     * @param <K>         key type
-     * @param <V>         value type
+     * @param resetPolicy
+     *        the offset reset policy to be used. If {@code null} the default reset policy from config will be used
+     *
+     * @param <K> key type
+     * @param <V> value type
+     *
      * @return a new instance of {@link Consumed}
+     *
      * @deprecated Since 4.0. Use {@link #with(AutoOffsetReset)} instead.
      */
     @Deprecated
@@ -195,9 +211,12 @@ public class Consumed<K, V> implements NamedOperation<Consumed<K, V>> {
     /**
      * Create an instance of {@link Consumed} with provided processor name.
      *
-     * @param processorName the processor name to be used. If {@code null} a default processor name will be generated
-     * @param <K>         key type
-     * @param <V>         value type
+     * @param processorName
+     *        the processor name to be used. If {@code null} a default processor name will be generated
+     *
+     * @param <K> key type
+     * @param <V> value type
+     *
      * @return a new instance of {@link Consumed}
      */
     public static <K, V> Consumed<K, V> as(final String processorName) {
@@ -207,72 +226,84 @@ public class Consumed<K, V> implements NamedOperation<Consumed<K, V>> {
     /**
      * Configure the instance of {@link Consumed} with a key {@link Serde}.
      *
-     * @param keySerde the key serde. If {@code null}the default key serde from config will be used
-     * @return this
+     * @param keySerde
+     *        the key serde. If {@code null} the default key serde from config will be used
+     *
+     * @return a new instance of {@link Consumed}
      */
     public Consumed<K, V> withKeySerde(final Serde<K> keySerde) {
-        this.keySerde = keySerde;
-        return this;
+        return new Consumed<>(keySerde, valueSerde, timestampExtractor, legacyResetPolicy, resetPolicy, processorName);
     }
 
     /**
      * Configure the instance of {@link Consumed} with a value {@link Serde}.
      *
-     * @param valueSerde the value serde. If {@code null} the default value serde from config will be used
-     * @return this
+     * @param valueSerde
+     *        the value serde. If {@code null} the default value serde from config will be used
+     *
+     * @return a new instance of {@link Consumed}
      */
     public Consumed<K, V> withValueSerde(final Serde<V> valueSerde) {
-        this.valueSerde = valueSerde;
-        return this;
+        return new Consumed<>(keySerde, valueSerde, timestampExtractor, legacyResetPolicy, resetPolicy, processorName);
     }
 
     /**
      * Configure the instance of {@link Consumed} with a {@link TimestampExtractor}.
      *
-     * @param timestampExtractor the timestamp extractor to used. If {@code null} the default timestamp extractor from config will be used
-     * @return this
+     * @param timestampExtractor
+     *        the timestamp extractor to used. If {@code null} the default timestamp extractor from config will be used
+     *
+     * @return a new instance of {@link Consumed}
      */
     public Consumed<K, V> withTimestampExtractor(final TimestampExtractor timestampExtractor) {
-        this.timestampExtractor = timestampExtractor;
-        return this;
+        return new Consumed<>(keySerde, valueSerde, timestampExtractor, legacyResetPolicy, resetPolicy, processorName);
     }
 
     /**
      * Configure the instance of {@link Consumed} with a {@link org.apache.kafka.streams.Topology.AutoOffsetReset Topology.AutoOffsetReset}.
      *
-     * @param resetPolicy the offset reset policy to be used. If {@code null} the default reset policy from config will be used
-     * @return this
+     * @param resetPolicy
+     *        the offset reset policy to be used. If {@code null} the default reset policy from config will be used
+     *
+     * @return a new instance of {@link Consumed}
+     *
      * @deprecated Since 4.0. Use {@link #withOffsetResetPolicy(AutoOffsetReset)} instead.
      */
     @Deprecated
     public Consumed<K, V> withOffsetResetPolicy(final Topology.AutoOffsetReset resetPolicy) {
-        this.legacyResetPolicy = resetPolicy;
-        this.resetPolicy = convertOldToNew(resetPolicy);
-        return this;
+        return new Consumed<>(
+            keySerde,
+            valueSerde,
+            timestampExtractor,
+            resetPolicy,
+            convertOldToNew(resetPolicy),
+            processorName
+        );
     }
 
     /**
      * Configure the instance of {@link Consumed} with a {@link org.apache.kafka.streams.AutoOffsetReset AutoOffsetReset}.
      *
-     * @param resetPolicy the offset reset policy to be used. If {@code null} the default reset policy from config will be used
-     * @return this
+     * @param resetPolicy
+     *        the offset reset policy to be used. If {@code null} the default reset policy from config will be used
+     *
+     * @return a new instance of {@link Consumed}
      */
     public Consumed<K, V> withOffsetResetPolicy(final AutoOffsetReset resetPolicy) {
-        this.legacyResetPolicy = null;
-        this.resetPolicy = resetPolicy;
-        return this;
+        return new Consumed<>(keySerde, valueSerde, timestampExtractor, null, resetPolicy, processorName);
     }
 
     /**
      * Configure the instance of {@link Consumed} with a processor name.
      *
-     * @param processorName the processor name to be used. If {@code null} a default processor name will be generated
-     * @return this
+     * @param processorName
+     *        the processor name to be used. If {@code null} a default processor name will be generated
+     *
+     * @return a new instance of {@link Consumed}
      */
     @Override
     public Consumed<K, V> withName(final String processorName) {
-        this.processorName = processorName;
-        return this;
+        return new Consumed<K, V>(keySerde, valueSerde, timestampExtractor, legacyResetPolicy, resetPolicy, processorName);
     }
 
     @Override

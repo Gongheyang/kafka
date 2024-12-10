@@ -768,20 +768,18 @@ public class KTableImpl<K, S, V> extends AbstractStream<K, V> implements KTable<
             storeFactory = null;
         }
 
-        final Set<StoreBuilder<?>> stores = storeFactory == null ? null :
-                Set.of(new StoreFactory.FactoryWrappingStoreBuilder<>(storeFactory));
         final KTableKTableAbstractJoin<K, V, VO, VR> joinThis;
         final KTableKTableAbstractJoin<K, VO, V, VR> joinOther;
 
         if (!leftOuter) { // inner
-            joinThis = new KTableKTableInnerJoin<>(this, (KTableImpl<K, ?, VO>) other, joiner, stores);
-            joinOther = new KTableKTableInnerJoin<>((KTableImpl<K, ?, VO>) other, this, reverseJoiner(joiner), stores);
+            joinThis = new KTableKTableInnerJoin<>(this, (KTableImpl<K, ?, VO>) other, joiner, storeFactory);
+            joinOther = new KTableKTableInnerJoin<>((KTableImpl<K, ?, VO>) other, this, reverseJoiner(joiner), storeFactory);
         } else if (!rightOuter) { // left
-            joinThis = new KTableKTableLeftJoin<>(this, (KTableImpl<K, ?, VO>) other, joiner, stores);
-            joinOther = new KTableKTableRightJoin<>((KTableImpl<K, ?, VO>) other, this, reverseJoiner(joiner), stores);
+            joinThis = new KTableKTableLeftJoin<>(this, (KTableImpl<K, ?, VO>) other, joiner, storeFactory);
+            joinOther = new KTableKTableRightJoin<>((KTableImpl<K, ?, VO>) other, this, reverseJoiner(joiner), storeFactory);
         } else { // outer
-            joinThis = new KTableKTableOuterJoin<>(this, (KTableImpl<K, ?, VO>) other, joiner, stores);
-            joinOther = new KTableKTableOuterJoin<>((KTableImpl<K, ?, VO>) other, this, reverseJoiner(joiner), stores);
+            joinThis = new KTableKTableOuterJoin<>(this, (KTableImpl<K, ?, VO>) other, joiner, storeFactory);
+            joinOther = new KTableKTableOuterJoin<>((KTableImpl<K, ?, VO>) other, this, reverseJoiner(joiner), storeFactory);
         }
 
         final String joinThisName = renamed.suffixWithOrElseGet("-join-this", builder, JOINTHIS_NAME);
@@ -794,7 +792,7 @@ public class KTableImpl<K, S, V> extends AbstractStream<K, V> implements KTable<
                         (KTableProcessorSupplier<K, V, K, VR>) joinThisProcessorParameters.processorSupplier(),
                         (KTableProcessorSupplier<K, VO, K, VR>) joinOtherProcessorParameters.processorSupplier(),
                         queryableStoreName,
-                        stores),
+                        storeFactory),
                 joinMergeName);
 
         final KTableKTableJoinNode<K, V, VO, VR> kTableKTableJoinNode =

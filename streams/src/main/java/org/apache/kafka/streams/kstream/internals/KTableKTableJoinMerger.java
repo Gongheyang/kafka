@@ -20,6 +20,7 @@ import org.apache.kafka.streams.processor.api.ContextualProcessor;
 import org.apache.kafka.streams.processor.api.Processor;
 import org.apache.kafka.streams.processor.api.ProcessorContext;
 import org.apache.kafka.streams.processor.api.Record;
+import org.apache.kafka.streams.processor.internals.StoreFactory;
 import org.apache.kafka.streams.state.StoreBuilder;
 import org.apache.kafka.streams.state.internals.KeyValueStoreWrapper;
 
@@ -35,17 +36,17 @@ public class KTableKTableJoinMerger<K, V> implements KTableProcessorSupplier<K, 
     private final KTableProcessorSupplier<K, ?, K, V> parent1;
     private final KTableProcessorSupplier<K, ?, K, V> parent2;
     private final String queryableName;
-    private final Set<StoreBuilder<?>> stores;
+    private final StoreFactory storeFactory;
     private boolean sendOldValues = false;
 
     KTableKTableJoinMerger(final KTableProcessorSupplier<K, ?, K, V> parent1,
                            final KTableProcessorSupplier<K, ?, K, V> parent2,
                            final String queryableName,
-                           final Set<StoreBuilder<?>> stores) {
+                           final StoreFactory storeFactory) {
         this.parent1 = parent1;
         this.parent2 = parent2;
         this.queryableName = queryableName;
-        this.stores = stores;
+        this.storeFactory = storeFactory;
     }
 
     public String queryableName() {
@@ -59,7 +60,9 @@ public class KTableKTableJoinMerger<K, V> implements KTableProcessorSupplier<K, 
 
     @Override
     public Set<StoreBuilder<?>> stores() {
-        return stores;
+        return storeFactory == null
+                ? null
+                : Set.of(new StoreFactory.FactoryWrappingStoreBuilder<>(storeFactory));
     }
 
     @Override
@@ -99,13 +102,13 @@ public class KTableKTableJoinMerger<K, V> implements KTableProcessorSupplier<K, 
 
     public static <K, V> KTableKTableJoinMerger<K, V> of(final KTableProcessorSupplier<K, ?, K, V> parent1,
                                                          final KTableProcessorSupplier<K, ?, K, V> parent2) {
-        return of(parent1, parent2, null, Set.of());
+        return of(parent1, parent2, null, null);
     }
 
     public static <K, V> KTableKTableJoinMerger<K, V> of(final KTableProcessorSupplier<K, ?, K, V> parent1,
                                                          final KTableProcessorSupplier<K, ?, K, V> parent2,
                                                          final String queryableName,
-                                                         final Set<StoreBuilder<?>> stores) {
+                                                         final StoreFactory stores) {
         return new KTableKTableJoinMerger<>(parent1, parent2, queryableName, stores);
     }
 

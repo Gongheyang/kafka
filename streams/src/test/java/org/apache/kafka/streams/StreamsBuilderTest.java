@@ -1826,8 +1826,8 @@ public class StreamsBuilderTest {
 
         final StreamsBuilder builder = new StreamsBuilder(new TopologyConfig(new StreamsConfig(props)));
 
-        final KTable<String, String> t1 = builder.table("input1"); // 1
-        final KTable<String, String> t2 = builder.table("input2"); // 2
+        final KTable<String, String> t1 = builder.table("input1", Consumed.as("input1")); // 1
+        final KTable<String, String> t2 = builder.table("input2", Consumed.as("input2")); // 2
 
         t1.join(t2, (v1, v2) -> v1 + v2, Named.as("join-processor")) // 3 (this), 4 (other), 5 (merger)
                 .toStream(Named.as("toStream")) // 6
@@ -1836,8 +1836,8 @@ public class StreamsBuilderTest {
         builder.build();
         assertThat(counter.numWrappedProcessors(), CoreMatchers.is(6));
         assertThat(counter.wrappedProcessorNames().toString(), counter.wrappedProcessorNames(), Matchers.containsInAnyOrder(
-                "KTABLE-SOURCE-0000000002",
-                "KTABLE-SOURCE-0000000005",
+                "input1",
+                "input2",
                 "join-processor-join-this",
                 "join-processor-join-other",
                 "join-processor",
@@ -1858,8 +1858,8 @@ public class StreamsBuilderTest {
 
         final StreamsBuilder builder = new StreamsBuilder(new TopologyConfig(new StreamsConfig(props)));
 
-        final KTable<String, String> t1 = builder.table("input1"); // 1
-        final KTable<String, String> t2 = builder.table("input2"); // 2
+        final KTable<String, String> t1 = builder.table("input1", Consumed.as("input1")); // 1
+        final KTable<String, String> t2 = builder.table("input2", Consumed.as("input2")); // 2
 
         t1.leftJoin(t2, (v1, v2) -> v1 + v2, Named.as("join-processor")) // 3 (this), 4 (other), 5 (merger)
                 .toStream(Named.as("toStream")) // 6
@@ -1868,8 +1868,8 @@ public class StreamsBuilderTest {
         builder.build();
         assertThat(counter.numWrappedProcessors(), CoreMatchers.is(6));
         assertThat(counter.wrappedProcessorNames().toString(), counter.wrappedProcessorNames(), Matchers.containsInAnyOrder(
-                "KTABLE-SOURCE-0000000002",
-                "KTABLE-SOURCE-0000000005",
+                "input1",
+                "input2",
                 "join-processor-join-this",
                 "join-processor-join-other",
                 "join-processor",
@@ -1890,8 +1890,8 @@ public class StreamsBuilderTest {
 
         final StreamsBuilder builder = new StreamsBuilder(new TopologyConfig(new StreamsConfig(props)));
 
-        final KTable<String, String> t1 = builder.table("input1"); // 1
-        final KTable<String, String> t2 = builder.table("input2"); // 2
+        final KTable<String, String> t1 = builder.table("input1", Consumed.as("input1")); // 1
+        final KTable<String, String> t2 = builder.table("input2", Consumed.as("input2")); // 2
 
         t1.outerJoin(t2, (v1, v2) -> v1 + v2, Named.as("join-processor")) // 3 (this), 4 (other), 5 (merger)
                 .toStream(Named.as("toStream")) // 6
@@ -1900,8 +1900,8 @@ public class StreamsBuilderTest {
         builder.build();
         assertThat(counter.numWrappedProcessors(), CoreMatchers.is(6));
         assertThat(counter.wrappedProcessorNames().toString(), counter.wrappedProcessorNames(), Matchers.containsInAnyOrder(
-                "KTABLE-SOURCE-0000000002",
-                "KTABLE-SOURCE-0000000005",
+                "input1",
+                "input2",
                 "join-processor-join-this",
                 "join-processor-join-other",
                 "join-processor",

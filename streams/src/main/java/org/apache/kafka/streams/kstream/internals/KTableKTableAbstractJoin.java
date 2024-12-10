@@ -17,6 +17,7 @@
 package org.apache.kafka.streams.kstream.internals;
 
 import org.apache.kafka.streams.kstream.ValueJoiner;
+import org.apache.kafka.streams.processor.internals.StoreFactory;
 import org.apache.kafka.streams.state.StoreBuilder;
 
 import java.util.Set;
@@ -29,7 +30,7 @@ public abstract class KTableKTableAbstractJoin<K, V1, V2, VOut> implements
     final KTableValueGetterSupplier<K, V1> valueGetterSupplier1;
     final KTableValueGetterSupplier<K, V2> valueGetterSupplier2;
     final ValueJoiner<? super V1, ? super V2, ? extends VOut> joiner;
-    private final Set<StoreBuilder<?>> stores;
+    private final StoreFactory storeFactory;
 
     boolean useVersionedSemantics = false;
     boolean sendOldValues = false;
@@ -37,13 +38,13 @@ public abstract class KTableKTableAbstractJoin<K, V1, V2, VOut> implements
     KTableKTableAbstractJoin(final KTableImpl<K, ?, V1> table1,
                              final KTableImpl<K, ?, V2> table2,
                              final ValueJoiner<? super V1, ? super V2, ? extends VOut> joiner,
-                             final Set<StoreBuilder<?>> stores) {
+                             final StoreFactory storeFactory) {
         this.table1 = table1;
         this.table2 = table2;
         this.valueGetterSupplier1 = table1.valueGetterSupplier();
         this.valueGetterSupplier2 = table2.valueGetterSupplier();
         this.joiner = joiner;
-        this.stores = stores;
+        this.storeFactory = storeFactory;
     }
 
     @Override
@@ -57,7 +58,9 @@ public abstract class KTableKTableAbstractJoin<K, V1, V2, VOut> implements
 
     @Override
     public Set<StoreBuilder<?>> stores() {
-        return stores;
+        return storeFactory == null
+                ? null
+                : Set.of(new StoreFactory.FactoryWrappingStoreBuilder<>(storeFactory));
     }
 
     public void setUseVersionedSemantics(final boolean useVersionedSemantics) {

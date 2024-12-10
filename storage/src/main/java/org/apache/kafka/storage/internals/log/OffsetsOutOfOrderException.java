@@ -1,12 +1,12 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
+ * contributor license agreements. See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.
  * The ASF licenses this file to You under the Apache License, Version 2.0
  * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
+ * the License. You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *    http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -14,17 +14,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package kafka.zk
-
-import org.apache.zookeeper.ZooKeeper
+package org.apache.kafka.storage.internals.log;
 
 /**
- * This class should only be used in ZkSecurityMigrator tool.
- * This class will be removed after we migrate ZkSecurityMigrator away from ZK's asynchronous API.
- * @param kafkaZkClient
+ * Indicates the follower received records with non-monotonically increasing offsets
  */
-class ZkSecurityMigratorUtils(val kafkaZkClient: KafkaZkClient) {
+public class OffsetsOutOfOrderException extends RuntimeException {
 
-  def currentZooKeeper: ZooKeeper = kafkaZkClient.currentZooKeeper
-
+    public OffsetsOutOfOrderException(String message) {
+        super(message);
+    }
 }

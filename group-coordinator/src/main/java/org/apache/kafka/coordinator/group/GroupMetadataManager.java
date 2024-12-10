@@ -34,6 +34,7 @@ import org.apache.kafka.common.errors.UnknownMemberIdException;
 import org.apache.kafka.common.errors.UnknownServerException;
 import org.apache.kafka.common.errors.UnreleasedInstanceIdException;
 import org.apache.kafka.common.errors.UnsupportedAssignorException;
+import org.apache.kafka.common.errors.UnsupportedVersionException;
 import org.apache.kafka.common.message.ConsumerGroupDescribeResponseData;
 import org.apache.kafka.common.message.ConsumerGroupHeartbeatRequestData;
 import org.apache.kafka.common.message.ConsumerGroupHeartbeatResponseData;
@@ -107,6 +108,7 @@ import org.apache.kafka.coordinator.group.metrics.GroupCoordinatorMetricsShard;
 import org.apache.kafka.coordinator.group.modern.Assignment;
 import org.apache.kafka.coordinator.group.modern.MemberState;
 import org.apache.kafka.coordinator.group.modern.ModernGroup;
+import org.apache.kafka.coordinator.group.modern.SubscriptionCount;
 import org.apache.kafka.coordinator.group.modern.TargetAssignmentBuilder;
 import org.apache.kafka.coordinator.group.modern.TopicMetadata;
 import org.apache.kafka.coordinator.group.modern.consumer.ConsumerGroup;
@@ -185,6 +187,7 @@ import static org.apache.kafka.coordinator.group.classic.ClassicGroupState.PREPA
 import static org.apache.kafka.coordinator.group.classic.ClassicGroupState.STABLE;
 import static org.apache.kafka.coordinator.group.metrics.GroupCoordinatorMetrics.CLASSIC_GROUP_COMPLETED_REBALANCES_SENSOR_NAME;
 import static org.apache.kafka.coordinator.group.metrics.GroupCoordinatorMetrics.CONSUMER_GROUP_REBALANCES_SENSOR_NAME;
+import static org.apache.kafka.coordinator.group.modern.ModernGroupMember.hasAssignedPartitionsChanged;
 import static org.apache.kafka.coordinator.group.modern.consumer.ConsumerGroupMember.hasAssignedPartitionsChanged;
 
 /**
@@ -198,6 +201,22 @@ import static org.apache.kafka.coordinator.group.modern.consumer.ConsumerGroupMe
  */
 public class GroupMetadataManager {
     private static final int METADATA_REFRESH_INTERVAL_MS = Integer.MAX_VALUE;
+
+    private static class UpdateSubscriptionMetadataResult {
+        private final int groupEpoch;
+        private final Map<String, TopicMetadata> subscriptionMetadata;
+        private final SubscriptionType subscriptionType;
+
+        UpdateSubscriptionMetadataResult(
+            int groupEpoch,
+            Map<String, TopicMetadata> subscriptionMetadata,
+            SubscriptionType subscriptionType
+        ) {
+            this.groupEpoch = groupEpoch;
+            this.subscriptionMetadata = Objects.requireNonNull(subscriptionMetadata);
+            this.subscriptionType = Objects.requireNonNull(subscriptionType);
+        }
+    }
 
     public static class Builder {
         private LogContext logContext = null;
@@ -657,7 +676,8 @@ public class GroupMetadataManager {
         } else {
             if (group.type() == CONSUMER) {
                 return (ConsumerGroup) group;
-            } else if (createIfNotExists && group.type() == CLASSIC && validateOnlineUpgrade((ClassicGroup) group)) {
+            } else if (createIfNotExists && group.type() == CLASSIC) {
+                validateOnlineUpgrade((ClassicGroup) group);
                 return convertToConsumerGroup((ClassicGroup) group, records);
             } else {
                 throw new GroupIdNotFoundException(String.format("Group %s is not a consumer group.", groupId));
@@ -1016,23 +1036,28 @@ public class GroupMetadataManager {
      * Validates the online upgrade if the Classic Group receives a ConsumerGroupHeartbeat request.
      *
      * @param classicGroup A ClassicGroup.
-     * @return A boolean indicating whether it's valid to online upgrade the classic group.
+     * @throws GroupIdNotFoundException if the group cannot be upgraded.
      */
-    private boolean validateOnlineUpgrade(ClassicGroup classicGroup) {
+    private void validateOnlineUpgrade(ClassicGroup classicGroup) {
         if (!config.consumerGroupMigrationPolicy().isUpgradeEnabled()) {
-            log.info("Cannot upgrade classic group {} to consumer group because the online upgrade is disabled.",
+            log.info("Cannot upgrade classic group {} to consumer group because online upgrade is disabled.",
                 classicGroup.groupId());
-            return false;
+            throw new GroupIdNotFoundException(
+                String.format("Cannot upgrade classic group %s to consumer group because online upgrade is disabled.", classicGroup.groupId())
+            );
         } else if (!classicGroup.usesConsumerGroupProtocol()) {
             log.info("Cannot upgrade classic group {} to consumer group because the group does not use the consumer embedded protocol.",
                 classicGroup.groupId());
-            return false;
+            throw new GroupIdNotFoundException(
+                String.format("Cannot upgrade classic group %s to consumer group because the group does not use the consumer embedded protocol.", classicGroup.groupId())
+            );
         } else if (classicGroup.numMembers() > config.consumerGroupMaxSize()) {
             log.info("Cannot upgrade classic group {} to consumer group because the group size exceeds the consumer group maximum size.",
                 classicGroup.groupId());
-            return false;
+            throw new GroupIdNotFoundException(
+                String.format("Cannot upgrade classic group %s to consumer group because the group size exceeds the consumer group maximum size.", classicGroup.groupId())
+            );
         }
-        return true;
     }
 
     /**
@@ -1061,12 +1086,21 @@ public class GroupMetadataManager {
                 metadataImage.topics()
             );
         } catch (SchemaException e) {
-            log.warn("Cannot upgrade the classic group " + classicGroup.groupId() +
+            log.warn("Cannot upgrade classic group " + classicGroup.groupId() +
                 " to consumer group because the embedded consumer protocol is malformed: "
                 + e.getMessage() + ".", e);
 
-            throw new GroupIdNotFoundException("Cannot upgrade the classic group " + classicGroup.groupId() +
-                " to consumer group because the embedded consumer protocol is malformed.");
+            throw new GroupIdNotFoundException(
+                String.format("Cannot upgrade classic group %s to consumer group because the embedded consumer protocol is malformed.", classicGroup.groupId())
+            );
+        } catch (UnsupportedVersionException e) {
+            log.warn("Cannot upgrade classic group " + classicGroup.groupId() +
+                " to consumer group: " + e.getMessage() + ".", e);
+
+            throw new GroupIdNotFoundException(
+                String.format("Cannot upgrade classic group %s to consumer group because an unsupported custom assignor is in use. " +
+                    "Please refer to the documentation or switch to a default assignor before re-attempting the upgrade.", classicGroup.groupId())
+            );
         }
         consumerGroup.createConsumerGroupRecords(records);
 
@@ -1698,43 +1732,17 @@ public class GroupMetadataManager {
             // The subscription metadata is updated in two cases:
             // 1) The member has updated its subscriptions;
             // 2) The refresh deadline has been reached.
-            Map<String, Integer> subscribedTopicNamesMap = group.computeSubscribedTopicNames(
+            UpdateSubscriptionMetadataResult result = updateSubscriptionMetadata(
+                group,
+                bumpGroupEpoch,
                 member,
-                updatedMember
-            );
-            subscriptionMetadata = group.computeSubscriptionMetadata(
-                subscribedTopicNamesMap,
-                metadataImage.topics(),
-                metadataImage.cluster()
+                updatedMember,
+                records
             );
 
-            int numMembers = group.numMembers();
-            if (!group.hasMember(updatedMember.memberId()) && !group.hasStaticMember(updatedMember.instanceId())) {
-                numMembers++;
-            }
-
-            subscriptionType = ModernGroup.subscriptionType(
-                subscribedTopicNamesMap,
-                numMembers
-            );
-
-            if (!subscriptionMetadata.equals(group.subscriptionMetadata())) {
-                if (log.isDebugEnabled()) {
-                    log.debug("[GroupId {}] Computed new subscription metadata: {}.",
-                        groupId, subscriptionMetadata);
-                }
-                bumpGroupEpoch = true;
-                records.add(newConsumerGroupSubscriptionMetadataRecord(groupId, subscriptionMetadata));
-            }
-
-            if (bumpGroupEpoch) {
-                groupEpoch += 1;
-                records.add(newConsumerGroupEpochRecord(groupId, groupEpoch));
-                log.info("[GroupId {}] Bumped group epoch to {}.", groupId, groupEpoch);
-                metrics.record(CONSUMER_GROUP_REBALANCES_SENSOR_NAME);
-            }
-
-            group.setMetadataRefreshDeadline(currentTimeMs + METADATA_REFRESH_INTERVAL_MS, groupEpoch);
+            groupEpoch = result.groupEpoch;
+            subscriptionMetadata = result.subscriptionMetadata;
+            subscriptionType = result.subscriptionType;
         }
 
         // 2. Update the target assignment if the group epoch is larger than the target assignment epoch. The delta between
@@ -1860,7 +1868,6 @@ public class GroupMetadataManager {
 
         int groupEpoch = group.groupEpoch();
         Map<String, TopicMetadata> subscriptionMetadata = group.subscriptionMetadata();
-        Map<String, Integer> subscribedTopicNamesMap = group.subscribedTopicNames();
         SubscriptionType subscriptionType = group.subscriptionType();
         final ConsumerProtocolSubscription subscription = deserializeSubscription(protocols);
 
@@ -1894,40 +1901,17 @@ public class GroupMetadataManager {
             // The subscription metadata is updated in two cases:
             // 1) The member has updated its subscriptions;
             // 2) The refresh deadline has been reached.
-            subscribedTopicNamesMap = group.computeSubscribedTopicNames(member, updatedMember);
-            subscriptionMetadata = group.computeSubscriptionMetadata(
-                subscribedTopicNamesMap,
-                metadataImage.topics(),
-                metadataImage.cluster()
+            UpdateSubscriptionMetadataResult result = updateSubscriptionMetadata(
+                group,
+                bumpGroupEpoch,
+                member,
+                updatedMember,
+                records
             );
 
-            int numMembers = group.numMembers();
-            if (!group.hasMember(updatedMember.memberId()) && !group.hasStaticMember(updatedMember.instanceId())) {
-                numMembers++;
-            }
-
-            subscriptionType = ConsumerGroup.subscriptionType(
-                subscribedTopicNamesMap,
-                numMembers
-            );
-
-            if (!subscriptionMetadata.equals(group.subscriptionMetadata())) {
-                if (log.isDebugEnabled()) {
-                    log.debug("[GroupId {}] Computed new subscription metadata: {}.",
-                        groupId, subscriptionMetadata);
-                }
-                bumpGroupEpoch = true;
-                records.add(newConsumerGroupSubscriptionMetadataRecord(groupId, subscriptionMetadata));
-            }
-
-            if (bumpGroupEpoch) {
-                groupEpoch += 1;
-                records.add(newConsumerGroupEpochRecord(groupId, groupEpoch));
-                log.info("[GroupId {}] Bumped group epoch to {}.", groupId, groupEpoch);
-                metrics.record(CONSUMER_GROUP_REBALANCES_SENSOR_NAME);
-            }
-
-            group.setMetadataRefreshDeadline(currentTimeMs + METADATA_REFRESH_INTERVAL_MS, groupEpoch);
+            groupEpoch = result.groupEpoch;
+            subscriptionMetadata = result.subscriptionMetadata;
+            subscriptionType = result.subscriptionType;
         }
 
         // 2. Update the target assignment if the group epoch is larger than the target assignment epoch. The delta between
@@ -2073,7 +2057,7 @@ public class GroupMetadataManager {
             // The subscription metadata is updated in two cases:
             // 1) The member has updated its subscriptions;
             // 2) The refresh deadline has been reached.
-            Map<String, Integer> subscribedTopicNamesMap = group.computeSubscribedTopicNames(member, updatedMember);
+            Map<String, SubscriptionCount> subscribedTopicNamesMap = group.computeSubscribedTopicNames(member, updatedMember);
             subscriptionMetadata = group.computeSubscriptionMetadata(
                 subscribedTopicNamesMap,
                 metadataImage.topics(),
@@ -2508,7 +2492,7 @@ public class GroupMetadataManager {
         List<CoordinatorRecord> records = new ArrayList<>();
         try {
             ConsumerGroup group = consumerGroup(groupId);
-            Map<String, Integer> subscribedTopicNames = new HashMap<>(group.subscribedTopicNames());
+            Map<String, SubscriptionCount> subscribedTopicNames = new HashMap<>(group.subscribedTopicNames());
 
             boolean bumpGroupEpoch = false;
             for (Map.Entry<String, ResolvedRegularExpression> entry : resolvedRegularExpressions.entrySet()) {
@@ -2527,11 +2511,11 @@ public class GroupMetadataManager {
                     bumpGroupEpoch = true;
 
                     oldResolvedRegularExpression.topics.forEach(topicName ->
-                        subscribedTopicNames.compute(topicName, Utils::decValue)
+                        subscribedTopicNames.compute(topicName, SubscriptionCount::decRegexCount)
                     );
 
                     newResolvedRegularExpression.topics.forEach(topicName ->
-                        subscribedTopicNames.compute(topicName, Utils::incValue)
+                        subscribedTopicNames.compute(topicName, SubscriptionCount::incRegexCount)
                     );
                 }
 
@@ -2707,6 +2691,77 @@ public class GroupMetadataManager {
         }
 
         return updatedMember;
+    }
+
+    /**
+     * Updates the subscription metadata and bumps the group epoch if needed.
+     *
+     * @param group             The consumer group.
+     * @param bumpGroupEpoch    Whether the group epoch must be bumped.
+     * @param member            The old member.
+     * @param updatedMember     The new member.
+     * @param records           The record accumulator.
+     * @return The result of the update.
+     */
+    private UpdateSubscriptionMetadataResult updateSubscriptionMetadata(
+        ConsumerGroup group,
+        boolean bumpGroupEpoch,
+        ConsumerGroupMember member,
+        ConsumerGroupMember updatedMember,
+        List<CoordinatorRecord> records
+    ) {
+        final long currentTimeMs = time.milliseconds();
+        final String groupId = group.groupId();
+        int groupEpoch = group.groupEpoch();
+
+        Map<String, Integer> subscribedRegularExpressions = group.computeSubscribedRegularExpressions(
+            member,
+            updatedMember
+        );
+        Map<String, SubscriptionCount> subscribedTopicNamesMap = group.computeSubscribedTopicNames(
+            member,
+            updatedMember
+        );
+        Map<String, TopicMetadata> subscriptionMetadata = group.computeSubscriptionMetadata(
+            subscribedTopicNamesMap,
+            metadataImage.topics(),
+            metadataImage.cluster()
+        );
+
+        int numMembers = group.numMembers();
+        if (!group.hasMember(updatedMember.memberId()) && !group.hasStaticMember(updatedMember.instanceId())) {
+            numMembers++;
+        }
+
+        SubscriptionType subscriptionType = ConsumerGroup.subscriptionType(
+            subscribedRegularExpressions,
+            subscribedTopicNamesMap,
+            numMembers
+        );
+
+        if (!subscriptionMetadata.equals(group.subscriptionMetadata())) {
+            if (log.isDebugEnabled()) {
+                log.debug("[GroupId {}] Computed new subscription metadata: {}.",
+                    groupId, subscriptionMetadata);
+            }
+            bumpGroupEpoch = true;
+            records.add(newConsumerGroupSubscriptionMetadataRecord(groupId, subscriptionMetadata));
+        }
+
+        if (bumpGroupEpoch) {
+            groupEpoch += 1;
+            records.add(newConsumerGroupEpochRecord(groupId, groupEpoch));
+            log.info("[GroupId {}] Bumped group epoch to {}.", groupId, groupEpoch);
+            metrics.record(CONSUMER_GROUP_REBALANCES_SENSOR_NAME);
+        }
+
+        group.setMetadataRefreshDeadline(currentTimeMs + METADATA_REFRESH_INTERVAL_MS, groupEpoch);
+
+        return new UpdateSubscriptionMetadataResult(
+            groupEpoch,
+            subscriptionMetadata,
+            subscriptionType
+        );
     }
 
     /**

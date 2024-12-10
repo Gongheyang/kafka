@@ -14,34 +14,27 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.kafka.coordinator.group.api.assignor;
 
-import org.apache.kafka.common.annotation.InterfaceStability;
+package org.apache.kafka.connect.runtime.isolation;
 
-/**
- * The subscription type followed by a consumer group.
- */
-@InterfaceStability.Unstable
-public enum SubscriptionType {
-    /**
-     * A homogeneous subscription type means that all the members
-     * of the group use the same subscription.
-     */
-    HOMOGENEOUS("Homogeneous"),
-    /**
-     * A heterogeneous subscription type means that not all the members
-     * of the group use the same subscription.
-     */
-    HETEROGENEOUS("Heterogeneous");
+import org.apache.kafka.common.config.ConfigException;
 
-    private final String name;
+import java.util.List;
 
-    SubscriptionType(String name) {
-        this.name = name;
+public class VersionedPluginLoadingException extends ConfigException {
+
+    private List<String> availableVersions = null;
+
+    public VersionedPluginLoadingException(String message) {
+        super(message);
     }
 
-    @Override
-    public String toString() {
-        return name;
+    public VersionedPluginLoadingException(String message, List<String> availableVersions) {
+        super(message);
+        this.availableVersions = availableVersions;
+    }
+
+    public List<String> availableVersions() {
+        return availableVersions;
     }
 }

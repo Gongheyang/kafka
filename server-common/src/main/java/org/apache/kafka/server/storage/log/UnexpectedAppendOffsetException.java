@@ -14,7 +14,22 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package kafka.log.remote;
+package org.apache.kafka.server.storage.log;
 
-class CustomMetadataSizeLimitExceededException extends Exception {
+public class UnexpectedAppendOffsetException extends RuntimeException {
+
+    public final long firstOffset;
+    public final long lastOffset;
+
+    /**
+     * Indicates the follower or the future replica received records from the leader (or current
+     * replica) with first offset less than expected next offset.
+     * @param firstOffset The first offset of the records to append
+     * @param lastOffset  The last offset of the records to append
+     */
+    public UnexpectedAppendOffsetException(String message, long firstOffset, long lastOffset) {
+        super(message);
+        this.firstOffset = firstOffset;
+        this.lastOffset = lastOffset;
+    }
 }

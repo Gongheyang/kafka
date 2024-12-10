@@ -178,7 +178,7 @@ public class CommitRequestManager implements RequestManager, MemberStateListener
     public NetworkClientDelegate.PollResult poll(final long currentTimeMs) {
         // poll when the coordinator node is known and fatal errors are not present
         if (coordinatorRequestManager.coordinator().isEmpty()) {
-            Optional<Throwable> fatalError = coordinatorRequestManager.fatalError();
+            Optional<Throwable> fatalError = coordinatorRequestManager.getAndClearFatalError();
             if (fatalError.isPresent()) {
                 pendingRequests.unsentOffsetCommits.forEach(request -> request.future.completeExceptionally(fatalError.get()));
                 pendingRequests.unsentOffsetFetches.forEach(request -> request.future.completeExceptionally(fatalError.get()));

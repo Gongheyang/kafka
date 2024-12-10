@@ -93,6 +93,7 @@ public class Consumed<K, V> implements NamedOperation<Consumed<K, V>> {
      * @param <V> value type
      *
      * @return a new instance of {@link Consumed}
+     * @see #with(Serde, Serde, TimestampExtractor, AutoOffsetReset)
      */
     @Deprecated
     public static <K, V> Consumed<K, V> with(final Serde<K> keySerde,
@@ -119,6 +120,7 @@ public class Consumed<K, V> implements NamedOperation<Consumed<K, V>> {
     * @param <V> value type
     *
     * @return a new instance of {@link Consumed}
+    * @see #with(Serde, Serde, TimestampExtractor, Topology.AutoOffsetReset)
     */
 
     public static <K, V> Consumed<K, V> with(final Serde<K> keySerde,
@@ -172,6 +174,7 @@ public class Consumed<K, V> implements NamedOperation<Consumed<K, V>> {
      * @param <V> value type
      *
      * @return a new instance of {@link Consumed}
+     * @see #with(AutoOffsetReset)
      */
     @Deprecated
     public static <K, V> Consumed<K, V> with(final Topology.AutoOffsetReset resetPolicy) {
@@ -188,6 +191,7 @@ public class Consumed<K, V> implements NamedOperation<Consumed<K, V>> {
      * @param <V> value type
      *
      * @return a new instance of {@link Consumed}
+     * @see #with(Topology.AutoOffsetReset)
      */
     public static <K, V> Consumed<K, V> with(final AutoOffsetReset resetPolicy) {
         return new Consumed<>(null, null, null, null, resetPolicy, null);
@@ -252,6 +256,7 @@ public class Consumed<K, V> implements NamedOperation<Consumed<K, V>> {
      *        the offset reset policy to be used. If {@code null} the default reset policy from config will be used
      * 
      * @return a new instance of {@link Consumed}
+     * @see #withOffsetResetPolicy(AutoOffsetReset)
      */
     @Deprecated
     public Consumed<K, V> withOffsetResetPolicy(final Topology.AutoOffsetReset resetPolicy) {
@@ -266,6 +271,7 @@ public class Consumed<K, V> implements NamedOperation<Consumed<K, V>> {
      *        the offset reset policy to be used. If {@code null} the default reset policy from config will be used.
      * 
      * @return a new instance of {@link Consumed}
+     * @see #withOffsetResetPolicy(Topology.AutoOffsetReset)
      */
     public Consumed<K, V> withOffsetResetPolicy(final AutoOffsetReset resetPolicy) {
         return new Consumed<K, V>(keySerde, valueSerde, timestampExtractor, null, resetPolicy, processorName);

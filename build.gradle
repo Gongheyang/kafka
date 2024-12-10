@@ -125,7 +125,6 @@ ext {
 
     options.compilerArgs << "-encoding" << "UTF-8"
     options.release = releaseVersion
-//    project.project(projectPath).sourceCompatibility = releaseVersion
 
     if (name in ["compileTestJava", "compileTestScala"]) {
       options.compilerArgs << "-parameters"

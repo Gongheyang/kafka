@@ -165,7 +165,7 @@ public class ConnectorPluginsResource {
         try {
             range = PluginUtils.connectorVersionRequirement(version);
         } catch (InvalidVersionSpecificationException e) {
-            throw new BadRequestException("Invalid version specification: " + version);
+            throw new BadRequestException("Invalid version specification: " + version, e);
         }
 
         synchronized (this) {

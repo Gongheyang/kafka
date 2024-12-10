@@ -96,6 +96,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import static org.apache.kafka.connect.runtime.ConnectorConfig.CONNECTOR_CLASS_CONFIG;
 import static org.apache.kafka.connect.runtime.ConnectorConfig.CONNECTOR_VERSION;
 import static org.apache.kafka.connect.runtime.ConnectorConfig.HEADER_CONVERTER_CLASS_CONFIG;
 import static org.apache.kafka.connect.runtime.ConnectorConfig.HEADER_CONVERTER_VERSION_CONFIG;
@@ -521,16 +522,17 @@ public abstract class AbstractHerder implements Herder, TaskStatus.Listener, Con
         }
     }
 
-    private ConfigInfos validateHeaderConverterConfig(
-            Map<String, String> connectorConfig,
-            ConfigValue headerConverterConfigValue,
-            ConfigValue headerConverterVersionValue,
+    private ConfigInfos validateAllConverterConfigs(
+            Map<String, String> connectorProps,
+            Map<String, ConfigValue> validatedConnectorConfig,
             Function<String, TemporaryStage> reportStage
     ) {
-        return validateConverterConfig(
-                connectorConfig,
-                headerConverterConfigValue,
-                headerConverterVersionValue,
+        String connType = connectorProps.get(CONNECTOR_CLASS_CONFIG);
+        // do custom converter-specific validation
+        ConfigInfos headerConverterConfigInfos = validateConverterConfig(
+                connectorProps,
+                validatedConnectorConfig.get(HEADER_CONVERTER_CLASS_CONFIG),
+                validatedConnectorConfig.get(HEADER_CONVERTER_VERSION_CONFIG),
                 HeaderConverter.class,
                 HeaderConverter::config,
                 "header converter",
@@ -539,18 +541,10 @@ public abstract class AbstractHerder implements Herder, TaskStatus.Listener, Con
                 Collections.singletonMap(ConverterConfig.TYPE_CONFIG, ConverterType.HEADER.getName()),
                 reportStage
         );
-    }
-
-    private ConfigInfos validateKeyConverterConfig(
-            Map<String, String> connectorConfig,
-            ConfigValue keyConverterConfigValue,
-            ConfigValue keyConverterVersionValue,
-            Function<String, TemporaryStage> reportStage
-    ) {
-        return validateConverterConfig(
-                connectorConfig,
-                keyConverterConfigValue,
-                keyConverterVersionValue,
+        ConfigInfos keyConverterConfigInfos = validateConverterConfig(
+                connectorProps,
+                validatedConnectorConfig.get(KEY_CONVERTER_CLASS_CONFIG),
+                validatedConnectorConfig.get(KEY_CONVERTER_VERSION_CONFIG),
                 Converter.class,
                 Converter::config,
                 "key converter",
@@ -559,18 +553,11 @@ public abstract class AbstractHerder implements Herder, TaskStatus.Listener, Con
                 Collections.singletonMap(ConverterConfig.TYPE_CONFIG, ConverterType.KEY.getName()),
                 reportStage
         );
-    }
 
-    private ConfigInfos validateValueConverterConfig(
-            Map<String, String> connectorConfig,
-            ConfigValue valueConverterConfigValue,
-            ConfigValue valueConverterVersionValue,
-            Function<String, TemporaryStage> reportStage
-    ) {
-        return validateConverterConfig(
-                connectorConfig,
-                valueConverterConfigValue,
-                valueConverterVersionValue,
+        ConfigInfos valueConverterConfigInfos = validateConverterConfig(
+                connectorProps,
+                validatedConnectorConfig.get(VALUE_CONVERTER_CLASS_CONFIG),
+                validatedConnectorConfig.get(VALUE_CONVERTER_VERSION_CONFIG),
                 Converter.class,
                 Converter::config,
                 "value converter",
@@ -579,6 +566,7 @@ public abstract class AbstractHerder implements Herder, TaskStatus.Listener, Con
                 Collections.singletonMap(ConverterConfig.TYPE_CONFIG, ConverterType.VALUE.getName()),
                 reportStage
         );
+        return mergeConfigInfos(connType, headerConverterConfigInfos, keyConverterConfigInfos, valueConverterConfigInfos);
     }
 
     @Override
@@ -670,6 +658,146 @@ public abstract class AbstractHerder implements Herder, TaskStatus.Listener, Con
             || SinkConnectorConfig.hasDlqTopicConfig(connProps);
     }
 
+    private ConfigInfos validateClientOverrides(
+            Map<String, String> connectorProps,
+            org.apache.kafka.connect.health.ConnectorType connectorType,
+            Class<? extends Connector> connectorClass,
+            Function<String, TemporaryStage> reportStage,
+            boolean doLog
+    ) {
+        if (connectorClass == null || connectorType == null) {
+            return null;
+        }
+        AbstractConfig connectorConfig = new AbstractConfig(new ConfigDef(), connectorProps, doLog);
+        String connName = connectorProps.get(ConnectorConfig.NAME_CONFIG);
+        String connType = connectorProps.get(CONNECTOR_CLASS_CONFIG);
+        ConfigInfos producerConfigInfos = null;
+        ConfigInfos consumerConfigInfos = null;
+        ConfigInfos adminConfigInfos = null;
+        String stageDescription = null;
+
+        if (connectorUsesProducer(connectorType, connectorProps)) {
+            stageDescription = "validating producer config overrides for the connector";
+            try (TemporaryStage stage = reportStage.apply(stageDescription)) {
+                producerConfigInfos = validateClientOverrides(
+                        connName,
+                        ConnectorConfig.CONNECTOR_CLIENT_PRODUCER_OVERRIDES_PREFIX,
+                        connectorConfig,
+                        ProducerConfig.configDef(),
+                        connectorClass,
+                        connectorType,
+                        ConnectorClientConfigRequest.ClientType.PRODUCER,
+                        connectorClientConfigOverridePolicy);
+            }
+        }
+        if (connectorUsesAdmin(connectorType, connectorProps)) {
+            stageDescription = "validating admin config overrides for the connector";
+            try (TemporaryStage stage = reportStage.apply(stageDescription)) {
+                adminConfigInfos = validateClientOverrides(
+                        connName,
+                        ConnectorConfig.CONNECTOR_CLIENT_ADMIN_OVERRIDES_PREFIX,
+                        connectorConfig,
+                        AdminClientConfig.configDef(),
+                        connectorClass,
+                        connectorType,
+                        ConnectorClientConfigRequest.ClientType.ADMIN,
+                        connectorClientConfigOverridePolicy);
+            }
+        }
+        if (connectorUsesConsumer(connectorType, connectorProps)) {
+            stageDescription = "validating consumer config overrides for the connector";
+            try (TemporaryStage stage = reportStage.apply(stageDescription)) {
+                consumerConfigInfos = validateClientOverrides(
+                        connName,
+                        ConnectorConfig.CONNECTOR_CLIENT_CONSUMER_OVERRIDES_PREFIX,
+                        connectorConfig,
+                        ConsumerConfig.configDef(),
+                        connectorClass,
+                        connectorType,
+                        ConnectorClientConfigRequest.ClientType.CONSUMER,
+                        connectorClientConfigOverridePolicy);
+            }
+        }
+        return mergeConfigInfos(connType,
+                producerConfigInfos,
+                consumerConfigInfos,
+                adminConfigInfos
+        );
+    }
+
+    private ConfigInfos validateConnectorPluginSpecifiedConfigs(
+            Map<String, String> connectorProps,
+            Map<String, ConfigValue> validatedConnectorConfig,
+            ConfigDef enrichedConfigDef,
+            Connector connector,
+            Function<String, TemporaryStage> reportStage
+    ) {
+        List<ConfigValue> configValues = new ArrayList<>(validatedConnectorConfig.values());
+        Map<String, ConfigKey> configKeys = new LinkedHashMap<>(enrichedConfigDef.configKeys());
+        Set<String> allGroups = new LinkedHashSet<>(enrichedConfigDef.groups());
+
+        String connType = connectorProps.get(CONNECTOR_CLASS_CONFIG);
+        // do custom connector-specific validation
+        ConfigDef configDef;
+        String stageDescription = "retrieving the configuration definition from the connector";
+        try (TemporaryStage stage = reportStage.apply(stageDescription)) {
+            configDef = connector.config();
+        }
+        if (null == configDef) {
+            throw new BadRequestException(
+                    String.format(
+                            "%s.config() must return a ConfigDef that is not null.",
+                            connector.getClass().getName()
+                    )
+            );
+        }
+
+        Config config;
+        stageDescription = "performing multi-property validation for the connector";
+        try (TemporaryStage stage = reportStage.apply(stageDescription)) {
+            config = connector.validate(connectorProps);
+        }
+        if (null == config) {
+            throw new BadRequestException(
+                    String.format(
+                            "%s.validate() must return a Config that is not null.",
+                            connector.getClass().getName()
+                    )
+            );
+        }
+        configKeys.putAll(configDef.configKeys());
+        allGroups.addAll(configDef.groups());
+        configValues.addAll(config.configValues());
+        return generateResult(connType, configKeys, configValues, new ArrayList<>(allGroups));
+    }
+
+    private void addNullValuedErrors(Map<String, String> connectorProps, Map<String, ConfigValue> validatedConfig) {
+        connectorProps.entrySet().stream()
+                .filter(e -> e.getValue() == null)
+                .map(Map.Entry::getKey)
+                .forEach(prop ->
+                        validatedConfig.computeIfAbsent(prop, ConfigValue::new)
+                                .addErrorMessage("Null value can not be supplied as the configuration value.")
+                );
+    }
+
+    private ConfigInfos invalidVersionedConnectorValidation(
+            Map<String, String> connectorProps,
+            VersionedPluginLoadingException e,
+            Function<String, TemporaryStage> reportStage
+    ) {
+        String connType = connectorProps.get(CONNECTOR_CLASS_CONFIG);
+        ConfigDef configDef = ConnectorConfig.enrichedConfigDef(worker.getPlugins(), connType);
+        Map<String, ConfigValue> validatedConfig;
+        try (TemporaryStage stage = reportStage.apply("validating connector configuration")) {
+            validatedConfig = configDef.validateAll(connectorProps);
+        }
+        validatedConfig.get(CONNECTOR_CLASS_CONFIG).addErrorMessage(e.getMessage());
+        validatedConfig.get(CONNECTOR_VERSION).addErrorMessage(e.getMessage());
+        addNullValuedErrors(connectorProps, validatedConfig);
+        return generateResult(connType, configDef.configKeys(), new ArrayList<>(validatedConfig.values()), new ArrayList<>(configDef.groups()));
+    }
+
     ConfigInfos validateConnectorConfig(
             Map<String, String> connectorProps,
             Function<String, TemporaryStage> reportStage,
@@ -682,27 +810,32 @@ public abstract class AbstractHerder implements Herder, TaskStatus.Listener, Con
                 connectorProps = worker.configTransformer().transform(connectorProps);
             }
         }
-        String connType = connectorProps.get(ConnectorConfig.CONNECTOR_CLASS_CONFIG);
+        String connType = connectorProps.get(CONNECTOR_CLASS_CONFIG);
         if (connType == null) {
             throw new BadRequestException("Connector config " + connectorProps + " contains no connector type");
         }
 
-        VersionRange connVersion = null;
+        VersionRange connVersion;
         Connector connector;
         ClassLoader connectorLoader;
         try {
             connVersion = PluginUtils.connectorVersionRequirement(connectorProps.get(CONNECTOR_VERSION));
             connector = cachedConnectors.getConnector(connType, connVersion);
             connectorLoader = plugins().pluginLoader(connType, connVersion);
+            log.info("Validating connector {}, version {}", connType, connector.version());
+        } catch (VersionedPluginLoadingException e) {
+            log.warn("Failed to load connector {} with version {}, skipping additional validations (connector, converters, transformations, client overrides) ",
+                    connType, connectorProps.get(CONNECTOR_VERSION), e);
+            return invalidVersionedConnectorValidation(connectorProps, e, reportStage);
         } catch (Exception e) {
             throw new BadRequestException(e.getMessage(), e);
         }
 
         try (LoaderSwap loaderSwap = plugins().withClassLoader(connectorLoader)) {
-            log.info("Validating connector {}, version {}", connType, connector.version());
-            org.apache.kafka.connect.health.ConnectorType connectorType;
+
             ConfigDef enrichedConfigDef;
             Map<String, ConfigValue> validatedConnectorConfig;
+            org.apache.kafka.connect.health.ConnectorType connectorType;
             if (connector instanceof SourceConnector) {
                 connectorType = org.apache.kafka.connect.health.ConnectorType.SOURCE;
                 enrichedConfigDef = ConnectorConfig.enrich(plugins(), SourceConnectorConfig.enrichedConfigDef(plugins(), connectorProps, worker.config()), connectorProps, false);
@@ -719,127 +852,16 @@ public abstract class AbstractHerder implements Herder, TaskStatus.Listener, Con
                 }
             }
 
-            connectorProps.entrySet().stream()
-                .filter(e -> e.getValue() == null)
-                .map(Map.Entry::getKey)
-                .forEach(prop ->
-                    validatedConnectorConfig.computeIfAbsent(prop, ConfigValue::new)
-                        .addErrorMessage("Null value can not be supplied as the configuration value.")
-            );
+            addNullValuedErrors(connectorProps, validatedConnectorConfig);
 
-            List<ConfigValue> configValues = new ArrayList<>(validatedConnectorConfig.values());
-            Map<String, ConfigKey> configKeys = new LinkedHashMap<>(enrichedConfigDef.configKeys());
-            Set<String> allGroups = new LinkedHashSet<>(enrichedConfigDef.groups());
+            ConfigInfos connectorConfigInfo = validateConnectorPluginSpecifiedConfigs(connectorProps, validatedConnectorConfig, enrichedConfigDef, connector, reportStage);
+            ConfigInfos converterConfigInfo = validateAllConverterConfigs(connectorProps, validatedConnectorConfig, reportStage);
+            ConfigInfos clientOverrideInfo = validateClientOverrides(connectorProps, connectorType, connector.getClass(), reportStage, doLog);
 
-            // do custom connector-specific validation
-            ConfigDef configDef;
-            stageDescription = "retrieving the configuration definition from the connector";
-            try (TemporaryStage stage = reportStage.apply(stageDescription)) {
-                configDef = connector.config();
-            }
-            if (null == configDef) {
-                throw new BadRequestException(
-                        String.format(
-                                "%s.config() must return a ConfigDef that is not null.",
-                                connector.getClass().getName()
-                        )
-                );
-            }
-
-            Config config;
-            stageDescription = "performing multi-property validation for the connector";
-            try (TemporaryStage stage = reportStage.apply(stageDescription)) {
-                config = connector.validate(connectorProps);
-            }
-            if (null == config) {
-                throw new BadRequestException(
-                        String.format(
-                                "%s.validate() must return a Config that is not null.",
-                                connector.getClass().getName()
-                        )
-                );
-            }
-            configKeys.putAll(configDef.configKeys());
-            allGroups.addAll(configDef.groups());
-            configValues.addAll(config.configValues());
-
-            // do custom converter-specific validation
-            ConfigInfos headerConverterConfigInfos = validateHeaderConverterConfig(
-                    connectorProps,
-                    validatedConnectorConfig.get(HEADER_CONVERTER_CLASS_CONFIG),
-                    validatedConnectorConfig.get(HEADER_CONVERTER_VERSION_CONFIG),
-                    reportStage
-            );
-            ConfigInfos keyConverterConfigInfos = validateKeyConverterConfig(
-                    connectorProps,
-                    validatedConnectorConfig.get(KEY_CONVERTER_CLASS_CONFIG),
-                    validatedConnectorConfig.get(KEY_CONVERTER_VERSION_CONFIG),
-                    reportStage
-            );
-            ConfigInfos valueConverterConfigInfos = validateValueConverterConfig(
-                    connectorProps,
-                    validatedConnectorConfig.get(VALUE_CONVERTER_CLASS_CONFIG),
-                    validatedConnectorConfig.get(VALUE_CONVERTER_VERSION_CONFIG),
-                    reportStage
-            );
-
-            ConfigInfos configInfos = generateResult(connType, configKeys, configValues, new ArrayList<>(allGroups));
-            AbstractConfig connectorConfig = new AbstractConfig(new ConfigDef(), connectorProps, doLog);
-            String connName = connectorProps.get(ConnectorConfig.NAME_CONFIG);
-            ConfigInfos producerConfigInfos = null;
-            ConfigInfos consumerConfigInfos = null;
-            ConfigInfos adminConfigInfos = null;
-
-            if (connectorUsesProducer(connectorType, connectorProps)) {
-                stageDescription = "validating producer config overrides for the connector";
-                try (TemporaryStage stage = reportStage.apply(stageDescription)) {
-                    producerConfigInfos = validateClientOverrides(
-                            connName,
-                            ConnectorConfig.CONNECTOR_CLIENT_PRODUCER_OVERRIDES_PREFIX,
-                            connectorConfig,
-                            ProducerConfig.configDef(),
-                            connector.getClass(),
-                            connectorType,
-                            ConnectorClientConfigRequest.ClientType.PRODUCER,
-                            connectorClientConfigOverridePolicy);
-                }
-            }
-            if (connectorUsesAdmin(connectorType, connectorProps)) {
-                stageDescription = "validating admin config overrides for the connector";
-                try (TemporaryStage stage = reportStage.apply(stageDescription)) {
-                    adminConfigInfos = validateClientOverrides(
-                            connName,
-                            ConnectorConfig.CONNECTOR_CLIENT_ADMIN_OVERRIDES_PREFIX,
-                            connectorConfig,
-                            AdminClientConfig.configDef(),
-                            connector.getClass(),
-                            connectorType,
-                            ConnectorClientConfigRequest.ClientType.ADMIN,
-                            connectorClientConfigOverridePolicy);
-                }
-            }
-            if (connectorUsesConsumer(connectorType, connectorProps)) {
-                stageDescription = "validating consumer config overrides for the connector";
-                try (TemporaryStage stage = reportStage.apply(stageDescription)) {
-                    consumerConfigInfos = validateClientOverrides(
-                            connName,
-                            ConnectorConfig.CONNECTOR_CLIENT_CONSUMER_OVERRIDES_PREFIX,
-                            connectorConfig,
-                            ConsumerConfig.configDef(),
-                            connector.getClass(),
-                            connectorType,
-                            ConnectorClientConfigRequest.ClientType.CONSUMER,
-                            connectorClientConfigOverridePolicy);
-                }
-            }
             return mergeConfigInfos(connType,
-                    configInfos,
-                    producerConfigInfos,
-                    consumerConfigInfos,
-                    adminConfigInfos,
-                    headerConverterConfigInfos,
-                    keyConverterConfigInfos,
-                    valueConverterConfigInfos
+                    connectorConfigInfo,
+                    clientOverrideInfo,
+                    converterConfigInfo
             );
         }
     }
@@ -996,7 +1018,7 @@ public abstract class AbstractHerder implements Herder, TaskStatus.Listener, Con
         if (connConfig == null) {
             return ConnectorType.UNKNOWN;
         }
-        String connClass = connConfig.get(ConnectorConfig.CONNECTOR_CLASS_CONFIG);
+        String connClass = connConfig.get(CONNECTOR_CLASS_CONFIG);
         if (connClass == null) {
             return ConnectorType.UNKNOWN;
         }

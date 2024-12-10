@@ -43,7 +43,7 @@ public class SSLUtilsTest {
     private Password truststorePassword;
 
     @BeforeEach
-    public void bofore() throws Exception {
+    public void before() throws Exception {
         CertStores serverCertStores = new CertStores(true, "localhost");
         sslConfig = serverCertStores.getUntrustingConfig();
         keystorePath = sslConfig.get("ssl.keystore.location").toString();

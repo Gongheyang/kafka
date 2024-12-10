@@ -113,7 +113,7 @@ public class HerderRequestHandler {
                 }
                 String forwardUrl = uriBuilder.build().toString();
                 log.debug("Forwarding request {} {} {}", forwardUrl, method, body);
-                // TODO, we may need to set the reqest timeout as Idle timeout on the HttpClient
+                // TODO, we may need to set the request timeout as Idle timeout on the HttpClient
                 return translator.translate(restClient.httpRequest(forwardUrl, method, headers, body, resultType));
             } else {
                 log.error("Request '{} {}' failed because it couldn't find the target Connect worker within two hops (between workers).",

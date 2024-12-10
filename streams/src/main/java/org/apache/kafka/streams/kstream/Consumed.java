@@ -56,43 +56,24 @@ public class Consumed<K, V> implements NamedOperation<Consumed<K, V>> {
     protected Serde<K> keySerde;
     protected Serde<V> valueSerde;
     protected TimestampExtractor timestampExtractor;
-    protected AutoOffsetReset autoOffsetResetPolicy;
+    protected AutoOffsetReset resetPolicy;
     @Deprecated
-    protected Topology.AutoOffsetReset resetPolicy; // Replaced with new AutoOffsetReset class introduced in 4.0. 
+    protected Topology.AutoOffsetReset legacyResetPolicy; 
     protected String processorName;
 
     @Deprecated
     private Consumed(final Serde<K> keySerde,
                      final Serde<V> valueSerde,
                      final TimestampExtractor timestampExtractor,
-                     final Topology.AutoOffsetReset resetPolicy,
+                     final Topology.AutoOffsetReset legacyResetPolicy,
+                     final AutoOffsetReset resetPolicy,
                      final String processorName) {
-        this.keySerde = keySerde;
-        this.valueSerde = valueSerde;
-        this.timestampExtractor = timestampExtractor;
-        this.resetPolicy = resetPolicy;
-        this.processorName = processorName;
-    }
-
-    private Consumed(final Serde<K> keySerde,
-                     final Serde<V> valueSerde,
-                     final TimestampExtractor timestampExtractor,
-                     final AutoOffsetReset autoOffsetResetPolicy,
-                     final String processorName) {
-        this.keySerde = keySerde;
-        this.valueSerde = valueSerde;
-        this.timestampExtractor = timestampExtractor;
-        this.resetPolicy = resetPolicy;
-        this.processorName = processorName;
-    }
-
-    protected Consumed(final Consumed<K, V> consumed) {
-        this(consumed.keySerde,
-             consumed.valueSerde,
-             consumed.timestampExtractor,
-             consumed.resetPolicy,
-             consumed.processorName
-        );
+    this.keySerde = keySerde;
+    this.valueSerde = valueSerde;
+    this.timestampExtractor = timestampExtractor;
+    this.legacyResetPolicy = legacyResetPolicy;
+    this.resetPolicy = resetPolicy;
+    this.processorName = processorName;
     }
 
     /**
@@ -117,14 +98,14 @@ public class Consumed<K, V> implements NamedOperation<Consumed<K, V>> {
                                              final Serde<V> valueSerde,
                                              final TimestampExtractor timestampExtractor,
                                              final Topology.AutoOffsetReset resetPolicy) {
-        return new Consumed<>(keySerde, valueSerde, timestampExtractor, resetPolicy, null);
+        return new Consumed<>(keySerde, valueSerde, timestampExtractor, resetPolicy, convertOldToNew(resetPolicy), null);
     }
 
     public static <K, V> Consumed<K, V> with(final Serde<K> keySerde,
                                              final Serde<V> valueSerde,
                                              final TimestampExtractor timestampExtractor,
-                                             final AutoOffsetReset resetPolicy) {
-        return new Consumed<>(keySerde, valueSerde, timestampExtractor, resetPolicy, null);
+                                             final Topology.AutoOffsetReset resetPolicy) {
+        return new Consumed<>(keySerde, valueSerde, timestampExtractor, resetPolicy, convertOldToNew(resetPolicy), null);
     }
 
     /**
@@ -204,7 +185,7 @@ public class Consumed<K, V> implements NamedOperation<Consumed<K, V>> {
      * @return a new instance of {@link Consumed}
      */
     public Consumed<K, V> withKeySerde(final Serde<K> keySerde) {
-        return new Consumed<K, V>(keySerde, valueSerde, timestampExtractor, resetPolicy, processorName);
+        return new Consumed<K, V>(keySerde, valueSerde, timestampExtractor, legacyResetPolicy, processorName);
     }
 
     /**
@@ -216,7 +197,7 @@ public class Consumed<K, V> implements NamedOperation<Consumed<K, V>> {
      * @return a new instance of {@link Consumed}
      */
     public Consumed<K, V> withValueSerde(final Serde<V> valueSerde) {
-        return new Consumed<K, V>(keySerde, valueSerde, timestampExtractor, resetPolicy, processorName);
+        return new Consumed<K, V>(keySerde, valueSerde, timestampExtractor, legacyResetPolicy, processorName);
     }
 
     /**
@@ -228,7 +209,7 @@ public class Consumed<K, V> implements NamedOperation<Consumed<K, V>> {
      * @return a new instance of {@link Consumed}
      */
     public Consumed<K, V> withTimestampExtractor(final TimestampExtractor timestampExtractor) {
-        return new Consumed<K, V>(keySerde, valueSerde, timestampExtractor, resetPolicy, processorName);
+        return new Consumed<K, V>(keySerde, valueSerde, timestampExtractor, legacyResetPolicy, processorName);
     }
 
     /**
@@ -258,7 +239,7 @@ public class Consumed<K, V> implements NamedOperation<Consumed<K, V>> {
      */
     @Override
     public Consumed<K, V> withName(final String processorName) {
-        return new Consumed<K, V>(keySerde, valueSerde, timestampExtractor, resetPolicy, processorName);
+        return new Consumed<K, V>(keySerde, valueSerde, timestampExtractor, legacyResetPolicy, processorName);
     }
 
     @Override
@@ -273,11 +254,19 @@ public class Consumed<K, V> implements NamedOperation<Consumed<K, V>> {
         return Objects.equals(keySerde, consumed.keySerde) &&
                Objects.equals(valueSerde, consumed.valueSerde) &&
                Objects.equals(timestampExtractor, consumed.timestampExtractor) &&
-               resetPolicy == consumed.resetPolicy;
+               legacyResetPolicy == consumed.legacyResetPolicy;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(keySerde, valueSerde, timestampExtractor, resetPolicy);
+        return Objects.hash(keySerde, valueSerde, timestampExtractor, legacyResetPolicy);
+    }
+
+    private static AutoOffsetReset convertOldToNew(final TopologyAutoOffsetReset resetPolicy) {
+        if (resetPolicy == null) {
+            return null;
+        }
+    
+        return resetPolicy = EARLIEST ? AutoOffsetReset.earliest() : AutoOffsetReset.latest();
     }
 }

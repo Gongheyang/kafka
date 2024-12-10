@@ -32,6 +32,7 @@ import org.apache.kafka.coordinator.group.GroupCoordinatorConfig
 import org.apache.kafka.security.authorizer.AclEntry
 import org.apache.kafka.test.TestUtils.assertFutureThrows
 import org.apache.kafka.server.config.{ReplicationConfigs, ServerConfigs, ServerLogConfigs}
+import org.apache.kafka.test.{TestUtils => JTestUtils}
 import org.junit.jupiter.api.Assertions._
 import org.junit.jupiter.api.{AfterEach, BeforeEach, TestInfo, Timeout}
 import org.junit.jupiter.params.ParameterizedTest
@@ -242,7 +243,7 @@ abstract class BaseAdminIntegrationTest extends IntegrationTestHarness with Logg
   }
 
   def waitForTopics(client: Admin, expectedPresent: Seq[String], expectedMissing: Seq[String]): Unit = {
-    waitUntilTrue(() => {
+    JTestUtils.waitForCondition(() => {
       val topics = client.listTopics.names.get()
       expectedPresent.forall(topicName => topics.contains(topicName)) &&
         expectedMissing.forall(topicName => !topics.contains(topicName))
@@ -254,7 +255,7 @@ abstract class BaseAdminIntegrationTest extends IntegrationTestHarness with Logg
                        describeOptions: DescribeTopicsOptions = new DescribeTopicsOptions,
                        expectedNumPartitionsOpt: Option[Int] = None): TopicDescription = {
     var result: TopicDescription = null
-    waitUntilTrue(() => {
+    JTestUtils.waitForCondition(() => {
       val topicResult = client.describeTopics(Set(topic).asJava, describeOptions).topicNameValues().get(topic)
       try {
         result = topicResult.get

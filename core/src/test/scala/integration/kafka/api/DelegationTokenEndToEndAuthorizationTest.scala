@@ -26,6 +26,7 @@ import org.apache.kafka.common.security.auth.{KafkaPrincipal, SecurityProtocol}
 import org.apache.kafka.common.security.scram.internals.ScramMechanism
 import org.apache.kafka.common.security.token.delegation.DelegationToken
 import org.apache.kafka.metadata.storage.Formatter
+import org.apache.kafka.test.{TestUtils => JTestUtils}
 import org.junit.jupiter.api.Assertions._
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.MethodSource
@@ -154,7 +155,7 @@ class DelegationTokenEndToEndAuthorizationTest extends EndToEndAuthorizationTest
         }
         val privilegedToken = privilegedAdminClient.createDelegationToken().delegationToken().get()
         //wait for tokens to reach all the brokers
-        TestUtils.waitUntilTrue(() => brokers.forall(server => server.tokenCache.tokens().size() == 2),
+        JTestUtils.waitForCondition(() => brokers.forall(server => server.tokenCache.tokens().size() == 2),
           "Timed out waiting for token to propagate to all servers")
         (token, privilegedToken)
       } finally {

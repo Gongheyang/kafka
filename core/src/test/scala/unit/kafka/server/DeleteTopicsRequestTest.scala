@@ -19,7 +19,7 @@ package kafka.server
 
 import java.util
 import kafka.network.SocketServer
-import kafka.utils.{Logging, TestUtils}
+import kafka.utils.Logging
 import org.apache.kafka.common.message.DeleteTopicsRequestData
 import org.apache.kafka.common.message.DeleteTopicsRequestData.DeleteTopicState
 import org.apache.kafka.common.protocol.Errors
@@ -27,6 +27,7 @@ import org.apache.kafka.common.requests.DeleteTopicsRequest
 import org.apache.kafka.common.requests.DeleteTopicsResponse
 import org.apache.kafka.common.requests.MetadataRequest
 import org.apache.kafka.common.requests.MetadataResponse
+import org.apache.kafka.test.TestUtils
 import org.junit.jupiter.api.Assertions._
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
@@ -48,7 +49,7 @@ class DeleteTopicsRequestTest extends BaseRequestTest with Logging {
     ensureConsistentKRaftMetadata()
 
     // Ensure one topic partition is offline.
-    TestUtils.waitUntilTrue(() => {
+    TestUtils.waitForCondition(() => {
       aliveBrokers.head.metadataCache.getPartitionInfo(onlineTopic, 0).exists(_.leader() == 1) &&
         aliveBrokers.head.metadataCache.getPartitionInfo(offlineTopic, 0).exists(_.leader() ==
           MetadataResponse.NO_LEADER_ID)
@@ -64,7 +65,7 @@ class DeleteTopicsRequestTest extends BaseRequestTest with Logging {
     restartDeadBrokers()
 
     // Make sure the brokers no longer see any deleted topics.
-    TestUtils.waitUntilTrue(() =>
+    TestUtils.waitForCondition(() =>
       !aliveBrokers.forall(_.metadataCache.contains(onlineTopic)) &&
         !aliveBrokers.forall(_.metadataCache.contains(offlineTopic)),
       "The topics are found in the Broker's cache")
@@ -127,7 +128,7 @@ class DeleteTopicsRequestTest extends BaseRequestTest with Logging {
   private def validateTopicIsDeleted(topic: String): Unit = {
     val metadata = connectAndReceive[MetadataResponse](new MetadataRequest.Builder(
       List(topic).asJava, true).build).topicMetadata.asScala
-    TestUtils.waitUntilTrue(() => !metadata.exists(p => p.topic.equals(topic) && p.error == Errors.NONE),
+    TestUtils.waitForCondition(() => !metadata.exists(p => p.topic.equals(topic) && p.error == Errors.NONE),
       s"The topic $topic should not exist")
   }
 

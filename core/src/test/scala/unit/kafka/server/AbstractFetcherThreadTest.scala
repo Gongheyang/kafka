@@ -27,6 +27,7 @@ import org.apache.kafka.server.common.OffsetAndEpoch
 import org.apache.kafka.server.metrics.KafkaYammerMetrics
 import org.apache.kafka.common.{KafkaException, TopicPartition, Uuid}
 import org.apache.kafka.storage.internals.log.LogAppendInfo
+import org.apache.kafka.test.{TestUtils => JTestUtils}
 import org.junit.jupiter.api.Assertions._
 import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.{BeforeEach, Test}
@@ -72,7 +73,7 @@ class AbstractFetcherThreadTest {
     val fetcherMetrics = Set(FetcherMetrics.BytesPerSec, FetcherMetrics.RequestsPerSec, FetcherMetrics.ConsumerLag)
 
     // wait until all fetcher metrics are present
-    TestUtils.waitUntilTrue(() => allMetricsNames == brokerTopicStatsMetrics ++ fetcherMetrics,
+    JTestUtils.waitForCondition(() => allMetricsNames == brokerTopicStatsMetrics ++ fetcherMetrics,
       "Failed waiting for all fetcher metrics to be registered")
 
     fetcher.shutdown()
@@ -380,7 +381,7 @@ class AbstractFetcherThreadTest {
     fetcher.mockLeader.setLeaderState(partition, leaderState)
     fetcher.mockLeader.setReplicaPartitionStateCallback(fetcher.replicaPartitionState)
 
-    TestUtils.waitUntilTrue(() => {
+    JTestUtils.waitForCondition(() => {
       fetcher.doWork()
       fetcher.replicaPartitionState(partition).log == fetcher.mockLeader.leaderPartitionState(partition).log
     }, "Failed to reconcile leader and follower logs")
@@ -699,7 +700,7 @@ class AbstractFetcherThreadTest {
     assertEquals(2, replicaState.logStartOffset)
     assertEquals(List(), replicaState.log.toList)
 
-    TestUtils.waitUntilTrue(() => {
+    JTestUtils.waitForCondition(() => {
       fetcher.doWork()
       fetcher.replicaPartitionState(partition).log == fetcher.mockLeader.leaderPartitionState(partition).log
     }, "Failed to reconcile leader and follower logs")
@@ -742,7 +743,7 @@ class AbstractFetcherThreadTest {
     fetcher.doWork()
     assertEquals(Option(Fetching), fetcher.fetchState(partition).map(_.state))
 
-    TestUtils.waitUntilTrue(() => {
+    JTestUtils.waitForCondition(() => {
       fetcher.doWork()
       fetcher.replicaPartitionState(partition).log == fetcher.mockLeader.leaderPartitionState(partition).log
     }, "Failed to reconcile leader and follower logs")
@@ -1032,7 +1033,7 @@ class AbstractFetcherThreadTest {
     fetcher.doWork()
     fetcher.verifyLastFetchedEpoch(partition, Some(2))
 
-    TestUtils.waitUntilTrue(() => {
+    JTestUtils.waitForCondition(() => {
       fetcher.doWork()
       fetcher.replicaPartitionState(partition).log == fetcher.mockLeader.leaderPartitionState(partition).log
     }, "Failed to reconcile leader and follower logs")
@@ -1100,7 +1101,7 @@ class AbstractFetcherThreadTest {
     // Truncate should have been called only once and process partition data
     // should have been called at least once. The log end offset and the high
     // watermark are updated.
-    TestUtils.waitUntilTrue(() => {
+    JTestUtils.waitForCondition(() => {
       fetcher.doWork()
       fetcher.replicaPartitionState(partition).log == fetcher.mockLeader.leaderPartitionState(partition).log
     }, "Failed to reconcile leader and follower logs")

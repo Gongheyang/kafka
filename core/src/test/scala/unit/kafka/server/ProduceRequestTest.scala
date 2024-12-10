@@ -31,6 +31,7 @@ import org.apache.kafka.common.requests.{ProduceRequest, ProduceResponse}
 import org.apache.kafka.server.metrics.KafkaYammerMetrics
 import org.apache.kafka.server.record.BrokerCompressionType
 import org.apache.kafka.storage.log.metrics.BrokerTopicMetrics
+import org.apache.kafka.test.{TestUtils => JTestUtils}
 import org.junit.jupiter.api.Assertions._
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.{Arguments, MethodSource}
@@ -91,7 +92,7 @@ class ProduceRequestTest extends BaseRequestTest {
     topic: String
   ): Map[Int, Int] = {
     var topicDescription: TopicDescription = null
-    TestUtils.waitUntilTrue(() => {
+    JTestUtils.waitForCondition(() => {
       val topicMap = admin.
         describeTopics(java.util.Arrays.asList(topic)).
           allTopicNames().get(10, TimeUnit.MINUTES)

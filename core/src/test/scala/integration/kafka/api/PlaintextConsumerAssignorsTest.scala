@@ -12,10 +12,11 @@
   */
 package kafka.api
 
-import kafka.utils.{TestInfoUtils, TestUtils}
+import kafka.utils.TestInfoUtils
 import org.apache.kafka.clients.consumer._
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.errors.UnsupportedAssignorException
+import org.apache.kafka.test.TestUtils
 import org.junit.jupiter.api.Assertions._
 import org.junit.jupiter.api.Timeout
 import org.junit.jupiter.params.ParameterizedTest
@@ -351,7 +352,7 @@ class PlaintextConsumerAssignorsTest extends AbstractConsumerTest {
     }
     val consumerPoller1 = new ConsumerAssignmentPoller(consumer1, List(topic), Set.empty, customRebalanceListener)
     consumerPoller1.start()
-    TestUtils.waitUntilTrue(() => consumerPoller1.consumerAssignment() == expectedAssignment,
+    TestUtils.waitForCondition(() => consumerPoller1.consumerAssignment() == expectedAssignment,
       s"Timed out while awaiting expected assignment change to $expectedAssignment.")
 
     // Since the consumer1 already completed the rebalance,
@@ -369,9 +370,9 @@ class PlaintextConsumerAssignorsTest extends AbstractConsumerTest {
     }
 
     val consumerPoller2 = subscribeConsumerAndStartPolling(consumer2, List(topic))
-    TestUtils.waitUntilTrue(() => consumerPoller1.consumerAssignment().size == 1,
+    TestUtils.waitForCondition(() => consumerPoller1.consumerAssignment().size == 1,
       s"Timed out while awaiting expected assignment size change to 1.")
-    TestUtils.waitUntilTrue(() => consumerPoller2.consumerAssignment().size == 1,
+    TestUtils.waitForCondition(() => consumerPoller2.consumerAssignment().size == 1,
       s"Timed out while awaiting expected assignment size change to 1.")
 
     if (!lock.tryLock(3000, TimeUnit.MILLISECONDS)) {

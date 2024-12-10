@@ -50,6 +50,7 @@ import org.apache.kafka.server.config.{KRaftConfigs, ServerConfigs}
 import org.apache.kafka.server.log.remote.storage.RemoteLogManagerConfig
 import org.apache.kafka.server.quota
 import org.apache.kafka.server.quota.{ClientQuotaCallback, ClientQuotaType}
+import org.apache.kafka.test.{TestUtils => JTestUtils}
 import org.junit.jupiter.api.Assertions._
 import org.junit.jupiter.api.{Tag, Test, Timeout}
 import org.junit.jupiter.params.ParameterizedTest
@@ -127,7 +128,7 @@ class KRaftClusterTest {
 
       // restart controller
       controller.startup()
-      TestUtils.waitUntilTrue(() => cluster.controllers().values().iterator().asScala.exists(_.controller.isActive), "Timeout waiting for new controller election")
+      JTestUtils.waitForCondition(() => cluster.controllers().values().iterator().asScala.exists(_.controller.isActive), "Timeout waiting for new controller election")
     } finally {
       cluster.close()
     }
@@ -142,9 +143,9 @@ class KRaftClusterTest {
     try {
       cluster.format()
       cluster.startup()
-      TestUtils.waitUntilTrue(() => cluster.brokers().get(0).brokerState == BrokerState.RUNNING,
+      JTestUtils.waitForCondition(() => cluster.brokers().get(0).brokerState == BrokerState.RUNNING,
         "Broker never made it to RUNNING state.")
-      TestUtils.waitUntilTrue(() => cluster.raftManagers().get(0).client.leaderAndEpoch().leaderId.isPresent,
+      JTestUtils.waitForCondition(() => cluster.raftManagers().get(0).client.leaderAndEpoch().leaderId.isPresent,
         "RaftManager was not initialized.")
       val admin = Admin.create(cluster.clientProperties())
       try {
@@ -168,9 +169,9 @@ class KRaftClusterTest {
       cluster.format()
       cluster.startup()
       cluster.waitForReadyBrokers()
-      TestUtils.waitUntilTrue(() => cluster.brokers().get(0).brokerState == BrokerState.RUNNING,
+      JTestUtils.waitForCondition(() => cluster.brokers().get(0).brokerState == BrokerState.RUNNING,
         "Broker never made it to RUNNING state.")
-      TestUtils.waitUntilTrue(() => cluster.raftManagers().get(0).client.leaderAndEpoch().leaderId.isPresent,
+      JTestUtils.waitForCondition(() => cluster.raftManagers().get(0).client.leaderAndEpoch().leaderId.isPresent,
         "RaftManager was not initialized.")
 
       val admin = Admin.create(cluster.clientProperties())
@@ -205,9 +206,9 @@ class KRaftClusterTest {
       cluster.format()
       cluster.startup()
       cluster.waitForReadyBrokers()
-      TestUtils.waitUntilTrue(() => cluster.brokers().get(0).brokerState == BrokerState.RUNNING,
+      JTestUtils.waitForCondition(() => cluster.brokers().get(0).brokerState == BrokerState.RUNNING,
         "Broker never made it to RUNNING state.")
-      TestUtils.waitUntilTrue(() => cluster.raftManagers().get(0).client.leaderAndEpoch().leaderId.isPresent,
+      JTestUtils.waitForCondition(() => cluster.raftManagers().get(0).client.leaderAndEpoch().leaderId.isPresent,
         "RaftManager was not initialized.")
       val admin = Admin.create(cluster.clientProperties())
       try {
@@ -238,7 +239,7 @@ class KRaftClusterTest {
     try {
       cluster.format()
       cluster.startup()
-      TestUtils.waitUntilTrue(() => cluster.brokers().get(0).brokerState == BrokerState.RUNNING,
+      JTestUtils.waitForCondition(() => cluster.brokers().get(0).brokerState == BrokerState.RUNNING,
         "Broker never made it to RUNNING state.")
       val admin = Admin.create(cluster.clientProperties())
       try {
@@ -358,7 +359,7 @@ class KRaftClusterTest {
     try {
       cluster.format()
       cluster.startup()
-      TestUtils.waitUntilTrue(() => cluster.brokers().get(0).brokerState == BrokerState.RUNNING,
+      JTestUtils.waitForCondition(() => cluster.brokers().get(0).brokerState == BrokerState.RUNNING,
         "Broker never made it to RUNNING state.")
       val admin = Admin.create(cluster.clientProperties())
       try {
@@ -549,12 +550,12 @@ class KRaftClusterTest {
         reassignments.put(new TopicPartition("foo", 3),
           Optional.of(new NewPartitionReassignment(util.Arrays.asList(3, 2, 0, 1))))
         admin.alterPartitionReassignments(reassignments).all().get()
-        TestUtils.waitUntilTrue(
+        JTestUtils.waitForCondition(
           () => admin.listPartitionReassignments().reassignments().get().isEmpty,
           "The reassignment never completed.")
         var currentMapping: Seq[Seq[Int]] = Seq()
         val expectedMapping = Seq(Seq(2, 1, 0), Seq(0, 1, 2), Seq(2, 3), Seq(3, 2, 0, 1))
-        TestUtils.waitUntilTrue( () => {
+        JTestUtils.waitForCondition( () => {
           val topicInfoMap = admin.describeTopics(Collections.singleton("foo")).allTopicNames().get()
           if (topicInfoMap.containsKey("foo")) {
             currentMapping = translatePartitionInfoToSeq(topicInfoMap.get("foo").partitions())
@@ -617,7 +618,7 @@ class KRaftClusterTest {
     val topicsNotFound = new util.HashSet[String]
     var extraTopics: mutable.Set[String] = null
     expectedPresent.foreach(topicsNotFound.add)
-    TestUtils.waitUntilTrue(() => {
+    JTestUtils.waitForCondition(() => {
       admin.listTopics().names().get().forEach(name => topicsNotFound.remove(name))
       extraTopics = admin.listTopics().names().get().asScala.filter(expectedAbsent.contains(_))
       topicsNotFound.isEmpty && extraTopics.isEmpty
@@ -858,10 +859,10 @@ class KRaftClusterTest {
       cluster.format()
       cluster.startup()
       cluster.waitForReadyBrokers()
-      TestUtils.waitUntilTrue(() => brokerIsUnfenced(clusterImage(cluster, 1), 0),
+      JTestUtils.waitForCondition(() => brokerIsUnfenced(clusterImage(cluster, 1), 0),
         "Timed out waiting for broker 0 to be unfenced.")
       cluster.brokers().get(0).shutdown()
-      TestUtils.waitUntilTrue(() => !brokerIsUnfenced(clusterImage(cluster, 1), 0),
+      JTestUtils.waitForCondition(() => !brokerIsUnfenced(clusterImage(cluster, 1), 0),
         "Timed out waiting for broker 0 to be fenced.")
       val admin = Admin.create(cluster.clientProperties())
       try {
@@ -869,7 +870,7 @@ class KRaftClusterTest {
       } finally {
         admin.close()
       }
-      TestUtils.waitUntilTrue(() => brokerIsAbsent(clusterImage(cluster, 1), 0),
+      JTestUtils.waitForCondition(() => brokerIsAbsent(clusterImage(cluster, 1), 0),
         "Timed out waiting for broker 0 to be fenced.")
     } finally {
       cluster.close()
@@ -893,7 +894,7 @@ class KRaftClusterTest {
       cluster.format()
       cluster.startup()
       for (i <- 0 to 3) {
-        TestUtils.waitUntilTrue(() => cluster.brokers.get(i).brokerState == BrokerState.RUNNING,
+        JTestUtils.waitForCondition(() => cluster.brokers.get(i).brokerState == BrokerState.RUNNING,
           "Broker Never started up")
       }
       val admin = createAdminClient(cluster)
@@ -962,7 +963,7 @@ class KRaftClusterTest {
       } finally {
         admin.close()
       }
-      TestUtils.waitUntilTrue(() => cluster.brokers().get(0).metadataCache.currentImage().features().metadataVersion().equals(MetadataVersion.latestTesting()),
+      JTestUtils.waitForCondition(() => cluster.brokers().get(0).metadataCache.currentImage().features().metadataVersion().equals(MetadataVersion.latestTesting()),
         "Timed out waiting for metadata.version update")
     } finally {
       cluster.close()
@@ -1011,9 +1012,9 @@ class KRaftClusterTest {
       cluster.format()
       cluster.startup()
       cluster.waitForReadyBrokers()
-      TestUtils.waitUntilTrue(() => cluster.brokers().get(0).brokerState == BrokerState.RUNNING,
+      JTestUtils.waitForCondition(() => cluster.brokers().get(0).brokerState == BrokerState.RUNNING,
         "Broker never made it to RUNNING state.")
-      TestUtils.waitUntilTrue(() => cluster.raftManagers().get(0).client.leaderAndEpoch().leaderId.isPresent,
+      JTestUtils.waitForCondition(() => cluster.raftManagers().get(0).client.leaderAndEpoch().leaderId.isPresent,
         "RaftManager was not initialized.")
 
       val admin = Admin.create(cluster.clientProperties())
@@ -1058,12 +1059,12 @@ class KRaftClusterTest {
       }
 
       val metaLog = FileSystems.getDefault.getPath(cluster.controllers().get(3000).config.metadataLogDir, "__cluster_metadata-0")
-      TestUtils.waitUntilTrue(() => { snapshotCounter(metaLog) > 0 }, "Failed to see at least one snapshot")
+      JTestUtils.waitForCondition(() => { snapshotCounter(metaLog) > 0 }, "Failed to see at least one snapshot")
       Thread.sleep(500 * 10) // Sleep for 10 snapshot intervals
       val countAfterTenIntervals = snapshotCounter(metaLog)
       assertTrue(countAfterTenIntervals > 1, s"Expected to see at least one more snapshot, saw $countAfterTenIntervals")
       assertTrue(countAfterTenIntervals < 20, s"Did not expect to see more than twice as many snapshots as snapshot intervals, saw $countAfterTenIntervals")
-      TestUtils.waitUntilTrue(() => {
+      JTestUtils.waitForCondition(() => {
         val emitterMetrics = cluster.controllers().values().iterator().next().
           sharedServer.snapshotEmitter.metrics()
         emitterMetrics.latestSnapshotGeneratedBytes() > 0
@@ -1517,9 +1518,9 @@ class KRaftClusterTest {
       cluster.format()
       cluster.startup()
       cluster.waitForReadyBrokers()
-      TestUtils.waitUntilTrue(() => cluster.brokers().get(0).brokerState == BrokerState.RUNNING,
+      JTestUtils.waitForCondition(() => cluster.brokers().get(0).brokerState == BrokerState.RUNNING,
         "Broker never made it to RUNNING state.")
-      TestUtils.waitUntilTrue(() => cluster.raftManagers().get(0).client.leaderAndEpoch().leaderId.isPresent,
+      JTestUtils.waitForCondition(() => cluster.raftManagers().get(0).client.leaderAndEpoch().leaderId.isPresent,
         "RaftManager was not initialized.")
 
       val admin = Admin.create(cluster.clientProperties())

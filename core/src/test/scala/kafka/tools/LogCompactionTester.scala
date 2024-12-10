@@ -23,17 +23,16 @@ import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file.{Files, Path}
 import java.time.Duration
 import java.util.{Properties, Random}
-
 import joptsimple.OptionParser
-import kafka.utils._
 import org.apache.kafka.clients.admin.{Admin, NewTopic}
 import org.apache.kafka.clients.CommonClientConfigs
 import org.apache.kafka.clients.consumer.{Consumer, ConsumerConfig, KafkaConsumer}
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerConfig, ProducerRecord}
 import org.apache.kafka.common.config.TopicConfig
 import org.apache.kafka.common.serialization.{ByteArraySerializer, StringDeserializer}
-import org.apache.kafka.common.utils.{Exit, AbstractIterator, Utils}
+import org.apache.kafka.common.utils.{AbstractIterator, Exit, Utils}
 import org.apache.kafka.server.util.CommandLineUtils
+import org.apache.kafka.test.TestUtils
 
 import scala.jdk.CollectionConverters._
 
@@ -147,7 +146,7 @@ object LogCompactionTester {
       adminClient.createTopics(newTopics).all.get
 
       var pendingTopics: Seq[String] = Seq()
-      TestUtils.waitUntilTrue(() => {
+      TestUtils.waitForCondition(() => {
         val allTopics = adminClient.listTopics.names.get.asScala.toSeq
         pendingTopics = topics.filter(topicName => !allTopics.contains(topicName))
         pendingTopics.isEmpty

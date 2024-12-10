@@ -25,6 +25,7 @@ import org.apache.kafka.common.compress.Compression
 import org.apache.kafka.common.record.RecordBatch
 import org.apache.kafka.server.metrics.KafkaYammerMetrics
 import org.apache.kafka.server.util.MockTime
+import org.apache.kafka.test.{TestUtils => JTestUtils}
 import org.junit.jupiter.api.Assertions._
 import org.junit.jupiter.api.{AfterEach, Test}
 
@@ -76,10 +77,10 @@ class LogCleanerIntegrationTest extends AbstractLogCleanerIntegrationTest {
     val uncleanablePartitionsCountGauge = getGauge[Int]("uncleanable-partitions-count", uncleanableDirectory)
     val uncleanableBytesGauge = getGauge[Long]("uncleanable-bytes", uncleanableDirectory)
 
-    TestUtils.waitUntilTrue(() => uncleanablePartitionsCountGauge.value() == 2, "There should be 2 uncleanable partitions", 2000L)
+    JTestUtils.waitForCondition(() => uncleanablePartitionsCountGauge.value() == 2, "There should be 2 uncleanable partitions", 2000L)
     val expectedTotalUncleanableBytes = LogCleanerManager.calculateCleanableBytes(log, 0, log.logSegments.asScala.last.baseOffset)._2 +
       LogCleanerManager.calculateCleanableBytes(log2, 0, log2.logSegments.asScala.last.baseOffset)._2
-    TestUtils.waitUntilTrue(() => uncleanableBytesGauge.value() == expectedTotalUncleanableBytes,
+    JTestUtils.waitForCondition(() => uncleanableBytesGauge.value() == expectedTotalUncleanableBytes,
       s"There should be $expectedTotalUncleanableBytes uncleanable bytes", 1000L)
 
     val uncleanablePartitions = cleaner.cleanerManager.uncleanablePartitions(uncleanableDirectory)
@@ -89,7 +90,7 @@ class LogCleanerIntegrationTest extends AbstractLogCleanerIntegrationTest {
 
     // Delete one partition
     cleaner.logs.remove(topicPartitions(0))
-    TestUtils.waitUntilTrue(
+    JTestUtils.waitForCondition(
       () => {
         time.sleep(1000)
         uncleanablePartitionsCountGauge.value() == 1
@@ -223,7 +224,7 @@ class LogCleanerIntegrationTest extends AbstractLogCleanerIntegrationTest {
     // we simulate the unexpected error with an interrupt
     cleaner.cleaners.foreach(_.interrupt())
     // wait until interruption is propagated to all the threads
-    TestUtils.waitUntilTrue(
+    JTestUtils.waitForCondition(
       () => cleaner.cleaners.foldLeft(true)((result, thread) => {
         thread.isThreadFailed && result
       }), "Threads didn't terminate unexpectedly"

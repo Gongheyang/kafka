@@ -23,7 +23,7 @@ import java.util.concurrent.locks.ReentrantLock
 import javax.management.ObjectName
 import kafka.log.UnifiedLog
 import kafka.server.{MetadataCache, ReplicaManager}
-import kafka.utils.{Pool, TestUtils}
+import kafka.utils.Pool
 import kafka.zk.KafkaZkClient
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.compress.Compression
@@ -40,6 +40,7 @@ import org.apache.kafka.coordinator.transaction.generated.TransactionLogKey
 import org.apache.kafka.server.storage.log.FetchIsolation
 import org.apache.kafka.server.util.MockScheduler
 import org.apache.kafka.storage.internals.log.{AppendOrigin, FetchDataInfo, LogConfig, LogOffsetMetadata}
+import org.apache.kafka.test.TestUtils
 import org.junit.jupiter.api.Assertions._
 import org.junit.jupiter.api.{AfterEach, BeforeEach, Test}
 import org.junit.jupiter.params.ParameterizedTest
@@ -205,8 +206,8 @@ class TransactionStateManagerTest {
       transactionManager.loadTransactionsForTxnTopicPartition(partitionId, coordinatorEpoch, (_, _, _, _) => ())
     })
     loadingThread.start()
-    TestUtils.waitUntilTrue(() => transactionManager.loadingPartitions.contains(partitionAndLeaderEpoch),
-      "Timed out waiting for loading partition", pause = 10)
+    TestUtils.waitForCondition(() => transactionManager.loadingPartitions.contains(partitionAndLeaderEpoch),
+      "Timed out waiting for loading partition", TestUtils.DEFAULT_MAX_WAIT_MS, 10)
 
     transactionManager.removeTransactionsForTxnTopicPartition(partitionId)
     assertFalse(transactionManager.loadingPartitions.contains(partitionAndLeaderEpoch))
@@ -264,8 +265,8 @@ class TransactionStateManagerTest {
       transactionManager.loadTransactionsForTxnTopicPartition(partitionId, coordinatorEpoch, (_, _, _, _) => ())
     })
     loadingThread.start()
-    TestUtils.waitUntilTrue(() => transactionManager.loadingPartitions.contains(partitionAndLeaderEpoch),
-      "Timed out waiting for loading partition", pause = 10)
+    TestUtils.waitForCondition(() => transactionManager.loadingPartitions.contains(partitionAndLeaderEpoch),
+      "Timed out waiting for loading partition", TestUtils.DEFAULT_MAX_WAIT_MS, 10)
 
     transactionManager.removeTransactionsForTxnTopicPartition(partitionId, coordinatorEpoch + 1)
     assertFalse(transactionManager.loadingPartitions.contains(partitionAndLeaderEpoch))

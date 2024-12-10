@@ -17,7 +17,7 @@
 
 package kafka.api
 
-import kafka.utils.TestUtils.{consumeRecords, waitUntilTrue}
+import kafka.utils.TestUtils.{consumeRecords}
 import kafka.utils.{TestInfoUtils, TestUtils}
 import org.apache.kafka.clients.consumer._
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord}
@@ -27,6 +27,7 @@ import org.apache.kafka.common.test.api.Flaky
 import org.apache.kafka.coordinator.group.GroupCoordinatorConfig
 import org.apache.kafka.coordinator.transaction.{TransactionLogConfig, TransactionStateManagerConfig}
 import org.apache.kafka.server.config.{ReplicationConfigs, ServerConfigs, ServerLogConfigs}
+import org.apache.kafka.test.{TestUtils => JTestUtils}
 import org.junit.jupiter.api.Assertions._
 import org.junit.jupiter.api.{AfterEach, BeforeEach, TestInfo}
 import org.junit.jupiter.params.ParameterizedTest
@@ -465,7 +466,7 @@ class TransactionsTest extends IntegrationTestHarness {
     val producer2 = transactionalProducers(1)
     producer2.initTransactions()
 
-    TestUtils.waitUntilTrue(() => offsetAndMetadata.equals(consumer.committed(Set(tp).asJava).get(tp)), "cannot read committed offset")
+    JTestUtils.waitForCondition(() => offsetAndMetadata.equals(consumer.committed(Set(tp).asJava).get(tp)), "cannot read committed offset")
   }
 
   @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
@@ -846,7 +847,7 @@ class TransactionsTest extends IntegrationTestHarness {
       producer.commitTransaction()
 
       // Wait until the producer epoch has been updated on the broker
-      TestUtils.waitUntilTrue(() => {
+      JTestUtils.waitForCondition(() => {
         val logOption = brokers(partitionLeader).logManager.getLog(new TopicPartition(testTopic, 0))
         logOption.exists { log =>
           val producerStateEntry = log.producerStateManager.activeProducers.get(producerId)
@@ -941,7 +942,7 @@ class TransactionsTest extends IntegrationTestHarness {
       assertEquals((initialProducerEpoch + 1).toShort, producerStateEntry.producerEpoch)
     } else {
       // Wait until the producer epoch has been updated on the broker.
-      TestUtils.waitUntilTrue(() => {
+      JTestUtils.waitForCondition(() => {
           producerStateEntry != null && producerStateEntry.producerEpoch == initialProducerEpoch + 3
       }, "Timed out waiting for producer epoch to be incremented after second commit", 10000)
     }
@@ -999,7 +1000,7 @@ class TransactionsTest extends IntegrationTestHarness {
 
   def verifyLogStartOffsets(partitionStartOffsets: Map[TopicPartition, Int]): Unit = {
     val offsets = new util.HashMap[Integer, JLong]()
-    waitUntilTrue(() => {
+    JTestUtils.waitForCondition(() => {
       brokers.forall(broker => {
         partitionStartOffsets.forall {
           case (partition, offset) => {
@@ -1024,7 +1025,7 @@ class TransactionsTest extends IntegrationTestHarness {
     val duration = 1000
     val startTime = System.currentTimeMillis()
     val records = new ArrayBuffer[ConsumerRecord[K, V]]()
-    waitUntilTrue(() => {
+    JTestUtils.waitForCondition(() => {
       records ++= consumer.poll(Duration.ofMillis(50)).asScala
       System.currentTimeMillis() - startTime > duration
     }, s"The timeout $duration was greater than the maximum wait time.")

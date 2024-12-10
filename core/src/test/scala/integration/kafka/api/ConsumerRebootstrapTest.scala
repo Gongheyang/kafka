@@ -18,9 +18,10 @@ package kafka.api
 
 import kafka.api.ConsumerRebootstrapTest._
 import kafka.server.QuorumTestHarness.getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly_ZK_implicit
-import kafka.utils.{TestInfoUtils, TestUtils}
+import kafka.utils.TestInfoUtils
 import org.apache.kafka.clients.CommonClientConfigs
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord}
+import org.apache.kafka.test.TestUtils
 import org.junit.jupiter.api.Assertions.{assertEquals, assertThrows}
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.{Arguments, MethodSource}
@@ -36,7 +37,7 @@ class ConsumerRebootstrapTest extends RebootstrapTest {
   def testRebootstrap(quorum: String, groupProtocol: String, useRebootstrapTriggerMs: Boolean): Unit = {
     sendRecords(10, 0)
 
-    TestUtils.waitUntilTrue(
+    TestUtils.waitForCondition(
       () => server0.logManager.logsByTopic(tp.topic()).head.logEndOffset == server1.logManager.logsByTopic(tp.topic()).head.logEndOffset,
       "Timeout waiting for records to be replicated"
     )
@@ -54,7 +55,7 @@ class ConsumerRebootstrapTest extends RebootstrapTest {
     // Bring back the server 1 and shut down 0.
     server1.startup()
 
-    TestUtils.waitUntilTrue(
+    TestUtils.waitForCondition(
       () => server0.logManager.logsByTopic(tp.topic()).head.logEndOffset == server1.logManager.logsByTopic(tp.topic()).head.logEndOffset,
       "Timeout waiting for records to be replicated"
     )
@@ -71,7 +72,7 @@ class ConsumerRebootstrapTest extends RebootstrapTest {
     // Bring back the server 0 and shut down 1.
     server0.startup()
 
-    TestUtils.waitUntilTrue(
+    TestUtils.waitForCondition(
       () => server0.logManager.logsByTopic(tp.topic()).head.logEndOffset == server1.logManager.logsByTopic(tp.topic()).head.logEndOffset,
       "Timeout waiting for records to be replicated"
     )

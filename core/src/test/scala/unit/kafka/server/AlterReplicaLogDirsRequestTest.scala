@@ -26,6 +26,7 @@ import org.apache.kafka.common.protocol.Errors
 import org.apache.kafka.common.requests.{AlterReplicaLogDirsRequest, AlterReplicaLogDirsResponse}
 import org.apache.kafka.server.config.ServerLogConfigs
 import org.apache.kafka.storage.internals.log.LogFileUtils
+import org.apache.kafka.test.{TestUtils => JTestUtils}
 import org.junit.jupiter.api.Assertions._
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
@@ -82,7 +83,7 @@ class AlterReplicaLogDirsRequestTest extends BaseRequestTest {
     (0 until partitionNum).foreach { partition =>
       val tp = new TopicPartition(topic, partition)
       assertEquals(Errors.NONE, findErrorForPartition(alterReplicaLogDirsResponse2, tp))
-      TestUtils.waitUntilTrue(() => {
+      JTestUtils.waitForCondition(() => {
         logDir2 == brokers.head.logManager.getLog(new TopicPartition(topic, partition)).get.dir.getParent
       }, "timed out waiting for replica movement")
     }
@@ -116,7 +117,7 @@ class AlterReplicaLogDirsRequestTest extends BaseRequestTest {
 
     // Test AlterReplicaDirRequest after topic creation and log directory failure
     brokers.head.logDirFailureChannel.maybeAddOfflineLogDir(offlineDir, "", new java.io.IOException())
-    TestUtils.waitUntilTrue(() => !brokers.head.logManager.isLogDirOnline(offlineDir), s"timed out waiting for $offlineDir to be offline", 3000)
+    JTestUtils.waitForCondition(() => !brokers.head.logManager.isLogDirOnline(offlineDir), 3000, s"timed out waiting for $offlineDir to be offline")
     val partitionDirs3 = mutable.Map.empty[TopicPartition, String]
     partitionDirs3.put(new TopicPartition(topic, 0), "invalidDir")
     partitionDirs3.put(new TopicPartition(topic, 1), validDir3)
@@ -157,11 +158,11 @@ class AlterReplicaLogDirsRequestTest extends BaseRequestTest {
     (0 until 20).foreach { _ =>
       TestUtils.generateAndProduceMessages(brokers, topic, 10, 1)
     }
-    TestUtils.waitUntilTrue(() => brokers.head.logManager.getLog(new TopicPartition(topic, 0)).get.numberOfSegments > 1,
+    JTestUtils.waitForCondition(() => brokers.head.logManager.getLog(new TopicPartition(topic, 0)).get.numberOfSegments > 1,
       "timed out waiting for log segment to roll")
 
     // Wait for log segment retention in original dir.
-    TestUtils.waitUntilTrue(() => {
+    JTestUtils.waitForCondition(() => {
       new File(logDir1, tp.toString).listFiles().count(_.getName.endsWith(LogFileUtils.DELETED_FILE_SUFFIX)) > 0
     }, "timed out waiting for log segment to retention")
 
@@ -170,12 +171,12 @@ class AlterReplicaLogDirsRequestTest extends BaseRequestTest {
     val alterReplicaLogDirsResponse2 = sendAlterReplicaLogDirsRequest(Map(tp -> logDir2))
     // The response should succeed for all partitions
     assertEquals(Errors.NONE, findErrorForPartition(alterReplicaLogDirsResponse2, tp))
-    TestUtils.waitUntilTrue(() => {
+    JTestUtils.waitForCondition(() => {
       logDir2 == brokers.head.logManager.getLog(tp).get.dir.getParent
     }, "timed out waiting for replica movement")
 
     // Make sure the deleted log segment is removed
-    TestUtils.waitUntilTrue(() => {
+    JTestUtils.waitForCondition(() => {
       new File(logDir2, tp.toString).listFiles().count(_.getName.endsWith(LogFileUtils.DELETED_FILE_SUFFIX)) == 0
     }, "timed out waiting for removing deleted log segment")
   }

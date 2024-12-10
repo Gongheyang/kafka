@@ -26,6 +26,7 @@ import org.apache.kafka.common.errors.{InvalidConfigurationException, UnknownTop
 import org.apache.kafka.common.utils.MockTime
 import org.apache.kafka.server.config.ServerLogConfigs
 import org.apache.kafka.server.log.remote.storage.{NoOpRemoteLogMetadataManager, NoOpRemoteStorageManager, RemoteLogManagerConfig, RemoteLogSegmentId, RemoteLogSegmentMetadata, RemoteLogSegmentState}
+import org.apache.kafka.test.{TestUtils => JTestUtils}
 import org.junit.jupiter.api.Assertions._
 import org.junit.jupiter.api.function.Executable
 import org.junit.jupiter.api.{BeforeEach, Tag, TestInfo}
@@ -458,7 +459,7 @@ class RemoteTopicCrudTest extends IntegrationTestHarness {
     TestUtils.deleteTopicWithAdmin(createAdminClient(), testTopicName, brokers, controllerServers)
     assertThrowsException(classOf[UnknownTopicOrPartitionException],
       () => TestUtils.describeTopic(createAdminClient(), testTopicName), "Topic should be deleted")
-    TestUtils.waitUntilTrue(() =>
+    JTestUtils.waitForCondition(() =>
       numPartitions * MyRemoteLogMetadataManager.segmentCountPerPartition == MyRemoteStorageManager.deleteSegmentEventCounter.get(),
       "Remote log segments should be deleted only once by the leader")
   }
@@ -509,7 +510,7 @@ class RemoteTopicCrudTest extends IntegrationTestHarness {
   }
 
   private def verifyRemoteLogTopicConfigs(topicConfig: Properties): Unit = {
-    TestUtils.waitUntilTrue(() => {
+    JTestUtils.waitForCondition(() => {
       val logBuffer = brokers.flatMap(_.logManager.getLog(new TopicPartition(testTopicName, 0)))
       var result = logBuffer.nonEmpty
       if (result) {

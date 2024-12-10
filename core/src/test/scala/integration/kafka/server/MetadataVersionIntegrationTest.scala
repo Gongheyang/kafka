@@ -20,10 +20,10 @@ package kafka.server
 import org.apache.kafka.common.test.api.ClusterInstance
 import org.apache.kafka.common.test.api.{ClusterTest, ClusterTests, Type}
 import org.apache.kafka.common.test.api.ClusterTestExtensions
-import kafka.utils.TestUtils
 import org.apache.kafka.clients.admin.FeatureUpdate.UpgradeType
 import org.apache.kafka.clients.admin.{FeatureUpdate, UpdateFeaturesOptions}
 import org.apache.kafka.server.common.MetadataVersion
+import org.apache.kafka.test.TestUtils
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.extension.ExtendWith
 
@@ -54,7 +54,7 @@ class MetadataVersionIntegrationTest {
       updateResult.all().get()
 
       // Verify that new version is visible on broker
-      TestUtils.waitUntilTrue(() => {
+      TestUtils.waitForCondition(() => {
         val describeResult2 = admin.describeFeatures()
         val ff2 = describeResult2.featureMetadata().get().finalizedFeatures().get(MetadataVersion.FEATURE_NAME)
         ff2.minVersionLevel() == updateVersion && ff2.maxVersionLevel() == updateVersion

@@ -540,7 +540,7 @@ object TestUtils extends Logging {
                   topicConfig: Properties = new Properties): scala.collection.immutable.Map[Int, Int] = {
     val adminZkClient = new AdminZkClient(zkClient)
     // create topic
-    waitUntilTrue( () => {
+    JTestUtils.waitForCondition( () => {
       var hasSessionExpirationException = false
       try {
         adminZkClient.createTopic(topic, numPartitions, replicationFactor, topicConfig)
@@ -584,7 +584,7 @@ object TestUtils extends Logging {
                   topicConfig: Properties): scala.collection.immutable.Map[Int, Int] = {
     val adminZkClient = new AdminZkClient(zkClient)
     // create topic
-    waitUntilTrue( () => {
+    JTestUtils.waitForCondition( () => {
       var hasSessionExpirationException = false
       try {
         adminZkClient.createTopicWithAssignment(topic, topicConfig, partitionReplicaAssignment)
@@ -837,10 +837,10 @@ object TestUtils extends Logging {
                     action: () => Boolean,
                     msg: => String,
                     waitTimeMs: Long = JTestUtils.DEFAULT_MAX_WAIT_MS): Unit = {
-    waitUntilTrue(() => {
+    JTestUtils.waitForCondition(() => {
       consumer.poll(Duration.ofMillis(100))
       action()
-    }, msg = msg, pause = 0L, waitTimeMs = waitTimeMs)
+    }, msg, 0L, waitTimeMs)
   }
 
   def pollRecordsUntilTrue[K, V](consumer: Consumer[K, V],
@@ -848,34 +848,12 @@ object TestUtils extends Logging {
                                  msg: => String,
                                  waitTimeMs: Long = JTestUtils.DEFAULT_MAX_WAIT_MS,
                                  pollTimeoutMs: Long = 100): Unit = {
-    waitUntilTrue(() => {
+    JTestUtils.waitForCondition(() => {
       val records = consumer.poll(Duration.ofMillis(pollTimeoutMs))
       action(records)
-    }, msg = msg, pause = 0L, waitTimeMs = waitTimeMs)
+    }, msg, waitTimeMs, 0L)
   }
 
-   /**
-    * Wait until the given condition is true or throw an exception if the given wait time elapses.
-    *
-    * @param condition condition to check
-    * @param msg error message
-    * @param waitTimeMs maximum time to wait and retest the condition before failing the test
-    * @param pause delay between condition checks
-    */
-  def waitUntilTrue(condition: () => Boolean, msg: => String,
-                    waitTimeMs: Long = JTestUtils.DEFAULT_MAX_WAIT_MS, pause: Long = 100L): Unit = {
-    val startTime = System.currentTimeMillis()
-    while (true) {
-      if (condition())
-        return
-      if (System.currentTimeMillis() > startTime + waitTimeMs)
-        fail(msg)
-      Thread.sleep(waitTimeMs.min(pause))
-    }
-
-    // should never hit here
-    throw new RuntimeException("unexpected error")
-  }
 
    /**
     * Invoke `compute` until `predicate` is true or `waitTime` elapses.
@@ -954,9 +932,9 @@ object TestUtils extends Logging {
       brokers: Seq[B],
       timeout: Long = JTestUtils.DEFAULT_MAX_WAIT_MS): Unit = {
     val expectedBrokerIds = brokers.map(_.config.brokerId).toSet
-    waitUntilTrue(() => brokers.forall(server =>
+    JTestUtils.waitForCondition(() => brokers.forall(server =>
       expectedBrokerIds == server.dataPlaneRequestProcessor.metadataCache.getAliveBrokers().map(_.id).toSet
-    ), "Timed out waiting for broker metadata to propagate to all servers", timeout)
+    ), timeout,"Timed out waiting for broker metadata to propagate to all servers")
   }
 
   /**
@@ -971,15 +949,15 @@ object TestUtils extends Logging {
       brokers: Seq[B],
       topic: String,
       expectedNumPartitions: Int): Map[TopicPartition, UpdateMetadataPartitionState] = {
-    waitUntilTrue(
+    JTestUtils.waitForCondition(
       () => brokers.forall { broker =>
         if (expectedNumPartitions == 0) {
-          broker.metadataCache.numPartitions(topic) == None
+          broker.metadataCache.numPartitions(topic).isEmpty
         } else {
-          broker.metadataCache.numPartitions(topic) == Some(expectedNumPartitions)
+          broker.metadataCache.numPartitions(topic).contains(expectedNumPartitions)
         }
       },
-      s"Topic [$topic] metadata not propagated after 60000 ms", waitTimeMs = 60000L)
+      60000L, s"Topic [$topic] metadata not propagated after 60000 ms")
 
     // since the metadata is propagated, we should get the same metadata from each server
     (0 until expectedNumPartitions).map { i =>
@@ -1001,15 +979,16 @@ object TestUtils extends Logging {
   def waitForPartitionMetadata[B <: KafkaBroker](
       brokers: Seq[B], topic: String, partition: Int,
       timeout: Long = JTestUtils.DEFAULT_MAX_WAIT_MS): UpdateMetadataPartitionState = {
-    waitUntilTrue(
+    JTestUtils.waitForCondition(
       () => brokers.forall { broker =>
         broker.metadataCache.getPartitionInfo(topic, partition) match {
           case Some(partitionState) => FetchRequest.isValidBrokerId(partitionState.leader)
           case _ => false
         }
       },
+      timeout,
       "Partition [%s,%d] metadata not propagated after %d ms".format(topic, partition, timeout),
-      waitTimeMs = timeout)
+    )
 
     brokers.head.metadataCache.getPartitionInfo(topic, partition).getOrElse(
       throw new IllegalStateException(s"Cannot get topic: $topic, partition: $partition in server metadata cache"))
@@ -1025,7 +1004,7 @@ object TestUtils extends Logging {
       msg: String = "Timeout waiting for controller metadata propagating to brokers"
   ): Unit = {
     val controllerOffset = controllerServer.raftManager.replicatedLog.endOffset().offset - 1
-    TestUtils.waitUntilTrue(
+    JTestUtils.waitForCondition(
       () => {
         brokers.forall { broker =>
           val loader = broker.asInstanceOf[BrokerServer].sharedServer.loader
@@ -1069,8 +1048,8 @@ object TestUtils extends Logging {
       }
     }
 
-    waitUntilTrue(() => newLeaderExists.isDefined,
-      s"Did not observe leader change for partition $tp after $timeout ms", waitTimeMs = timeout)
+    JTestUtils.waitForCondition(() => newLeaderExists.isDefined,
+      timeout, s"Did not observe leader change for partition $tp after $timeout ms")
 
     newLeaderExists.get
   }
@@ -1085,8 +1064,9 @@ object TestUtils extends Logging {
       }.map(_.config.brokerId)
     }
 
-    waitUntilTrue(() => leaderIfExists.isDefined,
-      s"Partition $tp leaders not made yet after $timeout ms", waitTimeMs = timeout)
+    JTestUtils.waitForCondition(() => leaderIfExists.isDefined,
+      timeout,
+      s"Partition $tp leaders not made yet after $timeout ms")
 
     leaderIfExists.get
   }
@@ -1248,33 +1228,33 @@ object TestUtils extends Logging {
     val topicPartitions = (0 until numPartitions).map(new TopicPartition(topic, _))
     if (zkClient != null) {
       // wait until admin path for delete topic is deleted, signaling completion of topic deletion
-      waitUntilTrue(() => !zkClient.isTopicMarkedForDeletion(topic),
+      JTestUtils.waitForCondition(() => !zkClient.isTopicMarkedForDeletion(topic),
         "Admin path /admin/delete_topics/%s path not deleted even after a replica is restarted".format(topic))
-      waitUntilTrue(() => !zkClient.topicExists(topic),
+      JTestUtils.waitForCondition(() => !zkClient.topicExists(topic),
         "Topic path /brokers/topics/%s not deleted after /admin/delete_topics/%s path is deleted".format(topic, topic))
     }
     // ensure that the topic-partition has been deleted from all brokers' replica managers
-    waitUntilTrue(() =>
+    JTestUtils.waitForCondition(() =>
       brokers.forall(broker => topicPartitions.forall(tp => broker.replicaManager.onlinePartition(tp).isEmpty)),
       "Replica manager's should have deleted all of this topic's partitions")
     // ensure that logs from all replicas are deleted
-    waitUntilTrue(() => brokers.forall(broker => topicPartitions.forall(tp => broker.logManager.getLog(tp).isEmpty)),
+    JTestUtils.waitForCondition(() => brokers.forall(broker => topicPartitions.forall(tp => broker.logManager.getLog(tp).isEmpty)),
       "Replica logs not deleted after delete topic is complete")
     // ensure that topic is removed from all cleaner offsets
-    waitUntilTrue(() => brokers.forall(broker => topicPartitions.forall { tp =>
+    JTestUtils.waitForCondition(() => brokers.forall(broker => topicPartitions.forall { tp =>
       val checkpoints = broker.logManager.liveLogDirs.map { logDir =>
         new OffsetCheckpointFile(new File(logDir, "cleaner-offset-checkpoint"), null).read()
       }
       checkpoints.forall(checkpointsPerLogDir => !checkpointsPerLogDir.containsKey(tp))
     }), "Cleaner offset for deleted partition should have been removed")
-    waitUntilTrue(() => brokers.forall(broker =>
+    JTestUtils.waitForCondition(() => brokers.forall(broker =>
       broker.config.logDirs.forall { logDir =>
         topicPartitions.forall { tp =>
           !new File(logDir, tp.topic + "-" + tp.partition).exists()
         }
       }
     ), "Failed to soft-delete the data to a delete directory")
-    waitUntilTrue(() => brokers.forall(broker =>
+    JTestUtils.waitForCondition(() => brokers.forall(broker =>
       broker.config.logDirs.forall { logDir =>
         topicPartitions.forall { tp =>
           !util.Arrays.asList(new File(logDir).list()).asScala.exists { partitionDirectoryNames =>
@@ -1307,10 +1287,11 @@ object TestUtils extends Logging {
     val newLine = scala.util.Properties.lineSeparator
 
     val filter = new AclBindingFilter(resource.toFilter, accessControlEntryFilter)
-    waitUntilTrue(() => authorizer.acls(filter).asScala.map(_.entry).toSet == expected,
+    JTestUtils.waitForCondition(() => authorizer.acls(filter).asScala.map(_.entry).toSet == expected,
+      45000,
       s"expected acls:${expected.mkString(newLine + "\t", newLine + "\t", newLine)}" +
         s"but got:${authorizer.acls(filter).asScala.map(_.entry).mkString(newLine + "\t", newLine + "\t", newLine)}",
-        45000)
+    )
   }
 
   def consumeTopicRecords[K, V, B <: KafkaBroker](
@@ -1480,7 +1461,7 @@ object TestUtils extends Logging {
   }
 
   def waitForOnlineBroker(client: Admin, brokerId: Int): Unit = {
-    waitUntilTrue(() => {
+    JTestUtils.waitForCondition(() => {
       val nodes = client.describeCluster().nodes().get()
       nodes.asScala.exists(_.id == brokerId)
     }, s"Timed out waiting for brokerId $brokerId to come online")
@@ -1513,7 +1494,7 @@ object TestUtils extends Logging {
   }
 
   def waitForBrokersOutOfIsr(client: Admin, partition: Set[TopicPartition], brokerIds: Set[Int]): Unit = {
-    waitUntilTrue(
+    JTestUtils.waitForCondition(
       () => {
         val description = client.describeTopics(partition.map(_.topic).asJava).allTopicNames.get.asScala
         val isr = description
@@ -1542,7 +1523,7 @@ object TestUtils extends Logging {
   }
 
   def waitForBrokersInIsr(client: Admin, partition: TopicPartition, brokerIds: Set[Int]): Unit = {
-    waitUntilTrue(
+    JTestUtils.waitForCondition(
       () => {
         val isr = currentIsr(client, partition)
         brokerIds.subsetOf(isr)

@@ -43,6 +43,7 @@ import org.apache.kafka.storage.internals.checkpoint.OffsetCheckpoints
 import org.apache.kafka.storage.internals.epoch.LeaderEpochFileCache
 import org.apache.kafka.storage.internals.log.{AppendOrigin, CleanerConfig, LocalLog, LogAppendInfo, LogConfig, LogDirFailureChannel, LogLoader, LogSegments, ProducerStateManager, ProducerStateManagerConfig, VerificationGuard}
 import org.apache.kafka.storage.log.metrics.BrokerTopicStats
+import org.apache.kafka.test.{TestUtils => JTestUtils}
 import org.junit.jupiter.api.Assertions.{assertEquals, assertFalse, assertTrue}
 import org.junit.jupiter.api.{AfterEach, BeforeEach, Test}
 import org.mockito.ArgumentMatchers
@@ -128,7 +129,7 @@ class PartitionLockTest extends Logging {
     val active = new AtomicBoolean(true)
 
     val future = scheduleShrinkIsr(active, mockTimeSleepMs = 10000)
-    TestUtils.waitUntilTrue(() => shrinkIsrSemaphore.hasQueuedThreads, "shrinkIsr not invoked")
+    JTestUtils.waitForCondition(() => shrinkIsrSemaphore.hasQueuedThreads, "shrinkIsr not invoked")
     concurrentProduceFetchWithWriteLock()
     active.set(false)
     future.get(15, TimeUnit.SECONDS)

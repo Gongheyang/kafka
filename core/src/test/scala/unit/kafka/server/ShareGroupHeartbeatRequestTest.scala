@@ -24,6 +24,7 @@ import org.apache.kafka.common.{TopicPartition, Uuid}
 import org.apache.kafka.common.message.{ShareGroupHeartbeatRequestData, ShareGroupHeartbeatResponseData}
 import org.apache.kafka.common.protocol.Errors
 import org.apache.kafka.common.requests.{ShareGroupHeartbeatRequest, ShareGroupHeartbeatResponse}
+import org.apache.kafka.test.{TestUtils => JTestUtils}
 import org.junit.jupiter.api.Assertions.{assertEquals, assertNotEquals, assertNotNull, assertNull, assertTrue}
 import org.junit.jupiter.api.{Tag, Timeout}
 import org.junit.jupiter.api.extension.ExtendWith
@@ -85,10 +86,10 @@ class ShareGroupHeartbeatRequestTest(cluster: ClusterInstance) {
       // Send the request until receiving a successful response. There is a delay
       // here because the group coordinator is loaded in the background.
       var shareGroupHeartbeatResponse: ShareGroupHeartbeatResponse = null
-      TestUtils.waitUntilTrue(() => {
+      JTestUtils.waitForCondition(() => {
         shareGroupHeartbeatResponse = connectAndReceive(shareGroupHeartbeatRequest)
         shareGroupHeartbeatResponse.data.errorCode == Errors.NONE.code
-      }, msg = s"Could not join the group successfully. Last response $shareGroupHeartbeatResponse.")
+      }, s"Could not join the group successfully. Last response $shareGroupHeartbeatResponse.")
 
       // Verify the response.
       assertNotNull(shareGroupHeartbeatResponse.data.memberId)
@@ -119,11 +120,11 @@ class ShareGroupHeartbeatRequestTest(cluster: ClusterInstance) {
 
       // Heartbeats until the partitions are assigned.
       shareGroupHeartbeatResponse = null
-      TestUtils.waitUntilTrue(() => {
+      JTestUtils.waitForCondition(() => {
         shareGroupHeartbeatResponse = connectAndReceive(shareGroupHeartbeatRequest)
         shareGroupHeartbeatResponse.data.errorCode == Errors.NONE.code &&
           shareGroupHeartbeatResponse.data.assignment == expectedAssignment
-      }, msg = s"Could not get partitions assigned. Last response $shareGroupHeartbeatResponse.")
+      }, s"Could not get partitions assigned. Last response $shareGroupHeartbeatResponse.")
 
       // Verify the response.
       assertEquals(2, shareGroupHeartbeatResponse.data.memberEpoch)
@@ -181,10 +182,10 @@ class ShareGroupHeartbeatRequestTest(cluster: ClusterInstance) {
       // Send the request until receiving a successful response. There is a delay
       // here because the group coordinator is loaded in the background.
       var shareGroupHeartbeatResponse: ShareGroupHeartbeatResponse = null
-      TestUtils.waitUntilTrue(() => {
+      JTestUtils.waitForCondition(() => {
         shareGroupHeartbeatResponse = connectAndReceive(shareGroupHeartbeatRequest)
         shareGroupHeartbeatResponse.data.errorCode == Errors.NONE.code
-      }, msg = s"Could not join the group successfully. Last response $shareGroupHeartbeatResponse.")
+      }, s"Could not join the group successfully. Last response $shareGroupHeartbeatResponse.")
 
       // Verify the response for member 1.
       val memberId1 = shareGroupHeartbeatResponse.data.memberId
@@ -203,10 +204,10 @@ class ShareGroupHeartbeatRequestTest(cluster: ClusterInstance) {
       ).build()
 
       // Send the second member request until receiving a successful response.
-      TestUtils.waitUntilTrue(() => {
+      JTestUtils.waitForCondition(() => {
         shareGroupHeartbeatResponse = connectAndReceive(shareGroupHeartbeatRequest)
         shareGroupHeartbeatResponse.data.errorCode == Errors.NONE.code
-      }, msg = s"Could not join the group successfully. Last response $shareGroupHeartbeatResponse.")
+      }, s"Could not join the group successfully. Last response $shareGroupHeartbeatResponse.")
 
       // Verify the response for member 2.
       val memberId2 = shareGroupHeartbeatResponse.data.memberId
@@ -240,11 +241,11 @@ class ShareGroupHeartbeatRequestTest(cluster: ClusterInstance) {
 
       // Heartbeats until the partitions are assigned for member 1.
       shareGroupHeartbeatResponse = null
-      TestUtils.waitUntilTrue(() => {
+      JTestUtils.waitForCondition(() => {
         shareGroupHeartbeatResponse = connectAndReceive(shareGroupHeartbeatRequest)
         shareGroupHeartbeatResponse.data.errorCode == Errors.NONE.code &&
           shareGroupHeartbeatResponse.data.assignment == expectedAssignment
-      }, msg = s"Could not get partitions assigned. Last response $shareGroupHeartbeatResponse.")
+      }, s"Could not get partitions assigned. Last response $shareGroupHeartbeatResponse.")
 
       // Verify the response.
       assertEquals(3, shareGroupHeartbeatResponse.data.memberEpoch)
@@ -260,11 +261,11 @@ class ShareGroupHeartbeatRequestTest(cluster: ClusterInstance) {
 
       // Heartbeats until the partitions are assigned for member 2.
       shareGroupHeartbeatResponse = null
-      TestUtils.waitUntilTrue(() => {
+      JTestUtils.waitForCondition(() => {
         shareGroupHeartbeatResponse = connectAndReceive(shareGroupHeartbeatRequest)
         shareGroupHeartbeatResponse.data.errorCode == Errors.NONE.code &&
           shareGroupHeartbeatResponse.data.assignment == expectedAssignment
-      }, msg = s"Could not get partitions assigned. Last response $shareGroupHeartbeatResponse.")
+      }, s"Could not get partitions assigned. Last response $shareGroupHeartbeatResponse.")
 
       // Verify the response.
       assertEquals(3, shareGroupHeartbeatResponse.data.memberEpoch)
@@ -281,11 +282,11 @@ class ShareGroupHeartbeatRequestTest(cluster: ClusterInstance) {
 
       // Heartbeats until the response for no change of assignment occurs for member 1 with same epoch.
       shareGroupHeartbeatResponse = null
-      TestUtils.waitUntilTrue(() => {
+      JTestUtils.waitForCondition(() => {
         shareGroupHeartbeatResponse = connectAndReceive(shareGroupHeartbeatRequest)
         shareGroupHeartbeatResponse.data.errorCode == Errors.NONE.code &&
           shareGroupHeartbeatResponse.data.assignment == null
-      }, msg = s"Could not get partitions assigned. Last response $shareGroupHeartbeatResponse.")
+      }, s"Could not get partitions assigned. Last response $shareGroupHeartbeatResponse.")
 
       // Verify the response.
       assertEquals(3, shareGroupHeartbeatResponse.data.memberEpoch)
@@ -328,10 +329,10 @@ class ShareGroupHeartbeatRequestTest(cluster: ClusterInstance) {
       // Send the request until receiving a successful response. There is a delay
       // here because the group coordinator is loaded in the background.
       var shareGroupHeartbeatResponse: ShareGroupHeartbeatResponse = null
-      TestUtils.waitUntilTrue(() => {
+      JTestUtils.waitForCondition(() => {
         shareGroupHeartbeatResponse = connectAndReceive(shareGroupHeartbeatRequest)
         shareGroupHeartbeatResponse.data.errorCode == Errors.NONE.code
-      }, msg = s"Could not join the group successfully. Last response $shareGroupHeartbeatResponse.")
+      }, s"Could not join the group successfully. Last response $shareGroupHeartbeatResponse.")
 
       // Verify the response for member.
       val memberId = shareGroupHeartbeatResponse.data.memberId
@@ -361,11 +362,11 @@ class ShareGroupHeartbeatRequestTest(cluster: ClusterInstance) {
         true
       ).build()
 
-      TestUtils.waitUntilTrue(() => {
+      JTestUtils.waitForCondition(() => {
         shareGroupHeartbeatResponse = connectAndReceive(shareGroupHeartbeatRequest)
         shareGroupHeartbeatResponse.data.errorCode == Errors.NONE.code &&
           shareGroupHeartbeatResponse.data.assignment == expectedAssignment
-      }, msg = s"Could not get partitions assigned. Last response $shareGroupHeartbeatResponse.")
+      }, s"Could not get partitions assigned. Last response $shareGroupHeartbeatResponse.")
 
       // Verify the response.
       assertEquals(2, shareGroupHeartbeatResponse.data.memberEpoch)
@@ -380,10 +381,10 @@ class ShareGroupHeartbeatRequestTest(cluster: ClusterInstance) {
       ).build()
 
       // Send the member request until receiving a successful response.
-      TestUtils.waitUntilTrue(() => {
+      JTestUtils.waitForCondition(() => {
         shareGroupHeartbeatResponse = connectAndReceive(shareGroupHeartbeatRequest)
         shareGroupHeartbeatResponse.data.errorCode == Errors.NONE.code
-      }, msg = s"Could not leave the group successfully. Last response $shareGroupHeartbeatResponse.")
+      }, s"Could not leave the group successfully. Last response $shareGroupHeartbeatResponse.")
 
       // Verify the response for member.
       assertEquals(-1, shareGroupHeartbeatResponse.data.memberEpoch)
@@ -441,10 +442,10 @@ class ShareGroupHeartbeatRequestTest(cluster: ClusterInstance) {
       // Send the request until receiving a successful response. There is a delay
       // here because the group coordinator is loaded in the background.
       var shareGroupHeartbeatResponse: ShareGroupHeartbeatResponse = null
-      TestUtils.waitUntilTrue(() => {
+      JTestUtils.waitForCondition(() => {
         shareGroupHeartbeatResponse = connectAndReceive(shareGroupHeartbeatRequest)
         shareGroupHeartbeatResponse.data.errorCode == Errors.NONE.code
-      }, msg = s"Could not join the group successfully. Last response $shareGroupHeartbeatResponse.")
+      }, s"Could not join the group successfully. Last response $shareGroupHeartbeatResponse.")
       // Verify the response for member.
       val memberId = shareGroupHeartbeatResponse.data.memberId
       assertNotNull(memberId)
@@ -483,13 +484,13 @@ class ShareGroupHeartbeatRequestTest(cluster: ClusterInstance) {
       cluster.waitForTopic("foo", 2)
       cluster.waitForTopic("bar", 3)
 
-      TestUtils.waitUntilTrue(() => {
+      JTestUtils.waitForCondition(() => {
         shareGroupHeartbeatResponse = connectAndReceive(shareGroupHeartbeatRequest)
         shareGroupHeartbeatResponse.data.errorCode == Errors.NONE.code &&
           shareGroupHeartbeatResponse.data.assignment != null &&
           expectedAssignment.topicPartitions.containsAll(shareGroupHeartbeatResponse.data.assignment.topicPartitions) &&
           shareGroupHeartbeatResponse.data.assignment.topicPartitions.containsAll(expectedAssignment.topicPartitions)
-      }, msg = s"Could not get partitions for topic foo and bar assigned. Last response $shareGroupHeartbeatResponse.")
+      }, s"Could not get partitions for topic foo and bar assigned. Last response $shareGroupHeartbeatResponse.")
       // Verify the response.
       assertEquals(2, shareGroupHeartbeatResponse.data.memberEpoch)
       // Create the topic baz.
@@ -519,13 +520,13 @@ class ShareGroupHeartbeatRequestTest(cluster: ClusterInstance) {
         true
       ).build()
 
-      TestUtils.waitUntilTrue(() => {
+      JTestUtils.waitForCondition(() => {
         shareGroupHeartbeatResponse = connectAndReceive(shareGroupHeartbeatRequest)
         shareGroupHeartbeatResponse.data.errorCode == Errors.NONE.code &&
           shareGroupHeartbeatResponse.data.assignment != null &&
           expectedAssignment.topicPartitions.containsAll(shareGroupHeartbeatResponse.data.assignment.topicPartitions) &&
           shareGroupHeartbeatResponse.data.assignment.topicPartitions.containsAll(expectedAssignment.topicPartitions)
-      }, msg = s"Could not get partitions for topic baz assigned. Last response $shareGroupHeartbeatResponse.")
+      }, s"Could not get partitions for topic baz assigned. Last response $shareGroupHeartbeatResponse.")
       // Verify the response.
       assertEquals(3, shareGroupHeartbeatResponse.data.memberEpoch)
       // Increasing the partitions of topic bar which is already being consumed in the share group.
@@ -551,13 +552,13 @@ class ShareGroupHeartbeatRequestTest(cluster: ClusterInstance) {
         true
       ).build()
 
-      TestUtils.waitUntilTrue(() => {
+      JTestUtils.waitForCondition(() => {
         shareGroupHeartbeatResponse = connectAndReceive(shareGroupHeartbeatRequest)
         shareGroupHeartbeatResponse.data.errorCode == Errors.NONE.code &&
           shareGroupHeartbeatResponse.data.assignment != null &&
           expectedAssignment.topicPartitions.containsAll(shareGroupHeartbeatResponse.data.assignment.topicPartitions) &&
           shareGroupHeartbeatResponse.data.assignment.topicPartitions.containsAll(expectedAssignment.topicPartitions)
-      }, msg = s"Could not update partitions assignment for topic bar. Last response $shareGroupHeartbeatResponse.")
+      }, s"Could not update partitions assignment for topic bar. Last response $shareGroupHeartbeatResponse.")
       // Verify the response.
       assertEquals(4, shareGroupHeartbeatResponse.data.memberEpoch)
       // Delete the topic foo.
@@ -585,13 +586,13 @@ class ShareGroupHeartbeatRequestTest(cluster: ClusterInstance) {
         true
       ).build()
 
-      TestUtils.waitUntilTrue(() => {
+      JTestUtils.waitForCondition(() => {
         shareGroupHeartbeatResponse = connectAndReceive(shareGroupHeartbeatRequest)
         shareGroupHeartbeatResponse.data.errorCode == Errors.NONE.code &&
           shareGroupHeartbeatResponse.data.assignment != null &&
           expectedAssignment.topicPartitions.containsAll(shareGroupHeartbeatResponse.data.assignment.topicPartitions) &&
           shareGroupHeartbeatResponse.data.assignment.topicPartitions.containsAll(expectedAssignment.topicPartitions)
-      }, msg = s"Could not update partitions assignment for topic foo. Last response $shareGroupHeartbeatResponse.")
+      }, s"Could not update partitions assignment for topic foo. Last response $shareGroupHeartbeatResponse.")
       // Verify the response.
       assertEquals(5, shareGroupHeartbeatResponse.data.memberEpoch)
     } finally {
@@ -637,10 +638,10 @@ class ShareGroupHeartbeatRequestTest(cluster: ClusterInstance) {
       // Send the request until receiving a successful response. There is a delay
       // here because the group coordinator is loaded in the background.
       var shareGroupHeartbeatResponse: ShareGroupHeartbeatResponse = null
-      TestUtils.waitUntilTrue(() => {
+      JTestUtils.waitForCondition(() => {
         shareGroupHeartbeatResponse = connectAndReceive(shareGroupHeartbeatRequest)
         shareGroupHeartbeatResponse.data.errorCode == Errors.NONE.code
-      }, msg = s"Could not join the group successfully. Last response $shareGroupHeartbeatResponse.")
+      }, s"Could not join the group successfully. Last response $shareGroupHeartbeatResponse.")
 
       // Verify the response for member.
       val memberId = shareGroupHeartbeatResponse.data.memberId
@@ -671,11 +672,11 @@ class ShareGroupHeartbeatRequestTest(cluster: ClusterInstance) {
         true
       ).build()
 
-      TestUtils.waitUntilTrue(() => {
+      JTestUtils.waitForCondition(() => {
         shareGroupHeartbeatResponse = connectAndReceive(shareGroupHeartbeatRequest)
         shareGroupHeartbeatResponse.data.errorCode == Errors.NONE.code &&
           shareGroupHeartbeatResponse.data.assignment == expectedAssignment
-      }, msg = s"Could not get foo partitions assigned. Last response $shareGroupHeartbeatResponse.")
+      }, s"Could not get foo partitions assigned. Last response $shareGroupHeartbeatResponse.")
 
       // Verify the response, the epoch should have been bumped.
       assertTrue(shareGroupHeartbeatResponse.data.memberEpoch > memberEpoch)
@@ -705,13 +706,13 @@ class ShareGroupHeartbeatRequestTest(cluster: ClusterInstance) {
             .setTopicId(barId)
             .setPartitions(List[Integer](0).asJava)).asJava)
 
-      TestUtils.waitUntilTrue(() => {
+      JTestUtils.waitForCondition(() => {
         shareGroupHeartbeatResponse = connectAndReceive(shareGroupHeartbeatRequest)
         shareGroupHeartbeatResponse.data.errorCode == Errors.NONE.code &&
           shareGroupHeartbeatResponse.data.assignment != null &&
           expectedAssignment.topicPartitions.containsAll(shareGroupHeartbeatResponse.data.assignment.topicPartitions) &&
           shareGroupHeartbeatResponse.data.assignment.topicPartitions.containsAll(expectedAssignment.topicPartitions)
-      }, msg = s"Could not get bar partitions assigned. Last response $shareGroupHeartbeatResponse.")
+      }, s"Could not get bar partitions assigned. Last response $shareGroupHeartbeatResponse.")
 
       // Verify the response, the epoch should have been bumped.
       assertTrue(shareGroupHeartbeatResponse.data.memberEpoch > memberEpoch)
@@ -726,10 +727,10 @@ class ShareGroupHeartbeatRequestTest(cluster: ClusterInstance) {
         true
       ).build()
 
-      TestUtils.waitUntilTrue(() => {
+      JTestUtils.waitForCondition(() => {
         shareGroupHeartbeatResponse = connectAndReceive(shareGroupHeartbeatRequest)
         shareGroupHeartbeatResponse.data.errorCode == Errors.NONE.code
-      }, msg = s"Could not get empty heartbeat response. Last response $shareGroupHeartbeatResponse.")
+      }, s"Could not get empty heartbeat response. Last response $shareGroupHeartbeatResponse.")
 
       // Verify the response, the epoch should be same.
       assertEquals(memberEpoch, shareGroupHeartbeatResponse.data.memberEpoch)
@@ -746,10 +747,10 @@ class ShareGroupHeartbeatRequestTest(cluster: ClusterInstance) {
         true
       ).build()
 
-      TestUtils.waitUntilTrue(() => {
+      JTestUtils.waitForCondition(() => {
         shareGroupHeartbeatResponse = connectAndReceive(shareGroupHeartbeatRequest)
         shareGroupHeartbeatResponse.data.errorCode == Errors.UNKNOWN_MEMBER_ID.code
-      }, msg = s"Member should have been expired because of the timeout . Last response $shareGroupHeartbeatResponse.")
+      }, s"Member should have been expired because of the timeout . Last response $shareGroupHeartbeatResponse.")
 
       // Member sends a request again to join the share group
       shareGroupHeartbeatRequest = new ShareGroupHeartbeatRequest.Builder(
@@ -761,13 +762,13 @@ class ShareGroupHeartbeatRequestTest(cluster: ClusterInstance) {
         true
       ).build()
 
-      TestUtils.waitUntilTrue(() => {
+      JTestUtils.waitForCondition(() => {
         shareGroupHeartbeatResponse = connectAndReceive(shareGroupHeartbeatRequest)
         shareGroupHeartbeatResponse.data.errorCode == Errors.NONE.code &&
           shareGroupHeartbeatResponse.data.assignment != null &&
           expectedAssignment.topicPartitions.containsAll(shareGroupHeartbeatResponse.data.assignment.topicPartitions) &&
           shareGroupHeartbeatResponse.data.assignment.topicPartitions.containsAll(expectedAssignment.topicPartitions)
-      }, msg = s"Could not get bar partitions assigned upon rejoining. Last response $shareGroupHeartbeatResponse.")
+      }, s"Could not get bar partitions assigned upon rejoining. Last response $shareGroupHeartbeatResponse.")
 
       // Epoch should have been bumped when a member is removed and again when it joins back.
       assertTrue(shareGroupHeartbeatResponse.data.memberEpoch > memberEpoch)
@@ -807,10 +808,10 @@ class ShareGroupHeartbeatRequestTest(cluster: ClusterInstance) {
       // Send the request until receiving a successful response. There is a delay
       // here because the group coordinator is loaded in the background.
       var shareGroupHeartbeatResponse: ShareGroupHeartbeatResponse = null
-      TestUtils.waitUntilTrue(() => {
+      JTestUtils.waitForCondition(() => {
         shareGroupHeartbeatResponse = connectAndReceive(shareGroupHeartbeatRequest)
         shareGroupHeartbeatResponse.data.errorCode == Errors.NONE.code
-      }, msg = s"Could not join the group successfully. Last response $shareGroupHeartbeatResponse.")
+      }, s"Could not join the group successfully. Last response $shareGroupHeartbeatResponse.")
       // Verify the response for member.
       val memberId = shareGroupHeartbeatResponse.data.memberId
       assertNotNull(memberId)
@@ -836,11 +837,11 @@ class ShareGroupHeartbeatRequestTest(cluster: ClusterInstance) {
         true
       ).build()
 
-      TestUtils.waitUntilTrue(() => {
+      JTestUtils.waitForCondition(() => {
         shareGroupHeartbeatResponse = connectAndReceive(shareGroupHeartbeatRequest)
         shareGroupHeartbeatResponse.data.errorCode == Errors.NONE.code &&
           shareGroupHeartbeatResponse.data.assignment == expectedAssignment
-      }, msg = s"Could not get partitions assigned. Last response $shareGroupHeartbeatResponse.")
+      }, s"Could not get partitions assigned. Last response $shareGroupHeartbeatResponse.")
       // Verify the response.
       assertEquals(2, shareGroupHeartbeatResponse.data.memberEpoch)
 
@@ -859,10 +860,10 @@ class ShareGroupHeartbeatRequestTest(cluster: ClusterInstance) {
       ).build()
 
       // Should receive no error and no assignment changes.
-      TestUtils.waitUntilTrue(() => {
+      JTestUtils.waitForCondition(() => {
         shareGroupHeartbeatResponse = connectAndReceive(shareGroupHeartbeatRequest)
         shareGroupHeartbeatResponse.data.errorCode == Errors.NONE.code
-      }, msg = s"Could not get partitions assigned. Last response $shareGroupHeartbeatResponse.")
+      }, s"Could not get partitions assigned. Last response $shareGroupHeartbeatResponse.")
 
       // Verify the response. Epoch should not have changed and null assignments determines that no
       // change in old assignment.

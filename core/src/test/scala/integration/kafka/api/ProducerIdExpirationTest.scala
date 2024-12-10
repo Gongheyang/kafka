@@ -32,6 +32,7 @@ import org.apache.kafka.common.errors.{InvalidPidMappingException, Transactional
 import org.apache.kafka.coordinator.group.GroupCoordinatorConfig
 import org.apache.kafka.coordinator.transaction.{TransactionLogConfig, TransactionStateManagerConfig}
 import org.apache.kafka.server.config.{ReplicationConfigs, ServerConfigs, ServerLogConfigs}
+import org.apache.kafka.test.{TestUtils => JTestUtils}
 import org.junit.jupiter.api.Assertions.{assertEquals, assertThrows, assertTrue}
 import org.junit.jupiter.api.{AfterEach, BeforeEach, TestInfo}
 import org.junit.jupiter.params.ParameterizedTest
@@ -93,7 +94,7 @@ class ProducerIdExpirationTest extends KafkaServerTestHarness {
     assertEquals(1, producerState.size)
 
     // Wait for the producer ID to expire.
-    TestUtils.waitUntilTrue(() => producerState.isEmpty, "Producer ID did not expire.")
+    JTestUtils.waitForCondition(() => producerState.isEmpty, "Producer ID did not expire.")
 
     // Send more records to send producer ID back to brokers.
     producer.send(new ProducerRecord(topic1, 0, null, "key".getBytes, "value".getBytes))
@@ -115,7 +116,7 @@ class ProducerIdExpirationTest extends KafkaServerTestHarness {
     producer.flush()
 
     // Ensure producer IDs are added.
-    TestUtils.waitUntilTrue(() => producerState.size == 1, "Producer IDs were not added.")
+    JTestUtils.waitForCondition(() => producerState.size == 1, "Producer IDs were not added.")
 
     producer.abortTransaction()
 
@@ -129,7 +130,7 @@ class ProducerIdExpirationTest extends KafkaServerTestHarness {
     // due to the expired transactional ID, resulting in a fatal error.
     producer.beginTransaction()
     val failedFuture = producer.send(TestUtils.producerRecordWithExpectedTransactionStatus(topic1, 0, "1", "1", willBeCommitted = false))
-    TestUtils.waitUntilTrue(() => failedFuture.isDone, "Producer future never completed.")
+    JTestUtils.waitForCondition(() => failedFuture.isDone, "Producer future never completed.")
     org.apache.kafka.test.TestUtils.assertFutureThrows(failedFuture, classOf[InvalidPidMappingException])
 
     // Assert that aborting the transaction throws a KafkaException due to the fatal error.
@@ -172,12 +173,12 @@ class ProducerIdExpirationTest extends KafkaServerTestHarness {
     assertEquals(1, producerState.size)
 
     // Wait for the producer ID to expire.
-    TestUtils.waitUntilTrue(() => producerState.isEmpty, "Producer ID did not expire.")
+    JTestUtils.waitForCondition(() => producerState.isEmpty, "Producer ID did not expire.")
 
     // Update the producer ID expiration ms to a very high value.
     admin.incrementalAlterConfigs(producerIdExpirationConfig("100000"))
 
-    brokers.foreach(broker => TestUtils.waitUntilTrue(() => broker.logManager.producerStateManagerConfig.producerIdExpirationMs == 100000, "Configuration was not updated."))
+    brokers.foreach(broker => JTestUtils.waitForCondition(() => broker.logManager.producerStateManagerConfig.producerIdExpirationMs == 100000, "Configuration was not updated."))
 
     // Send more records to send producer ID back to brokers.
     producer.send(new ProducerRecord(topic1, 0, null, "key".getBytes, "value".getBytes))
@@ -188,7 +189,7 @@ class ProducerIdExpirationTest extends KafkaServerTestHarness {
 
     // Ensure producer ID does not expire within 4 seconds.
     assertThrows(classOf[AssertionFailedError], () =>
-      TestUtils.waitUntilTrue(() => producerState.isEmpty, "Producer ID did not expire.", 4000)
+      JTestUtils.waitForCondition(() => producerState.isEmpty, "Producer ID did not expire.", 4000)
     )
 
     // Update the expiration time to a low value again.
@@ -198,10 +199,10 @@ class ProducerIdExpirationTest extends KafkaServerTestHarness {
     killBroker(0)
     restartDeadBrokers()
 
-    brokers.foreach(broker => TestUtils.waitUntilTrue(() => broker.logManager.producerStateManagerConfig.producerIdExpirationMs == 100, "Configuration was not updated."))
+    brokers.foreach(broker => JTestUtils.waitForCondition(() => broker.logManager.producerStateManagerConfig.producerIdExpirationMs == 100, "Configuration was not updated."))
 
     // Ensure producer ID expires quickly again.
-    TestUtils.waitUntilTrue(() => producerState.isEmpty, "Producer ID did not expire.")
+    JTestUtils.waitForCondition(() => producerState.isEmpty, "Producer ID did not expire.")
   }
 
   private def producerState: util.List[ProducerState] = {
@@ -217,7 +218,7 @@ class ProducerIdExpirationTest extends KafkaServerTestHarness {
   }
 
   private def waitUntilTransactionalStateExpires(): Unit = {
-    TestUtils.waitUntilTrue(() =>  {
+    JTestUtils.waitForCondition(() =>  {
       var removedTransactionState = false
       val txnDescribeResult = admin.describeTransactions(Collections.singletonList("transactionalProducer")).description("transactionalProducer")
       try {

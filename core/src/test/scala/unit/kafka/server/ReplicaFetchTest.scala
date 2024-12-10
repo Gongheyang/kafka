@@ -19,11 +19,11 @@ package kafka.server
 
 import org.junit.jupiter.api.AfterEach
 import kafka.utils.TestUtils
-import TestUtils._
 import kafka.api.IntegrationTestHarness
 import org.apache.kafka.clients.producer.ProducerRecord
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.serialization.StringSerializer
+import org.apache.kafka.test.{TestUtils => JTestUtils}
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
 
@@ -71,6 +71,6 @@ class ReplicaFetchTest extends IntegrationTestHarness {
       }
       result
     }
-    waitUntilTrue(logsMatch _, "Broker logs should be identical")
+    JTestUtils.waitForCondition(logsMatch _, "Broker logs should be identical")
   }
 }

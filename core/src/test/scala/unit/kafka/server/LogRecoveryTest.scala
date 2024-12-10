@@ -26,6 +26,7 @@ import org.apache.kafka.common.security.auth.SecurityProtocol
 import org.apache.kafka.common.serialization.{IntegerSerializer, StringSerializer}
 import org.apache.kafka.server.config.ReplicationConfigs
 import org.apache.kafka.storage.internals.checkpoint.OffsetCheckpointFile
+import org.apache.kafka.test.{TestUtils => JTestUtils}
 import org.junit.jupiter.api.Assertions._
 import org.junit.jupiter.api.{AfterEach, BeforeEach, TestInfo}
 import org.junit.jupiter.params.ParameterizedTest
@@ -111,7 +112,7 @@ class LogRecoveryTest extends QuorumTestHarness {
     sendMessages(numMessages.toInt)
 
     // give some time for the follower 1 to record leader HW
-    TestUtils.waitUntilTrue(() =>
+    JTestUtils.waitForCondition(() =>
       server2.replicaManager.localLogOrException(topicPartition).highWatermark == numMessages,
       "Failed to update high watermark for follower after timeout")
 
@@ -156,7 +157,7 @@ class LogRecoveryTest extends QuorumTestHarness {
       * is that server1 has caught up on the topicPartition, and has joined the ISR.
       * In the line below, we wait until the condition is met before shutting down server2
       */
-    waitUntilTrue(() => server2.replicaManager.onlinePartition(topicPartition).get.inSyncReplicaIds.size == 2,
+    JTestUtils.waitForCondition(() => server2.replicaManager.onlinePartition(topicPartition).get.inSyncReplicaIds.size == 2,
       "Server 1 is not able to join the ISR after restart")
 
 
@@ -174,7 +175,7 @@ class LogRecoveryTest extends QuorumTestHarness {
     hw += 1
 
     // give some time for follower 1 to record leader HW of 60
-    TestUtils.waitUntilTrue(() =>
+    JTestUtils.waitForCondition(() =>
       server2.replicaManager.localLogOrException(topicPartition).highWatermark == hw,
       "Failed to update high watermark for follower after timeout")
     // shutdown the servers to allow the hw to be checkpointed
@@ -189,7 +190,7 @@ class LogRecoveryTest extends QuorumTestHarness {
     sendMessages(20)
     val hw = 20L
     // give some time for follower 1 to record leader HW of 600
-    TestUtils.waitUntilTrue(() =>
+    JTestUtils.waitForCondition(() =>
       server2.replicaManager.localLogOrException(topicPartition).highWatermark == hw,
       "Failed to update high watermark for follower after timeout")
     // shutdown the servers to allow the hw to be checkpointed
@@ -209,7 +210,7 @@ class LogRecoveryTest extends QuorumTestHarness {
     var hw = 2L
 
     // allow some time for the follower to get the leader HW
-    TestUtils.waitUntilTrue(() =>
+    JTestUtils.waitForCondition(() =>
       server2.replicaManager.localLogOrException(topicPartition).highWatermark == hw,
       "Failed to update high watermark for follower after timeout")
     // kill the server hosting the preferred replica
@@ -237,10 +238,10 @@ class LogRecoveryTest extends QuorumTestHarness {
     hw += 2
 
     // allow some time for the follower to create replica
-    TestUtils.waitUntilTrue(() => server1.replicaManager.localLog(topicPartition).nonEmpty,
+    JTestUtils.waitForCondition(() => server1.replicaManager.localLog(topicPartition).nonEmpty,
       "Failed to create replica in follower after timeout")
     // allow some time for the follower to get the leader HW
-    TestUtils.waitUntilTrue(() =>
+    JTestUtils.waitForCondition(() =>
       server1.replicaManager.localLogOrException(topicPartition).highWatermark == hw,
       "Failed to update high watermark for follower after timeout")
     // shutdown the servers to allow the hw to be checkpointed
@@ -263,8 +264,8 @@ class LogRecoveryTest extends QuorumTestHarness {
       }.map(_.config.brokerId)
     }
 
-    waitUntilTrue(() => leaderExists.isDefined,
-      s"Did not find a leader for partition $tp after $timeout ms", waitTimeMs = timeout)
+    JTestUtils.waitForCondition(() => leaderExists.isDefined,
+      s"Did not find a leader for partition $tp after $timeout ms", timeout)
 
     leaderExists.get
   }

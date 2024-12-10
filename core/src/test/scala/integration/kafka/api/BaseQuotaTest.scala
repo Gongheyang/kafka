@@ -36,6 +36,7 @@ import org.apache.kafka.coordinator.group.GroupCoordinatorConfig
 import org.apache.kafka.server.config.{QuotaConfig, ServerConfigs}
 import org.apache.kafka.server.metrics.KafkaYammerMetrics
 import org.apache.kafka.server.quota.QuotaType
+import org.apache.kafka.test.{TestUtils => JTestUtils}
 import org.junit.jupiter.api.Assertions._
 import org.junit.jupiter.api.{BeforeEach, TestInfo}
 import org.junit.jupiter.params.ParameterizedTest
@@ -330,7 +331,7 @@ abstract class QuotaTestClients(topic: String,
     val maxMetric = producer.metrics.get(new MetricName("produce-throttle-time-max", "producer-metrics", "", tags))
 
     if (expectThrottle) {
-      TestUtils.waitUntilTrue(() => metricValue(avgMetric) > 0.0 && metricValue(maxMetric) > 0.0,
+      JTestUtils.waitForCondition(() => metricValue(avgMetric) > 0.0 && metricValue(maxMetric) > 0.0,
         s"Producer throttle metric not updated: avg=${metricValue(avgMetric)} max=${metricValue(maxMetric)}")
     } else
       assertEquals(0.0, metricValue(maxMetric), 0.0, "Should not have been throttled")
@@ -343,7 +344,7 @@ abstract class QuotaTestClients(topic: String,
     val maxMetric = consumer.metrics.get(new MetricName("fetch-throttle-time-max", "consumer-fetch-manager-metrics", "", tags))
 
     if (expectThrottle) {
-      TestUtils.waitUntilTrue(() => metricValue(avgMetric) > 0.0 && metricValue(maxMetric) > 0.0,
+      JTestUtils.waitForCondition(() => metricValue(avgMetric) > 0.0 && metricValue(maxMetric) > 0.0,
         s"Consumer throttle metric not updated: avg=${metricValue(avgMetric)} max=${metricValue(maxMetric)}")
       maxThrottleTime.foreach(max => assertTrue(metricValue(maxMetric) <= max,
         s"Maximum consumer throttle too high: ${metricValue(maxMetric)}"))

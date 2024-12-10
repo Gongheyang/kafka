@@ -34,6 +34,7 @@ import org.apache.kafka.common.security.auth.SecurityProtocol
 import org.apache.kafka.clients.admin.{Admin, AdminClientConfig, AlterConfigOp, AlterConfigsResult, ConfigEntry}
 import org.apache.kafka.server.config.ReplicationConfigs
 import org.apache.kafka.server.metrics.KafkaYammerMetrics
+import org.apache.kafka.test.{TestUtils => JTestUtils}
 import org.apache.log4j.{Level, Logger}
 import org.junit.jupiter.api.{AfterEach, BeforeEach, TestInfo}
 import org.junit.jupiter.api.Assertions._
@@ -282,7 +283,7 @@ class UncleanLeaderElectionTest extends QuorumTestHarness {
 
     produceMessage(brokers, topic, "third")
     //make sure follower server joins the ISR
-    TestUtils.waitUntilTrue(() => {
+    JTestUtils.waitForCondition(() => {
       val partitionInfoOpt = followerServer.metadataCache.getPartitionInfo(topic, partitionId)
       partitionInfoOpt.isDefined && partitionInfoOpt.get.isr.contains(followerId)
     }, "Inconsistent metadata after first server startup")
@@ -425,7 +426,7 @@ class UncleanLeaderElectionTest extends QuorumTestHarness {
   }
 
   private def waitForNoLeaderAndIsrHasOldLeaderId(metadataCache: MetadataCache, leaderId: Int): Unit = {
-    waitUntilTrue(() => metadataCache.getPartitionInfo(topic, partitionId).isDefined &&
+    JTestUtils.waitForCondition(() => metadataCache.getPartitionInfo(topic, partitionId).isDefined &&
       metadataCache.getPartitionInfo(topic, partitionId).get.leader() == LeaderConstants.NO_LEADER &&
       java.util.Arrays.asList(leaderId).equals(metadataCache.getPartitionInfo(topic, partitionId).get.isr()),
       "Timed out waiting for broker metadata cache updates the info for topic partition:" + topicPartition)

@@ -13,16 +13,16 @@
 package kafka.admin
 
 import kafka.server.KafkaServer
-import kafka.utils.TestUtils
 import kafka.zk.AdminZkClient
 import org.apache.kafka.server.config.{ConfigType, QuotaConfig}
+import org.apache.kafka.test.TestUtils
 
 import scala.collection.Seq
 
 object ReplicationQuotaUtils {
 
   def checkThrottleConfigRemovedFromZK(adminZkClient: AdminZkClient, topic: String, servers: Seq[KafkaServer]): Unit = {
-    TestUtils.waitUntilTrue(() => {
+    TestUtils.waitForCondition(() => {
       val hasRateProp = servers.forall { server =>
         val brokerConfig = adminZkClient.fetchEntityConfig(ConfigType.BROKER, server.config.brokerId.toString)
         brokerConfig.contains(QuotaConfig.LEADER_REPLICATION_THROTTLED_RATE_CONFIG) ||
@@ -36,7 +36,7 @@ object ReplicationQuotaUtils {
   }
 
   def checkThrottleConfigAddedToZK(adminZkClient: AdminZkClient, expectedThrottleRate: Long, servers: Seq[KafkaServer], topic: String, throttledLeaders: Set[String], throttledFollowers: Set[String]): Unit = {
-    TestUtils.waitUntilTrue(() => {
+    TestUtils.waitForCondition(() => {
       //Check for limit in ZK
       val brokerConfigAvailable = servers.forall { server =>
         val configInZk = adminZkClient.fetchEntityConfig(ConfigType.BROKER, server.config.brokerId.toString)

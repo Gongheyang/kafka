@@ -23,7 +23,6 @@ import java.util.{Optional, Properties}
 import kafka.server.QuotaFactory.QuotaManagers
 import kafka.server.metadata.KRaftMetadataCache
 import kafka.server.metadata.MockConfigRepository
-import kafka.utils.TestUtils.waitUntilTrue
 import kafka.utils.{CoreUtils, Logging, TestUtils}
 import org.apache.kafka.common.metadata.RegisterBrokerRecord
 import org.apache.kafka.common.metadata.{PartitionChangeRecord, PartitionRecord, TopicRecord}
@@ -45,6 +44,7 @@ import org.apache.kafka.server.config.{KRaftConfigs, ReplicationConfigs, ServerL
 import org.apache.kafka.server.storage.log.{FetchIsolation, FetchParams, FetchPartitionData}
 import org.apache.kafka.server.util.{MockTime, ShutdownableThread}
 import org.apache.kafka.storage.internals.log.{AppendOrigin, LogConfig, LogDirFailureChannel}
+import org.apache.kafka.test.{TestUtils => JTestUtils}
 import org.junit.jupiter.api.Assertions._
 import org.junit.jupiter.api.{AfterEach, Test}
 import org.mockito.Mockito
@@ -107,7 +107,7 @@ class ReplicaManagerConcurrencyTest extends Logging {
     submit(controller)
     controller.initialize()
 
-    waitUntilTrue(() => {
+    JTestUtils.waitForCondition(() => {
       replicaManager.getPartition(topicPartition) match {
         case HostedPartition.Online(partition) => partition.isLeader
         case _ => false
@@ -134,13 +134,13 @@ class ReplicaManagerConcurrencyTest extends Logging {
     )
 
     submit(fetcher)
-    waitUntilTrue(() => {
+    JTestUtils.waitForCondition(() => {
       partition.inSyncReplicaIds == Set(localId, remoteId)
     }, "Test timed out before ISR was expanded")
 
     // Stop the fetcher so that the replica is removed from the ISR
     fetcher.shutdown()
-    waitUntilTrue(() => {
+    JTestUtils.waitForCondition(() => {
       partition.inSyncReplicaIds == Set(localId)
     }, "Test timed out before ISR was shrunk")
   }

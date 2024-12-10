@@ -31,6 +31,8 @@ import org.apache.kafka.common.{Node, TopicPartition}
 import org.apache.kafka.server.common.{MetadataVersion, TransactionVersion}
 import org.apache.kafka.server.metrics.{KafkaMetricsGroup, KafkaYammerMetrics}
 import org.apache.kafka.server.util.RequestAndCompletionHandler
+import org.apache.kafka.test.{TestUtils => JTestUtils}
+
 import org.junit.jupiter.api.Assertions._
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
@@ -158,7 +160,7 @@ class TransactionMarkerChannelManagerTest {
         time.milliseconds(), time.milliseconds(), false, null, null,
         response)
 
-      TestUtils.waitUntilTrue(() => {
+      JTestUtils.waitForCondition(() => {
         val requests = channelManager.generateRequests().asScala
         if (requests.nonEmpty) {
           assertEquals(1, requests.size)

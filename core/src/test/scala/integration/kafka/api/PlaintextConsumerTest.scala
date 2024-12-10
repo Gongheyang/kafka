@@ -19,7 +19,7 @@ import java.util
 import java.util.Arrays.asList
 import java.util.{Collections, Locale, Optional, Properties}
 import kafka.server.KafkaBroker
-import kafka.utils.{TestInfoUtils, TestUtils}
+import kafka.utils.TestInfoUtils
 import org.apache.kafka.clients.admin.{NewPartitions, NewTopic}
 import org.apache.kafka.clients.consumer._
 import org.apache.kafka.clients.producer.{ProducerConfig, ProducerRecord}
@@ -31,6 +31,7 @@ import org.apache.kafka.common.test.api.Flaky
 import org.apache.kafka.common.{MetricName, TopicPartition}
 import org.apache.kafka.server.quota.QuotaType
 import org.apache.kafka.test.{MockConsumerInterceptor, MockProducerInterceptor}
+import org.apache.kafka.test.TestUtils
 import org.junit.jupiter.api.Assertions._
 import org.junit.jupiter.api.Timeout
 import org.junit.jupiter.params.ParameterizedTest
@@ -143,7 +144,7 @@ class PlaintextConsumerTest extends BaseConsumerTest {
     val consumer = createConsumer()
     // First call would create the topic
     consumer.partitionsFor("non-exist-topic")
-    TestUtils.waitUntilTrue(() => {
+    TestUtils.waitForCondition(() => {
       !consumer.partitionsFor("non-exist-topic").isEmpty
     }, s"Timed out while awaiting non empty partitions.")
   }
@@ -858,7 +859,7 @@ class PlaintextConsumerTest extends BaseConsumerTest {
     // consumer explicitly left the group as opposed to being kicked out by the broker.
     val leaveGroupTimeoutMs = config.getInt(ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG) / 2
 
-    TestUtils.waitUntilTrue(
+    TestUtils.waitForCondition(
       () => {
         try {
           val groupId = config.getString(ConsumerConfig.GROUP_ID_CONFIG)
@@ -869,8 +870,8 @@ class PlaintextConsumerTest extends BaseConsumerTest {
             false
         }
       },
-      msg=s"Consumer did not leave the consumer group within $leaveGroupTimeoutMs ms of close",
-      waitTimeMs=leaveGroupTimeoutMs
+      String.format("Consumer did not leave the consumer group within %s ms of close", leaveGroupTimeoutMs),
+      leaveGroupTimeoutMs
     )
   }
 }

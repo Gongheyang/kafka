@@ -23,6 +23,7 @@ import org.apache.kafka.common.protocol.{ApiKeys, Errors}
 import org.apache.kafka.common.requests.{ListOffsetsRequest, ListOffsetsResponse}
 import org.apache.kafka.common.{IsolationLevel, TopicPartition}
 import org.apache.kafka.server.config.ServerConfigs
+import org.apache.kafka.test.{TestUtils => JTestUtils}
 import org.junit.jupiter.api.Assertions._
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
@@ -196,7 +197,7 @@ class ListOffsetsRequestTest extends BaseRequestTest {
     killBroker(firstLeaderId)
     val secondLeaderId = TestUtils.awaitLeaderChange(brokers, partition, oldLeaderOpt = Some(firstLeaderId))
     // make sure high watermark of new leader has caught up
-    TestUtils.waitUntilTrue(() => sendRequest(secondLeaderId, ListOffsetsRequest.LATEST_TIMESTAMP, -1).errorCode != Errors.OFFSET_NOT_AVAILABLE.code,
+    JTestUtils.waitForCondition(() => sendRequest(secondLeaderId, ListOffsetsRequest.LATEST_TIMESTAMP, -1).errorCode != Errors.OFFSET_NOT_AVAILABLE.code,
       "the second leader does not sync to follower")
     val secondLeaderEpoch = TestUtils.findLeaderEpoch(secondLeaderId, partition, brokers)
 

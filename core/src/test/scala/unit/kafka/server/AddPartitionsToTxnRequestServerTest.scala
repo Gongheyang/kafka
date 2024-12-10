@@ -31,6 +31,7 @@ import org.apache.kafka.common.protocol.{ApiKeys, Errors}
 import org.apache.kafka.common.requests.FindCoordinatorRequest.CoordinatorType
 import org.apache.kafka.common.requests.{AddPartitionsToTxnRequest, AddPartitionsToTxnResponse, FindCoordinatorRequest, FindCoordinatorResponse, InitProducerIdRequest, InitProducerIdResponse}
 import org.apache.kafka.server.config.ServerLogConfigs
+import org.apache.kafka.test.{TestUtils => JTestUtils}
 import org.junit.jupiter.api.Assertions._
 import org.junit.jupiter.api.{BeforeEach, TestInfo}
 import org.junit.jupiter.params.ParameterizedTest
@@ -180,7 +181,7 @@ class AddPartitionsToTxnRequestServerTest extends BaseRequestTest {
 
     var initPidResponse: InitProducerIdResponse = null
 
-    TestUtils.waitUntilTrue(() => {
+    JTestUtils.waitForCondition(() => {
       val initPidRequest = new InitProducerIdRequest.Builder(new InitProducerIdRequestData().setTransactionalId(transactionalId).setTransactionTimeoutMs(10000)).build()
       initPidResponse = connectAndReceive[InitProducerIdResponse](initPidRequest, brokerSocketServer(coordinatorId))
       initPidResponse.error() != Errors.COORDINATOR_LOAD_IN_PROGRESS

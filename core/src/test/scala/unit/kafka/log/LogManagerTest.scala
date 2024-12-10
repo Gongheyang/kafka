@@ -33,6 +33,8 @@ import org.apache.kafka.image.{TopicImage, TopicsImage}
 import org.apache.kafka.metadata.{LeaderRecoveryState, PartitionRegistration}
 import org.apache.kafka.metadata.properties.{MetaProperties, MetaPropertiesEnsemble, MetaPropertiesVersion, PropertiesUtils}
 import org.apache.kafka.server.common.MetadataVersion
+import org.apache.kafka.test.{TestUtils => JTestUtils}
+
 import org.junit.jupiter.api.Assertions._
 import org.junit.jupiter.api.{AfterEach, BeforeEach, Test}
 import org.mockito.ArgumentMatchers.any
@@ -274,7 +276,7 @@ class LogManagerTest {
     t.start()
 
     // 4. shutdown LogManager after the first log is loaded but before the second log is loaded
-    TestUtils.waitUntilTrue(() => loadLogCalled == 1,
+    JTestUtils.waitForCondition(() => loadLogCalled == 1,
       "Timed out waiting for only the first log to be loaded")
     logManager.shutdown()
     logManager = null

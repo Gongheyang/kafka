@@ -17,7 +17,6 @@
 package kafka.server
 
 import org.apache.kafka.common.test.api.{ClusterConfigProperty, ClusterInstance, ClusterTest, ClusterTestDefaults, ClusterTestExtensions, Type}
-import kafka.utils.TestUtils
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.errors.UnsupportedVersionException
 import org.apache.kafka.common.protocol.{ApiKeys, Errors}
@@ -25,6 +24,7 @@ import org.apache.kafka.common.requests.JoinGroupRequest
 import org.apache.kafka.common.utils.ProducerIdAndEpoch
 import org.apache.kafka.coordinator.group.GroupCoordinatorConfig
 import org.apache.kafka.coordinator.transaction.TransactionLogConfig
+import org.apache.kafka.test.TestUtils
 import org.junit.jupiter.api.Assertions.{assertThrows, assertTrue, fail}
 import org.junit.jupiter.api.extension.ExtendWith
 
@@ -171,7 +171,7 @@ class TxnOffsetCommitRequestTest(cluster:ClusterInstance) extends GroupCoordinat
   ): Unit = {
     var producerIdAndEpoch: ProducerIdAndEpoch = null
     // Wait until the coordinator finishes loading.
-    TestUtils.waitUntilTrue(() =>
+    TestUtils.waitForCondition(() =>
       try {
         producerIdAndEpoch = initProducerId(
           transactionalId = transactionalId,
@@ -218,7 +218,7 @@ class TxnOffsetCommitRequestTest(cluster:ClusterInstance) extends GroupCoordinat
 
     val expectedOffset = if (expectedTxnCommitError == Errors.NONE) offset else originalOffset
 
-    TestUtils.waitUntilTrue(() =>
+    TestUtils.waitForCondition(() =>
       try {
         fetchOffset(topic, partition, groupId) == expectedOffset
       } catch {

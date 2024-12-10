@@ -33,6 +33,7 @@ import org.apache.kafka.common.test.api.Flaky
 import org.apache.kafka.common.{KafkaException, requests}
 import org.apache.kafka.network.SocketServerConfigs
 import org.apache.kafka.server.config.QuotaConfig
+import org.apache.kafka.test.{TestUtils => JTestUtils}
 import org.junit.jupiter.api.Assertions._
 import org.junit.jupiter.api.{AfterEach, BeforeEach, TestInfo}
 import org.junit.jupiter.params.ParameterizedTest
@@ -146,7 +147,7 @@ class DynamicConnectionQuotaTest extends BaseRequestTest {
     conns ++= (5 until 10).map(_ => connect("INTERNAL"))
     conns.foreach(verifyConnection)
     conns.foreach(_.close())
-    TestUtils.waitUntilTrue(() => initialConnectionCount == connectionCount, "Connections not closed")
+    JTestUtils.waitForCondition(() => initialConnectionCount == connectionCount, "Connections not closed")
 
     // Increase MaxConnections for PLAINTEXT listener to 7 at the broker level
     val maxConnectionsPlaintext = 7
@@ -164,7 +165,7 @@ class DynamicConnectionQuotaTest extends BaseRequestTest {
     plaintextConnections.head.close()
     future.get(30, TimeUnit.SECONDS)
     plaintextConnections.foreach(_.close())
-    TestUtils.waitUntilTrue(() => initialConnectionCount == connectionCount, "Connections not closed")
+    JTestUtils.waitForCondition(() => initialConnectionCount == connectionCount, "Connections not closed")
 
     // Verify that connections on inter-broker listener succeed even if broker max connections has been
     // reached by closing connections on another listener
@@ -173,14 +174,14 @@ class DynamicConnectionQuotaTest extends BaseRequestTest {
     plaintextConns.foreach(verifyConnection)
     internalConns.foreach(verifyConnection)
     plaintextConns ++= (0 until 2).map(_ => connect("PLAINTEXT"))
-    TestUtils.waitUntilTrue(() => connectionCount <= 10, "Internal connections not closed")
+    JTestUtils.waitForCondition(() => connectionCount <= 10, "Internal connections not closed")
     plaintextConns.foreach(verifyConnection)
     assertThrows(classOf[IOException], () => internalConns.foreach { socket =>
       sendAndReceive[ProduceResponse](produceRequest, socket)
     })
     plaintextConns.foreach(_.close())
     internalConns.foreach(_.close())
-    TestUtils.waitUntilTrue(() => initialConnectionCount == connectionCount, "Connections not closed")
+    JTestUtils.waitForCondition(() => initialConnectionCount == connectionCount, "Connections not closed")
   }
 
 
@@ -269,7 +270,7 @@ class DynamicConnectionQuotaTest extends BaseRequestTest {
     val initialConnectionCount = connectionCount
     TestUtils.incrementalAlterConfigs(brokers, admin, newProps, perBrokerConfig).all.get()
     waitForConfigOnServer(aPropToVerify._1, aPropToVerify._2)
-    TestUtils.waitUntilTrue(() => initialConnectionCount == connectionCount,
+    JTestUtils.waitForCondition(() => initialConnectionCount == connectionCount,
       s"Admin client connection not closed (initial = $initialConnectionCount, current = $connectionCount)")
   }
 
@@ -279,12 +280,12 @@ class DynamicConnectionQuotaTest extends BaseRequestTest {
     val request = Map(entity -> Map(QuotaConfig.IP_CONNECTION_RATE_OVERRIDE_CONFIG -> Some(updatedRate.toDouble)))
     alterClientQuotas(admin, request).all.get()
     // use a random throwaway address if ip isn't specified to get the default value
-    TestUtils.waitUntilTrue(() => brokers.head.socketServer.connectionQuotas.
+    JTestUtils.waitForCondition(() => brokers.head.socketServer.connectionQuotas.
       connectionRateForIp(InetAddress.getByName(ip.getOrElse(unknownHost))) == updatedRate,
       s"Timed out waiting for connection rate update to propagate"
     )
 
-    TestUtils.waitUntilTrue(() => initialConnectionCount == connectionCount,
+    JTestUtils.waitForCondition(() => initialConnectionCount == connectionCount,
       s"Admin client connection not closed (initial = $initialConnectionCount, current = $connectionCount)")
   }
 
@@ -353,7 +354,7 @@ class DynamicConnectionQuotaTest extends BaseRequestTest {
     // produce should succeed on a new connection
     createAndVerifyConnection()
 
-    TestUtils.waitUntilTrue(() => connectionCount == (maxConnections - 1), "produce request connection is not closed")
+    JTestUtils.waitForCondition(() => connectionCount == (maxConnections - 1), "produce request connection is not closed")
     conns = conns :+ connect("PLAINTEXT")
 
     // now try one more (should fail)
@@ -361,11 +362,11 @@ class DynamicConnectionQuotaTest extends BaseRequestTest {
 
     //close one connection
     conns.head.close()
-    TestUtils.waitUntilTrue(() => connectionCount == (maxConnections - 1), "connection is not closed")
+    JTestUtils.waitForCondition(() => connectionCount == (maxConnections - 1), "connection is not closed")
     createAndVerifyConnection()
 
     conns.foreach(_.close())
-    TestUtils.waitUntilTrue(() => initialConnectionCount == connectionCount, "Connections not closed")
+    JTestUtils.waitForCondition(() => initialConnectionCount == connectionCount, "Connections not closed")
   }
 
   private def connectAndVerify(listener: String, ignoreIOExceptions: Boolean): Unit = {
@@ -381,7 +382,7 @@ class DynamicConnectionQuotaTest extends BaseRequestTest {
   }
 
   private def waitForConnectionCount(expectedConnectionCount: Int): Unit = {
-    TestUtils.waitUntilTrue(() => expectedConnectionCount == connectionCount,
+    JTestUtils.waitForCondition(() => expectedConnectionCount == connectionCount,
       s"Connections not closed (expected = $expectedConnectionCount current = $connectionCount)")
   }
 

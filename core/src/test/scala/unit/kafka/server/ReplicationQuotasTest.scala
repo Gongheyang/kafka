@@ -36,6 +36,7 @@ import org.apache.kafka.controller.ControllerRequestContextUtil
 import org.apache.kafka.server.common.{Feature, MetadataVersion}
 import org.apache.kafka.server.config.QuotaConfig
 import org.apache.kafka.server.quota.QuotaType
+import org.apache.kafka.test.{TestUtils => JTestUtils}
 import org.junit.jupiter.api.Assertions._
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.params.ParameterizedTest
@@ -251,7 +252,7 @@ class ReplicationQuotasTest extends QuorumTestHarness {
   }
 
   private def waitForOffsetsToMatch(offset: Int, partitionId: Int, brokerId: Int): Unit = {
-    waitUntilTrue(() => {
+    JTestUtils.waitForCondition(() => {
       offset == brokerFor(brokerId).logManager.getLog(new TopicPartition(topic, partitionId))
         .map(_.logEndOffset).getOrElse(0)
     }, s"Offsets did not match for partition $partitionId on broker $brokerId", 60000)

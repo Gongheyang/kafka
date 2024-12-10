@@ -20,7 +20,8 @@ package kafka.admin
 import kafka.integration.KafkaServerTestHarness
 import kafka.server.KafkaConfig
 import kafka.utils.TestUtils
-import kafka.utils.TestUtils.{createProducer, plaintextBootstrapServers, tempDir, waitUntilTrue}
+import kafka.utils.TestUtils.{createProducer, plaintextBootstrapServers, tempDir}
+
 import org.apache.kafka.clients.admin._
 import org.apache.kafka.clients.producer.ProducerRecord
 import org.apache.kafka.common.TopicPartition
@@ -28,6 +29,7 @@ import org.apache.kafka.common.config.TopicConfig
 import org.apache.kafka.common.requests.ListOffsetsResponse
 import org.apache.kafka.common.utils.{MockTime, Time, Utils}
 import org.apache.kafka.server.config.ServerLogConfigs
+import org.apache.kafka.test.{TestUtils => JTestUtils}
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.{AfterEach, BeforeEach, TestInfo}
 import org.junit.jupiter.params.ParameterizedTest
@@ -187,11 +189,11 @@ class ListOffsetsIntegrationTest extends KafkaServerTestHarness {
     adminClient.alterPartitionReassignments(java.util.Collections.singletonMap(new TopicPartition(topic, 0),
       Optional.of(new NewPartitionReassignment(java.util.Arrays.asList(newLeader))))).all().get()
     // wait for all reassignments get completed
-    waitUntilTrue(() => adminClient.listPartitionReassignments().reassignments().get().isEmpty,
+    JTestUtils.waitForCondition(() => adminClient.listPartitionReassignments().reassignments().get().isEmpty,
       s"There still are ongoing reassignments")
     // make sure we are able to see the new leader
     var lastLeader = -1
-    TestUtils.waitUntilTrue(() => {
+    JTestUtils.waitForCondition(() => {
       lastLeader = leader()
       lastLeader == newLeader
     }, s"expected leader: $newLeader but actual: $lastLeader")

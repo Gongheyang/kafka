@@ -30,6 +30,8 @@ import org.apache.kafka.server.config.ServerConfigs
 import org.apache.kafka.server.util.MockTime
 import org.apache.kafka.storage.internals.checkpoint.OffsetCheckpointFile
 import org.apache.kafka.storage.internals.log.{CleanerConfig, LogConfig}
+import org.apache.kafka.test.{TestUtils => JTestUtils}
+
 import org.junit.jupiter.api.Assertions._
 import org.junit.jupiter.api.extension.ExtensionContext
 import org.junit.jupiter.params.ParameterizedTest
@@ -124,7 +126,7 @@ class LogCleanerParameterizedIntegrationTest extends AbstractLogCleanerIntegrati
     // Set the last modified time to an old value to force deletion of old segments
     val endOffset = log.logEndOffset
     log.logSegments.forEach(_.setLastModified(time.milliseconds - (2 * retentionMs)))
-    TestUtils.waitUntilTrue(() => log.logStartOffset == endOffset && log.numberOfSegments == 1,
+    JTestUtils.waitForCondition(() => log.logStartOffset == endOffset && log.numberOfSegments == 1,
       "Timed out waiting for deletion of old segments")
 
     cleaner.shutdown()

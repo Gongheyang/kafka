@@ -28,6 +28,7 @@ import org.apache.kafka.common.internals.Topic
 import org.apache.kafka.common.record.CompressionType
 import org.apache.kafka.coordinator.group.GroupCoordinatorConfig
 import org.apache.kafka.server.config.ServerConfigs
+import org.apache.kafka.test.{TestUtils => JTestUtils}
 import org.junit.jupiter.api.Timeout
 import org.junit.jupiter.api.extension.ExtendWith
 
@@ -58,7 +59,7 @@ class GroupCoordinatorIntegrationTest(cluster: ClusterInstance) {
       def getGroupMetadataLogOpt: Option[UnifiedLog] =
         logManager.getLog(new TopicPartition(Topic.GROUP_METADATA_TOPIC_NAME, 0))
 
-      TestUtils.waitUntilTrue(() => getGroupMetadataLogOpt.exists(_.logSegments.asScala.exists(_.log.batches.asScala.nonEmpty)),
+      JTestUtils.waitForCondition(() => getGroupMetadataLogOpt.exists(_.logSegments.asScala.exists(_.log.batches.asScala.nonEmpty)),
         "Commit message not appended in time")
 
       val logSegments = getGroupMetadataLogOpt.get.logSegments.asScala
@@ -89,10 +90,10 @@ class GroupCoordinatorIntegrationTest(cluster: ClusterInstance) {
       // a mix of group records with tombstones to delete the member.
       withConsumer(groupId = "grp1", groupProtocol = GroupProtocol.CONSUMER) { consumer =>
         consumer.subscribe(List("foo").asJava)
-        TestUtils.waitUntilTrue(() => {
+        JTestUtils.waitForCondition(() => {
           consumer.poll(Duration.ofMillis(50))
           consumer.assignment.asScala.nonEmpty
-        }, msg = "Consumer did not get an non empty assignment")
+        }, "Consumer did not get an non empty assignment")
       }
     }
 
@@ -138,17 +139,17 @@ class GroupCoordinatorIntegrationTest(cluster: ClusterInstance) {
       // rebalance after the commit sync.
       withConsumer(groupId = "grp2", groupProtocol = GroupProtocol.CONSUMER, enableAutoCommit = false) { consumer =>
         consumer.subscribe(List("foo").asJava)
-        TestUtils.waitUntilTrue(() => {
+        JTestUtils.waitForCondition(() => {
           consumer.poll(Duration.ofMillis(50))
           consumer.assignment().asScala.nonEmpty
-        }, msg = "Consumer did not get an non empty assignment")
+        }, "Consumer did not get an non empty assignment")
         consumer.commitSync()
         consumer.unsubscribe()
         consumer.subscribe(List("foo").asJava)
-        TestUtils.waitUntilTrue(() => {
+        JTestUtils.waitForCondition(() => {
           consumer.poll(Duration.ofMillis(50))
           consumer.assignment().asScala.nonEmpty
-        }, msg = "Consumer did not get an non empty assignment")
+        }, "Consumer did not get an non empty assignment")
       }
     }
 
@@ -192,10 +193,10 @@ class GroupCoordinatorIntegrationTest(cluster: ClusterInstance) {
       // the group is deleted. This creates tombstones to delete the member, the group and the offsets.
       withConsumer(groupId = "grp3", groupProtocol = GroupProtocol.CONSUMER) { consumer =>
         consumer.subscribe(List("foo").asJava)
-        TestUtils.waitUntilTrue(() => {
+        JTestUtils.waitForCondition(() => {
           consumer.poll(Duration.ofMillis(50))
           consumer.assignment().asScala.nonEmpty
-        }, msg = "Consumer did not get an non empty assignment")
+        }, "Consumer did not get an non empty assignment")
       }
 
       admin
@@ -245,18 +246,18 @@ class GroupCoordinatorIntegrationTest(cluster: ClusterInstance) {
       // protocol.
       withConsumer(groupId = "grp4", groupProtocol = GroupProtocol.CLASSIC) { consumer =>
         consumer.subscribe(List("foo").asJava)
-        TestUtils.waitUntilTrue(() => {
+        JTestUtils.waitForCondition(() => {
           consumer.poll(Duration.ofMillis(50))
           consumer.assignment().asScala.nonEmpty
-        }, msg = "Consumer did not get an non empty assignment")
+        }, "Consumer did not get an non empty assignment")
       }
 
       withConsumer(groupId = "grp4", groupProtocol = GroupProtocol.CONSUMER) { consumer =>
         consumer.subscribe(List("foo").asJava)
-        TestUtils.waitUntilTrue(() => {
+        JTestUtils.waitForCondition(() => {
           consumer.poll(Duration.ofMillis(50))
           consumer.assignment().asScala.nonEmpty
-        }, msg = "Consumer did not get an non empty assignment")
+        }, "Consumer did not get an non empty assignment")
       }
     }
 

@@ -19,7 +19,6 @@ import java.util.concurrent.{ExecutionException, Semaphore}
 import java.util.regex.Pattern
 import java.util.{Collections, Optional, Properties}
 import kafka.utils.{TestInfoUtils, TestUtils}
-import kafka.utils.TestUtils.waitUntilTrue
 import org.apache.kafka.clients.admin.{Admin, AlterConfigOp, NewTopic}
 import org.apache.kafka.clients.consumer._
 import org.apache.kafka.clients.producer._
@@ -1068,7 +1067,7 @@ class AuthorizerIntegrationTest extends AbstractAuthorizerIntegrationTest {
       }
       def onPartitionsRevoked(partitions: util.Collection[TopicPartition]): Unit = {
       }})
-    TestUtils.waitUntilTrue(() => {
+    JTestUtils.waitForCondition(() => {
       consumer.poll(Duration.ofMillis(500))
       assignSemaphore.tryAcquire()
     }, "Assignment did not complete on time")
@@ -1126,7 +1125,7 @@ class AuthorizerIntegrationTest extends AbstractAuthorizerIntegrationTest {
       }
       def onPartitionsRevoked(partitions: util.Collection[TopicPartition]): Unit = {
       }})
-    TestUtils.waitUntilTrue(() => {
+    JTestUtils.waitForCondition(() => {
       consumer.poll(Duration.ofMillis(500))
       assignSemaphore.tryAcquire()
     }, "Assignment did not complete on time")
@@ -1239,7 +1238,7 @@ class AuthorizerIntegrationTest extends AbstractAuthorizerIntegrationTest {
     val resource = if (resType == TOPIC) newTopicResource else clusterResource
     addAndVerifyAcls(acls, resource)
 
-    waitUntilTrue(() => {
+    JTestUtils.waitForCondition(() => {
       consumer.poll(Duration.ofMillis(50L))
       brokers.forall { broker =>
         broker.metadataCache.getPartitionInfo(newTopic, 0) match {

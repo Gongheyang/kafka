@@ -31,6 +31,7 @@ import org.apache.kafka.common.security.auth.SecurityProtocol
 import org.apache.kafka.coordinator.group.GroupCoordinatorConfig
 import org.apache.kafka.coordinator.transaction.TransactionLogConfig
 import org.apache.kafka.metadata.storage.Formatter
+import org.apache.kafka.test.{TestUtils => JTestUtils}
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.{MethodSource, ValueSource}
 
@@ -211,7 +212,7 @@ class SaslClientsWithInvalidCredentialsTest extends AbstractSaslTest {
 
   private def verifyWithRetry(action: => Unit): Unit = {
     var attempts = 0
-    TestUtils.waitUntilTrue(() => {
+    JTestUtils.waitForCondition(() => {
       try {
         attempts += 1
         action

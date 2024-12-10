@@ -31,6 +31,8 @@ import org.apache.kafka.coordinator.group.GroupCoordinatorConfig
 import org.apache.kafka.coordinator.group.modern.share.ShareGroupConfig
 import org.apache.kafka.security.authorizer.AclEntry
 import org.apache.kafka.server.config.ServerConfigs
+import org.apache.kafka.test.{TestUtils => JTestUtils}
+
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.{Tag, Timeout}
 import org.junit.jupiter.api.extension.ExtendWith
@@ -102,13 +104,13 @@ class ShareGroupDescribeRequestTest(cluster: ClusterInstance) extends GroupCoord
 
       // Add first group with one member.
       var grp1Member1Response: ShareGroupHeartbeatResponseData = null
-      TestUtils.waitUntilTrue(() => {
+      JTestUtils.waitForCondition(() => {
         grp1Member1Response = shareGroupHeartbeat(
           groupId = "grp-1",
           subscribedTopicNames = List("bar"),
         )
         grp1Member1Response.errorCode == Errors.NONE.code
-      }, msg = s"Could not join the group successfully. Last response $grp1Member1Response.")
+      }, s"Could not join the group successfully. Last response $grp1Member1Response.")
 
       for (version <- ApiKeys.SHARE_GROUP_DESCRIBE.oldestVersion() to ApiKeys.SHARE_GROUP_DESCRIBE.latestVersion(isUnstableApiEnabled)) {
         val expected = List(

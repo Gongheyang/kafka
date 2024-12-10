@@ -39,6 +39,7 @@ import org.apache.kafka.network.SocketServerConfigs
 import org.apache.kafka.raft.LeaderAndEpoch
 import org.apache.kafka.server.common.{KRaftVersion, MetadataVersion}
 import org.apache.kafka.server.fault.FaultHandler
+import org.apache.kafka.test.{TestUtils => JTestUtils}
 import org.junit.jupiter.api.Assertions.{assertEquals, assertNotNull, assertTrue}
 import org.junit.jupiter.api.{AfterEach, BeforeEach, Test}
 import org.mockito.ArgumentMatchers.any
@@ -123,7 +124,7 @@ class BrokerMetadataPublisherTest {
         admin.incrementalAlterConfigs(singletonMap(
           new ConfigResource(BROKER, ""),
           singleton(new AlterConfigOp(new ConfigEntry(SocketServerConfigs.MAX_CONNECTIONS_CONFIG, "123"), SET)))).all().get()
-        TestUtils.waitUntilTrue(() => numTimesReloadCalled.get() == 0,
+        JTestUtils.waitForCondition(() => numTimesReloadCalled.get() == 0,
           "numTimesConfigured never reached desired value")
 
         // Setting the foo.bar.test.configuration to 1 will still trigger reconfiguration because
@@ -131,7 +132,7 @@ class BrokerMetadataPublisherTest {
         admin.incrementalAlterConfigs(singletonMap(
           new ConfigResource(BROKER, broker.config.nodeId.toString),
           singleton(new AlterConfigOp(new ConfigEntry(SocketServerConfigs.MAX_CONNECTIONS_CONFIG, "123"), SET)))).all().get()
-        TestUtils.waitUntilTrue(() => numTimesReloadCalled.get() == 1,
+        JTestUtils.waitForCondition(() => numTimesReloadCalled.get() == 1,
           "numTimesConfigured never reached desired value")
       } finally {
         admin.close()

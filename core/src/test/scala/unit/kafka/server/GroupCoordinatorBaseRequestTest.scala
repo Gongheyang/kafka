@@ -31,6 +31,7 @@ import org.apache.kafka.common.requests.{AbstractRequest, AbstractResponse, AddO
 import org.apache.kafka.common.serialization.StringSerializer
 import org.apache.kafka.common.utils.ProducerIdAndEpoch
 import org.apache.kafka.controller.ControllerRequestContextUtil.ANONYMOUS_CONTEXT
+import org.apache.kafka.test.{TestUtils => JTestUtils}
 import org.junit.jupiter.api.Assertions.{assertEquals, fail}
 
 import java.util.{Comparator, Properties}
@@ -527,10 +528,10 @@ class GroupCoordinatorBaseRequestTest(cluster: ClusterInstance) {
     // here because the group coordinator is loaded in the background.
     val joinGroupRequest = new JoinGroupRequest.Builder(joinGroupRequestData).build(version)
     var joinGroupResponse: JoinGroupResponse = null
-    TestUtils.waitUntilTrue(() => {
+    JTestUtils.waitForCondition(() => {
       joinGroupResponse = connectAndReceive[JoinGroupResponse](joinGroupRequest)
       joinGroupResponse != null
-    }, msg = s"Could not join the group successfully. Last response $joinGroupResponse.")
+    }, s"Could not join the group successfully. Last response $joinGroupResponse.")
 
     joinGroupResponse.data
   }
@@ -734,10 +735,10 @@ class GroupCoordinatorBaseRequestTest(cluster: ClusterInstance) {
     // Send the request until receiving a successful response. There is a delay
     // here because the group coordinator is loaded in the background.
     var consumerGroupHeartbeatResponse: ConsumerGroupHeartbeatResponse = null
-    TestUtils.waitUntilTrue(() => {
+    JTestUtils.waitForCondition(() => {
       consumerGroupHeartbeatResponse = connectAndReceive[ConsumerGroupHeartbeatResponse](consumerGroupHeartbeatRequest)
       consumerGroupHeartbeatResponse.data.errorCode == expectedError.code
-    }, msg = s"Could not heartbeat successfully. Last response $consumerGroupHeartbeatResponse.")
+    }, s"Could not heartbeat successfully. Last response $consumerGroupHeartbeatResponse.")
 
     consumerGroupHeartbeatResponse.data
   }
@@ -763,10 +764,10 @@ class GroupCoordinatorBaseRequestTest(cluster: ClusterInstance) {
     // Send the request until receiving a successful response. There is a delay
     // here because the group coordinator is loaded in the background.
     var shareGroupHeartbeatResponse: ShareGroupHeartbeatResponse = null
-    TestUtils.waitUntilTrue(() => {
+    JTestUtils.waitForCondition(() => {
       shareGroupHeartbeatResponse = connectAndReceive[ShareGroupHeartbeatResponse](shareGroupHeartbeatRequest)
       shareGroupHeartbeatResponse.data.errorCode == expectedError.code
-    }, msg = s"Could not heartbeat successfully. Last response $shareGroupHeartbeatResponse.")
+    }, s"Could not heartbeat successfully. Last response $shareGroupHeartbeatResponse.")
 
     shareGroupHeartbeatResponse.data
   }

@@ -21,7 +21,7 @@ import java.util.Collections
 import java.util.concurrent.{ExecutionException, TimeUnit}
 import kafka.api.IntegrationTestHarness
 import kafka.controller.{OfflineReplica, PartitionAndReplica}
-import kafka.utils.TestUtils.{Checkpoint, LogDirFailureType, Roll, waitUntilTrue}
+import kafka.utils.TestUtils.{Checkpoint, LogDirFailureType, Roll}
 import kafka.utils.{CoreUtils, TestInfoUtils, TestUtils}
 import org.apache.kafka.clients.consumer.Consumer
 import org.apache.kafka.clients.producer.{ProducerConfig, ProducerRecord}
@@ -30,6 +30,7 @@ import org.apache.kafka.common.errors.{KafkaStorageException, NotLeaderOrFollowe
 import org.apache.kafka.common.utils.Utils
 import org.apache.kafka.metadata.BrokerState
 import org.apache.kafka.server.config.{ReplicationConfigs, ServerConfigs, ServerLogConfigs}
+import org.apache.kafka.test.{TestUtils => JTestUtils}
 import org.junit.jupiter.api.Assertions._
 import org.junit.jupiter.api.{BeforeEach, TestInfo}
 import org.junit.jupiter.params.provider.MethodSource
@@ -87,8 +88,8 @@ class LogDirFailureTest extends IntegrationTestHarness {
 
     causeLogDirFailure(Checkpoint, leaderServer, partition)
 
-    TestUtils.waitUntilTrue(() => leaderServer.brokerState == BrokerState.SHUTTING_DOWN,
-      s"Expected broker to be in NOT_RUNNING state but was ${leaderServer.brokerState}", 15000)
+    JTestUtils.waitForCondition(() => leaderServer.brokerState == BrokerState.SHUTTING_DOWN,
+      15000, s"Expected broker to be in NOT_RUNNING state but was ${leaderServer.brokerState}")
     // wait for actual shutdown (by default max 5 minutes for graceful shutdown)
     leaderServer.awaitShutdown()
   }
@@ -183,7 +184,7 @@ class LogDirFailureTest extends IntegrationTestHarness {
 
     val failedLogDir = causeLogDirFailure(failureType, originalLeaderServer, partition)
 
-    TestUtils.waitUntilTrue(() => {
+    JTestUtils.waitForCondition(() => {
       // ProduceResponse may contain KafkaStorageException and trigger metadata update
       producer.send(record)
       producer.partitionsFor(topic).asScala.find(_.partition() == 0).get.leader().id() != originalLeaderServerId
@@ -196,7 +197,7 @@ class LogDirFailureTest extends IntegrationTestHarness {
     TestUtils.pollUntilAtLeastNumRecords(consumer, 1)
 
     if (quorum == "kraft") {
-      waitUntilTrue(() => {
+      JTestUtils.waitForCondition(() => {
         // get the broker with broker.nodeId == originalLeaderServerId
         val brokerWithDirFail = brokers.find(_.config.nodeId == originalLeaderServerId).map(_.asInstanceOf[BrokerServer])
         // check if the broker has the offline log dir
@@ -238,7 +239,7 @@ class LogDirFailureTest extends IntegrationTestHarness {
     }
 
     // Wait for ReplicaHighWatermarkCheckpoint to happen so that the log directory of the topic will be offline
-    waitUntilTrue(() => !leaderBroker.logManager.isLogDirOnline(logDir.getAbsolutePath), "Expected log directory offline", 3000L)
+    JTestUtils.waitForCondition(() => !leaderBroker.logManager.isLogDirOnline(logDir.getAbsolutePath), "Expected log directory offline", 3000L)
     assertTrue(leaderBroker.replicaManager.localLog(partition).isEmpty)
     logDir
   }

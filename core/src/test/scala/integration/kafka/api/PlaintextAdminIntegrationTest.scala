@@ -56,6 +56,7 @@ import org.apache.kafka.network.SocketServerConfigs
 import org.apache.kafka.security.authorizer.AclEntry
 import org.apache.kafka.server.config.{QuotaConfig, ServerConfigs, ServerLogConfigs, ZkConfigs}
 import org.apache.kafka.storage.internals.log.{CleanerConfig, LogConfig, LogFileUtils}
+import org.apache.kafka.test.{TestUtils => JTestUtils}
 import org.apache.kafka.test.TestUtils.{DEFAULT_MAX_WAIT_MS, assertFutureThrows}
 import org.apache.log4j.PropertyConfigurator
 import org.junit.jupiter.api.Assertions._
@@ -138,7 +139,7 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
       new ClientQuotaAlteration.Op(k, v)
     }.asJavaCollection)).asJavaCollection).all.get
 
-    TestUtils.waitUntilTrue(() => {
+    JTestUtils.waitForCondition(() => {
       // wait for our ClientQuotaEntity to be set
       client.describeClientQuotas(ClientQuotaFilter.all()).entities().get().size == 1
     }, "Timed out waiting for quota config to be propagated to all servers")
@@ -158,7 +159,7 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
     client.alterUserScramCredentials(Collections.singletonList(
       new UserScramCredentialUpsertion(targetUserName, new ScramCredentialInfo(ScramMechanism.SCRAM_SHA_256, 4096), "123456")
     )).all.get
-    TestUtils.waitUntilTrue(() => client.describeUserScramCredentials().all().get().size() == 1,
+    JTestUtils.waitForCondition(() => client.describeUserScramCredentials().all().get().size() == 1,
       "Add one user scram credential timeout")
 
     val result = client.describeUserScramCredentials().all().get()
@@ -176,14 +177,14 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
       new UserScramCredentialUpsertion("tom2", new ScramCredentialInfo(ScramMechanism.SCRAM_SHA_256, 4096), "123456"),
       new UserScramCredentialUpsertion("tom3", new ScramCredentialInfo(ScramMechanism.SCRAM_SHA_256, 4096), "123456")
     )).all().get
-    TestUtils.waitUntilTrue(() => client.describeUserScramCredentials().all().get().size() == 3,
+    JTestUtils.waitForCondition(() => client.describeUserScramCredentials().all().get().size() == 3,
       "Add user scram credential timeout")
 
     // alter user info
     client.alterUserScramCredentials(Collections.singletonList(
       new UserScramCredentialUpsertion(targetUserName, new ScramCredentialInfo(ScramMechanism.SCRAM_SHA_512, 8192), "123456")
     )).all.get
-    TestUtils.waitUntilTrue(() => {
+    JTestUtils.waitForCondition(() => {
       client.describeUserScramCredentials().all().get().get(targetUserName).credentialInfos().size() == 2
     }, "Alter user scram credential timeout")
 
@@ -240,7 +241,7 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
       consumer.assign(Collections.singleton(topicPartition))
       consumer.seekToBeginning(Collections.singleton(topicPartition))
       var consumeNum = 0
-      TestUtils.waitUntilTrue(() => {
+      JTestUtils.waitForCondition(() => {
         val records = consumer.poll(time.Duration.ofMillis(100))
         consumeNum += records.count()
         consumeNum >= expectedNumber
@@ -360,9 +361,9 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
 
       producer.send(new ProducerRecord[Array[Byte], Array[Byte]](topic, partition, "k1".getBytes, "v1".getBytes()))
       producer.flush()
-      TestUtils.waitUntilTrue(() => transactionState() == TransactionState.ONGOING, stateAbnormalMsg)
+      JTestUtils.waitForCondition(() => transactionState() == TransactionState.ONGOING, stateAbnormalMsg)
 
-      TestUtils.waitUntilTrue(() => describeTransactions().topicPartitions().size() == 1, "Describe transactions timeout")
+      JTestUtils.waitForCondition(() => describeTransactions().topicPartitions().size() == 1, "Describe transactions timeout")
       val transactionResult = describeTransactions()
       assertEquals(findCoordinatorIdByTransactionId(transactionId), transactionResult.coordinatorId())
       assertEquals(0, transactionResult.producerId())
@@ -370,7 +371,7 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
       assertEquals(Collections.singleton(topicPartition), transactionResult.topicPartitions())
 
       producer.commitTransaction()
-      TestUtils.waitUntilTrue(() => transactionState() == TransactionState.COMPLETE_COMMIT, stateAbnormalMsg)
+      JTestUtils.waitForCondition(() => transactionState() == TransactionState.COMPLETE_COMMIT, stateAbnormalMsg)
     } finally producer.close()
 
     // abort case
@@ -399,10 +400,10 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
       assertEquals(Collections.singleton(topicPartition), transactionSendMsgResult.topicPartitions())
       assertEquals(topicPartition, transactionSendMsgResult.topicPartitions().asScala.head)
 
-      TestUtils.waitUntilTrue(() => transactionState() == TransactionState.ONGOING, stateAbnormalMsg)
+      JTestUtils.waitForCondition(() => transactionState() == TransactionState.ONGOING, stateAbnormalMsg)
 
       abortProducer.abortTransaction()
-      TestUtils.waitUntilTrue(() => transactionState() == TransactionState.COMPLETE_ABORT, stateAbnormalMsg)
+      JTestUtils.waitForCondition(() => transactionState() == TransactionState.COMPLETE_ABORT, stateAbnormalMsg)
     } finally abortProducer.close()
   }
 
@@ -457,7 +458,7 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
         producer.flush()
         producer.commitTransaction()
       } finally producer.close()
-      TestUtils.waitUntilTrue(() => transactionState(transactionId1) == TransactionState.COMPLETE_COMMIT, stateAbnormalMsg)
+      JTestUtils.waitForCondition(() => transactionState(transactionId1) == TransactionState.COMPLETE_COMMIT, stateAbnormalMsg)
 
       val transactionId2 = "foo2"
       val producer2 = TestUtils.createTransactionalProducer(transactionId2, brokers)
@@ -468,7 +469,7 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
         producer2.flush()
         producer2.abortTransaction()
       } finally producer2.close()
-      TestUtils.waitUntilTrue(() => transactionState(transactionId2) == TransactionState.COMPLETE_ABORT, stateAbnormalMsg)
+      JTestUtils.waitForCondition(() => transactionState(transactionId2) == TransactionState.COMPLETE_ABORT, stateAbnormalMsg)
 
       val transactionId3 = "foo3"
       val producer3 = TestUtils.createTransactionalProducer(transactionId3, brokers)
@@ -479,7 +480,7 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
         producer3.flush()
         producer3.commitTransaction()
       } finally producer3.close()
-      TestUtils.waitUntilTrue(() => transactionState(transactionId3) == TransactionState.COMPLETE_COMMIT, stateAbnormalMsg)
+      JTestUtils.waitForCondition(() => transactionState(transactionId3) == TransactionState.COMPLETE_COMMIT, stateAbnormalMsg)
     }
 
     createTransactionList()
@@ -872,7 +873,7 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
     // Verify that replica can be moved to the specified log directory after the topic has been created
     client.alterReplicaLogDirs(secondReplicaAssignment.asJava, new AlterReplicaLogDirsOptions).all.get
     brokers.foreach { server =>
-      TestUtils.waitUntilTrue(() => {
+      JTestUtils.waitForCondition(() => {
         val logDir = server.logManager.getLog(tp).get.dir.getParent
         secondReplicaAssignment(new TopicPartitionReplica(topic, 0, server.config.brokerId)) == logDir
       }, "timed out waiting for replica movement")
@@ -902,17 +903,17 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
     }
 
     try {
-      TestUtils.waitUntilTrue(() => numMessages.get > 10, s"only $numMessages messages are produced before timeout. Producer future ${producerFuture.value}")
+      JTestUtils.waitForCondition(() => numMessages.get > 10, s"only $numMessages messages are produced before timeout. Producer future ${producerFuture.value}")
       client.alterReplicaLogDirs(firstReplicaAssignment.asJava, new AlterReplicaLogDirsOptions).all.get
       brokers.foreach { server =>
-        TestUtils.waitUntilTrue(() => {
+        JTestUtils.waitForCondition(() => {
           val logDir = server.logManager.getLog(tp).get.dir.getParent
           firstReplicaAssignment(new TopicPartitionReplica(topic, 0, server.config.brokerId)) == logDir
         }, s"timed out waiting for replica movement. Producer future ${producerFuture.value}")
       }
 
       val currentMessagesNum = numMessages.get
-      TestUtils.waitUntilTrue(() => numMessages.get - currentMessagesNum > 10,
+      JTestUtils.waitForCondition(() => numMessages.get - currentMessagesNum > 10,
         s"only ${numMessages.get - currentMessagesNum} messages are produced within timeout after replica movement. Producer future ${producerFuture.value}")
     } finally running.set(false)
 
@@ -1377,7 +1378,7 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
     client.close()
     client = createAdminClient
 
-    TestUtils.waitUntilTrue(() => {
+    JTestUtils.waitForCondition(() => {
       // Need to retry if leader is not available for the partition
       result = client.deleteRecords(Map(topicPartition -> RecordsToDelete.beforeOffset(0L)).asJava)
 
@@ -1421,15 +1422,15 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
     val followerIndex = if (leaders(0) != brokers.head.config.brokerId) 0 else 1
 
     def waitForFollowerLog(expectedStartOffset: Long, expectedEndOffset: Long): Unit = {
-      TestUtils.waitUntilTrue(() => brokers(followerIndex).replicaManager.localLog(topicPartition).isDefined,
+      JTestUtils.waitForCondition(() => brokers(followerIndex).replicaManager.localLog(topicPartition).isDefined,
                               "Expected follower to create replica for partition")
 
       // wait until the follower discovers that log start offset moved beyond its HW
-      TestUtils.waitUntilTrue(() => {
+      JTestUtils.waitForCondition(() => {
         brokers(followerIndex).replicaManager.localLog(topicPartition).get.logStartOffset == expectedStartOffset
       }, s"Expected follower to discover new log start offset $expectedStartOffset")
 
-      TestUtils.waitUntilTrue(() => {
+      JTestUtils.waitForCondition(() => {
         brokers(followerIndex).replicaManager.localLog(topicPartition).get.logEndOffset == expectedEndOffset
       }, s"Expected follower to catch up to log end offset $expectedEndOffset")
     }
@@ -1487,7 +1488,7 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
 
     // Verify that replica can be moved to the specified log directory
     client.alterReplicaLogDirs(Map(futureReplica -> futureLogDir).asJava).all.get
-    TestUtils.waitUntilTrue(() => {
+    JTestUtils.waitForCondition(() => {
       futureLogDir == brokers(0).logManager.getLog(topicPartition).get.dir.getParent
     }, "timed out waiting for replica movement")
 
@@ -1875,14 +1876,14 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
           consumerThreads.foreach(_.start())
           assertTrue(latch.await(30000, TimeUnit.MILLISECONDS))
           // Test that we can list the new group.
-          TestUtils.waitUntilTrue(() => {
+          JTestUtils.waitForCondition(() => {
             val matching = client.listConsumerGroups.all.get.asScala.filter(group =>
                 group.groupId == testGroupId &&
                 group.groupState.get == GroupState.STABLE)
             matching.size == 1
           }, s"Expected to be able to list $testGroupId")
 
-          TestUtils.waitUntilTrue(() => {
+          JTestUtils.waitForCondition(() => {
             val options = new ListConsumerGroupsOptions().withTypes(Set(groupType).asJava)
             val matching = client.listConsumerGroups(options).all.get.asScala.filter(group =>
                 group.groupId == testGroupId &&
@@ -1890,7 +1891,7 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
             matching.size == 1
           }, s"Expected to be able to list $testGroupId in group type $groupType")
 
-          TestUtils.waitUntilTrue(() => {
+          JTestUtils.waitForCondition(() => {
             val options = new ListConsumerGroupsOptions().withTypes(Set(groupType).asJava)
               .inGroupStates(Set(GroupState.STABLE).asJava)
             val matching = client.listConsumerGroups(options).all.get.asScala.filter(group =>
@@ -1899,7 +1900,7 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
             matching.size == 1
           }, s"Expected to be able to list $testGroupId in group type $groupType and state Stable")
 
-          TestUtils.waitUntilTrue(() => {
+          JTestUtils.waitForCondition(() => {
             val options = new ListConsumerGroupsOptions().inGroupStates(Set(GroupState.STABLE).asJava)
             val matching = client.listConsumerGroups(options).all.get.asScala.filter(group =>
                 group.groupId == testGroupId &&
@@ -1907,7 +1908,7 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
             matching.size == 1
           }, s"Expected to be able to list $testGroupId in state Stable")
 
-          TestUtils.waitUntilTrue(() => {
+          JTestUtils.waitForCondition(() => {
             val options = new ListConsumerGroupsOptions().inGroupStates(Set(GroupState.EMPTY).asJava)
             val matching = client.listConsumerGroups(options).all.get.asScala.filter(
                 _.groupId == testGroupId)
@@ -1948,7 +1949,7 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
           val testTopicPart0 = new TopicPartition(testTopicName, 0)
 
           // Test listConsumerGroupOffsets
-          TestUtils.waitUntilTrue(() => {
+          JTestUtils.waitForCondition(() => {
             val parts = client.listConsumerGroupOffsets(testGroupId).partitionsToOffsetAndMetadata().get()
             parts.containsKey(testTopicPart0) && (parts.get(testTopicPart0).offset() == 1)
           }, s"Expected the offset for partition 0 to eventually become 1.")
@@ -2039,7 +2040,7 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
           assertNull(alterConsumerGroupOffsetsResult.partitionResult(testTopicPart0).get())
 
           // Verify alterConsumerGroupOffsets success
-          TestUtils.waitUntilTrue(() => {
+          JTestUtils.waitForCondition(() => {
             val parts = client.listConsumerGroupOffsets(testGroupId).partitionsToOffsetAndMetadata().get()
             parts.containsKey(testTopicPart0) && (parts.get(testTopicPart0).offset() == 0)
           }, s"Expected the offset for partition 0 to eventually become 0.")
@@ -2144,7 +2145,7 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
           consumerThreads.foreach(_.start())
           assertTrue(latch.await(30000, TimeUnit.MILLISECONDS))
           // Test that we can list the new group.
-          TestUtils.waitUntilTrue(() => {
+          JTestUtils.waitForCondition(() => {
             val matching = client.listConsumerGroups.all.get.asScala.filter(group =>
               group.groupId == testGroupId &&
                 group.state.get == ConsumerGroupState.STABLE &&
@@ -2152,7 +2153,7 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
             matching.size == 1
           }, s"Expected to be able to list $testGroupId")
 
-          TestUtils.waitUntilTrue(() => {
+          JTestUtils.waitForCondition(() => {
             val options = new ListConsumerGroupsOptions().withTypes(Set(groupType).asJava)
             val matching = client.listConsumerGroups(options).all.get.asScala.filter(group =>
               group.groupId == testGroupId &&
@@ -2161,7 +2162,7 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
             matching.size == 1
           }, s"Expected to be able to list $testGroupId in group type $groupType")
 
-          TestUtils.waitUntilTrue(() => {
+          JTestUtils.waitForCondition(() => {
             val options = new ListConsumerGroupsOptions().withTypes(Set(groupType).asJava)
               .inStates(Set(ConsumerGroupState.STABLE).asJava)
             val matching = client.listConsumerGroups(options).all.get.asScala.filter(group =>
@@ -2171,7 +2172,7 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
             matching.size == 1
           }, s"Expected to be able to list $testGroupId in group type $groupType and state Stable")
 
-          TestUtils.waitUntilTrue(() => {
+          JTestUtils.waitForCondition(() => {
             val options = new ListConsumerGroupsOptions().withTypes(Set(groupType).asJava)
               .inGroupStates(Set(GroupState.STABLE).asJava)
             val matching = client.listConsumerGroups(options).all.get.asScala.filter(group =>
@@ -2181,7 +2182,7 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
             matching.size == 1
           }, s"Expected to be able to list $testGroupId in group type $groupType and state Stable")
 
-          TestUtils.waitUntilTrue(() => {
+          JTestUtils.waitForCondition(() => {
             val options = new ListConsumerGroupsOptions().inStates(Set(ConsumerGroupState.STABLE).asJava)
             val matching = client.listConsumerGroups(options).all.get.asScala.filter(group =>
               group.groupId == testGroupId &&
@@ -2190,7 +2191,7 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
             matching.size == 1
           }, s"Expected to be able to list $testGroupId in state Stable")
 
-          TestUtils.waitUntilTrue(() => {
+          JTestUtils.waitForCondition(() => {
             val options = new ListConsumerGroupsOptions().inGroupStates(Set(GroupState.STABLE).asJava)
             val matching = client.listConsumerGroups(options).all.get.asScala.filter(group =>
               group.groupId == testGroupId &&
@@ -2199,14 +2200,14 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
             matching.size == 1
           }, s"Expected to be able to list $testGroupId in state Stable")
 
-          TestUtils.waitUntilTrue(() => {
+          JTestUtils.waitForCondition(() => {
             val options = new ListConsumerGroupsOptions().inStates(Set(ConsumerGroupState.EMPTY).asJava)
             val matching = client.listConsumerGroups(options).all.get.asScala.filter(
               _.groupId == testGroupId)
             matching.isEmpty
           }, s"Expected to find zero groups")
 
-          TestUtils.waitUntilTrue(() => {
+          JTestUtils.waitForCondition(() => {
             val options = new ListConsumerGroupsOptions().inGroupStates(Set(GroupState.EMPTY).asJava)
             val matching = client.listConsumerGroups(options).all.get.asScala.filter(
               _.groupId == testGroupId)
@@ -2247,7 +2248,7 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
           val testTopicPart0 = new TopicPartition(testTopicName, 0)
 
           // Test listConsumerGroupOffsets
-          TestUtils.waitUntilTrue(() => {
+          JTestUtils.waitForCondition(() => {
             val parts = client.listConsumerGroupOffsets(testGroupId).partitionsToOffsetAndMetadata().get()
             parts.containsKey(testTopicPart0) && (parts.get(testTopicPart0).offset() == 1)
           }, s"Expected the offset for partition 0 to eventually become 1.")
@@ -2338,7 +2339,7 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
           assertNull(alterConsumerGroupOffsetsResult.partitionResult(testTopicPart0).get())
 
           // Verify alterConsumerGroupOffsets success
-          TestUtils.waitUntilTrue(() => {
+          JTestUtils.waitForCondition(() => {
             val parts = client.listConsumerGroupOffsets(testGroupId).partitionsToOffsetAndMetadata().get()
             parts.containsKey(testTopicPart0) && (parts.get(testTopicPart0).offset() == 0)
           }, s"Expected the offset for partition 0 to eventually become 0.")
@@ -2474,7 +2475,7 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
       assertNull(alterConsumerGroupOffsetsResult.all().get())
       assertNull(alterConsumerGroupOffsetsResult.partitionResult(topicPartition).get())
 
-      TestUtils.waitUntilTrue(() => {
+      JTestUtils.waitForCondition(() => {
         val groups = client.listGroups().all().get()
         groups.size() == 4
       }, "Expected to find all groups")
@@ -2540,7 +2541,7 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
       assertNull(alterConsumerGroupOffsetsResult.partitionResult(topicPartition).get())
 
       val groupIds = Seq(simpleGroupId, classicGroupId)
-      TestUtils.waitUntilTrue(() => {
+      JTestUtils.waitForCondition(() => {
         val groups = client.describeClassicGroups(groupIds.asJavaCollection).all().get()
         groups.size() == 2
       }, "Expected to find all groups")
@@ -2624,20 +2625,20 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
 
         // listGroups is used to list share groups
         // Test that we can list the new group.
-        TestUtils.waitUntilTrue(() => {
+        JTestUtils.waitForCondition(() => {
           client.listGroups.all.get.stream().filter(group =>
             group.groupId == testGroupId &&
               group.groupState.get == GroupState.STABLE).count() == 1
         }, s"Expected to be able to list $testGroupId")
 
-        TestUtils.waitUntilTrue(() => {
+        JTestUtils.waitForCondition(() => {
           val options = new ListGroupsOptions().withTypes(Collections.singleton(GroupType.SHARE)).inGroupStates(Collections.singleton(GroupState.STABLE))
           client.listGroups(options).all.get.stream().filter(group =>
             group.groupId == testGroupId &&
               group.groupState.get == GroupState.STABLE).count() == 1
         }, s"Expected to be able to list $testGroupId in state Stable")
 
-        TestUtils.waitUntilTrue(() => {
+        JTestUtils.waitForCondition(() => {
           val options = new ListGroupsOptions().withTypes(Collections.singleton(GroupType.SHARE)).inGroupStates(Collections.singleton(GroupState.EMPTY))
           client.listGroups(options).all.get.stream().filter(_.groupId == testGroupId).count() == 0
         }, s"Expected to find zero groups")
@@ -2737,10 +2738,11 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
         m += partition2 -> Optional.of(new NewPartitionReassignment(newAssignment.map(Int.box).asJava))
       client.alterPartitionReassignments(m.asJava).all().get()
 
-      TestUtils.waitUntilTrue(
+      JTestUtils.waitForCondition(
         () => preferredLeader(partition1) == preferred && preferredLeader(partition2) == preferred,
-        s"Expected preferred leader to become $preferred, but is ${preferredLeader(partition1)} and ${preferredLeader(partition2)}",
-        10000)
+        10000,
+        s"Expected preferred leader to become $preferred, but is ${preferredLeader(partition1)} and ${preferredLeader(partition2)}"
+        )
       // Check the leader hasn't moved
       TestUtils.assertLeader(client, partition1, prior1)
       TestUtils.assertLeader(client, partition2, prior2)
@@ -3282,12 +3284,12 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
         new AlterConfigOp(new ConfigEntry(QuotaConfig.FOLLOWER_REPLICATION_THROTTLED_RATE_CONFIG, "456"),
           AlterConfigOp.OpType.SET)
       ).asJavaCollection).asJava).all().get()
-    TestUtils.waitUntilTrue(() => {
+    JTestUtils.waitForCondition(() => {
       val broker0Configs = client.describeConfigs(Seq(broker0Resource).asJava).
         all().get().get(broker0Resource).entries().asScala.map(entry => (entry.name, entry.value)).toMap
       ("123".equals(broker0Configs.getOrElse(QuotaConfig.LEADER_REPLICATION_THROTTLED_RATE_CONFIG, "")) &&
         "456".equals(broker0Configs.getOrElse(QuotaConfig.FOLLOWER_REPLICATION_THROTTLED_RATE_CONFIG, "")))
-    }, "Expected to see the broker properties we just set", pause=25)
+    }, "Expected to see the broker properties we just set", DEFAULT_MAX_WAIT_MS, 25)
     client.incrementalAlterConfigs(Map(broker0Resource ->
       Seq(new AlterConfigOp(new ConfigEntry(QuotaConfig.LEADER_REPLICATION_THROTTLED_RATE_CONFIG, ""),
         AlterConfigOp.OpType.DELETE),
@@ -3296,13 +3298,13 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
         new AlterConfigOp(new ConfigEntry(QuotaConfig.REPLICA_ALTER_LOG_DIRS_IO_MAX_BYTES_PER_SECOND_CONFIG, "987"),
           AlterConfigOp.OpType.SET)
       ).asJavaCollection).asJava).all().get()
-    TestUtils.waitUntilTrue(() => {
+    JTestUtils.waitForCondition(() => {
       val broker0Configs = client.describeConfigs(Seq(broker0Resource).asJava).
         all().get().get(broker0Resource).entries().asScala.map(entry => (entry.name, entry.value)).toMap
       ("".equals(broker0Configs.getOrElse(QuotaConfig.LEADER_REPLICATION_THROTTLED_RATE_CONFIG, "")) &&
         "654".equals(broker0Configs.getOrElse(QuotaConfig.FOLLOWER_REPLICATION_THROTTLED_RATE_CONFIG, "")) &&
         "987".equals(broker0Configs.getOrElse(QuotaConfig.REPLICA_ALTER_LOG_DIRS_IO_MAX_BYTES_PER_SECOND_CONFIG, "")))
-    }, "Expected to see the broker properties we just modified", pause=25)
+    }, "Expected to see the broker properties we just modified", DEFAULT_MAX_WAIT_MS, 25)
   }
 
   @ParameterizedTest
@@ -3318,13 +3320,13 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
         new AlterConfigOp(new ConfigEntry(QuotaConfig.REPLICA_ALTER_LOG_DIRS_IO_MAX_BYTES_PER_SECOND_CONFIG, "789"),
           AlterConfigOp.OpType.SET)
       ).asJavaCollection).asJava).all().get()
-    TestUtils.waitUntilTrue(() => {
+    JTestUtils.waitForCondition(() => {
       val broker0Configs = client.describeConfigs(Seq(broker0Resource).asJava).
         all().get().get(broker0Resource).entries().asScala.map(entry => (entry.name, entry.value)).toMap
       ("123".equals(broker0Configs.getOrElse(QuotaConfig.LEADER_REPLICATION_THROTTLED_RATE_CONFIG, "")) &&
         "456".equals(broker0Configs.getOrElse(QuotaConfig.FOLLOWER_REPLICATION_THROTTLED_RATE_CONFIG, "")) &&
         "789".equals(broker0Configs.getOrElse(QuotaConfig.REPLICA_ALTER_LOG_DIRS_IO_MAX_BYTES_PER_SECOND_CONFIG, "")))
-    }, "Expected to see the broker properties we just set", pause=25)
+    }, "Expected to see the broker properties we just set", DEFAULT_MAX_WAIT_MS, 25)
     client.incrementalAlterConfigs(Map(broker0Resource ->
       Seq(new AlterConfigOp(new ConfigEntry(QuotaConfig.LEADER_REPLICATION_THROTTLED_RATE_CONFIG, ""),
         AlterConfigOp.OpType.DELETE),
@@ -3333,13 +3335,13 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
         new AlterConfigOp(new ConfigEntry(QuotaConfig.REPLICA_ALTER_LOG_DIRS_IO_MAX_BYTES_PER_SECOND_CONFIG, ""),
           AlterConfigOp.OpType.DELETE)
       ).asJavaCollection).asJava).all().get()
-    TestUtils.waitUntilTrue(() => {
+    JTestUtils.waitForCondition(() => {
       val broker0Configs = client.describeConfigs(Seq(broker0Resource).asJava).
         all().get().get(broker0Resource).entries().asScala.map(entry => (entry.name, entry.value)).toMap
       ("".equals(broker0Configs.getOrElse(QuotaConfig.LEADER_REPLICATION_THROTTLED_RATE_CONFIG, "")) &&
         "".equals(broker0Configs.getOrElse(QuotaConfig.FOLLOWER_REPLICATION_THROTTLED_RATE_CONFIG, "")) &&
         "".equals(broker0Configs.getOrElse(QuotaConfig.REPLICA_ALTER_LOG_DIRS_IO_MAX_BYTES_PER_SECOND_CONFIG, "")))
-    }, "Expected to see the broker properties we just removed to be deleted", pause=25)
+    }, "Expected to see the broker properties we just removed to be deleted", DEFAULT_MAX_WAIT_MS, 25)
   }
 
   @ParameterizedTest
@@ -3752,7 +3754,7 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
     val configEntry = new ConfigEntry("interval.ms", "111")
     val configOp = new AlterConfigOp(configEntry, AlterConfigOp.OpType.SET)
     client.incrementalAlterConfigs(Collections.singletonMap(configResource, Collections.singletonList(configOp))).all().get()
-    TestUtils.waitUntilTrue(() => {
+    JTestUtils.waitForCondition(() => {
       val results = client.listClientMetricsResources().all().get()
       results.size() == 1 && results.iterator().next().equals(new ClientMetricsResourceListing(name))
     }, "metadata timeout")
@@ -3802,15 +3804,17 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
           new SimpleImmutableEntry(AlterConfigOp.OpType.SET, "34"))), false).get()
     ensureConsistentKRaftMetadata()
 
-    waitUntilTrue(() => brokers.forall(_.config.originals.getOrDefault(
+    JTestUtils.waitForCondition(() => brokers.forall(_.config.originals.getOrDefault(
       CleanerConfig.LOG_CLEANER_DELETE_RETENTION_MS_PROP, "").toString.equals("34")),
+      60000L,
       s"Timed out waiting for change to ${CleanerConfig.LOG_CLEANER_DELETE_RETENTION_MS_PROP}",
-      waitTimeMs = 60000L)
+      )
 
-    waitUntilTrue(() => brokers.forall(_.config.originals.getOrDefault(
+    JTestUtils.waitForCondition(() => brokers.forall(_.config.originals.getOrDefault(
       ServerLogConfigs.LOG_RETENTION_TIME_MILLIS_CONFIG, "").toString.equals("10800000")),
+      60000L,
       s"Timed out waiting for change to ${ServerLogConfigs.LOG_RETENTION_TIME_MILLIS_CONFIG}",
-      waitTimeMs = 60000L)
+      )
 
     val newTopics = Seq(new NewTopic("foo", Map((0: Integer) -> Seq[Integer](1, 2).asJava,
       (1: Integer) -> Seq[Integer](2, 0).asJava).asJava).

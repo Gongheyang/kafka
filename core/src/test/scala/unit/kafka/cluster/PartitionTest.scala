@@ -33,6 +33,8 @@ import org.apache.kafka.common.utils.Time
 import org.apache.kafka.common.{DirectoryId, IsolationLevel, TopicPartition, Uuid}
 import org.apache.kafka.server.config.ReplicationConfigs
 import org.apache.kafka.metadata.LeaderRecoveryState
+import org.apache.kafka.test.{TestUtils => JTestUtils}
+
 import org.junit.jupiter.api.Assertions._
 import org.junit.jupiter.api.Test
 import org.mockito.ArgumentMatchers
@@ -492,7 +494,7 @@ class PartitionTest extends AbstractPartitionTest {
       }
     }
     appendThread.start()
-    TestUtils.waitUntilTrue(() => appendSemaphore.hasQueuedThreads, "follower log append is not called.")
+    JTestUtils.waitForCondition(() => appendSemaphore.hasQueuedThreads, "follower log append is not called.")
 
     val partitionState = new LeaderAndIsrPartitionState()
       .setControllerEpoch(0)
@@ -2753,7 +2755,7 @@ class PartitionTest extends AbstractPartitionTest {
     fetchFollower(partition, replicaId = follower3, fetchOffset = 10L)
 
     // Try avoiding a race
-    TestUtils.waitUntilTrue(() => !partition.partitionState.isInflight, "Expected ISR state to be committed", 100)
+    JTestUtils.waitForCondition(() => !partition.partitionState.isInflight, "Expected ISR state to be committed", 100)
 
     partition.partitionState match {
       case CommittedPartitionState(isr, _) => assertEquals(Set(brokerId, follower1, follower2, follower3), isr)

@@ -17,7 +17,6 @@
 package kafka.log.remote
 
 import kafka.utils.TestUtils
-import kafka.utils.TestUtils.waitUntilTrue
 import org.apache.kafka.common.utils.Utils
 import org.apache.kafka.common.{TopicIdPartition, TopicPartition, Uuid}
 import org.apache.kafka.server.log.remote.storage.RemoteStorageManager.IndexType
@@ -276,9 +275,9 @@ class RemoteIndexCacheTest {
     cache.remove(internalIndexKey)
 
     // wait until entry is marked for deletion
-    TestUtils.waitUntilTrue(() => cacheEntry.isMarkedForCleanup,
+    JTestUtils.waitForCondition(() => cacheEntry.isMarkedForCleanup,
       "Failed to mark cache entry for cleanup after invalidation")
-    TestUtils.waitUntilTrue(() => cacheEntry.isCleanStarted,
+    JTestUtils.waitForCondition(() => cacheEntry.isCleanStarted,
       "Failed to cleanup cache entry after invalidation")
 
     // first it will be marked for cleanup, second time markForCleanup is called when cleanup() is called
@@ -317,7 +316,7 @@ class RemoteIndexCacheTest {
     // trigger cleanup
     cache.internalCache.invalidate(key)
     // wait for cleanup to start
-    TestUtils.waitUntilTrue(() => spyEntry.isCleanStarted, "Failed while waiting for clean up to start")
+    JTestUtils.waitForCondition(() => spyEntry.isCleanStarted, "Failed while waiting for clean up to start")
     // Give the thread cleaner thread some time to throw an exception
     Thread.sleep(100)
     // Verify that Cleaner thread is still running even when exception is thrown in doWork()
@@ -340,7 +339,7 @@ class RemoteIndexCacheTest {
     val spyEntry = generateSpyCacheEntry()
     cache.internalCache.put(rlsMetadata.remoteLogSegmentId().id(), spyEntry)
 
-    TestUtils.waitUntilTrue(() => cache.cleanerThread().isStarted, "Cleaner thread should be started")
+    JTestUtils.waitForCondition(() => cache.cleanerThread().isStarted, "Cleaner thread should be started")
 
     // close the cache
     cache.close()
@@ -479,7 +478,7 @@ class RemoteIndexCacheTest {
 
     cache.remove(segmentId.id())
     assertFalse(cache.internalCache().asMap().containsKey(segmentUuid))
-    TestUtils.waitUntilTrue(() => spyEntry.isMarkedForCleanup, "Failed to mark cache entry for cleanup after invalidation")
+    JTestUtils.waitForCondition(() => spyEntry.isMarkedForCleanup, "Failed to mark cache entry for cleanup after invalidation")
   }
 
   @Test
@@ -514,7 +513,7 @@ class RemoteIndexCacheTest {
     }
     cache.removeAll(uuidAndEntryList.keySet())
     uuidAndEntryList.values().forEach { entry =>
-      TestUtils.waitUntilTrue(() => entry.isMarkedForCleanup, "Failed to mark cache entry for cleanup after invalidation")
+      JTestUtils.waitForCondition(() => entry.isMarkedForCleanup, "Failed to mark cache entry for cleanup after invalidation")
     }
   }
 
@@ -534,19 +533,19 @@ class RemoteIndexCacheTest {
     cache.resizeCacheSize(1L)
 
     // wait until entry is marked for deletion
-    TestUtils.waitUntilTrue(() => cacheEntry.isMarkedForCleanup,
+    JTestUtils.waitForCondition(() => cacheEntry.isMarkedForCleanup,
       "Failed to mark cache entry for cleanup after resizing cache.")
-    TestUtils.waitUntilTrue(() => cacheEntry.isCleanStarted,
+    JTestUtils.waitForCondition(() => cacheEntry.isCleanStarted,
       "Failed to cleanup cache entry after resizing cache.")
 
     // verify no index files on remote cache dir
-    TestUtils.waitUntilTrue(() => !getIndexFileFromRemoteCacheDir(cache, LogFileUtils.INDEX_FILE_SUFFIX).isPresent,
+    JTestUtils.waitForCondition(() => !getIndexFileFromRemoteCacheDir(cache, LogFileUtils.INDEX_FILE_SUFFIX).isPresent,
       s"Offset index file should not be present on disk at ${cache.cacheDir()}")
-    TestUtils.waitUntilTrue(() => !getIndexFileFromRemoteCacheDir(cache, LogFileUtils.TXN_INDEX_FILE_SUFFIX).isPresent,
+    JTestUtils.waitForCondition(() => !getIndexFileFromRemoteCacheDir(cache, LogFileUtils.TXN_INDEX_FILE_SUFFIX).isPresent,
       s"Txn index file should not be present on disk at ${cache.cacheDir()}")
-    TestUtils.waitUntilTrue(() => !getIndexFileFromRemoteCacheDir(cache, LogFileUtils.TIME_INDEX_FILE_SUFFIX).isPresent,
+    JTestUtils.waitForCondition(() => !getIndexFileFromRemoteCacheDir(cache, LogFileUtils.TIME_INDEX_FILE_SUFFIX).isPresent,
       s"Time index file should not be present on disk at ${cache.cacheDir()}")
-    TestUtils.waitUntilTrue(() => !getIndexFileFromRemoteCacheDir(cache, LogFileUtils.DELETED_FILE_SUFFIX).isPresent,
+    JTestUtils.waitForCondition(() => !getIndexFileFromRemoteCacheDir(cache, LogFileUtils.DELETED_FILE_SUFFIX).isPresent,
       s"Index file marked for deletion should not be present on disk at ${cache.cacheDir()}")
 
     assertCacheSize(0)
@@ -557,18 +556,18 @@ class RemoteIndexCacheTest {
 
     def verifyEntryIsEvicted(metadataToVerify: RemoteLogSegmentMetadata, entryToVerify: Entry): Unit = {
       // wait until `entryToVerify` is marked for deletion
-      TestUtils.waitUntilTrue(() => entryToVerify.isMarkedForCleanup,
+      JTestUtils.waitForCondition(() => entryToVerify.isMarkedForCleanup,
         "Failed to mark evicted cache entry for cleanup after resizing cache.")
-      TestUtils.waitUntilTrue(() => entryToVerify.isCleanStarted,
+      JTestUtils.waitForCondition(() => entryToVerify.isCleanStarted,
         "Failed to cleanup evicted cache entry after resizing cache.")
       // verify no index files for `entryToVerify` on remote cache dir
-      TestUtils.waitUntilTrue(() => !getIndexFileFromRemoteCacheDir(cache, remoteOffsetIndexFileName(metadataToVerify)).isPresent,
+      JTestUtils.waitForCondition(() => !getIndexFileFromRemoteCacheDir(cache, remoteOffsetIndexFileName(metadataToVerify)).isPresent,
         s"Offset index file for evicted entry should not be present on disk at ${cache.cacheDir()}")
-      TestUtils.waitUntilTrue(() => !getIndexFileFromRemoteCacheDir(cache, remoteTimeIndexFileName(metadataToVerify)).isPresent,
+      JTestUtils.waitForCondition(() => !getIndexFileFromRemoteCacheDir(cache, remoteTimeIndexFileName(metadataToVerify)).isPresent,
         s"Time index file for evicted entry should not be present on disk at ${cache.cacheDir()}")
-      TestUtils.waitUntilTrue(() => !getIndexFileFromRemoteCacheDir(cache, remoteTransactionIndexFileName(metadataToVerify)).isPresent,
+      JTestUtils.waitForCondition(() => !getIndexFileFromRemoteCacheDir(cache, remoteTransactionIndexFileName(metadataToVerify)).isPresent,
         s"Txn index file for evicted entry should not be present on disk at ${cache.cacheDir()}")
-      TestUtils.waitUntilTrue(() => !getIndexFileFromRemoteCacheDir(cache, remoteDeletedSuffixIndexFileName(metadataToVerify)).isPresent,
+      JTestUtils.waitForCondition(() => !getIndexFileFromRemoteCacheDir(cache, remoteDeletedSuffixIndexFileName(metadataToVerify)).isPresent,
         s"Index file marked for deletion for evicted entry should not be present on disk at ${cache.cacheDir()}")
     }
 
@@ -597,19 +596,19 @@ class RemoteIndexCacheTest {
     cache.resizeCacheSize(1L)
 
     // wait until entry is marked for deletion
-    TestUtils.waitUntilTrue(() => cacheEntry.isMarkedForCleanup,
+    JTestUtils.waitForCondition(() => cacheEntry.isMarkedForCleanup,
       "Failed to mark cache entry for cleanup after resizing cache.")
-    TestUtils.waitUntilTrue(() => cacheEntry.isCleanStarted,
+    JTestUtils.waitForCondition(() => cacheEntry.isCleanStarted,
       "Failed to cleanup cache entry after resizing cache.")
 
     // verify no index files on remote cache dir
-    TestUtils.waitUntilTrue(() => !getIndexFileFromRemoteCacheDir(cache, LogFileUtils.INDEX_FILE_SUFFIX).isPresent,
+    JTestUtils.waitForCondition(() => !getIndexFileFromRemoteCacheDir(cache, LogFileUtils.INDEX_FILE_SUFFIX).isPresent,
       s"Offset index file should not be present on disk at ${cache.cacheDir()}")
-    TestUtils.waitUntilTrue(() => !getIndexFileFromRemoteCacheDir(cache, LogFileUtils.TXN_INDEX_FILE_SUFFIX).isPresent,
+    JTestUtils.waitForCondition(() => !getIndexFileFromRemoteCacheDir(cache, LogFileUtils.TXN_INDEX_FILE_SUFFIX).isPresent,
       s"Txn index file should not be present on disk at ${cache.cacheDir()}")
-    TestUtils.waitUntilTrue(() => !getIndexFileFromRemoteCacheDir(cache, LogFileUtils.TIME_INDEX_FILE_SUFFIX).isPresent,
+    JTestUtils.waitForCondition(() => !getIndexFileFromRemoteCacheDir(cache, LogFileUtils.TIME_INDEX_FILE_SUFFIX).isPresent,
       s"Time index file should not be present on disk at ${cache.cacheDir()}")
-    TestUtils.waitUntilTrue(() => !getIndexFileFromRemoteCacheDir(cache, LogFileUtils.DELETED_FILE_SUFFIX).isPresent,
+    JTestUtils.waitForCondition(() => !getIndexFileFromRemoteCacheDir(cache, LogFileUtils.DELETED_FILE_SUFFIX).isPresent,
       s"Index file marked for deletion should not be present on disk at ${cache.cacheDir()}")
 
     assertCacheSize(0)
@@ -840,9 +839,9 @@ class RemoteIndexCacheTest {
     cache.remove(rlsMetadata.remoteLogSegmentId().id())
 
     // wait until entry is marked for deletion
-    TestUtils.waitUntilTrue(() => entry.isMarkedForCleanup,
+    JTestUtils.waitForCondition(() => entry.isMarkedForCleanup,
       "Failed to mark cache entry for cleanup after invalidation")
-    TestUtils.waitUntilTrue(() => entry.isCleanStarted,
+    JTestUtils.waitForCondition(() => entry.isCleanStarted,
       "Failed to cleanup cache entry after invalidation")
 
     // restore index files
@@ -908,19 +907,19 @@ class RemoteIndexCacheTest {
     cache.remove(rlsMetadata.remoteLogSegmentId().id())
 
     // wait until entry is marked for deletion
-    TestUtils.waitUntilTrue(() => entry.isMarkedForCleanup,
+    JTestUtils.waitForCondition(() => entry.isMarkedForCleanup,
       "Failed to mark cache entry for cleanup after invalidation")
-    TestUtils.waitUntilTrue(() => entry.isCleanStarted,
+    JTestUtils.waitForCondition(() => entry.isCleanStarted,
       "Failed to cleanup cache entry after invalidation")
 
     // verify no index files on disk
-    waitUntilTrue(() => !getIndexFileFromRemoteCacheDir(cache, LogFileUtils.INDEX_FILE_SUFFIX).isPresent,
+    JTestUtils.waitForCondition(() => !getIndexFileFromRemoteCacheDir(cache, LogFileUtils.INDEX_FILE_SUFFIX).isPresent,
       s"Offset index file should not be present on disk at ${remoteIndexCacheDir.toPath}")
-    waitUntilTrue(() => !getIndexFileFromRemoteCacheDir(cache, LogFileUtils.TXN_INDEX_FILE_SUFFIX).isPresent,
+    JTestUtils.waitForCondition(() => !getIndexFileFromRemoteCacheDir(cache, LogFileUtils.TXN_INDEX_FILE_SUFFIX).isPresent,
       s"Txn index file should not be present on disk at ${remoteIndexCacheDir.toPath}")
-    waitUntilTrue(() => !getIndexFileFromRemoteCacheDir(cache, LogFileUtils.TIME_INDEX_FILE_SUFFIX).isPresent,
+    JTestUtils.waitForCondition(() => !getIndexFileFromRemoteCacheDir(cache, LogFileUtils.TIME_INDEX_FILE_SUFFIX).isPresent,
       s"Time index file should not be present on disk at ${remoteIndexCacheDir.toPath}")
-    waitUntilTrue(() => !getIndexFileFromRemoteCacheDir(cache, LogFileUtils.DELETED_FILE_SUFFIX).isPresent,
+    JTestUtils.waitForCondition(() => !getIndexFileFromRemoteCacheDir(cache, LogFileUtils.DELETED_FILE_SUFFIX).isPresent,
       s"Index file marked for deletion should not be present on disk at ${remoteIndexCacheDir.toPath}")
   }
 
@@ -945,8 +944,8 @@ class RemoteIndexCacheTest {
   private def assertCacheSize(expectedSize: Int): Unit = {
     // Cache may grow beyond the size temporarily while evicting, hence, run in a loop to validate
     // that cache reaches correct state eventually
-    TestUtils.waitUntilTrue(() => cache.internalCache.asMap().size() == expectedSize,
-      msg = s"cache did not adhere to expected size of $expectedSize")
+    JTestUtils.waitForCondition(() => cache.internalCache.asMap().size() == expectedSize,
+      s"cache did not adhere to expected size of $expectedSize")
   }
 
   private def verifyFetchIndexInvocation(count: Int,

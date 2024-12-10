@@ -26,6 +26,7 @@ import org.apache.kafka.common.requests.FetchResponse
 import org.apache.kafka.common.serialization.ByteArrayDeserializer
 import org.apache.kafka.coordinator.group.GroupCoordinatorConfig
 import org.apache.kafka.server.config.ServerLogConfigs
+import org.apache.kafka.test.{TestUtils => JTestUtils}
 import org.junit.jupiter.api.Assertions.{assertEquals, assertTrue}
 import org.junit.jupiter.api.{Disabled, Timeout}
 import org.junit.jupiter.params.ParameterizedTest
@@ -121,7 +122,7 @@ class FetchFromFollowerIntegrationTest extends BaseFetchRequestTest {
     // Shutdown follower broker.
     brokers(followerBrokerId).shutdown()
     val topicPartition = new TopicPartition(topic, 0)
-    TestUtils.waitUntilTrue(() => {
+    JTestUtils.waitForCondition(() => {
       val endpoints = brokers(leaderBrokerId).metadataCache.getPartitionReplicaEndpoints(topicPartition, listenerName)
       !endpoints.contains(followerBrokerId)
     }, "follower is still reachable.")
@@ -154,7 +155,7 @@ class FetchFromFollowerIntegrationTest extends BaseFetchRequestTest {
       consumer.subscribe(List(topic).asJava)
 
       // Wait until preferred replica is set to follower.
-      TestUtils.waitUntilTrue(() => {
+      JTestUtils.waitForCondition(() => {
         getPreferredReplica == 1
       }, "Preferred replica is not set")
 
@@ -169,7 +170,7 @@ class FetchFromFollowerIntegrationTest extends BaseFetchRequestTest {
 
       // Start the follower and wait until preferred replica is set to follower.
       brokers(followerBrokerId).startup()
-      TestUtils.waitUntilTrue(() => {
+      JTestUtils.waitForCondition(() => {
         getPreferredReplica == 1
       }, "Preferred replica is not set")
 

@@ -21,11 +21,12 @@ import java.lang.{Boolean => JBoolean}
 import java.time.Duration
 import java.util
 import java.util.{Collections, Locale}
-import kafka.utils.{EmptyTestInfo, TestUtils}
+import kafka.utils.EmptyTestInfo
 import org.apache.kafka.clients.admin.NewTopic
 import org.apache.kafka.clients.consumer.{ConsumerConfig, GroupProtocol}
 import org.apache.kafka.clients.producer.{ProducerConfig, ProducerRecord}
 import org.apache.kafka.server.config.{ServerConfigs, ServerLogConfigs}
+import org.apache.kafka.test.TestUtils
 import org.junit.jupiter.api.Assertions._
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.{Arguments, MethodSource}
@@ -85,7 +86,7 @@ object ConsumerTopicCreationTest {
 
       // Wait until the produced record was consumed. This guarantees that metadata request for `topic_2` was sent to the
       // broker.
-      TestUtils.waitUntilTrue(() => {
+      TestUtils.waitForCondition(() => {
         consumer.poll(Duration.ofMillis(100)).count > 0
       }, "Timed out waiting to consume")
 

@@ -32,6 +32,8 @@ import org.apache.kafka.common.utils.Utils
 import org.apache.kafka.coordinator.group.GroupCoordinatorConfig
 import org.apache.kafka.security.authorizer.AclEntry
 import org.apache.kafka.server.common.Feature
+import org.apache.kafka.test.{TestUtils => JTestUtils}
+
 import org.junit.jupiter.api.Assertions.{assertEquals, assertFalse}
 import org.junit.jupiter.api.extension.ExtendWith
 
@@ -103,7 +105,7 @@ class ConsumerGroupDescribeRequestTest(cluster: ClusterInstance) extends GroupCo
 
       // Add first group with one member.
       var grp1Member1Response: ConsumerGroupHeartbeatResponseData = null
-      TestUtils.waitUntilTrue(() => {
+      JTestUtils.waitForCondition(() => {
         grp1Member1Response = consumerGroupHeartbeat(
           groupId = "grp-1",
           memberId = Uuid.randomUuid().toString,
@@ -112,13 +114,13 @@ class ConsumerGroupDescribeRequestTest(cluster: ClusterInstance) extends GroupCo
           topicPartitions = List.empty
         )
         grp1Member1Response.errorCode == Errors.NONE.code
-      }, msg = s"Could not join the group successfully. Last response $grp1Member1Response.")
+      },  s"Could not join the group successfully. Last response $grp1Member1Response.")
 
       // Add second group with two members. For the first member, we
       // wait until it receives an assignment. We use 'range` in this
       // case to validate the assignor selection logic.
       var grp2Member1Response: ConsumerGroupHeartbeatResponseData = null
-      TestUtils.waitUntilTrue(() => {
+      JTestUtils.waitForCondition(() => {
         grp2Member1Response = consumerGroupHeartbeat(
           memberId = "member-1",
           groupId = "grp-2",
@@ -128,7 +130,7 @@ class ConsumerGroupDescribeRequestTest(cluster: ClusterInstance) extends GroupCo
           topicPartitions = List.empty
         )
         grp2Member1Response.assignment != null && !grp2Member1Response.assignment.topicPartitions.isEmpty
-      }, msg = s"Could not join the group successfully. Last response $grp2Member1Response.")
+      }, s"Could not join the group successfully. Last response $grp2Member1Response.")
 
       val grp2Member2Response = consumerGroupHeartbeat(
         memberId = "member-2",

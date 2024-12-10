@@ -29,6 +29,7 @@ import org.apache.kafka.common.serialization.StringSerializer
 import org.apache.kafka.network.metrics.RequestMetrics
 import org.apache.kafka.server.config.ServerLogConfigs.LOG_MESSAGE_DOWNCONVERSION_ENABLE_CONFIG
 import org.apache.kafka.storage.log.metrics.BrokerTopicMetrics
+import org.apache.kafka.test.{TestUtils => JTestUtils}
 import org.junit.jupiter.api.Assertions._
 import org.junit.jupiter.api.{AfterEach, BeforeEach, TestInfo}
 import org.junit.jupiter.params.ParameterizedTest
@@ -228,15 +229,15 @@ class FetchRequestDownConversionConfigTest extends BaseRequestTest {
     }
 
     def verifyMetrics(): Unit = {
-      TestUtils.waitUntilTrue(() => TestUtils.metersCount(BrokerTopicMetrics.FETCH_MESSAGE_CONVERSIONS_PER_SEC) > initialFetchMessageConversionsPerSec,
+      JTestUtils.waitForCondition(() => TestUtils.metersCount(BrokerTopicMetrics.FETCH_MESSAGE_CONVERSIONS_PER_SEC) > initialFetchMessageConversionsPerSec,
         s"The `FetchMessageConversionsPerSec` metric count is not incremented after 5 seconds. " +
           s"init: $initialFetchMessageConversionsPerSec final: ${TestUtils.metersCount(BrokerTopicMetrics.FETCH_MESSAGE_CONVERSIONS_PER_SEC)}", 5000)
 
-      TestUtils.waitUntilTrue(() => TestUtils.metersCount(fetchMessageConversionsTimeMsMetricName) > initialFetchMessageConversionsTimeMs,
+      JTestUtils.waitForCondition(() => TestUtils.metersCount(fetchMessageConversionsTimeMsMetricName) > initialFetchMessageConversionsTimeMs,
         s"The `MessageConversionsTimeMs` in fetch request metric count is not incremented after 5 seconds. " +
           s"init: $initialFetchMessageConversionsTimeMs final: ${TestUtils.metersCount(fetchMessageConversionsTimeMsMetricName)}", 5000)
 
-      TestUtils.waitUntilTrue(() => TestUtils.metersCount(fetchTemporaryMemoryBytesMetricName) > initialFetchTemporaryMemoryBytes,
+      JTestUtils.waitForCondition(() => TestUtils.metersCount(fetchTemporaryMemoryBytesMetricName) > initialFetchTemporaryMemoryBytes,
         s"The `TemporaryMemoryBytes` in fetch request metric count is not incremented after 5 seconds. " +
           s"init: $initialFetchTemporaryMemoryBytes final: ${TestUtils.metersCount(fetchTemporaryMemoryBytesMetricName)}", 5000)
     }

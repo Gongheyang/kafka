@@ -30,6 +30,7 @@ import org.apache.kafka.common.errors.{InvalidPidMappingException, Transactional
 import org.apache.kafka.coordinator.transaction.{TransactionLogConfig, TransactionStateManagerConfig}
 import org.apache.kafka.coordinator.group.GroupCoordinatorConfig
 import org.apache.kafka.server.config.{ReplicationConfigs, ServerConfigs, ServerLogConfigs}
+import org.apache.kafka.test.{TestUtils => JTestUtils}
 import org.junit.jupiter.api.Assertions.{assertEquals, assertThrows, assertTrue}
 import org.junit.jupiter.api.{AfterEach, BeforeEach, TestInfo}
 import org.junit.jupiter.params.ParameterizedTest
@@ -105,7 +106,7 @@ class TransactionsExpirationTest extends KafkaServerTestHarness {
     // due to the expired transactional ID, resulting in a fatal error.
     producer.beginTransaction()
     val failedFuture = producer.send(TestUtils.producerRecordWithExpectedTransactionStatus(topic1, 3, "1", "1", willBeCommitted = false))
-    TestUtils.waitUntilTrue(() => failedFuture.isDone, "Producer future never completed.")
+    JTestUtils.waitForCondition(() => failedFuture.isDone, "Producer future never completed.")
     org.apache.kafka.test.TestUtils.assertFutureThrows(failedFuture, classOf[InvalidPidMappingException])
 
     // Assert that aborting the transaction throws a KafkaException due to the fatal error.
@@ -151,7 +152,7 @@ class TransactionsExpirationTest extends KafkaServerTestHarness {
 
     // Ensure producer IDs are added.
     var pState : List[ProducerState] = null
-    TestUtils.waitUntilTrue(() => { pState = producerState; pState.nonEmpty}, "Producer IDs for topic1 did not propagate quickly")
+    JTestUtils.waitForCondition(() => { pState = producerState; pState.nonEmpty}, "Producer IDs for topic1 did not propagate quickly")
     assertEquals(1, pState.size, "Unexpected producer to topic1")
     val oldProducerId = pState.head.producerId
     val oldProducerEpoch = pState.head.producerEpoch
@@ -159,7 +160,7 @@ class TransactionsExpirationTest extends KafkaServerTestHarness {
     producer.abortTransaction()
 
     // Wait for the producer ID to expire.
-    TestUtils.waitUntilTrue(() => producerState.isEmpty, "Producer IDs for topic1 did not expire.")
+    JTestUtils.waitForCondition(() => producerState.isEmpty, "Producer IDs for topic1 did not expire.")
 
     // Create a new producer to check that we retain the producer ID in transactional state.
     producer.close()
@@ -174,7 +175,7 @@ class TransactionsExpirationTest extends KafkaServerTestHarness {
 
     // Producer IDs should repopulate.
     var pState2 : List[ProducerState] = null
-    TestUtils.waitUntilTrue(() => {pState2 = producerState; pState2.nonEmpty}, "Producer IDs for topic1 did not propagate quickly")
+    JTestUtils.waitForCondition(() => {pState2 = producerState; pState2.nonEmpty}, "Producer IDs for topic1 did not propagate quickly")
     assertEquals(1, pState2.size, "Unexpected producer to topic1")
     val newProducerId = pState2.head.producerId
     val newProducerEpoch = pState2.head.producerEpoch
@@ -205,7 +206,7 @@ class TransactionsExpirationTest extends KafkaServerTestHarness {
   }
 
   private def waitUntilTransactionalStateExpires(): Unit = {
-    TestUtils.waitUntilTrue(() =>  {
+    JTestUtils.waitForCondition(() =>  {
       var removedTransactionState = false
       val txnDescribeResult = admin.describeTransactions(Collections.singletonList("transactionalProducer")).description("transactionalProducer")
       try {
@@ -221,7 +222,7 @@ class TransactionsExpirationTest extends KafkaServerTestHarness {
 
   private def waitUntilTransactionalStateExists(): Unit = {
     val describeState = admin.describeTransactions(Collections.singletonList("transactionalProducer")).description("transactionalProducer")
-    TestUtils.waitUntilTrue(() => describeState.isDone, "Transactional state was never added.")
+    JTestUtils.waitForCondition(() => describeState.isDone, "Transactional state was never added.")
   }
 
   private def serverProps(): Properties = {

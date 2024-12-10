@@ -62,6 +62,7 @@ import org.apache.kafka.server.metrics.{KafkaYammerMetrics, MetricConfigs}
 import org.apache.kafka.server.record.BrokerCompressionType
 import org.apache.kafka.server.util.ShutdownableThread
 import org.apache.kafka.storage.internals.log.{CleanerConfig, LogConfig}
+import org.apache.kafka.test.{TestUtils => JTestUtils}
 import org.apache.kafka.test.TestSslUtils
 import org.junit.jupiter.api.Assertions._
 import org.junit.jupiter.api.{AfterEach, BeforeEach, TestInfo}
@@ -346,7 +347,7 @@ class DynamicBrokerReconfigurationTest extends QuorumTestHarness with SaslSetup 
     // Start a producer and consumer that work with the current broker keystore.
     // This should continue working while changes are made
     val (producerThread, consumerThread) = startProduceConsume(retries = 0, groupProtocol)
-    TestUtils.waitUntilTrue(() => consumerThread.received >= 10, "Messages not received")
+    JTestUtils.waitForCondition(() => consumerThread.received >= 10, "Messages not received")
 
     // Producer with new truststore should fail to connect before keystore update
     val producer1 = ProducerBuilder().trustStoreProps(sslProperties2).maxRetries(0).build()
@@ -394,7 +395,7 @@ class DynamicBrokerReconfigurationTest extends QuorumTestHarness with SaslSetup 
       reusableFile.toPath, StandardCopyOption.REPLACE_EXISTING)
     reusableFile.setLastModified(System.currentTimeMillis() + 1000)
     alterSslKeystore(reusableProps, SecureExternal)
-    TestUtils.waitUntilTrue(() => {
+    JTestUtils.waitForCondition(() => {
       try {
         producer3.partitionsFor(topic).size() == numPartitions
       } catch {
@@ -501,11 +502,11 @@ class DynamicBrokerReconfigurationTest extends QuorumTestHarness with SaslSetup 
     // Verify cleaner config was updated. Wait for one of the configs to be updated and verify
     // that all other others were updated at the same time since they are reconfigured together
     var newCleanerConfig: CleanerConfig = null
-    TestUtils.waitUntilTrue(() => {
+    JTestUtils.waitForCondition(() => {
       reconfigureServers(props, perBrokerConfig = false, (CleanerConfig.LOG_CLEANER_THREADS_PROP, "2"))
       newCleanerConfig = servers.head.logManager.cleaner.currentConfig
       newCleanerConfig.numThreads == 2
-    }, "Log cleaner not reconfigured", 60000)
+    }, 60000, "Log cleaner not reconfigured")
     assertEquals(20000000, newCleanerConfig.dedupeBufferSize)
     assertEquals(0.8, newCleanerConfig.dedupeBufferLoadFactor, 0.001)
     assertEquals(300000, newCleanerConfig.ioBufferSize)
@@ -519,7 +520,7 @@ class DynamicBrokerReconfigurationTest extends QuorumTestHarness with SaslSetup 
     // Stop a couple of threads and verify they are recreated if any config is updated
     def cleanerThreads = Thread.getAllStackTraces.keySet.asScala.filter(_.getName.startsWith("kafka-log-cleaner-thread-"))
     cleanerThreads.take(2).foreach(_.interrupt())
-    TestUtils.waitUntilTrue(() => cleanerThreads.size == (2 * numServers) - 2, "Threads did not exit")
+    JTestUtils.waitForCondition(() => cleanerThreads.size == (2 * numServers) - 2, "Threads did not exit")
     props.put(CleanerConfig.LOG_CLEANER_BACKOFF_MS_PROP, "8000")
     reconfigureServers(props, perBrokerConfig = false, (CleanerConfig.LOG_CLEANER_BACKOFF_MS_PROP, "8000"))
     verifyThreads("kafka-log-cleaner-thread-", countPerBroker = 2)
@@ -621,11 +622,11 @@ class DynamicBrokerReconfigurationTest extends QuorumTestHarness with SaslSetup 
 
     // Verify that configs of existing logs have been updated
     val newLogConfig = new LogConfig(servers.head.config.extractLogConfigMap)
-    TestUtils.waitUntilTrue(() => servers.head.logManager.currentDefaultConfig == newLogConfig,
+    JTestUtils.waitForCondition(() => servers.head.logManager.currentDefaultConfig == newLogConfig,
       "Config not updated in LogManager")
 
     val log = servers.head.logManager.getLog(new TopicPartition(topic, 0)).getOrElse(throw new IllegalStateException("Log not found"))
-    TestUtils.waitUntilTrue(() => log.config.segmentSize == 4000, "Existing topic config using defaults not updated")
+    JTestUtils.waitForCondition(() => log.config.segmentSize == 4000, "Existing topic config using defaults not updated")
     val KafkaConfigToLogConfigName: Map[String, String] =
       ServerTopicConfigSynonyms.TOPIC_CONFIG_SYNONYMS.asScala.map { case (k, v) => (v, k) }
     props.asScala.foreach { case (k, v) =>
@@ -637,7 +638,7 @@ class DynamicBrokerReconfigurationTest extends QuorumTestHarness with SaslSetup 
     consumerThread.waitForMatchingRecords(record => record.timestampType == TimestampType.LOG_APPEND_TIME)
 
     // Verify that the new config is actually used for new segments of existing logs
-    TestUtils.waitUntilTrue(() => log.logSegments.asScala.exists(_.size > 3000), "Log segment size increase not applied")
+    JTestUtils.waitForCondition(() => log.logSegments.asScala.exists(_.size > 3000), "Log segment size increase not applied")
 
     // Verify that overridden topic configs are not updated when broker default is updated
     val log2 = servers.head.logManager.getLog(new TopicPartition(Topic.GROUP_METADATA_TOPIC_NAME, 0))
@@ -695,7 +696,7 @@ class DynamicBrokerReconfigurationTest extends QuorumTestHarness with SaslSetup 
     servers.foreach { server =>
       val log = server.logManager.getLog(new TopicPartition(topic, 0)).getOrElse(throw new IllegalStateException("Log not found"))
       // Verify default values for these two configurations are restored on all brokers
-      TestUtils.waitUntilTrue(() => log.config.maxIndexSize == ServerLogConfigs.LOG_INDEX_SIZE_MAX_BYTES_DEFAULT && log.config.retentionMs == 1680000000L,
+      JTestUtils.waitForCondition(() => log.config.maxIndexSize == ServerLogConfigs.LOG_INDEX_SIZE_MAX_BYTES_DEFAULT && log.config.retentionMs == 1680000000L,
         "Existing topic config using defaults not updated")
     }
   }
@@ -734,7 +735,7 @@ class DynamicBrokerReconfigurationTest extends QuorumTestHarness with SaslSetup 
     followerBroker.startup()
 
     // Verify that new leader is not elected with unclean leader disabled since there are no ISRs
-    TestUtils.waitUntilTrue(() => partitionInfo.leader == null, "Unclean leader elected")
+    JTestUtils.waitForCondition(() => partitionInfo.leader == null, "Unclean leader elected")
 
     // Enable unclean leader election
     val newProps = new Properties
@@ -938,7 +939,7 @@ class DynamicBrokerReconfigurationTest extends QuorumTestHarness with SaslSetup 
         Some(Quota.upperBound(10000000)))
     }
     val (producerThread, consumerThread) = startProduceConsume(retries = 0, groupProtocol, clientId)
-    TestUtils.waitUntilTrue(() => consumerThread.received >= 5, "Messages not sent")
+    JTestUtils.waitForCondition(() => consumerThread.received >= 5, "Messages not sent")
 
     // Verify that JMX reporter is still active (test a metric registered after the dynamic reporter update)
     val mbeanServer = ManagementFactory.getPlatformMBeanServer
@@ -988,7 +989,7 @@ class DynamicBrokerReconfigurationTest extends QuorumTestHarness with SaslSetup 
     newProps.put(MetricConfigs.METRIC_REPORTER_CLASSES_CONFIG, classOf[TestMetricsReporter].getName)
     newProps.put(TestMetricsReporter.PollingIntervalProp, "4000")
     alterConfigsOnServer(servers.head, newProps)
-    TestUtils.waitUntilTrue(() => !TestMetricsReporter.testReporters.isEmpty, "Metrics reporter not created")
+    JTestUtils.waitForCondition(() => !TestMetricsReporter.testReporters.isEmpty, "Metrics reporter not created")
     val perBrokerReporter = TestMetricsReporter.waitForReporters(1).head
     perBrokerReporter.verifyState(reconfigureCount = 0, deleteCount = 0, pollingInterval = 4000)
 
@@ -1020,7 +1021,7 @@ class DynamicBrokerReconfigurationTest extends QuorumTestHarness with SaslSetup 
         s"PLAINTEXT://localhost:0, $SecureInternal://localhost:0, $SecureExternal://localhost:0"), AlterConfigOp.OpType.SET)
       ).asJavaCollection).asJava).all().get()
 
-    TestUtils.waitUntilTrue(() => acceptors.size == 3, s"failed to add new DataPlaneAcceptor")
+    JTestUtils.waitForCondition(() => acceptors.size == 3, s"failed to add new DataPlaneAcceptor")
 
     // remove PLAINTEXT listener
     client.incrementalAlterConfigs(Map(broker0Resource ->
@@ -1028,7 +1029,7 @@ class DynamicBrokerReconfigurationTest extends QuorumTestHarness with SaslSetup 
         s"$SecureInternal://localhost:0, $SecureExternal://localhost:0"), AlterConfigOp.OpType.SET)
       ).asJavaCollection).asJava).all().get()
 
-    TestUtils.waitUntilTrue(() => acceptors.size == 2,
+    JTestUtils.waitForCondition(() => acceptors.size == 2,
       s"failed to remove DataPlaneAcceptor. current: ${acceptors.map(_.endPoint.toString).mkString(",")}")
   }
 
@@ -1037,7 +1038,7 @@ class DynamicBrokerReconfigurationTest extends QuorumTestHarness with SaslSetup 
   def testTransactionVerificationEnable(quorum: String, groupProtocol: String): Unit = {
     def verifyConfiguration(enabled: Boolean): Unit = {
       servers.foreach { server =>
-        TestUtils.waitUntilTrue(() => server.logManager.producerStateManagerConfig.transactionVerificationEnabled == enabled, "Configuration was not updated.")
+        JTestUtils.waitForCondition(() => server.logManager.producerStateManagerConfig.transactionVerificationEnabled == enabled, "Configuration was not updated.")
       }
       verifyThreads("AddPartitionsToTxnSenderThread-", 1)
     }
@@ -1103,7 +1104,7 @@ class DynamicBrokerReconfigurationTest extends QuorumTestHarness with SaslSetup 
   }
 
   private def waitForAuthenticationFailure(producerBuilder: ProducerBuilder): Unit = {
-    TestUtils.waitUntilTrue(() => {
+    JTestUtils.waitForCondition(() => {
       try {
         verifyAuthenticationFailure(producerBuilder.build())
         true
@@ -1277,13 +1278,13 @@ val configEntries = props.asScala.map { case (k, v) => new AlterConfigOp(new Con
     clientThreads += consumerThread
     consumerThread.start()
     producerThread.start()
-    TestUtils.waitUntilTrue(() => producerThread.sent >= 10, "Messages not sent")
+    JTestUtils.waitForCondition(() => producerThread.sent >= 10, "Messages not sent")
     (producerThread, consumerThread)
   }
 
   private def stopAndVerifyProduceConsume(producerThread: ProducerThread, consumerThread: ConsumerThread,
                                           mayReceiveDuplicates: Boolean = false): Unit = {
-    TestUtils.waitUntilTrue(() => producerThread.sent >= 10, "Messages not sent")
+    JTestUtils.waitForCondition(() => producerThread.sent >= 10, "Messages not sent")
     producerThread.shutdown()
     consumerThread.initiateShutdown()
     consumerThread.awaitShutdown()
@@ -1468,7 +1469,7 @@ val configEntries = props.asScala.map { case (k, v) => new AlterConfigOp(new Con
     }
 
     def waitForMatchingRecords(predicate: ConsumerRecord[String, String] => Boolean): Unit = {
-      TestUtils.waitUntilTrue(() => {
+      JTestUtils.waitForCondition(() => {
         val records = lastBatch
         if (records == null || records.isEmpty)
           false
@@ -1485,10 +1486,10 @@ object TestMetricsReporter {
   val configuredBrokers = mutable.Set[Int]()
 
   def waitForReporters(count: Int): List[TestMetricsReporter] = {
-    TestUtils.waitUntilTrue(() => testReporters.size == count, msg = "Metrics reporters not created")
+    JTestUtils.waitForCondition(() => testReporters.size == count, "Metrics reporters not created")
 
     val reporters = testReporters.asScala.toList
-    TestUtils.waitUntilTrue(() => reporters.forall(_.configureCount == 1), msg = "Metrics reporters not configured")
+    JTestUtils.waitForCondition(() => reporters.forall(_.configureCount == 1), "Metrics reporters not configured")
     reporters
   }
 }

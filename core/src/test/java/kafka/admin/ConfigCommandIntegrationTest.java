@@ -361,7 +361,7 @@ public class ConfigCommandIntegrationTest {
         // Must be at greater than 1MB per cleaner thread, set to 2M+2 so that we can set 2 cleaner threads.
         @ClusterConfigProperty(key = "log.cleaner.dedupe.buffer.size", value = "2097154"),
     })
-    public void testUpdateBrokerConfigNotAffectedByInvalidConfig() {
+    public void testUpdateBrokerConfigNotAffectedByInvalidConfig() throws InterruptedException {
         try (Admin client = cluster.admin()) {
             ConfigCommand.alterConfig(client, new ConfigCommand.ConfigCommandOptions(
                     toArray(asList("--bootstrap-server", cluster.bootstrapServers(),
@@ -376,11 +376,12 @@ public class ConfigCommandIntegrationTest {
                             "--add-config", "log.cleaner.threads=2",
                             "--entity-type", "brokers",
                             "--entity-default"))));
-            kafka.utils.TestUtils.waitUntilTrue(
+            TestUtils.waitForCondition(
                     () -> cluster.brokerSocketServers().stream().allMatch(broker -> broker.config().getInt("log.cleaner.threads") == 2),
-                    () -> "Timeout waiting for topic config propagating to broker",
-                    org.apache.kafka.test.TestUtils.DEFAULT_MAX_WAIT_MS,
-                    100L);
+                    TestUtils.DEFAULT_MAX_WAIT_MS,
+                    100L,
+                    () -> "Timeout waiting for topic config propagating to broker"
+            );
         }
     }
 

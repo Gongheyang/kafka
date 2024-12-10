@@ -18,12 +18,12 @@ package kafka.server
 
 import kafka.api.{IntegrationTestHarness, KafkaSasl, SaslSetup}
 import kafka.security.JaasTestUtils
-import kafka.utils.TestUtils
 import org.apache.kafka.clients.admin.{Admin, AdminClientConfig, CreateDelegationTokenOptions, DescribeDelegationTokenOptions}
 import org.apache.kafka.common.errors.{DelegationTokenNotFoundException, InvalidPrincipalTypeException}
 import org.apache.kafka.common.security.auth.SecurityProtocol
 import org.apache.kafka.common.utils.SecurityUtils
 import org.apache.kafka.server.config.DelegationTokenManagerConfigs
+import org.apache.kafka.test.TestUtils 
 import org.junit.jupiter.api.Assertions._
 import org.junit.jupiter.api.{AfterEach, BeforeEach, TestInfo}
 import org.junit.jupiter.params.ParameterizedTest
@@ -75,7 +75,7 @@ class DelegationTokenRequestsTest extends IntegrationTestHarness with SaslSetup 
     val createResult1 = adminClient.createDelegationToken(new CreateDelegationTokenOptions().renewers(renewer1))
     val tokenCreated = createResult1.delegationToken().get()
 
-    TestUtils.waitUntilTrue(() => brokers.forall(server => server.tokenCache.tokens().size() == 1),
+    TestUtils.waitForCondition(() => brokers.forall(server => server.tokenCache.tokens().size() == 1),
           "Timed out waiting for token to propagate to all servers")
 
     //test describe token
@@ -89,7 +89,7 @@ class DelegationTokenRequestsTest extends IntegrationTestHarness with SaslSetup 
     val createResult2 = adminClient.createDelegationToken(new CreateDelegationTokenOptions().renewers(renewer2))
     val token2 = createResult2.delegationToken().get()
 
-    TestUtils.waitUntilTrue(() => brokers.forall(server => server.tokenCache.tokens().size() == 2),
+    TestUtils.waitForCondition(() => brokers.forall(server => server.tokenCache.tokens().size() == 2),
           "Timed out waiting for token to propagate to all servers")
 
     //get all tokens
@@ -112,7 +112,7 @@ class DelegationTokenRequestsTest extends IntegrationTestHarness with SaslSetup 
     val createResult3 = adminClient.createDelegationToken(new CreateDelegationTokenOptions().renewers(renewer3))
     val token3 = createResult3.delegationToken().get()
 
-    TestUtils.waitUntilTrue(() => brokers.forall(server => server.tokenCache.tokens().size() == 3),
+    TestUtils.waitForCondition(() => brokers.forall(server => server.tokenCache.tokens().size() == 3),
           "Timed out waiting for token to propagate to all servers")
 
     val describeResult = adminClient.describeDelegationToken()
@@ -131,7 +131,7 @@ class DelegationTokenRequestsTest extends IntegrationTestHarness with SaslSetup 
     val expireResult3 = adminClient.expireDelegationToken(token3.hmac())
     expiryTimestamp = expireResult3.expiryTimestamp().get()
 
-    TestUtils.waitUntilTrue(() => brokers.forall(server => server.tokenCache.tokens().size() == 0),
+    TestUtils.waitForCondition(() => brokers.forall(server => server.tokenCache.tokens().size() == 0),
           "Timed out waiting for token to propagate to all servers")
 
     tokens = adminClient.describeDelegationToken().delegationTokens().get()
@@ -154,7 +154,7 @@ class DelegationTokenRequestsTest extends IntegrationTestHarness with SaslSetup 
       .maxLifetimeMs(1 * 1000))
     val token5 = createResult5.delegationToken().get()
 
-    TestUtils.waitUntilTrue(() => brokers.forall(server => server.tokenCache.tokens().size() == 1),
+    TestUtils.waitForCondition(() => brokers.forall(server => server.tokenCache.tokens().size() == 1),
           "Timed out waiting for token to propagate to all servers")
 
     Thread.sleep(2 * 5 * 1000)

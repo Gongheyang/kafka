@@ -37,6 +37,8 @@ import org.apache.kafka.common.security.auth.{Login, SecurityProtocol}
 import org.apache.kafka.common.security.kerberos.KerberosLogin
 import org.apache.kafka.common.utils.{LogContext, MockTime}
 import org.apache.kafka.network.SocketServerConfigs
+import org.apache.kafka.test.{TestUtils => JTestUtils}
+
 import org.junit.jupiter.api.Assertions._
 import org.junit.jupiter.api.{AfterEach, BeforeEach, TestInfo}
 import org.junit.jupiter.params.ParameterizedTest
@@ -223,7 +225,7 @@ class GssapiAuthenticationTest extends IntegrationTestHarness with SaslSetup {
   }
 
   private def pollUntilReadyOrDisconnected(selector: Selector, nodeId: String): Boolean = {
-    TestUtils.waitUntilTrue(() => {
+    JTestUtils.waitForCondition(() => {
       selector.poll(100)
       val disconnectState = selector.disconnected().get(nodeId)
       // Verify that disconnect state is not AUTHENTICATION_FAILED
@@ -248,7 +250,7 @@ class GssapiAuthenticationTest extends IntegrationTestHarness with SaslSetup {
     val selector = createSelector()
     val nodeId = "1"
     selector.connect(nodeId, serverAddr, 1024, 1024)
-    TestUtils.waitUntilTrue(() => {
+    JTestUtils.waitForCondition(() => {
       selector.poll(100)
       val disconnectState = selector.disconnected().get(nodeId)
       if (disconnectState != null)

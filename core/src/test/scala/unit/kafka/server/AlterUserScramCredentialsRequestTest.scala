@@ -19,7 +19,6 @@ package kafka.server
 
 import java.nio.charset.StandardCharsets
 import java.util
-import kafka.utils.TestUtils
 import kafka.network.SocketServer
 import org.apache.kafka.metadata.authorizer.StandardAuthorizer
 import org.apache.kafka.clients.admin.ScramMechanism
@@ -34,6 +33,7 @@ import org.apache.kafka.common.security.authenticator.DefaultKafkaPrincipalBuild
 import org.apache.kafka.server.authorizer.{Action, AuthorizableRequestContext, AuthorizationResult}
 import org.apache.kafka.server.common.MetadataVersion
 import org.apache.kafka.server.config.ServerConfigs
+import org.apache.kafka.test.TestUtils
 import org.junit.jupiter.api.{BeforeEach, TestInfo}
 import org.junit.jupiter.api.Assertions._
 import org.junit.jupiter.params.ParameterizedTest
@@ -285,7 +285,7 @@ class AlterUserScramCredentialsRequestTest extends BaseRequestTest {
 
     // KRaft is eventually consistent so it is possible to call describe before
     // the credential is propagated from the controller to the broker.
-    TestUtils.waitUntilTrue(() => describeAllWithNoTopLevelErrorConfirmed().data.results.size == 3,
+    TestUtils.waitForCondition(() => describeAllWithNoTopLevelErrorConfirmed().data.results.size == 3,
                                "describeAllWithNoTopLevelErrorConfirmed does not see 3 users")
 
     // now describe them all
@@ -346,7 +346,7 @@ class AlterUserScramCredentialsRequestTest extends BaseRequestTest {
     checkUserAppearsInAlterResults(results4, user1)
     checkUserAppearsInAlterResults(results4, user2)
 
-    TestUtils.waitUntilTrue(() => describeAllWithNoTopLevelErrorConfirmed().data.results.size == 2,
+    TestUtils.waitForCondition(() => describeAllWithNoTopLevelErrorConfirmed().data.results.size == 2,
                                "describeAllWithNoTopLevelErrorConfirmed does not see only 2 users")
 
     // now describe them all, which should just yield 2 credentials
@@ -370,7 +370,7 @@ class AlterUserScramCredentialsRequestTest extends BaseRequestTest {
     checkUserAppearsInAlterResults(results6, user1)
     checkUserAppearsInAlterResults(results6, user3)
 
-    TestUtils.waitUntilTrue(() => describeAllWithNoTopLevelErrorConfirmed().data.results.size == 0,
+    TestUtils.waitForCondition(() => describeAllWithNoTopLevelErrorConfirmed().data.results.size == 0,
                                "describeAllWithNoTopLevelErrorConfirmed does not see empty user")
 
     // now describe them all, which should yield 0 credentials

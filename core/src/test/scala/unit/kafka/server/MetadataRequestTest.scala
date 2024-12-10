@@ -18,7 +18,6 @@
 package kafka.server
 
 import java.util.Optional
-import kafka.utils.TestUtils
 import org.apache.kafka.common.Uuid
 import org.apache.kafka.common.errors.UnsupportedVersionException
 import org.apache.kafka.common.internals.Topic
@@ -26,6 +25,7 @@ import org.apache.kafka.common.protocol.Errors
 import org.apache.kafka.common.requests.{MetadataRequest, MetadataResponse}
 import org.apache.kafka.metadata.BrokerState
 import org.apache.kafka.test.TestUtils.isValidClusterId
+import org.apache.kafka.test.TestUtils
 import org.junit.jupiter.api.Assertions._
 import org.junit.jupiter.api.{BeforeEach, TestInfo}
 import org.junit.jupiter.params.ParameterizedTest
@@ -238,7 +238,7 @@ class MetadataRequestTest extends AbstractMetadataRequestTest {
     }.get
     downNode.shutdown()
 
-    TestUtils.waitUntilTrue(() => {
+    TestUtils.waitForCondition(() => {
       val response = sendMetadataRequest(new MetadataRequest.Builder(List(replicaDownTopic).asJava, true).build())
       !response.brokers.asScala.exists(_.id == downNode.dataPlaneRequestProcessor.brokerId)
     }, "Replica was not found down", 50000)
@@ -277,7 +277,7 @@ class MetadataRequestTest extends AbstractMetadataRequestTest {
       // Assert that topic metadata at new brokers is updated correctly
       activeBrokers.foreach { broker =>
         var actualIsr = Set.empty[Int]
-        TestUtils.waitUntilTrue(() => {
+        TestUtils.waitForCondition(() => {
           val metadataResponse = sendMetadataRequest(new MetadataRequest.Builder(Seq(topic).asJava, false).build,
             Some(brokerSocketServer(broker.config.brokerId)))
           val firstPartitionMetadata = metadataResponse.topicMetadata.asScala.headOption.flatMap(_.partitionMetadata.asScala.headOption)
@@ -310,7 +310,7 @@ class MetadataRequestTest extends AbstractMetadataRequestTest {
       expectedBrokersCount: Int
     ): Unit = {
       var response: Option[MetadataResponse] = None
-      TestUtils.waitUntilTrue(() => {
+      TestUtils.waitForCondition(() => {
         val metadataResponse = sendMetadataRequest(MetadataRequest.Builder.allTopics.build,
           Some(anySocketServer))
         response = Some(metadataResponse)
@@ -321,7 +321,7 @@ class MetadataRequestTest extends AbstractMetadataRequestTest {
 
       // Assert that metadata is propagated correctly
       brokers.filter(_.brokerState == BrokerState.RUNNING).foreach { broker =>
-        TestUtils.waitUntilTrue(() => {
+        TestUtils.waitForCondition(() => {
           val metadataResponse = sendMetadataRequest(MetadataRequest.Builder.allTopics.build,
             Some(brokerSocketServer(broker.config.brokerId)))
           val brokers = metadataResponse.brokers.asScala.toSeq.sortBy(_.id)

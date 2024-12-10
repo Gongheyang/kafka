@@ -14,7 +14,6 @@ package kafka.api
 
 import java.time
 import kafka.security.JaasTestUtils
-import kafka.utils.TestUtils._
 import kafka.utils.TestUtils
 import org.apache.kafka.clients.admin._
 import org.apache.kafka.common.Uuid
@@ -34,6 +33,7 @@ import org.apache.kafka.server.config.{DelegationTokenManagerConfigs, ServerConf
 import org.apache.kafka.metadata.authorizer.StandardAuthorizer
 import org.apache.kafka.server.authorizer.{Authorizer => JAuthorizer}
 import org.apache.kafka.storage.internals.log.LogConfig
+import org.apache.kafka.test.{TestUtils => JTestUtils}
 import org.apache.kafka.test.TestUtils.assertFutureThrows
 import org.junit.jupiter.api.Assertions._
 import org.junit.jupiter.api.{AfterEach, BeforeEach, TestInfo, Timeout}
@@ -176,7 +176,7 @@ class SaslSslAdminIntegrationTest extends BaseAdminIntegrationTest with SaslSetu
     def generateTokenResult(maxLifeTimeMs: Int, expiryTimePeriodMs: Int, expectedTokenNum: Int): (CreateDelegationTokenResult, ExpireDelegationTokenResult) = {
       val createResult = client.createDelegationToken(new CreateDelegationTokenOptions().renewers(renewer.asJava).maxLifetimeMs(maxLifeTimeMs))
       val tokenCreated = createResult.delegationToken.get
-      TestUtils.waitUntilTrue(() => brokers.forall(server => server.tokenCache.tokens().size() == expectedTokenNum),
+      JTestUtils.waitForCondition(() => brokers.forall(server => server.tokenCache.tokens().size() == expectedTokenNum),
             "Timed out waiting for token to propagate to all servers")
       val expireResult = client.expireDelegationToken(
         tokenCreated.hmac(),
@@ -434,7 +434,7 @@ class SaslSslAdminIntegrationTest extends BaseAdminIntegrationTest with SaslSetu
     assertEquals(timeout, tokenInfo.maxTimestamp - tokenInfo.issueTimestamp)
     assertTrue(tokenInfo.maxTimestamp >= tokenInfo.expiryTimestamp)
 
-    TestUtils.waitUntilTrue(() => brokers.forall(server => server.tokenCache.tokens.size == 1),
+    JTestUtils.waitForCondition(() => brokers.forall(server => server.tokenCache.tokens.size == 1),
       "Timed out waiting for token to propagate to all servers")
 
     val expiredOptions = new ExpireDelegationTokenOptions().expiryTimePeriodMs(tokenInfo.maxTimestamp + 1)
@@ -446,7 +446,7 @@ class SaslSslAdminIntegrationTest extends BaseAdminIntegrationTest with SaslSetu
   private def verifyCauseIsClusterAuth(e: Throwable): Unit = assertEquals(classOf[ClusterAuthorizationException], e.getCause.getClass)
 
   private def testAclCreateGetDelete(expectAuth: Boolean): Unit = {
-    TestUtils.waitUntilTrue(() => {
+    JTestUtils.waitForCondition(() => {
       val result = client.createAcls(List(fooAcl, transactionalIdAcl).asJava, new CreateAclsOptions)
       if (expectAuth) {
         Try(result.all.get) match {
@@ -468,7 +468,7 @@ class SaslSslAdminIntegrationTest extends BaseAdminIntegrationTest with SaslSetu
       waitForDescribeAcls(client, fooAcl.toFilter, Set(fooAcl))
       waitForDescribeAcls(client, transactionalIdAcl.toFilter, Set(transactionalIdAcl))
     }
-    TestUtils.waitUntilTrue(() => {
+    JTestUtils.waitForCondition(() => {
       val result = client.deleteAcls(List(fooAcl.toFilter, transactionalIdAcl.toFilter).asJava, new DeleteAclsOptions)
       if (expectAuth) {
         Try(result.all.get) match {
@@ -498,7 +498,7 @@ class SaslSslAdminIntegrationTest extends BaseAdminIntegrationTest with SaslSetu
   }
 
   private def testAclGet(expectAuth: Boolean): Unit = {
-    TestUtils.waitUntilTrue(() => {
+    JTestUtils.waitForCondition(() => {
       val userAcl = new AclBinding(new ResourcePattern(ResourceType.TOPIC, "*", PatternType.LITERAL),
         new AccessControlEntry("User:*", "*", AclOperation.ALL, AclPermissionType.ALLOW))
       val results = client.describeAcls(userAcl.toFilter)
@@ -695,7 +695,7 @@ class SaslSslAdminIntegrationTest extends BaseAdminIntegrationTest with SaslSetu
     val topicResource = new ConfigResource(ConfigResource.Type.TOPIC, topic)
     var configEntries: Iterable[ConfigEntry] = null
 
-    TestUtils.waitUntilTrue(() => {
+    JTestUtils.waitForCondition(() => {
       try {
         val topicResponse = client.describeConfigs(List(topicResource).asJava).all.get.get(topicResource)
         configEntries = topicResponse.entries.asScala
@@ -710,7 +710,7 @@ class SaslSslAdminIntegrationTest extends BaseAdminIntegrationTest with SaslSetu
 
   private def waitForDescribeAcls(client: Admin, filter: AclBindingFilter, acls: Set[AclBinding]): Unit = {
     var lastResults: util.Collection[AclBinding] = null
-    TestUtils.waitUntilTrue(() => {
+    JTestUtils.waitForCondition(() => {
       lastResults = client.describeAcls(filter).values.get()
       acls == lastResults.asScala.toSet
     }, s"timed out waiting for ACLs $acls.\nActual $lastResults")
@@ -733,7 +733,7 @@ class SaslSslAdminIntegrationTest extends BaseAdminIntegrationTest with SaslSetu
     val newLine = scala.util.Properties.lineSeparator
 
     val filter = new AclBindingFilter(resource.toFilter, accessControlEntryFilter)
-    waitUntilTrue(() => !authorizer.acls(filter).asScala.map(_.entry).toSet.contains(expectedToRemoved),
+    JTestUtils.waitForCondition(() => !authorizer.acls(filter).asScala.map(_.entry).toSet.contains(expectedToRemoved),
       s"expected acl to be removed : $expectedToRemoved" +
         s"but got:${authorizer.acls(filter).asScala.map(_.entry).mkString(newLine + "\t", newLine + "\t", newLine)}",
       45000)
@@ -746,7 +746,7 @@ class SaslSslAdminIntegrationTest extends BaseAdminIntegrationTest with SaslSetu
     val newLine = scala.util.Properties.lineSeparator
 
     val filter = new AclBindingFilter(resource.toFilter, accessControlEntryFilter)
-    waitUntilTrue(() => authorizer.acls(filter).asScala.map(_.entry).toSet.contains(expected),
+    JTestUtils.waitForCondition(() => authorizer.acls(filter).asScala.map(_.entry).toSet.contains(expected),
       s"expected to contain acl: $expected" +
         s"but got:${authorizer.acls(filter).asScala.map(_.entry).mkString(newLine + "\t", newLine + "\t", newLine)}",
       45000)

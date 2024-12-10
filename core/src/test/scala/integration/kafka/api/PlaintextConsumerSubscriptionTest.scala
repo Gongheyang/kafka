@@ -16,6 +16,7 @@ import kafka.utils.{TestInfoUtils, TestUtils}
 import org.apache.kafka.clients.consumer._
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.errors.{InvalidRegularExpression, InvalidTopicException}
+import org.apache.kafka.test.{TestUtils => JTestUtils}
 import org.junit.jupiter.api.Assertions._
 import org.junit.jupiter.api.Timeout
 import org.junit.jupiter.api.function.Executable
@@ -278,8 +279,8 @@ class PlaintextConsumerSubscriptionTest extends AbstractConsumerTest {
     setupSubscribeInvalidTopic(consumer)
     if(groupProtocol == "consumer") {
       // Must ensure memberId is not empty before sending leave group heartbeat. This is a temporary solution before KIP-1082.
-      TestUtils.waitUntilTrue(() => consumer.groupMetadata().memberId().nonEmpty,
-        waitTimeMs = 30000, msg = "Timeout waiting for first consumer group heartbeat response")
+      JTestUtils.waitForCondition(() => consumer.groupMetadata().memberId().nonEmpty,
+        30000, "Timeout waiting for first consumer group heartbeat response")
     }
     assertDoesNotThrow(new Executable {
       override def execute(): Unit = consumer.unsubscribe()
@@ -303,13 +304,13 @@ class PlaintextConsumerSubscriptionTest extends AbstractConsumerTest {
     consumer.subscribe(List(invalidTopicName).asJava)
 
     var exception : InvalidTopicException = null
-    TestUtils.waitUntilTrue(() => {
+    JTestUtils.waitForCondition(() => {
       try consumer.poll(Duration.ofMillis(500)) catch {
         case e : InvalidTopicException => exception = e
         case e : Throwable => fail(s"An InvalidTopicException should be thrown. But ${e.getClass} is thrown")
       }
       exception != null
-    }, waitTimeMs = 5000, msg = "An InvalidTopicException should be thrown.")
+    }, 5000, "An InvalidTopicException should be thrown.")
 
     assertEquals(s"Invalid topics: [${invalidTopicName}]", exception.getMessage)
   }

@@ -152,7 +152,7 @@ abstract class AbstractConsumerTest extends BaseRequestTest {
 
     // since subscribe call to poller does not actually call consumer subscribe right away, wait
     // until subscribe is called on all consumers
-    TestUtils.waitUntilTrue(() => {
+    JTestUtils.waitForCondition(() => {
       consumerPollers.forall { poller => poller.isSubscribeRequestProcessed }
     }, s"Failed to call subscribe on all consumers in the group for subscription $subscriptions", 1000L)
 
@@ -371,7 +371,7 @@ abstract class AbstractConsumerTest extends BaseRequestTest {
                               waitTime: Long = 10000L,
                               expectedAssignment: mutable.Buffer[Set[TopicPartition]] = mutable.Buffer()): Unit = {
     val assignments = mutable.Buffer[Set[TopicPartition]]()
-    TestUtils.waitUntilTrue(() => {
+    JTestUtils.waitForCondition(() => {
       assignments.clear()
       consumerPollers.foreach(assignments += _.consumerAssignment())
       isPartitionAssignmentValid(assignments, subscriptions, expectedAssignment)

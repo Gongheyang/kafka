@@ -19,7 +19,6 @@ package kafka.server
 import org.apache.kafka.common.test.api.ClusterInstance
 import org.apache.kafka.common.test.api.{ClusterConfigProperty, ClusterTest, Type}
 import org.apache.kafka.common.test.api.ClusterTestExtensions
-import kafka.utils.TestUtils
 import org.apache.kafka.clients.consumer.ConsumerPartitionAssignor
 import org.apache.kafka.clients.consumer.internals.ConsumerProtocol
 import org.apache.kafka.common.message.JoinGroupResponseData.JoinGroupResponseMember
@@ -27,6 +26,7 @@ import org.apache.kafka.common.message.{JoinGroupResponseData, SyncGroupRequestD
 import org.apache.kafka.common.protocol.{ApiKeys, Errors}
 import org.apache.kafka.coordinator.group.GroupCoordinatorConfig
 import org.apache.kafka.coordinator.group.classic.ClassicGroupState
+import org.apache.kafka.test.TestUtils
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.extension.ExtendWith
 
@@ -186,10 +186,10 @@ class JoinGroupRequestTest(cluster: ClusterInstance) extends GroupCoordinatorBas
         )
       }
 
-      TestUtils.waitUntilTrue(() => {
+      TestUtils.waitForCondition(() => {
         val described = describeGroups(groupIds = List("grp"))
         ClassicGroupState.PREPARING_REBALANCE.toString == described.head.groupState
-      }, msg = s"The group is not in PREPARING_REBALANCE state.")
+      }, s"The group is not in PREPARING_REBALANCE state.")
 
       // The leader rejoins.
       val rejoinLeaderResponseData = sendJoinRequest(
@@ -312,10 +312,10 @@ class JoinGroupRequestTest(cluster: ClusterInstance) extends GroupCoordinatorBas
       )
     }
 
-    TestUtils.waitUntilTrue(() => {
+    TestUtils.waitForCondition(() => {
       val described = describeGroups(groupIds = List("grp"))
       ClassicGroupState.PREPARING_REBALANCE.toString == described.head.groupState
-    }, msg = s"The group is not in PREPARING_REBALANCE state.")
+    }, s"The group is not in PREPARING_REBALANCE state.")
 
     // A new follower with duplicated group instance id joins.
     val joinNewFollowerResponseData = sendJoinRequest(
@@ -325,10 +325,10 @@ class JoinGroupRequestTest(cluster: ClusterInstance) extends GroupCoordinatorBas
       version = version.toShort
     )
 
-    TestUtils.waitUntilTrue(() => {
+    TestUtils.waitForCondition(() => {
       val described = describeGroups(groupIds = List("grp"))
       ClassicGroupState.COMPLETING_REBALANCE.toString == described.head.groupState
-    }, msg = s"The group is not in COMPLETING_REBALANCE state.")
+    }, s"The group is not in COMPLETING_REBALANCE state.")
 
     // The old follower rejoin request should be fenced.
     val rejoinFollowerResponseData = sendJoinRequest(

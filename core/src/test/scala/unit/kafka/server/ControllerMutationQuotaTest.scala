@@ -183,7 +183,7 @@ class ControllerMutationQuotaTest extends BaseRequestTest {
       // throttle time should be zero.
       val rejectedTopicName = errors1.filter(_._2 == Errors.THROTTLING_QUOTA_EXCEEDED).keys.head
       val rejectedTopicSpec = TopicsWith30Partitions.filter(_._1 == rejectedTopicName)
-      TestUtils.waitUntilTrue(() => {
+      JTestUtils.waitForCondition(() => {
         val (throttleTimeMs2, errors2) = createTopics(rejectedTopicSpec, StrictCreateTopicsRequestVersion)
         throttleTimeMs2 == 0 && errors2 == Map(rejectedTopicName -> Errors.NONE)
       }, "Failed to create topics after having been throttled")
@@ -237,7 +237,7 @@ class ControllerMutationQuotaTest extends BaseRequestTest {
       // throttle time should be zero.
       val rejectedTopicName = errors1.filter(_._2 == Errors.THROTTLING_QUOTA_EXCEEDED).keys.head
       val rejectedTopicSpec = TopicsWith30Partitions.filter(_._1 == rejectedTopicName)
-      TestUtils.waitUntilTrue(() => {
+      JTestUtils.waitForCondition(() => {
         val (throttleTimeMs2, errors2) = deleteTopics(rejectedTopicSpec, StrictDeleteTopicsRequestVersion)
         throttleTimeMs2 == 0 && errors2 == Map(rejectedTopicName -> Errors.NONE)
       }, "Failed to delete topics after having been throttled")
@@ -297,7 +297,7 @@ class ControllerMutationQuotaTest extends BaseRequestTest {
       // throttle time should be zero.
       val rejectedTopicName = errors1.filter(_._2 == Errors.THROTTLING_QUOTA_EXCEEDED).keys.head
       val rejectedTopicSpec = TopicsWith30Partitions.filter(_._1 == rejectedTopicName)
-      TestUtils.waitUntilTrue(() => {
+      JTestUtils.waitForCondition(() => {
         val (throttleTimeMs2, errors2) = createPartitions(rejectedTopicSpec, StrictCreatePartitionsRequestVersion)
         throttleTimeMs2 == 0 && errors2 == Map(rejectedTopicName -> Errors.NONE)
       }, "Failed to create partitions after having been throttled")
@@ -390,7 +390,7 @@ class ControllerMutationQuotaTest extends BaseRequestTest {
     val controllerQuotaManager = controllerServers.head.quotaManagers.controllerMutation
     var actualQuota = Double.MinValue
 
-    TestUtils.waitUntilTrue(() => {
+    JTestUtils.waitForCondition(() => {
       actualQuota = quotaManager.quota(user, "").bound()
       expectedQuota == actualQuota && expectedQuota == controllerQuotaManager.quota(user, "").bound()
     }, s"Quota of $user is not $expectedQuota but $actualQuota")

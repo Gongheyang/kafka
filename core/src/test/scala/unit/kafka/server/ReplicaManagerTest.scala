@@ -27,7 +27,6 @@ import org.apache.kafka.server.log.remote.quota.RLMQuotaMetrics
 import kafka.server.QuotaFactory.{QuotaManagers, UNBOUNDED_QUOTA}
 import kafka.server.epoch.util.MockBlockingSender
 import kafka.server.share.DelayedShareFetch
-import kafka.utils.TestUtils.waitUntilTrue
 import kafka.utils.{Pool, TestUtils}
 import org.apache.kafka.clients.FetchSessionHandler
 import org.apache.kafka.common.{DirectoryId, IsolationLevel, Node, TopicIdPartition, TopicPartition, Uuid}
@@ -72,6 +71,7 @@ import org.apache.kafka.server.util.{MockScheduler, MockTime}
 import org.apache.kafka.storage.internals.checkpoint.{LazyOffsetCheckpoints, OffsetCheckpointFile, PartitionMetadataFile}
 import org.apache.kafka.storage.internals.log.{AppendOrigin, FetchDataInfo, LocalLog, LogConfig, LogDirFailureChannel, LogLoader, LogOffsetMetadata, LogOffsetSnapshot, LogSegments, LogStartOffsetIncrementReason, ProducerStateManager, ProducerStateManagerConfig, RemoteStorageFetchInfo, VerificationGuard}
 import org.apache.kafka.storage.log.metrics.BrokerTopicStats
+import org.apache.kafka.test.{TestUtils => JTestUtils}
 import org.junit.jupiter.api.Assertions._
 import org.junit.jupiter.api.{AfterAll, AfterEach, BeforeEach, Test}
 import org.junit.jupiter.params.ParameterizedTest
@@ -560,7 +560,7 @@ class ReplicaManagerTest {
       assertEquals(1, replicaManager.replicaAlterLogDirsManager.fetcherThreadMap.size)
       (1 to loopEpochChange).foreach(epoch => replicaManager.becomeLeaderOrFollower(0, leaderAndIsrRequest(epoch), (_, _) => ()))
       // wait for the ReplicaAlterLogDirsThread to complete
-      TestUtils.waitUntilTrue(() => {
+      JTestUtils.waitForCondition(() => {
         replicaManager.replicaAlterLogDirsManager.shutdownIdleFetcherThreads()
         replicaManager.replicaAlterLogDirsManager.fetcherThreadMap.isEmpty
       }, s"ReplicaAlterLogDirsThread should be gone")
@@ -2554,7 +2554,7 @@ class ReplicaManagerTest {
       val props = new Properties()
       props.put(TransactionLogConfig.TRANSACTION_PARTITION_VERIFICATION_ENABLE_CONFIG, "true")
       config.dynamicConfig.updateBrokerConfig(config.brokerId, props)
-      TestUtils.waitUntilTrue(() => config.transactionLogConfig.transactionPartitionVerificationEnable == true, "Config did not dynamically update.")
+      JTestUtils.waitForCondition(() => config.transactionLogConfig.transactionPartitionVerificationEnable, "Config did not dynamically update.")
 
       // Try to append more records. We don't need to send a request since the transaction is already ongoing.
       val moreTransactionalRecords = MemoryRecords.withTransactionalRecords(Compression.NONE, producerId, producerEpoch, sequence + 1,
@@ -2606,7 +2606,7 @@ class ReplicaManagerTest {
       val props = new Properties()
       props.put(TransactionLogConfig.TRANSACTION_PARTITION_VERIFICATION_ENABLE_CONFIG, "false")
       config.dynamicConfig.updateBrokerConfig(config.brokerId, props)
-      TestUtils.waitUntilTrue(() => config.transactionLogConfig.transactionPartitionVerificationEnable == false, "Config did not dynamically update.")
+      JTestUtils.waitForCondition(() => !config.transactionLogConfig.transactionPartitionVerificationEnable, "Config did not dynamically update.")
 
       // Confirm we did not write to the log and instead returned error.
       val callback: AddPartitionsToTxnManager.AppendCallback = appendCallback.getValue()
@@ -4299,7 +4299,7 @@ class ReplicaManagerTest {
       timer.advanceClock(2000L)
 
       // verify the DelayedRemoteFetchMetrics.expiredRequestMeter.mark is called since the delayed remote fetch is expired
-      TestUtils.waitUntilTrue(() => (curExpiresPerSec + 1) == DelayedRemoteFetchMetrics.expiredRequestMeter.count(), "DelayedRemoteFetchMetrics.expiredRequestMeter.count() should be 1, but got: " + DelayedRemoteFetchMetrics.expiredRequestMeter.count(), 10000L)
+      JTestUtils.waitForCondition(() => (curExpiresPerSec + 1) == DelayedRemoteFetchMetrics.expiredRequestMeter.count(), 10000L, "DelayedRemoteFetchMetrics.expiredRequestMeter.count() should be 1, but got: " + DelayedRemoteFetchMetrics.expiredRequestMeter.count())
       latch.countDown()
     } finally {
       Utils.tryAll(util.Arrays.asList[Callable[Void]](
@@ -4373,11 +4373,11 @@ class ReplicaManagerTest {
       replicaManager.becomeLeaderOrFollower(0, leaderAndIsrRequest, (_, _) => ())
 
       // Replicas fetch from the leader periodically, therefore we check that the metric value is increasing
-      waitUntilTrue(() => brokerTopicStats.topicStats(tp0.topic()).buildRemoteLogAuxStateRequestRate.count > 0,
+      JTestUtils.waitForCondition(() => brokerTopicStats.topicStats(tp0.topic()).buildRemoteLogAuxStateRequestRate.count > 0,
         "Should have buildRemoteLogAuxStateRequestRate count > 0, but got:" + brokerTopicStats.topicStats(tp0.topic()).buildRemoteLogAuxStateRequestRate.count)
       assertEquals(0, brokerTopicStats.topicStats(tp0.topic()).failedBuildRemoteLogAuxStateRate.count)
       // Verify aggregate metrics
-      waitUntilTrue(() => brokerTopicStats.allTopicsStats.buildRemoteLogAuxStateRequestRate.count > 0,
+      JTestUtils.waitForCondition(() => brokerTopicStats.allTopicsStats.buildRemoteLogAuxStateRequestRate.count > 0,
         "Should have all topic buildRemoteLogAuxStateRequestRate count > 0, but got:" + brokerTopicStats.allTopicsStats.buildRemoteLogAuxStateRequestRate.count)
       assertEquals(0, brokerTopicStats.allTopicsStats.failedBuildRemoteLogAuxStateRate.count)
     } finally {
@@ -4428,14 +4428,14 @@ class ReplicaManagerTest {
       // Replicas fetch from the leader periodically, therefore we check that the metric value is increasing
       // We expect failedBuildRemoteLogAuxStateRate to increase because there is no remoteLogSegmentMetadata
       // when attempting to build log aux state
-      TestUtils.waitUntilTrue(() => brokerTopicStats.topicStats(tp0.topic()).buildRemoteLogAuxStateRequestRate.count > 0,
+      JTestUtils.waitForCondition(() => brokerTopicStats.topicStats(tp0.topic()).buildRemoteLogAuxStateRequestRate.count > 0,
         "Should have buildRemoteLogAuxStateRequestRate count > 0, but got:" + brokerTopicStats.topicStats(tp0.topic()).buildRemoteLogAuxStateRequestRate.count)
-      TestUtils.waitUntilTrue(() => brokerTopicStats.topicStats(tp0.topic()).failedBuildRemoteLogAuxStateRate.count > 0,
+      JTestUtils.waitForCondition(() => brokerTopicStats.topicStats(tp0.topic()).failedBuildRemoteLogAuxStateRate.count > 0,
         "Should have failedBuildRemoteLogAuxStateRate count > 0, but got:" + brokerTopicStats.topicStats(tp0.topic()).failedBuildRemoteLogAuxStateRate.count)
       // Verify aggregate metrics
-      TestUtils.waitUntilTrue(() => brokerTopicStats.allTopicsStats.buildRemoteLogAuxStateRequestRate.count > 0,
+      JTestUtils.waitForCondition(() => brokerTopicStats.allTopicsStats.buildRemoteLogAuxStateRequestRate.count > 0,
         "Should have all topic buildRemoteLogAuxStateRequestRate count > 0, but got:" + brokerTopicStats.allTopicsStats.buildRemoteLogAuxStateRequestRate.count)
-      TestUtils.waitUntilTrue(() => brokerTopicStats.allTopicsStats.failedBuildRemoteLogAuxStateRate.count > 0,
+      JTestUtils.waitForCondition(() => brokerTopicStats.allTopicsStats.failedBuildRemoteLogAuxStateRate.count > 0,
         "Should have all topic failedBuildRemoteLogAuxStateRate count > 0, but got:" + brokerTopicStats.allTopicsStats.failedBuildRemoteLogAuxStateRate.count)
     } finally {
       replicaManager.shutdown(checkpointHW = false)
@@ -4486,14 +4486,14 @@ class ReplicaManagerTest {
 
       // Replicas fetch from the leader periodically, therefore we check that the metric value is increasing
       // We expect failedBuildRemoteLogAuxStateRate to increase because fetchRemoteLogSegmentMetadata returns RemoteStorageException
-      TestUtils.waitUntilTrue(() => brokerTopicStats.topicStats(tp0.topic()).buildRemoteLogAuxStateRequestRate.count > 0,
+      JTestUtils.waitForCondition(() => brokerTopicStats.topicStats(tp0.topic()).buildRemoteLogAuxStateRequestRate.count > 0,
         "Should have buildRemoteLogAuxStateRequestRate count > 0, but got:" + brokerTopicStats.topicStats(tp0.topic()).buildRemoteLogAuxStateRequestRate.count)
-      TestUtils.waitUntilTrue(() => brokerTopicStats.topicStats(tp0.topic()).failedBuildRemoteLogAuxStateRate.count > 0,
+      JTestUtils.waitForCondition(() => brokerTopicStats.topicStats(tp0.topic()).failedBuildRemoteLogAuxStateRate.count > 0,
         "Should have failedBuildRemoteLogAuxStateRate count > 0, but got:" + brokerTopicStats.topicStats(tp0.topic()).failedBuildRemoteLogAuxStateRate.count)
       // Verify aggregate metrics
-      TestUtils.waitUntilTrue(() => brokerTopicStats.allTopicsStats.buildRemoteLogAuxStateRequestRate.count > 0,
+      JTestUtils.waitForCondition(() => brokerTopicStats.allTopicsStats.buildRemoteLogAuxStateRequestRate.count > 0,
         "Should have all topic buildRemoteLogAuxStateRequestRate count > 0, but got:" + brokerTopicStats.allTopicsStats.buildRemoteLogAuxStateRequestRate.count)
-      TestUtils.waitUntilTrue(() => brokerTopicStats.allTopicsStats.failedBuildRemoteLogAuxStateRate.count > 0,
+      JTestUtils.waitForCondition(() => brokerTopicStats.allTopicsStats.failedBuildRemoteLogAuxStateRate.count > 0,
         "Should have all topic failedBuildRemoteLogAuxStateRate count > 0, but got:" + brokerTopicStats.allTopicsStats.failedBuildRemoteLogAuxStateRate.count)
     } finally {
       replicaManager.shutdown(checkpointHW = false)
@@ -6699,12 +6699,12 @@ class ReplicaManagerTest {
   // Some threads are closed, but the state didn't reflect in the JVM immediately, so add some wait time for it
   private def assertNoNonDaemonThreadsWithWaiting(threadNamePrefix: String, waitTimeMs: Long = 500L): Unit = {
     var nonDemonThreads: mutable.Set[Thread] = mutable.Set.empty[Thread]
-    waitUntilTrue(() => {
+    JTestUtils.waitForCondition(() => {
       nonDemonThreads = Thread.getAllStackTraces.keySet.asScala.filter { t =>
         !t.isDaemon && t.isAlive && t.getName.startsWith(threadNamePrefix)
       }
       0 == nonDemonThreads.size
-    }, s"Found unexpected ${nonDemonThreads.size} NonDaemon threads=${nonDemonThreads.map(t => t.getName).mkString(", ")}", waitTimeMs)
+    }, waitTimeMs, s"Found unexpected ${nonDemonThreads.size} NonDaemon threads=${nonDemonThreads.map(t => t.getName).mkString(", ")}")
   }
 
   private def yammerGaugeValue[T](metricName: String): Option[T] = {

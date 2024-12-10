@@ -27,6 +27,7 @@ import org.apache.kafka.common.{Metric, MetricName, TopicPartition}
 import org.apache.kafka.server.config.ServerLogConfigs
 import org.apache.kafka.server.log.remote.storage.{NoOpRemoteLogMetadataManager, NoOpRemoteStorageManager, RemoteLogManagerConfig, RemoteStorageMetrics}
 import org.apache.kafka.server.metrics.KafkaYammerMetrics
+import org.apache.kafka.test.{TestUtils => JTestUtils}
 import org.junit.jupiter.api.Assertions._
 import org.junit.jupiter.api.{AfterEach, BeforeEach, TestInfo}
 import org.junit.jupiter.params.ParameterizedTest
@@ -194,7 +195,7 @@ class MetricsTest extends IntegrationTestHarness with SaslSetup {
 
   private def verifyBrokerAuthenticationMetrics(server: KafkaBroker): Unit = {
     val metrics = server.metrics.metrics
-    TestUtils.waitUntilTrue(() =>
+    JTestUtils.waitForCondition(() =>
       maxKafkaMetricValue("failed-authentication-total", metrics, "Broker", Some("socket-server-metrics")) > 0,
       "failed-authentication-total not updated")
     verifyKafkaMetricRecorded("successful-authentication-rate", metrics, "Broker", Some("socket-server-metrics"))

@@ -292,7 +292,7 @@ class SocketServerTest {
     plainSocket.setSoLinger(true, 0)
     plainSocket.close()
 
-    TestUtils.waitUntilTrue(() => server.connectionCount(address) == 0, msg = "Connection not closed")
+    JTestUtils.waitForCondition(() => server.connectionCount(address) == 0, "Connection not closed")
   }
 
   @Test
@@ -341,7 +341,7 @@ class SocketServerTest {
     assertEquals(clientVersion, receivedReq.context.clientInformation.softwareVersion)
 
     server.dataPlaneRequestChannel.sendNoOpResponse(receivedReq)
-    TestUtils.waitUntilTrue(() => requestsPerSec(requestVersion).isDefined, "RequestsPerSec metric could not be found")
+    JTestUtils.waitForCondition(() => requestsPerSec(requestVersion).isDefined, "RequestsPerSec metric could not be found")
     assertTrue(requestsPerSec(requestVersion).getOrElse(0L) > 0, "RequestsPerSec should be higher than 0")
     assertEquals(None, deprecatedRequestsPerSec(requestVersion))
 
@@ -349,13 +349,13 @@ class SocketServerTest {
     sendRequest(plainSocket, producerRequestBytes(requestVersion))
     receivedReq = receiveRequest(server.dataPlaneRequestChannel)
     server.dataPlaneRequestChannel.sendNoOpResponse(receivedReq)
-    TestUtils.waitUntilTrue(() => deprecatedRequestsPerSec(requestVersion).isDefined, "DeprecatedRequestsPerSec metric could not be found")
+    JTestUtils.waitForCondition(() => deprecatedRequestsPerSec(requestVersion).isDefined, "DeprecatedRequestsPerSec metric could not be found")
     assertTrue(deprecatedRequestsPerSec(requestVersion).getOrElse(0L) > 0, "DeprecatedRequestsPerSec should be higher than 0")
 
     plainSocket.setSoLinger(true, 0)
     plainSocket.close()
 
-    TestUtils.waitUntilTrue(() => server.connectionCount(address) == 0, msg = "Connection not closed")
+    JTestUtils.waitForCondition(() => server.connectionCount(address) == 0, "Connection not closed")
 
   }
 
@@ -406,12 +406,12 @@ class SocketServerTest {
         externalEndpoint -> externalReadyFuture,
         controlPlaneEndpoint -> CompletableFuture.completedFuture[Void](null))
       val requestProcessingFuture = testableServer.enableRequestProcessing(futures)
-      TestUtils.waitUntilTrue(() => controlPlaneListenerStarted(), "Control plane listener not started")
+      JTestUtils.waitForCondition(() => controlPlaneListenerStarted(), "Control plane listener not started")
       assertFalse(listenerStarted(config.interBrokerListenerName))
       assertFalse(listenerStarted(externalListener))
       externalReadyFuture.complete(null)
-      TestUtils.waitUntilTrue(() => listenerStarted(config.interBrokerListenerName), "Inter-broker listener not started")
-      TestUtils.waitUntilTrue(() => listenerStarted(externalListener), "External listener not started")
+      JTestUtils.waitForCondition(() => listenerStarted(config.interBrokerListenerName), "Inter-broker listener not started")
+      JTestUtils.waitForCondition(() => listenerStarted(externalListener), "External listener not started")
       requestProcessingFuture.get(1, TimeUnit.MINUTES)
     } finally {
       shutdownServerAndMetrics(testableServer)
@@ -553,9 +553,9 @@ class SocketServerTest {
       // it may continue after the mock time sleep, so there would be events that would mark the
       // connection as "up-to-date" after the sleep and prevent connection from being idle.
       receiveResponse(socket0)
-      TestUtils.waitUntilTrue(() => !openChannel(request0, overrideServer).get.isMuted, "Failed to unmute channel")
+      JTestUtils.waitForCondition(() => !openChannel(request0, overrideServer).get.isMuted, "Failed to unmute channel")
       time.sleep(idleTimeMs + 1)
-      TestUtils.waitUntilTrue(() => openOrClosingChannel(request0, overrideServer).isEmpty, "Failed to close idle channel")
+      JTestUtils.waitForCondition(() => openOrClosingChannel(request0, overrideServer).isEmpty, "Failed to close idle channel")
       assertTrue(openChannel(request0, overrideServer).isEmpty, "Channel not removed")
 
       // Connection with one request being processed (channel is muted), no other in-flight requests
@@ -565,7 +565,7 @@ class SocketServerTest {
       assertTrue(openChannel(request1, overrideServer).nonEmpty, "Channel not open")
       assertEquals(openChannel(request1, overrideServer), openOrClosingChannel(request1, overrideServer))
       time.sleep(idleTimeMs + 1)
-      TestUtils.waitUntilTrue(() => openOrClosingChannel(request1, overrideServer).isEmpty, "Failed to close idle channel")
+      JTestUtils.waitForCondition(() => openOrClosingChannel(request1, overrideServer).isEmpty, "Failed to close idle channel")
       assertTrue(openChannel(request1, overrideServer).isEmpty, "Channel not removed")
       processRequest(overrideServer.dataPlaneRequestChannel, request1)
 
@@ -573,7 +573,7 @@ class SocketServerTest {
       val socket2 = connect(overrideServer)
       val request2 = sendRequestsReceiveOne(overrideServer, socket2, serializedBytes, 3)
       time.sleep(idleTimeMs + 1)
-      TestUtils.waitUntilTrue(() => openOrClosingChannel(request2, overrideServer).isEmpty, "Failed to close idle channel")
+      JTestUtils.waitForCondition(() => openOrClosingChannel(request2, overrideServer).isEmpty, "Failed to close idle channel")
       assertTrue(openChannel(request1, overrideServer).isEmpty, "Channel not removed")
       processRequest(overrideServer.dataPlaneRequestChannel, request2) // this triggers a failed send since channel has been closed
       assertNull(overrideServer.dataPlaneRequestChannel.receiveRequest(200), "Received request on expired channel")
@@ -601,7 +601,7 @@ class SocketServerTest {
     def connectAndWaitForConnectionRegister(): Socket = {
       val connections = overrideServer.testableSelector.operationCounts(SelectorOperation.Register)
       val socket = sslConnect(overrideServer)
-      TestUtils.waitUntilTrue(() =>
+      JTestUtils.waitForCondition(() =>
         overrideServer.testableSelector.operationCounts(SelectorOperation.Register) == connections + 1, "Connection not registered")
       socket
     }
@@ -610,16 +610,16 @@ class SocketServerTest {
       overrideServer.enableRequestProcessing(Map.empty).get(1, TimeUnit.MINUTES)
       overrideServer.testableProcessor.setConnectionId(overrideConnectionId)
       val socket1 = connectAndWaitForConnectionRegister()
-      TestUtils.waitUntilTrue(() => connectionCount == 1 && openChannel.isDefined, "Failed to create channel")
+      JTestUtils.waitForCondition(() => connectionCount == 1 && openChannel.isDefined, "Failed to create channel")
       val channel1 = openChannel.getOrElse(throw new RuntimeException("Channel not found"))
 
       // Create new connection with same id when `channel1` is still open and in Selector.channels
       // Check that new connection is closed and openChannel still contains `channel1`
       connectAndWaitForConnectionRegister()
-      TestUtils.waitUntilTrue(() => connectionCount == 1, "Failed to close channel")
+      JTestUtils.waitForCondition(() => connectionCount == 1, "Failed to close channel")
       assertSame(channel1, openChannel.getOrElse(throw new RuntimeException("Channel not found")))
       socket1.close()
-      TestUtils.waitUntilTrue(() => openChannel.isEmpty, "Channel not closed")
+      JTestUtils.waitForCondition(() => openChannel.isEmpty, "Channel not closed")
 
       // Create a channel with buffered receive and close remote connection
       val request = makeChannelWithBufferedRequestsAndCloseRemote(overrideServer, overrideServer.testableSelector)
@@ -628,16 +628,16 @@ class SocketServerTest {
       // Create new connection with same id when `channel2` is closing, but still in Selector.channels
       // Check that new connection is closed and openOrClosingChannel still contains `channel2`
       connectAndWaitForConnectionRegister()
-      TestUtils.waitUntilTrue(() => connectionCount == 1, "Failed to close channel")
+      JTestUtils.waitForCondition(() => connectionCount == 1, "Failed to close channel")
       assertSame(channel2, openOrClosingChannel.getOrElse(throw new RuntimeException("Channel not found")))
 
       // Complete request with failed send so that `channel2` is removed from Selector.channels
       processRequest(overrideServer.dataPlaneRequestChannel, request)
-      TestUtils.waitUntilTrue(() => connectionCount == 0 && openOrClosingChannel.isEmpty, "Failed to remove channel with failed send")
+      JTestUtils.waitForCondition(() => connectionCount == 0 && openOrClosingChannel.isEmpty, "Failed to remove channel with failed send")
 
       // Check that new connections can be created with the same id since `channel1` is no longer in Selector
       connectAndWaitForConnectionRegister()
-      TestUtils.waitUntilTrue(() => connectionCount == 1 && openChannel.isDefined, "Failed to open new channel")
+      JTestUtils.waitForCondition(() => connectionCount == 1 && openChannel.isDefined, "Failed to open new channel")
       val newChannel = openChannel.getOrElse(throw new RuntimeException("Channel not found"))
       assertNotSame(channel1, newChannel)
       newChannel.disconnect()
@@ -687,7 +687,7 @@ class SocketServerTest {
 
       socket.close()
       proxyServer.serverConnSocket.close()
-      TestUtils.waitUntilTrue(() => proxyServer.clientConnSocket.isClosed, "Client socket not closed", waitTimeMs = 10000)
+      JTestUtils.waitForCondition(() => proxyServer.clientConnSocket.isClosed, 10000, "Client socket not closed")
 
       processRequestNoOpResponse(server.dataPlaneRequestChannel, request1)
       val channel = openOrClosingChannel(request1, server).getOrElse(throw new IllegalStateException("Channel closed too early"))
@@ -782,7 +782,7 @@ class SocketServerTest {
 
     // receive response
     assertEquals(serializedBytes.toSeq, receiveResponse(socket).toSeq)
-    TestUtils.waitUntilTrue(() => openOrClosingChannel(request).exists(c => c.muteState() == ChannelMuteState.MUTED_AND_THROTTLED), "fail")
+    JTestUtils.waitForCondition(() => openOrClosingChannel(request).exists(c => c.muteState() == ChannelMuteState.MUTED_AND_THROTTLED), "fail")
     // Channel should still be muted.
     assertTrue(openOrClosingChannel(request).exists(c => c.isMuted))
   }
@@ -797,7 +797,7 @@ class SocketServerTest {
     // receive response
     assertEquals(serializedBytes.toSeq, receiveResponse(socket).toSeq)
     // Since throttling is already done, the channel can be unmuted after sending out the response.
-    TestUtils.waitUntilTrue(() => openOrClosingChannel(request).exists(c => c.muteState() == ChannelMuteState.NOT_MUTED), "fail")
+    JTestUtils.waitForCondition(() => openOrClosingChannel(request).exists(c => c.muteState() == ChannelMuteState.NOT_MUTED), "fail")
     // Channel is now unmuted.
     assertFalse(openOrClosingChannel(request).exists(c => c.isMuted))
   }
@@ -809,7 +809,7 @@ class SocketServerTest {
     // SendAction with throttling in progress
     val request = throttledChannelTestSetUp(socket, serializedBytes, noOpResponse = true, throttlingInProgress = true)
 
-    TestUtils.waitUntilTrue(() => openOrClosingChannel(request).exists(c => c.muteState() == ChannelMuteState.MUTED_AND_THROTTLED), "fail")
+    JTestUtils.waitForCondition(() => openOrClosingChannel(request).exists(c => c.muteState() == ChannelMuteState.MUTED_AND_THROTTLED), "fail")
     // Channel should still be muted.
     assertTrue(openOrClosingChannel(request).exists(c => c.isMuted))
   }
@@ -822,7 +822,7 @@ class SocketServerTest {
     val request = throttledChannelTestSetUp(socket, serializedBytes, noOpResponse = true, throttlingInProgress = false)
 
     // Since throttling is already done, the channel can be unmuted.
-    TestUtils.waitUntilTrue(() => openOrClosingChannel(request).exists(c => c.muteState() == ChannelMuteState.NOT_MUTED), "fail")
+    JTestUtils.waitForCondition(() => openOrClosingChannel(request).exists(c => c.muteState() == ChannelMuteState.NOT_MUTED), "fail")
     // Channel is now unmuted.
     assertFalse(openOrClosingChannel(request).exists(c => c.isMuted))
   }
@@ -859,7 +859,7 @@ class SocketServerTest {
     // it should succeed after closing one connection
     val address = conns.head.getInetAddress
     conns.head.close()
-    TestUtils.waitUntilTrue(() => server.connectionCount(address) < conns.length,
+    JTestUtils.waitForCondition(() => server.connectionCount(address) < conns.length,
       "Failed to decrement connection count after close")
     val conn2 = connect()
     val serializedBytes = producerRequestBytes()
@@ -888,7 +888,7 @@ class SocketServerTest {
       // it should succeed after closing one connection
       val address = conns.head.getInetAddress
       conns.head.close()
-      TestUtils.waitUntilTrue(() => server.connectionCount(address) < conns.length,
+      JTestUtils.waitForCondition(() => server.connectionCount(address) < conns.length,
         "Failed to decrement connection count after close")
       val conn2 = connect(server)
       val serializedBytes = producerRequestBytes()
@@ -984,25 +984,25 @@ class SocketServerTest {
 
       val acceptors = overrideServer.dataPlaneAcceptors.asScala.values
       // waiting for 5 connections got accepted and 1 connection got throttled
-      TestUtils.waitUntilTrue(
+      JTestUtils.waitForCondition(
         () => acceptors.foldLeft(0)((accumulator, acceptor) => accumulator + acceptor.throttledSockets.size) == 1,
-        "timeout waiting for 1 connection to get throttled",
-        defaultTimeoutMs)
+        defaultTimeoutMs,
+        "timeout waiting for 1 connection to get throttled")
 
       // now try one more, so that we can make sure this connection will get throttled
       var conn = connect(overrideServer)
       // there should be total 2 connection got throttled now
-      TestUtils.waitUntilTrue(
+      JTestUtils.waitForCondition(
         () => acceptors.foldLeft(0)((accumulator, acceptor) => accumulator + acceptor.throttledSockets.size) == 2,
-        "timeout waiting for 2 connection to get throttled",
-        defaultTimeoutMs)
+        defaultTimeoutMs,
+        "timeout waiting for 2 connection to get throttled")
       // advance time to unthrottle connections
       time.sleep(defaultTimeoutMs)
       acceptors.foreach(_.wakeup())
       // make sure there are no connection got throttled now(and the throttled connections should be closed)
-      TestUtils.waitUntilTrue(() => acceptors.forall(_.throttledSockets.isEmpty),
-        "timeout waiting for connection to be unthrottled",
-        defaultTimeoutMs)
+      JTestUtils.waitForCondition(() => acceptors.forall(_.throttledSockets.isEmpty),
+        defaultTimeoutMs,
+        "timeout waiting for connection to be unthrottled")
       // verify the connection is closed now
       verifyRemoteConnectionClosed(conn)
 
@@ -1154,8 +1154,8 @@ class SocketServerTest {
       sendApiRequest(socket, emptyRequest, emptyHeader)
       // wait a little bit for the server-side disconnection to occur since it happens asynchronously
       try {
-        TestUtils.waitUntilTrue(() => overrideServer.testableSelector.channels.isEmpty,
-          "Expired connection was not closed", 1000)
+        JTestUtils.waitForCondition(() => overrideServer.testableSelector.channels.isEmpty,
+          1000, "Expired connection was not closed")
       } finally {
         socket.close()
       }
@@ -1206,7 +1206,7 @@ class SocketServerTest {
       headerLog.set("response", new TextNode("someResponse"))
       channel.sendResponse(new RequestChannel.SendResponse(request, send, Some(headerLog), None))
 
-      TestUtils.waitUntilTrue(() => totalTimeHistCount() == expectedTotalTimeCount,
+      JTestUtils.waitForCondition(() => totalTimeHistCount() == expectedTotalTimeCount,
         s"request metrics not updated, expected: $expectedTotalTimeCount, actual: ${totalTimeHistCount()}")
 
     } finally {
@@ -1240,7 +1240,7 @@ class SocketServerTest {
 
       // Complete request with socket exception so that the channel is closed
       processRequest(overrideServer.dataPlaneRequestChannel, request)
-      TestUtils.waitUntilTrue(() => openOrClosingChannel(request, overrideServer).isEmpty, "Channel not closed after failed send")
+      JTestUtils.waitForCondition(() => openOrClosingChannel(request, overrideServer).isEmpty, "Channel not closed after failed send")
       assertTrue(selector.completedSends.isEmpty, "Unexpected completed send")
     } finally {
       overrideServer.shutdown()
@@ -1267,7 +1267,7 @@ class SocketServerTest {
       val channel = overrideServer.dataPlaneRequestChannel
       val request = receiveRequest(channel)
 
-      TestUtils.waitUntilTrue(() => overrideServer.dataPlaneAcceptor(listener).get.processors(request.processor).channel(request.context.connectionId).isEmpty,
+      JTestUtils.waitForCondition(() => overrideServer.dataPlaneAcceptor(listener).get.processors(request.processor).channel(request.context.connectionId).isEmpty,
         s"Idle connection `${request.context.connectionId}` was not closed by selector")
 
       val requestMetrics = channel.metrics(request.header.apiKey.name)
@@ -1276,7 +1276,7 @@ class SocketServerTest {
 
       processRequest(channel, request)
 
-      TestUtils.waitUntilTrue(() => totalTimeHistCount() == expectedTotalTimeCount,
+      JTestUtils.waitForCondition(() => totalTimeHistCount() == expectedTotalTimeCount,
         s"request metrics not updated, expected: $expectedTotalTimeCount, actual: ${totalTimeHistCount()}")
 
     } finally {
@@ -1362,7 +1362,7 @@ class SocketServerTest {
       testableSelector.addFailure(SelectorOperation.Register)
       val sockets = (1 to 2).map(_ => connect(testableServer))
       testableSelector.waitForOperations(SelectorOperation.Register, 2)
-      TestUtils.waitUntilTrue(() => testableServer.connectionCount(localAddress) == 1, "Failed channel not removed")
+      JTestUtils.waitForCondition(() => testableServer.connectionCount(localAddress) == 1, "Failed channel not removed")
 
       assertProcessorHealthy(testableServer, testableSelector.notFailed(sockets))
     })
@@ -1588,7 +1588,7 @@ class SocketServerTest {
         // server when the client is unmuted in Step 3. Get the channel into its desired closing/buffered state.
         socket.close()
         proxyServer.serverConnSocket.close()
-        TestUtils.waitUntilTrue(() => proxyServer.clientConnSocket.isClosed, "Client socket not closed")
+        JTestUtils.waitForCondition(() => proxyServer.clientConnSocket.isClosed, "Client socket not closed")
         if (makeClosing)
           testableSelector.pendingClosingChannels.add(channel)
         if (numComplete == 0 && hasIncomplete)
@@ -1849,16 +1849,16 @@ class SocketServerTest {
       // Block selector until Acceptor is blocked while connections are pending
       testableSelector.pollCallback = () => {
         try {
-          TestUtils.waitUntilTrue(() => errors.nonEmpty || registeredConnectionCount >= numConnections - 1 || acceptorBlocked,
-            "Acceptor not blocked", waitTimeMs = 10000)
+          JTestUtils.waitForCondition(() => errors.nonEmpty || registeredConnectionCount >= numConnections - 1 || acceptorBlocked,
+            10000, "Acceptor not blocked")
         } catch {
           case _: Throwable => errors.add(s"Acceptor not blocked: $acceptorStackTraces")
         }
       }
       testableSelector.operationCounts.clear()
       val sockets = (1 to numConnections).map(_ => connect(testableServer))
-      TestUtils.waitUntilTrue(() => errors.nonEmpty || registeredConnectionCount == numConnections,
-        "Connections not registered", waitTimeMs = 15000)
+      JTestUtils.waitForCondition(() => errors.nonEmpty || registeredConnectionCount == numConnections,
+        "Connections not registered", 15000)
       assertEquals(Set.empty, errors)
       testableSelector.waitForOperations(SelectorOperation.Register, numConnections)
 
@@ -1985,7 +1985,7 @@ class SocketServerTest {
 
       // force all data to be transferred to the kafka broker by closing the client connection to proxy server
       sslSocket.close()
-      TestUtils.waitUntilTrue(() => proxyServer.clientConnSocket.isClosed, "proxyServer.clientConnSocket is still not closed after 60000 ms", 60000)
+      JTestUtils.waitForCondition(() => proxyServer.clientConnSocket.isClosed, "proxyServer.clientConnSocket is still not closed after 60000 ms", 60000)
 
       // process the request and send the response
       processRequest(testableServer.dataPlaneRequestChannel, req1)
@@ -2067,7 +2067,7 @@ class SocketServerTest {
       val (socket, connectionId) = connectAndProcessRequest(testableServer)
       socket.close()
       // Validate that the listener is invoked when the connection is closed.
-      TestUtils.waitUntilTrue(() => listenerConnectionId == connectionId, "Failed to call disconnect listener or invalid connection id invoked")
+      JTestUtils.waitForCondition(() => listenerConnectionId == connectionId, "Failed to call disconnect listener or invalid connection id invoked")
       assertProcessorHealthy(testableServer)
     }, connectionDisconnectListeners = Seq(connectionDisconnectListener))
   }
@@ -2114,7 +2114,7 @@ class SocketServerTest {
       processRequest(requestChannel, request)
       socket.close()
     }
-    TestUtils.waitUntilTrue(() => testableServer.connectionCount(localAddress) == 0, "Channels not removed")
+    JTestUtils.waitForCondition(() => testableServer.connectionCount(localAddress) == 0, "Channels not removed")
 
     // Check new channel behaves as expected
     val (socket, connectionId) = connectAndProcessRequest(testableServer)
@@ -2122,7 +2122,7 @@ class SocketServerTest {
     assertNotNull(selector.channel(connectionId), "Channel should not have been closed")
     assertNull(selector.closingChannel(connectionId), "Channel should not be closing")
     socket.close()
-    TestUtils.waitUntilTrue(() => testableServer.connectionCount(localAddress) == 0, "Channels not removed")
+    JTestUtils.waitForCondition(() => testableServer.connectionCount(localAddress) == 0, "Channels not removed")
   }
 
   // Since all sockets use the same local host, it is sufficient to check the local port
@@ -2269,17 +2269,17 @@ class SocketServerTest {
     def waitForChannelClose(connectionId: String, locallyClosed: Boolean): Unit = {
       val selector = testableSelector
       if (locallyClosed) {
-        TestUtils.waitUntilTrue(() => selector.allLocallyClosedChannels.contains(connectionId),
+        JTestUtils.waitForCondition(() => selector.allLocallyClosedChannels.contains(connectionId),
           s"Channel not closed: $connectionId")
         assertTrue(testableSelector.allDisconnectedChannels.isEmpty, "Unexpected disconnect notification")
       } else {
-        TestUtils.waitUntilTrue(() => selector.allDisconnectedChannels.contains(connectionId),
+        JTestUtils.waitForCondition(() => selector.allDisconnectedChannels.contains(connectionId),
           s"Disconnect notification not received: $connectionId")
         assertTrue(testableSelector.allLocallyClosedChannels.isEmpty, "Channel closed locally")
       }
       val openCount = selector.allChannels.size - 1 // minus one for the channel just closed above
-      TestUtils.waitUntilTrue(() => connectionCount(localAddress) == openCount, "Connection count not decremented")
-      TestUtils.waitUntilTrue(() =>
+      JTestUtils.waitForCondition(() => connectionCount(localAddress) == openCount, "Connection count not decremented")
+      JTestUtils.waitForCondition(() =>
         dataPlaneAcceptor(listener).get.processors(0).inflightResponseCount == 0, "Inflight responses not cleared")
       assertNull(selector.channel(connectionId), "Channel not removed")
       assertNull(selector.closingChannel(connectionId), "Closing channel not removed")
@@ -2410,7 +2410,7 @@ class SocketServerTest {
     }
 
     def waitForOperations(operation: SelectorOperation, minExpectedTotal: Int): Unit = {
-      TestUtils.waitUntilTrue(() =>
+      JTestUtils.waitForCondition(() =>
         operationCounts.getOrElse(operation, 0) >= minExpectedTotal, "Operations not performed within timeout")
     }
 

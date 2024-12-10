@@ -29,6 +29,7 @@ import org.apache.kafka.common.serialization.{IntegerDeserializer, IntegerSerial
 import org.apache.kafka.common.utils.Exit
 import org.apache.kafka.metadata.BrokerState
 import org.apache.kafka.server.config.{KRaftConfigs, ServerLogConfigs}
+import org.apache.kafka.test.{TestUtils => JTestUtils}
 import org.junit.jupiter.api.{BeforeEach, TestInfo, Timeout}
 import org.junit.jupiter.api.Assertions._
 import org.junit.jupiter.api.function.Executable
@@ -166,7 +167,7 @@ class ServerShutdownTest extends KafkaServerTestHarness {
       // this startup should fail with no online log dir (due to corrupted log), and exit directly without throwing exception
       assertDoesNotThrow(recreateBrokerExec)
       // JVM should exit with status code 1
-      TestUtils.waitUntilTrue(() => hasHaltProcedureCalled == true && expectedStatusCode == receivedStatusCode,
+      JTestUtils.waitForCondition(() => hasHaltProcedureCalled == true && expectedStatusCode == receivedStatusCode,
         s"Expected to halt directly with the expected status code:${expectedStatusCode.get}, " +
           s"but got hasHaltProcedureCalled: $hasHaltProcedureCalled and received status code: ${receivedStatusCode.orNull}")
     } finally {

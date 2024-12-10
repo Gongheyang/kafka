@@ -36,6 +36,8 @@ import org.apache.kafka.metadata.authorizer.StandardAuthorizer
 import org.apache.kafka.metadata.authorizer.StandardAuthorizerTest.AuthorizerTestServerInfo
 import org.apache.kafka.security.authorizer.AclEntry.{WILDCARD_HOST, WILDCARD_PRINCIPAL_STRING}
 import org.apache.kafka.server.authorizer._
+import org.apache.kafka.test.{TestUtils => JTestUtils}
+
 import org.junit.jupiter.api.Assertions._
 import org.junit.jupiter.api.{AfterEach, BeforeEach, TestInfo}
 import org.junit.jupiter.api.Test
@@ -343,9 +345,9 @@ class AuthorizerTest extends QuorumTestHarness with BaseAuthorizerTest {
     acls = changeAclAndVerify(acls, Set(acl5), Set.empty)
 
     //test get by principal name.
-    TestUtils.waitUntilTrue(() => Set(acl1, acl2).map(acl => new AclBinding(resource, acl)) == getAcls(authorizer1, user1),
+    JTestUtils.waitForCondition(() => Set(acl1, acl2).map(acl => new AclBinding(resource, acl)) == getAcls(authorizer1, user1),
       "changes not propagated in timeout period")
-    TestUtils.waitUntilTrue(() => Set(acl3, acl4, acl5).map(acl => new AclBinding(resource, acl)) == getAcls(authorizer1, user2),
+    JTestUtils.waitForCondition(() => Set(acl3, acl4, acl5).map(acl => new AclBinding(resource, acl)) == getAcls(authorizer1, user2),
       "changes not propagated in timeout period")
 
     val resourceToAcls = Map[ResourcePattern, Set[AccessControlEntry]](
@@ -359,7 +361,7 @@ class AuthorizerTest extends QuorumTestHarness with BaseAuthorizerTest {
     val expectedAcls = (resourceToAcls + (resource -> acls)).flatMap {
       case (res, resAcls) => resAcls.map { acl => new AclBinding(res, acl) }
     }.toSet
-    TestUtils.waitUntilTrue(() => expectedAcls == getAcls(authorizer1), "changes not propagated in timeout period.")
+    JTestUtils.waitForCondition(() => expectedAcls == getAcls(authorizer1), "changes not propagated in timeout period.")
 
     //test remove acl from existing acls.
     acls = changeAclAndVerify(acls, Set.empty, Set(acl1, acl5))

@@ -16,13 +16,13 @@
  */
 package kafka.server
 
-import kafka.utils.TestUtils
 import org.apache.kafka.common.test.api.{ClusterConfigProperty, ClusterInstance, ClusterTest, ClusterTestDefaults, ClusterTestExtensions, ClusterTests, Type}
 import org.apache.kafka.common.message.ShareFetchResponseData.AcquiredRecords
 import org.apache.kafka.common.message.{ShareAcknowledgeRequestData, ShareAcknowledgeResponseData, ShareFetchRequestData, ShareFetchResponseData}
 import org.apache.kafka.common.protocol.Errors
 import org.apache.kafka.common.{TopicIdPartition, TopicPartition, Uuid}
 import org.apache.kafka.common.requests.{ShareAcknowledgeRequest, ShareAcknowledgeResponse, ShareFetchRequest, ShareFetchResponse, ShareRequestMetadata}
+import org.apache.kafka.test.TestUtils
 import org.junit.jupiter.api.Assertions.{assertEquals, assertTrue}
 import org.junit.jupiter.api.{AfterEach, Tag, Timeout}
 import org.junit.jupiter.api.extension.ExtendWith
@@ -258,7 +258,7 @@ class ShareFetchAcknowledgeRequestTest(cluster: ClusterInstance) extends GroupCo
     // For the multi partition fetch request, the response may not be available in the first attempt
     // as the share partitions might not be initialized yet. So, we retry until we get the response.
     var responses = Seq[ShareFetchResponseData.PartitionData]()
-    TestUtils.waitUntilTrue(() => {
+    TestUtils.waitForCondition(() => {
       val shareFetchResponse = connectAndReceive[ShareFetchResponse](shareFetchRequest)
       val shareFetchResponseData = shareFetchResponse.data()
       assertEquals(Errors.NONE.code, shareFetchResponseData.errorCode)
@@ -850,7 +850,7 @@ class ShareFetchAcknowledgeRequestTest(cluster: ClusterInstance) extends GroupCo
     val acquiredRecords : util.List[AcquiredRecords] = new util.ArrayList[AcquiredRecords]()
     var releaseAcknowledgementSent = false
 
-    TestUtils.waitUntilTrue(() => {
+    TestUtils.waitForCondition(() => {
       shareSessionEpoch = ShareRequestMetadata.nextEpoch(shareSessionEpoch)
       metadata = new ShareRequestMetadata(memberId, shareSessionEpoch)
       if (releaseAcknowledgementSent) {
@@ -2267,7 +2267,7 @@ class ShareFetchAcknowledgeRequestTest(cluster: ClusterInstance) extends GroupCo
     // For the multi partition fetch request, the response may not be available in the first attempt
     // as the share partitions might not be initialized yet. So, we retry until we get the response.
     var responses = Seq[ShareFetchResponseData.PartitionData]()
-    TestUtils.waitUntilTrue(() => {
+    TestUtils.waitForCondition(() => {
       val shareFetchResponse = connectAndReceive[ShareFetchResponse](shareFetchRequest)
       val shareFetchResponseData = shareFetchResponse.data()
       assertEquals(Errors.NONE.code, shareFetchResponseData.errorCode)
@@ -2315,7 +2315,7 @@ class ShareFetchAcknowledgeRequestTest(cluster: ClusterInstance) extends GroupCo
   // partition is not initialized yet. Hence, wait for response from all partitions before proceeding.
   private def sendFirstShareFetchRequest(memberId: Uuid, groupId: String, topicIdPartitions: Seq[TopicIdPartition]): Unit = {
     val partitions: util.Set[Integer] = new util.HashSet()
-    TestUtils.waitUntilTrue(() => {
+    TestUtils.waitForCondition(() => {
       val metadata = new ShareRequestMetadata(memberId, ShareRequestMetadata.INITIAL_EPOCH)
       val shareFetchRequest = createShareFetchRequest(groupId, metadata, MAX_PARTITION_BYTES, topicIdPartitions, Seq.empty, Map.empty)
       val shareFetchResponse = connectAndReceive[ShareFetchResponse](shareFetchRequest)

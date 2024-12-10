@@ -383,6 +383,10 @@ public class TestUtils {
         waitForCondition(testCondition, maxWaitMs, () -> conditionDetails);
     }
 
+    public static void waitForCondition(final TestCondition testCondition, String conditionDetails, final long maxWaitMs) throws InterruptedException {
+        waitForCondition(testCondition, maxWaitMs, conditionDetails);
+    }
+
     /**
      * Wait for condition to be met for at most {@code maxWaitMs} and throw assertion failure otherwise.
      * This should be used instead of {@code Thread.sleep} whenever possible as it allows a longer timeout to be used
@@ -392,6 +396,16 @@ public class TestUtils {
     public static void waitForCondition(final TestCondition testCondition, final long maxWaitMs, Supplier<String> conditionDetailsSupplier) throws InterruptedException {
         waitForCondition(testCondition, maxWaitMs, DEFAULT_POLL_INTERVAL_MS, conditionDetailsSupplier);
     }
+
+    public static void waitForCondition(
+            final TestCondition testCondition,
+            String conditionDetails,
+            final long maxWaitMs,
+            final long pollIntervalMs
+    ) throws InterruptedException {
+        waitForCondition(testCondition, maxWaitMs, pollIntervalMs, () -> conditionDetails);
+    }
+
 
     /**
      * Wait for condition to be met for at most {@code maxWaitMs} with a polling interval of {@code pollIntervalMs}

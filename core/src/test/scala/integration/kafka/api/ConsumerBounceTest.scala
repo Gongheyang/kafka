@@ -28,6 +28,7 @@ import org.apache.kafka.common.requests.{FindCoordinatorRequest, FindCoordinator
 import org.apache.kafka.coordinator.group.GroupCoordinatorConfig
 import org.apache.kafka.server.config.{KRaftConfigs, ReplicationConfigs, ServerLogConfigs}
 import org.apache.kafka.server.util.ShutdownableThread
+import org.apache.kafka.test.{TestUtils => JTestUtils}
 import org.junit.jupiter.api.Assertions._
 import org.junit.jupiter.api.{AfterEach, Disabled, Test, TestInfo}
 import org.junit.jupiter.params.ParameterizedTest
@@ -152,7 +153,7 @@ class ConsumerBounceTest extends AbstractConsumerTest with Logging {
     consumer.seek(tp, 0)
 
     // wait until all the followers have synced the last HW with leader
-    TestUtils.waitUntilTrue(() => brokerServers.forall(server =>
+    JTestUtils.waitForCondition(() => brokerServers.forall(server =>
       server.replicaManager.localLog(tp).get.highWatermark == numRecords
     ), "Failed to update high watermark for followers after timeout")
 
@@ -284,7 +285,7 @@ class ConsumerBounceTest extends AbstractConsumerTest with Logging {
       .setKeyType(FindCoordinatorRequest.CoordinatorType.GROUP.id)
       .setCoordinatorKeys(Collections.singletonList(group))).build()
     var nodeId = -1
-    TestUtils.waitUntilTrue(() => {
+    JTestUtils.waitForCondition(() => {
       val response = connectAndReceive[FindCoordinatorResponse](request)
       nodeId = response.node.id
       response.error == Errors.NONE
@@ -350,8 +351,7 @@ class ConsumerBounceTest extends AbstractConsumerTest with Logging {
     }
 
     // we are waiting for the group to rebalance and one member to get kicked
-    TestUtils.waitUntilTrue(() => raisedExceptions.nonEmpty,
-      msg = "The remaining consumers in the group could not fetch the expected records", 10000L)
+    JTestUtils.waitForCondition(() => raisedExceptions.nonEmpty, 10000L, "The remaining consumers in the group could not fetch the expected records")
 
     assertEquals(1, raisedExceptions.size)
     assertTrue(raisedExceptions.head.isInstanceOf[GroupMaxSizeReachedException])
@@ -379,16 +379,16 @@ class ConsumerBounceTest extends AbstractConsumerTest with Logging {
       val (_, rejectedConsumerPollers) = addConsumersToGroup(1,
         mutable.Buffer[Consumer[Array[Byte], Array[Byte]]](), mutable.Buffer[ConsumerAssignmentPoller](), List[String](topic), partitions, group)
       val rejectedConsumer = rejectedConsumerPollers.head
-      TestUtils.waitUntilTrue(() => {
+      JTestUtils.waitForCondition(() => {
         rejectedConsumer.thrownException.isDefined
       }, "Extra consumer did not throw an exception")
       assertTrue(rejectedConsumer.thrownException.get.isInstanceOf[GroupMaxSizeReachedException])
 
       // assert group continues to live
       producerSend(createProducer(), maxGroupSize * 100, topic, numPartitions = Some(partitions.size))
-      TestUtils.waitUntilTrue(() => {
+      JTestUtils.waitForCondition(() => {
         consumerPollers.forall(p => p.receivedMessages >= 100)
-      }, "The consumers in the group could not fetch the expected records", 10000L)
+      }, 10000L, "The consumers in the group could not fetch the expected records")
     } finally {
       consumerPollers.foreach(_.shutdown())
     }
@@ -476,9 +476,9 @@ class ConsumerBounceTest extends AbstractConsumerTest with Logging {
   }
 
   private def receiveExactRecords(consumer: ConsumerAssignmentPoller, numRecords: Int, timeoutMs: Long = 60000): Unit = {
-    TestUtils.waitUntilTrue(() => {
+    JTestUtils.waitForCondition(() => {
       consumer.receivedMessages == numRecords
-    }, s"Consumer did not receive expected $numRecords. It received ${consumer.receivedMessages}", timeoutMs)
+    }, timeoutMs, s"Consumer did not receive expected $numRecords. It received ${consumer.receivedMessages}")
   }
 
   private def submitCloseAndValidate(consumer: Consumer[Array[Byte], Array[Byte]],
@@ -511,7 +511,7 @@ class ConsumerBounceTest extends AbstractConsumerTest with Logging {
       def onPartitionsRevoked(partitions: util.Collection[TopicPartition]): Unit = {
       }})
 
-    TestUtils.waitUntilTrue(() => {
+    JTestUtils.waitForCondition(() => {
       consumer.poll(time.Duration.ofMillis(100L))
       assignSemaphore.tryAcquire()
     }, "Assignment did not complete on time")

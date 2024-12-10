@@ -32,6 +32,7 @@ import org.apache.kafka.common.security.scram.ScramCredential
 import org.apache.kafka.common.utils.Time
 import org.apache.kafka.common.{KafkaException, Uuid}
 import org.apache.kafka.controller.ControllerRequestContextUtil.ANONYMOUS_CONTEXT
+import org.apache.kafka.test.{TestUtils => JTestUtils}
 import org.junit.jupiter.api.{AfterEach, BeforeEach, TestInfo}
 
 import java.io.File
@@ -341,7 +342,7 @@ abstract class KafkaServerTestHarness extends QuorumTestHarness {
   def waitForUserScramCredentialToAppearOnAllBrokers(clientPrincipal: String, mechanismName: String): Unit = {
     _brokers.foreach { server =>
       val cache = server.credentialProvider.credentialCache.cache(mechanismName, classOf[ScramCredential])
-      TestUtils.waitUntilTrue(() => cache.get(clientPrincipal) != null, s"SCRAM credentials not created for $clientPrincipal")
+      JTestUtils.waitForCondition(() => cache.get(clientPrincipal) != null, s"SCRAM credentials not created for $clientPrincipal")
     }
   }
 

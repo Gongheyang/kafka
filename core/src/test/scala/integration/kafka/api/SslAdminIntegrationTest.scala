@@ -32,6 +32,7 @@ import org.apache.kafka.common.network.ConnectionMode
 import org.apache.kafka.common.utils.Utils
 import org.apache.kafka.metadata.authorizer.{ClusterMetadataAuthorizer, StandardAuthorizer}
 import org.apache.kafka.server.metrics.KafkaYammerMetrics
+import org.apache.kafka.test.{TestUtils => JTestUtils}
 import org.junit.jupiter.api.Assertions.{assertEquals, assertFalse, assertNotNull, assertTrue}
 import org.junit.jupiter.api.{AfterEach, TestInfo}
 import org.junit.jupiter.params.ParameterizedTest
@@ -246,8 +247,8 @@ class SslAdminIntegrationTest extends SaslSslAdminIntegrationTest {
     assertTrue(aclFutures.forall(future => !future.all.isDone))
     // Other requests should succeed even though ACL updates are blocked
     assertNotNull(createAdminClient.listPartitionReassignments().reassignments().get(10, TimeUnit.SECONDS))
-    TestUtils.waitUntilTrue(() => purgatoryMetric("PurgatorySize") > 0, "PurgatorySize metrics not updated")
-    TestUtils.waitUntilTrue(() => purgatoryMetric("NumDelayedOperations") > 0, "NumDelayedOperations metrics not updated")
+    JTestUtils.waitForCondition(() => purgatoryMetric("PurgatorySize") > 0, "PurgatorySize metrics not updated")
+    JTestUtils.waitForCondition(() => purgatoryMetric("NumDelayedOperations") > 0, "NumDelayedOperations metrics not updated")
 
     // Release the semaphore and verify that ACL update requests complete
     testSemaphore.release(aclFutures.size)
@@ -279,7 +280,7 @@ class SslAdminIntegrationTest extends SaslSslAdminIntegrationTest {
     val results = client.createAcls(List(acl2, acl3).asJava).values
     assertEquals(Set(acl2, acl3), results.keySet().asScala)
     assertFalse(results.values.asScala.exists(_.isDone))
-    TestUtils.waitUntilTrue(() => testSemaphore.hasQueuedThreads, "Authorizer not blocked in createAcls")
+    JTestUtils.waitForCondition(() => testSemaphore.hasQueuedThreads, "Authorizer not blocked in createAcls")
     testSemaphore.release()
     results.values.forEach(_.get)
     validateRequestContext(SslAdminIntegrationTest.lastUpdateRequestContext.get, ApiKeys.CREATE_ACLS)
@@ -288,7 +289,7 @@ class SslAdminIntegrationTest extends SaslSslAdminIntegrationTest {
     val results2 = client.deleteAcls(List(acl.toFilter, acl2.toFilter, acl3.toFilter).asJava).values
     assertEquals(Set(acl.toFilter, acl2.toFilter, acl3.toFilter), results2.keySet.asScala)
     assertFalse(results2.values.asScala.exists(_.isDone))
-    TestUtils.waitUntilTrue(() => testSemaphore.hasQueuedThreads, "Authorizer not blocked in deleteAcls")
+    JTestUtils.waitForCondition(() => testSemaphore.hasQueuedThreads, "Authorizer not blocked in deleteAcls")
     testSemaphore.release()
     results.values.forEach(_.get)
     assertEquals(0, results2.get(acl.toFilter).get.values.size())

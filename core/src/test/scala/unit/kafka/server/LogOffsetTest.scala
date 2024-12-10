@@ -25,6 +25,7 @@ import org.apache.kafka.common.protocol.{ApiKeys, Errors}
 import org.apache.kafka.common.requests.{FetchRequest, FetchResponse, ListOffsetsRequest, ListOffsetsResponse}
 import org.apache.kafka.common.utils.Time
 import org.apache.kafka.common.{IsolationLevel, TopicPartition}
+import org.apache.kafka.test.{TestUtils => JTestUtils}
 import org.apache.kafka.storage.internals.log.{LogSegment, LogStartOffsetIncrementReason}
 import org.junit.jupiter.api.Assertions._
 import org.junit.jupiter.api.Timeout
@@ -85,7 +86,7 @@ class LogOffsetTest extends BaseRequestTest {
     val offsets = log.legacyFetchOffsetsBefore(ListOffsetsRequest.LATEST_TIMESTAMP, 15)
     assertEquals(Seq(20L, 18L, 16L, 14L, 12L, 10L, 8L, 6L, 4L, 3L), offsets)
 
-    TestUtils.waitUntilTrue(() => isLeaderLocalOnBroker(topic, topicPartition.partition, broker),
+    JTestUtils.waitForCondition(() => isLeaderLocalOnBroker(topic, topicPartition.partition, broker),
       "Leader should be elected")
     val request = ListOffsetsRequest.Builder.forReplica(0, 0)
       .setTargetTimes(buildTargetTimes(topicPartition, ListOffsetsRequest.LATEST_TIMESTAMP, 15).asJava).build()
@@ -152,7 +153,7 @@ class LogOffsetTest extends BaseRequestTest {
     val offsets = log.legacyFetchOffsetsBefore(ListOffsetsRequest.LATEST_TIMESTAMP, 15)
     assertEquals(Seq(20L, 18L, 16L, 14L, 12L, 10L, 8L, 6L, 4L, 2L, 0L), offsets)
 
-    TestUtils.waitUntilTrue(() => isLeaderLocalOnBroker(topic, 0, broker),
+    JTestUtils.waitForCondition(() => isLeaderLocalOnBroker(topic, 0, broker),
       "Leader should be elected")
     val request = ListOffsetsRequest.Builder.forReplica(0, 0)
       .setTargetTimes(buildTargetTimes(topicPartition, ListOffsetsRequest.LATEST_TIMESTAMP, 15).asJava).build()
@@ -226,7 +227,7 @@ class LogOffsetTest extends BaseRequestTest {
     val offsets = log.legacyFetchOffsetsBefore(now, 15)
     assertEquals(Seq(20L, 18L, 16L, 14L, 12L, 10L, 8L, 6L, 4L, 2L, 0L), offsets)
 
-    TestUtils.waitUntilTrue(() => isLeaderLocalOnBroker(topic, topicPartition.partition, broker),
+    JTestUtils.waitForCondition(() => isLeaderLocalOnBroker(topic, topicPartition.partition, broker),
       "Leader should be elected")
     val request = ListOffsetsRequest.Builder.forReplica(0, 0)
       .setTargetTimes(buildTargetTimes(topicPartition, now, 15).asJava).build()
@@ -253,7 +254,7 @@ class LogOffsetTest extends BaseRequestTest {
     val offsets = log.legacyFetchOffsetsBefore(ListOffsetsRequest.EARLIEST_TIMESTAMP, 10)
     assertEquals(Seq(0L), offsets)
 
-    TestUtils.waitUntilTrue(() => isLeaderLocalOnBroker(topic, topicPartition.partition, broker),
+    JTestUtils.waitForCondition(() => isLeaderLocalOnBroker(topic, topicPartition.partition, broker),
       "Leader should be elected")
     val request = ListOffsetsRequest.Builder.forReplica(0, 0)
       .setTargetTimes(buildTargetTimes(topicPartition, ListOffsetsRequest.EARLIEST_TIMESTAMP, 10).asJava).build()
@@ -322,7 +323,7 @@ class LogOffsetTest extends BaseRequestTest {
     createTopic(topic)
 
     val logManager = broker.logManager
-    TestUtils.waitUntilTrue(() => logManager.getLog(topicPartition).isDefined,
+    JTestUtils.waitForCondition(() => logManager.getLog(topicPartition).isDefined,
       "Log for partition [topic,0] should be created")
     logManager.getLog(topicPartition).get
   }

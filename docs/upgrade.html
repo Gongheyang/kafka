@@ -130,6 +130,8 @@
                             and it will fall directly if the broker doesn't support incrementalAlterConfigs API, which means the broker version is prior to 2.3.x.
                             See <a href="https://cwiki.apache.org/confluence/display/KAFKA/KIP-1011%3A+Use+incrementalAlterConfigs+when+updating+broker+configs+by+kafka-configs.sh">KIP-1011</a> for more details.
                         </li>
+                        <li>The <code>kafka.admin.ZkSecurityMigrator</code> tool was removed.
+                        </li>
                     </ul>
                 </li>
                 <li><b>Connect</b>
@@ -203,6 +205,11 @@
                     introduced in RLMM to allow the implementation to return the next segment metadata with a transaction
                     index. This API is used when the consumers are enabled with isolation level as READ_COMMITTED.
                     See <a href="https://cwiki.apache.org/confluence/display/KAFKA/KIP-1058:+Txn+consumer+exerts+pressure+on+remote+storage+when+collecting+aborted+transactions">KIP-1058</a> for more details.
+                </li>
+                <li>
+                    The criteria for identifying internal topics in ReplicationPolicy and DefaultReplicationPolicy have
+                    been updated to enable the replication of topics that appear to be internal but aren't truly internal to Kafka and Mirror Maker 2.
+                    See <a href="https://cwiki.apache.org/confluence/display/KAFKA/KIP-1074%3A+Allow+the+replication+of+user+internal+topics">KIP-1074</a> for more details.
                 </li>
             </ul>
         </li>

@@ -117,7 +117,7 @@ public class StructMessageTest {
 
         // We want the structs to be 127 bytes long, so that the varint encoding of their size is
         // one short of overflowing into a two-byte representation. An extra byte is added to the
-        // nullable struct size to account for the is-null flag.
+        // nullable struct size to account for the is-not-null flag.
         assertEquals(127, message.nullableStruct4().size(new ObjectSerializationCache(), (short) 2));
         assertEquals(127, message.nonNullableStruct().size(new ObjectSerializationCache(), (short) 2));
 

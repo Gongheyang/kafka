@@ -162,7 +162,7 @@ public class Consumed<K, V> implements NamedOperation<Consumed<K, V>> {
     }
 
     /**
-     * Create an instance of {@link Consumed} with a {@link org.apache.kafka.streams.AutoOffsetReset AutoOffsetReset}.
+     * Create an instance of {@link Consumed} with a {@link org.apache.kafka.streams.Topology.AutoOffsetReset Topology.AutoOffsetReset}.
      *
      * @deprecated Since 4.0. Replaced by {@link #with(AutoOffsetReset)} which uses the new {@link AutoOffsetReset} directly.
      *

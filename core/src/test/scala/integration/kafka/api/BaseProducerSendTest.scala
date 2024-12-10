@@ -365,9 +365,17 @@ abstract class BaseProducerSendTest extends KafkaServerTestHarness {
       producer.close()
     }
   }
+//  Initiating connection to node localhost:
+//  org.apache.kafka.common.errors.DisconnectException
+//  java.net.ConnectException: Connection refused
+//  Sending FIND_COORDINATOR request with header RequestHeader(
+//  Received FIND_COORDINATOR response from node
+//    [2024-11-29 10:37:01,581] DEBUG [Consumer clientId=consumer-group-1, groupId=group] Received FIND_COORDINATOR response from node 0 for request with header RequestHeader(apiKey=FIND_COORDINATOR, apiVersion=6, clientId=consumer-group-1, correlationId=10, headerVersion=2): FindCoordinatorResponseData(throttleTimeMs=0, errorCode=0, errorMessage='', nodeId=0, host='', port=0, coordinators=[Coordinator(key='group', nodeId=1, host='localhost', port=39689, errorCode=0, errorMessage='')]) (org.apache.kafka.clients.NetworkClient:1009)
+//    [2024-11-29 10:39:37,487] DEBUG [Consumer clientId=consumer-group-1, groupId=group] Received FIND_COORDINATOR response from node 0 for request with header RequestHeader(apiKey=FIND_COORDINATOR, apiVersion=6, clientId=consumer-group-1, correlationId=10, headerVersion=2): FindCoordinatorResponseData(throttleTimeMs=0, errorCode=0, errorMessage='', nodeId=0, host='', port=0, coordinators=[Coordinator(key='group', nodeId=0, host='localhost', port=42847, errorCode=0, errorMessage='')]) (org.apache.kafka.clients.NetworkClient:1009)
 
+  // @MethodSource(Array("getTestQuorumAndGroupProtocolParametersConsumerGroupProtocolOnly"))
   @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
-  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly_KAFKA_16176"))
+  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersConsumerGroupProtocolOnly"))
   def testSendToPartitionWithFollowerShutdownShouldNotTimeout(quorum: String, groupProtocol: String): Unit = {
     // This test produces to a leader that has follower that is shutting down. It shows that
     // the produce request succeed, do not timeout and do not need to be retried.
@@ -398,7 +406,7 @@ abstract class BaseProducerSendTest extends KafkaServerTestHarness {
       consumer.assign(List(new TopicPartition(topic, partition)).asJava)
 
       // make sure the fetched messages also respect the partitioning and ordering
-      val records = TestUtils.consumeRecords(consumer, numRecords)
+      val records = TestUtils.consumeRecords(consumer, numRecords, 150000)
 
       records.zipWithIndex.foreach { case (record, i) =>
         assertEquals(topic, record.topic)

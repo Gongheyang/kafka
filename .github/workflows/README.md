@@ -78,9 +78,16 @@ opened by non-committers. This workflow consists of three files:
 _The pr-update.yml workflow includes pull_request_target!_
 
 For committers to avoid having this label added, their membership in the ASF GitHub
-organization must be public. Instructions for this are here:
+organization must be public. Here are the steps to take:
 
-https://docs.github.com/en/account-and-profile/setting-up-and-managing-your-personal-account-on-github/managing-your-membership-in-organizations/publicizing-or-hiding-organization-membership
+* Navigate to the ASF organization's "People" page https://github.com/orgs/apache/people
+* Find yourself
+* Change "Organization Visibility" to Public
+
+Full documentation for this process can be found in GitHub's docs: https://docs.github.com/en/account-and-profile/setting-up-and-managing-your-personal-account-on-github/managing-your-membership-in-organizations/publicizing-or-hiding-organization-membership
+
+If you are a committer and do not want your membership in the ASF org listed as public, 
+you will need to remove the `triage` label manually.
 
 ### CI Approved
 

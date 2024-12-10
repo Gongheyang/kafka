@@ -87,7 +87,11 @@ public class CoordinatorRequestManagerTest {
      * This test mimics a client that has been disconnected from the coordinator. When the client remains disconnected
      * from the coordinator for 60 seconds, the client will begin to emit a warning log every minute thereafter to
      * alert the user about the ongoing disconnect status. The warning log includes the length of time of the ongoing
-     * disconnect.
+     * disconnect:
+     *
+     * <code>
+     *     Consumer has been disconnected from the group coordinator for XXXXXms
+     * </code>
      *
      * <p/>
      *
@@ -108,8 +112,8 @@ public class CoordinatorRequestManagerTest {
             // Step 1: mark the coordinator as disconnected right after creation of the CoordinatorRequestManager.
             // Because the disconnect occurred immediately, no warning should be logged.
             coordinatorRequestManager.markCoordinatorUnknown("test", time.milliseconds());
-            List<Long> ms = millisFromLog(appender);
-            assertEquals(0, ms.size());
+            Optional<Long> ms = millisFromLog(appender);
+            assertTrue(ms.isEmpty());
 
             // Step 2: sleep for one minute and mark the coordinator unknown again. Then verify that the warning was
             // logged and the reported time is accurate.
@@ -125,21 +129,30 @@ public class CoordinatorRequestManagerTest {
     }
 
     private void assertMillisecondEquals(LogCaptureAppender appender, long expected) {
-        List<Long> ms = millisFromLog(appender);
-        assertFalse(ms.isEmpty());
-        long actual = ms.get(ms.size() - 1);
-        assertEquals(expected, actual, "The ");
+        Optional<Long> ms = millisFromLog(appender);
+        assertTrue(ms.isPresent());
+        long actual = ms.get();
+        assertEquals(expected, actual);
     }
 
-    private List<Long> millisFromLog(LogCaptureAppender appender) {
+    private Optional<Long> millisFromLog(LogCaptureAppender appender) {
         Pattern pattern = Pattern.compile("\\s+(?<millis>\\d+)+ms");
-        return appender.getMessages().stream()
+        List<Long> millis = appender.getMessages().stream()
             .map(pattern::matcher)
             .filter(Matcher::find)
             .map(matcher -> matcher.group("millis"))
             .filter(Objects::nonNull)
-            .map(Long::parseLong)
+            .map(millisString -> {
+                try {
+                    return Long.parseLong(millisString);
+                } catch (NumberFormatException e) {
+                    return null;
+                }
+            })
+            .filter(Objects::nonNull)
             .collect(Collectors.toList());
+        // Return the most recent log entry, if present.
+        return millis.isEmpty() ? Optional.empty() : Optional.of(millis.get(millis.size() - 1));
     }
 
     @Test

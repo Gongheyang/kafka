@@ -78,15 +78,17 @@ public class Consumed<K, V> implements NamedOperation<Consumed<K, V>> {
     /**
      * Create an instance of {@link Consumed} with the supplied arguments. {@code null} values are acceptable.
      *
-     * @param keySerde
+     * @deprecated Since 4.0. Replaced by {@link #with(Serde, Serde, TimestampExtractor, AutoOffsetReset)} which uses 
+     * the new {@link AutoOffsetReset} instead of {@link Topology.AutoOffsetReset}.
+     *
+     * @param keySerde 
      *        the key serde. If {@code null} the default key serde from config will be used
      * @param valueSerde
      *        the value serde. If {@code null} the default value serde from config will be used
      * @param timestampExtractor
-     *        the timestamp extractor to used. If {@code null} the default timestamp extractor from config will be used
+     *        the timestamp extractor to use. If {@code null} the default timestamp extractor from config will be used
      * @param resetPolicy
      *        the offset reset policy to be used. If {@code null} the default reset policy from config will be used
-     *
      * @param <K> key type
      * @param <V> value type
      *
@@ -99,6 +101,25 @@ public class Consumed<K, V> implements NamedOperation<Consumed<K, V>> {
                                              final Topology.AutoOffsetReset resetPolicy) {
         return new Consumed<>(keySerde, valueSerde, timestampExtractor, resetPolicy, convertOldToNew(resetPolicy), null);
     }
+
+    /** 
+    * Create an instance of {@link Consumed} with the supplied arguments. {@code null} values are acceptable.
+    * This method replaces the old variant that used {@link Topology.AutoOffsetReset}.
+    *
+    * @param keySerde
+    *        the key serde. If {@code null} the default key serde from config will be used
+    * @param valueSerde
+    *        the value serde. If {@code null} the default value serde from config will be used
+    * @param timestampExtractor
+    *        the timestamp extractor to used. If {@code null} the default timestamp extractor from config will be used
+    * @param resetPolicy
+    *        the offset reset policy to be used. If {@code null} the default reset policy from config will be used
+    *
+    * @param <K> key type
+    * @param <V> value type
+    *
+    * @return a new instance of {@link Consumed}
+    */
 
     public static <K, V> Consumed<K, V> with(final Serde<K> keySerde,
                                              final Serde<V> valueSerde,
@@ -143,9 +164,10 @@ public class Consumed<K, V> implements NamedOperation<Consumed<K, V>> {
     /**
      * Create an instance of {@link Consumed} with a {@link org.apache.kafka.streams.AutoOffsetReset AutoOffsetReset}.
      *
-     * @param resetPolicy
-     *        the offset reset policy to be used. If {@code null} the default reset policy from config will be used
+     * @deprecated Since 4.0. Replaced by {@link #with(AutoOffsetReset)} which uses the new {@link AutoOffsetReset} directly.
      *
+     * @param resetPolicy 
+     *        the offset reset policy to be used. If {@code null} the default reset policy from config will be used
      * @param <K> key type
      * @param <V> value type
      *
@@ -156,6 +178,17 @@ public class Consumed<K, V> implements NamedOperation<Consumed<K, V>> {
         return new Consumed<>(null, null, null, resetPolicy, convertOldToNew(resetPolicy), null);
     }
 
+    /**
+     * Create an instance of {@link Consumed} with a {@link AutoOffsetReset}.
+     * This method replaces the old variant that used {@link Topology.AutoOffsetReset}.
+     * 
+     * @param resetPolicy
+     *        the offset reset policy to be used. If {@code null} the default reset policy from config will be used
+     * @param <K> key type
+     * @param <V> value type
+     *
+     * @return a new instance of {@link Consumed}
+     */
     public static <K, V> Consumed<K, V> with(final AutoOffsetReset resetPolicy) {
         return new Consumed<>(null, null, null, null, resetPolicy, null);
     }
@@ -165,7 +198,6 @@ public class Consumed<K, V> implements NamedOperation<Consumed<K, V>> {
      *
      * @param processorName
      *        the processor name to be used. If {@code null} a default processor name will be generated
-     *
      * @param <K> key type
      * @param <V> value type
      *
@@ -212,11 +244,13 @@ public class Consumed<K, V> implements NamedOperation<Consumed<K, V>> {
     }
 
     /**
-     * Configure the instance of {@link Consumed} with a {@link org.apache.kafka.streams.AutoOffsetReset AutoOffsetReset}.
+     * Configure the instance of {@link Consumed} with a {@link Topology.AutoOffsetReset}.
      *
-     * @param resetPolicy
+     * @deprecated Since 4.0. Replaced by {@link #withOffsetResetPolicy(AutoOffsetReset)} which uses the new {@link AutoOffsetReset}.
+     *
+     * @param resetPolicy 
      *        the offset reset policy to be used. If {@code null} the default reset policy from config will be used
-     *
+     * 
      * @return a new instance of {@link Consumed}
      */
     @Deprecated
@@ -224,6 +258,15 @@ public class Consumed<K, V> implements NamedOperation<Consumed<K, V>> {
         return new Consumed<K, V>(keySerde, valueSerde, timestampExtractor, resetPolicy, convertOldToNew(resetPolicy), processorName);
     }
 
+    /**
+     * Configure the instance of {@link Consumed} with a {@link AutoOffsetReset}.
+     * This method replaces the old variant that used {@link Topology.AutoOffsetReset}.
+     *
+     * @param resetPolicy 
+     *        the offset reset policy to be used. If {@code null} the default reset policy from config will be used.
+     * 
+     * @return a new instance of {@link Consumed}
+     */
     public Consumed<K, V> withOffsetResetPolicy(final AutoOffsetReset resetPolicy) {
         return new Consumed<K, V>(keySerde, valueSerde, timestampExtractor, null, resetPolicy, processorName);
     }

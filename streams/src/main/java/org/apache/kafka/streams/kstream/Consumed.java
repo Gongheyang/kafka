@@ -117,6 +117,8 @@ public class Consumed<K, V> implements NamedOperation<Consumed<K, V>> {
      * @param <K> key type
      * @param <V> value type
      *
+     * @return a new instance of {@link Consumed}
+     *
      * @deprecated Since 4.0. Use {@link #with(Serde, Serde, TimestampExtractor, AutoOffsetReset)} instead.
      */
     @Deprecated
@@ -130,12 +132,18 @@ public class Consumed<K, V> implements NamedOperation<Consumed<K, V>> {
     /**
      * Create an instance of {@link Consumed} with the supplied arguments. {@code null} values are acceptable.
      *
-     * @param keySerde           the key serde. If {@code null} the default key serde from config will be used
-     * @param valueSerde         the value serde. If {@code null} the default value serde from config will be used
-     * @param timestampExtractor the timestamp extractor to used. If {@code null} the default timestamp extractor from config will be used
-     * @param resetPolicy        the offset reset policy to be used. If {@code null} the default reset policy from config will be used
-     * @param <K>                key type
-     * @param <V>                value type
+     * @param keySerde
+     *        the key serde. If {@code null} the default key serde from config will be used
+     * @param valueSerde
+     *        the value serde. If {@code null} the default value serde from config will be used
+     * @param timestampExtractor
+     *        the timestamp extractor to used. If {@code null} the default timestamp extractor from config will be used
+     * @param resetPolicy
+     *        the offset reset policy to be used. If {@code null} the default reset policy from config will be used
+     *
+     * @param <K> key type
+     * @param <V> value type
+     *
      * @return a new instance of {@link Consumed}
      */
     public static <K, V> Consumed<K, V> with(final Serde<K> keySerde,
@@ -197,11 +205,14 @@ public class Consumed<K, V> implements NamedOperation<Consumed<K, V>> {
     }
 
     /**
-     * Create an instance of {@link Consumed} with a {@link org.apache.kafka.streams.AutoOffsetReset AutoOffsetReset}.
+     * Create an instance of {@link Consumed} with a {@link org.apache.kafka.streams.Topology.AutoOffsetReset Topology.AutoOffsetReset}.
      *
-     * @param resetPolicy the offset reset policy to be used. If {@code null} the default reset policy from config will be used
-     * @param <K>         key type
-     * @param <V>         value type
+     * @param resetPolicy
+     *        the offset reset policy to be used. If {@code null} the default reset policy from config will be used
+     *
+     * @param <K> key type
+     * @param <V> value type
+     *
      * @return a new instance of {@link Consumed}
      */
     public static <K, V> Consumed<K, V> with(final AutoOffsetReset resetPolicy) {
@@ -282,7 +293,7 @@ public class Consumed<K, V> implements NamedOperation<Consumed<K, V>> {
     }
 
     /**
-     * Configure the instance of {@link Consumed} with a {@link org.apache.kafka.streams.AutoOffsetReset AutoOffsetReset}.
+     * Configure the instance of {@link Consumed} with a {@link org.apache.kafka.streams.Topology.AutoOffsetReset Topology.AutoOffsetReset}.
      *
      * @param resetPolicy
      *        the offset reset policy to be used. If {@code null} the default reset policy from config will be used

@@ -212,7 +212,7 @@ class ZookeeperService(KafkaPathResolverMixin, Service):
 
         chroot_path = ('' if chroot is None else chroot) + path
 
-        kafka_run_class = self.path.script("kafka-run-class.sh", LATEST 3_8)
+        kafka_run_class = self.path.script("kafka-run-class.sh", LATEST_3_8)
         cmd = "%s %s -server %s %s ls %s" % \
               (kafka_run_class, self.java_cli_class_name(), self.connect_setting(force_tls=self.zk_client_secure_port),
                self.zkTlsConfigFileOption(True),
@@ -240,7 +240,7 @@ class ZookeeperService(KafkaPathResolverMixin, Service):
 
         chroot_path = ('' if chroot is None else chroot) + path
 
-        kafka_run_class = self.path.script("kafka-run-class.sh", LATEST 3_8)
+        kafka_run_class = self.path.script("kafka-run-class.sh", LATEST_3_8)
         if recursive:
             op = "deleteall"
         else:
@@ -262,7 +262,7 @@ class ZookeeperService(KafkaPathResolverMixin, Service):
 
         chroot_path = ('' if chroot is None else chroot) + path
 
-        kafka_run_class = self.path.script("kafka-run-class.sh", LATEST 3_8)
+        kafka_run_class = self.path.script("kafka-run-class.sh", LATEST_3_8)
         cmd = "%s %s -server %s %s create %s '%s'" % \
               (kafka_run_class, self.java_cli_class_name(), self.connect_setting(force_tls=self.zk_client_secure_port),
                self.zkTlsConfigFileOption(True),
@@ -276,7 +276,7 @@ class ZookeeperService(KafkaPathResolverMixin, Service):
         Describe the default user using the ConfigCommand CLI
         """
 
-        kafka_run_class = self.path.script("kafka-run-class.sh", LATEST 3_8)
+        kafka_run_class = self.path.script("kafka-run-class.sh", LATEST_3_8)
         cmd = "%s kafka.admin.ConfigCommand --zookeeper %s %s --describe --entity-type users --entity-default" % \
               (kafka_run_class, self.connect_setting(force_tls=self.zk_client_secure_port),
                self.zkTlsConfigFileOption())

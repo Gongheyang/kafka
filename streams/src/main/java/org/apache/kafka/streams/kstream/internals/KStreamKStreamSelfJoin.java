@@ -43,7 +43,6 @@ import static org.apache.kafka.streams.processor.internals.metrics.TaskMetrics.d
 class KStreamKStreamSelfJoin<K, V1, V2, VOut> implements ProcessorSupplier<K, V1, K, VOut> {
     private static final Logger LOG = LoggerFactory.getLogger(KStreamKStreamSelfJoin.class);
 
-    private final String windowStoreName;
     private final StoreFactory windowStoreFactory;
     private final long joinThisBeforeMs;
     private final long joinThisAfterMs;
@@ -56,7 +55,6 @@ class KStreamKStreamSelfJoin<K, V1, V2, VOut> implements ProcessorSupplier<K, V1
                            final JoinWindowsInternal windows,
                            final ValueJoinerWithKey<? super K, ? super V1, ? super V2, ? extends VOut> joinerThis,
                            final long retentionPeriod) {
-        this.windowStoreName = windowStoreFactory.storeName();
         this.windowStoreFactory = windowStoreFactory;
         this.joinThisBeforeMs = windows.beforeMs;
         this.joinThisAfterMs = windows.afterMs;
@@ -87,7 +85,7 @@ class KStreamKStreamSelfJoin<K, V1, V2, VOut> implements ProcessorSupplier<K, V1
 
             final StreamsMetricsImpl metrics = (StreamsMetricsImpl) context.metrics();
             droppedRecordsSensor = droppedRecordsSensor(Thread.currentThread().getName(), context.taskId().toString(), metrics);
-            windowStore = context.getStateStore(windowStoreName);
+            windowStore = context.getStateStore(windowStoreFactory.storeName());
         }
 
         @SuppressWarnings("unchecked")

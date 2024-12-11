@@ -209,12 +209,11 @@ class KStreamImplJoin {
         joinBuilder.withJoinMergeProcessorParameters(joinMergeProcessorParams)
                    .withJoinThisProcessorParameters(joinThisProcessorParams)
                    .withJoinOtherProcessorParameters(joinOtherProcessorParams)
+                   .withSelfJoinProcessorParameters(selfJoinProcessorParams)
                    .withThisWindowedStreamProcessorName(thisWindowStreamProcessorParams.processorName())
                    .withOtherWindowedStreamProcessorName(otherWindowStreamProcessorParams.processorName())
-                   .withOuterJoinWindowStoreBuilder(outerJoinWindowStore)
                    .withValueJoiner(joiner)
-                   .withNodeName(joinMergeName)
-                   .withSelfJoinProcessorParameters(selfJoinProcessorParams);
+                   .withNodeName(joinMergeName);
 
         final GraphNode joinGraphNode = joinBuilder.build();
 

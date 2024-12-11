@@ -51,7 +51,6 @@ import static org.apache.kafka.streams.processor.internals.metrics.TaskMetrics.d
 abstract class KStreamKStreamJoin<K, VLeft, VRight, VOut, VThis, VOther> implements ProcessorSupplier<K, VThis, K, VOut> {
     private static final Logger LOG = LoggerFactory.getLogger(KStreamKStreamJoin.class);
 
-    private final String otherWindowStoreName;
     private final StoreFactory otherWindowStoreFactory;
     private final long joinBeforeMs;
     private final long joinAfterMs;
@@ -61,7 +60,6 @@ abstract class KStreamKStreamJoin<K, VLeft, VRight, VOut, VThis, VOther> impleme
     private final long windowsAfterMs;
 
     private final boolean outer;
-    private final Optional<String> outerJoinWindowStoreName;
     private final Optional<StoreFactory> outerJoinWindowStoreFactory;
     private final ValueJoinerWithKey<? super K, ? super VThis, ? super VOther, ? extends VOut> joiner;
 
@@ -75,7 +73,6 @@ abstract class KStreamKStreamJoin<K, VLeft, VRight, VOut, VThis, VOther> impleme
                        final TimeTrackerSupplier sharedTimeTrackerSupplier,
                        final StoreFactory otherWindowStoreFactory,
                        final Optional<StoreFactory> outerJoinWindowStoreFactory) {
-        this.otherWindowStoreName = otherWindowStoreFactory.storeName();
         this.otherWindowStoreFactory = otherWindowStoreFactory;
         this.joinBeforeMs = joinBeforeMs;
         this.joinAfterMs = joinAfterMs;
@@ -85,7 +82,6 @@ abstract class KStreamKStreamJoin<K, VLeft, VRight, VOut, VThis, VOther> impleme
         this.enableSpuriousResultFix = windows.spuriousResultFixEnabled();
         this.joiner = joiner;
         this.outer = outer;
-        this.outerJoinWindowStoreName = outerJoinWindowStoreFactory.map(StoreFactory::storeName);
         this.outerJoinWindowStoreFactory = outerJoinWindowStoreFactory;
         this.sharedTimeTrackerSupplier = sharedTimeTrackerSupplier;
     }
@@ -94,6 +90,7 @@ abstract class KStreamKStreamJoin<K, VLeft, VRight, VOut, VThis, VOther> impleme
     public Set<StoreBuilder<?>> stores() {
         final Set<StoreBuilder<?>> stores = new HashSet<>();
         stores.add(new FactoryWrappingStoreBuilder<>(otherWindowStoreFactory));
+
         if (outerJoinWindowStoreFactory.isPresent() && enableSpuriousResultFix) {
             stores.add(new FactoryWrappingStoreBuilder<>(outerJoinWindowStoreFactory.get()));
         }
@@ -114,11 +111,11 @@ abstract class KStreamKStreamJoin<K, VLeft, VRight, VOut, VThis, VOther> impleme
 
             final StreamsMetricsImpl metrics = (StreamsMetricsImpl) context.metrics();
             droppedRecordsSensor = droppedRecordsSensor(Thread.currentThread().getName(), context.taskId().toString(), metrics);
-            otherWindowStore = context.getStateStore(otherWindowStoreName);
+            otherWindowStore = context.getStateStore(otherWindowStoreFactory.storeName());
             sharedTimeTracker = sharedTimeTrackerSupplier.get(context.taskId());
 
             if (enableSpuriousResultFix) {
-                outerJoinStore = outerJoinWindowStoreName.map(context::getStateStore);
+                outerJoinStore = outerJoinWindowStoreFactory.map(s -> context.getStateStore(s.storeName()));
 
                 sharedTimeTracker.setEmitInterval(
                     StreamsConfig.InternalConfig.getLong(

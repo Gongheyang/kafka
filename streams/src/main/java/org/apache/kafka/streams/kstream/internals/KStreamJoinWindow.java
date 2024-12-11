@@ -31,17 +31,15 @@ import java.util.Set;
 
 class KStreamJoinWindow<K, V> implements ProcessorSupplier<K, V, K, V> {
 
-    private final String thisWindowStoreName;
-    private final StoreFactory thisStoreFactory;
+    private final StoreFactory thisWindowStoreFactory;
 
-    KStreamJoinWindow(final StoreFactory thisStoreFactory) {
-        this.thisWindowStoreName = thisStoreFactory.storeName();
-        this.thisStoreFactory = thisStoreFactory;
+    KStreamJoinWindow(final StoreFactory thisWindowStoreFactory) {
+        this.thisWindowStoreFactory = thisWindowStoreFactory;
     }
 
     @Override
     public Set<StoreBuilder<?>> stores() {
-        return Collections.singleton(new FactoryWrappingStoreBuilder<>(thisStoreFactory));
+        return Collections.singleton(new FactoryWrappingStoreBuilder<>(thisWindowStoreFactory));
     }
 
     @Override
@@ -57,7 +55,7 @@ class KStreamJoinWindow<K, V> implements ProcessorSupplier<K, V, K, V> {
         public void init(final ProcessorContext<K, V> context) {
             super.init(context);
 
-            window = context.getStateStore(thisWindowStoreName);
+            window = context.getStateStore(thisWindowStoreFactory.storeName());
         }
 
         @Override

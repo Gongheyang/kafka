@@ -19,6 +19,7 @@ package kafka.server.share;
 import kafka.server.ReplicaManager;
 import kafka.server.share.SharePartitionManager.SharePartitionListener;
 
+import org.apache.kafka.clients.consumer.NoOffsetForPartitionException;
 import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.TopicIdPartition;
 import org.apache.kafka.common.Uuid;
@@ -34,7 +35,6 @@ import org.apache.kafka.common.errors.UnknownTopicOrPartitionException;
 import org.apache.kafka.common.message.ShareFetchResponseData.AcquiredRecords;
 import org.apache.kafka.common.protocol.Errors;
 import org.apache.kafka.common.record.RecordBatch;
-import org.apache.kafka.common.requests.ListOffsetsRequest;
 import org.apache.kafka.common.utils.Time;
 import org.apache.kafka.coordinator.group.GroupConfig;
 import org.apache.kafka.coordinator.group.GroupConfigManager;
@@ -2135,14 +2135,12 @@ public class SharePartition {
             offsetResetStrategy = GroupConfig.defaultShareAutoOffsetReset();
         }
 
-        if (offsetResetStrategy.timestamp().isEmpty()) {
-            throw new Exception("The timestamp is not available for the share partition: " + topicIdPartition);
-        }
-        final long timestamp = offsetResetStrategy.timestamp().get();
+        final long timestamp = offsetResetStrategy.timestamp()
+            .orElseThrow(() -> new NoOffsetForPartitionException(topicIdPartition.topicPartition()));
 
-        if (timestamp == ListOffsetsRequest.LATEST_TIMESTAMP) {
+        if (offsetResetStrategy.type() == ShareGroupAutoOffsetResetStrategy.StrategyType.LATEST) {
             return offsetForLatestTimestamp(topicIdPartition, replicaManager, leaderEpoch);
-        } else if (timestamp == ListOffsetsRequest.EARLIEST_TIMESTAMP) {
+        } else if (offsetResetStrategy.type() == ShareGroupAutoOffsetResetStrategy.StrategyType.EARLIEST) {
             return offsetForEarliestTimestamp(topicIdPartition, replicaManager, leaderEpoch);
         } else {
             return offsetForTimestamp(topicIdPartition, replicaManager, timestamp, leaderEpoch);

@@ -28,6 +28,24 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 
+/**
+ * Represents the strategy for resetting offsets in share consumer groups when no previous offset is found
+ * for a partition or when an offset is out of range.
+ * <p>
+ * Supports three strategies:
+ * <ul>
+ *   <li>{@code EARLIEST} - Reset the offset to the earliest available offset
+ *   <li>{@code LATEST} - Reset the offset to the latest available offset
+ *   <li>{@code BY_DURATION} - Reset the offset to a timestamp that is the specified duration before the current time
+ * </ul>
+ * <p>
+ * The strategy can be configured using string values:
+ * <ul>
+ *   <li>"earliest" for {@code EARLIEST}
+ *   <li>"latest" for {@code LATEST}
+ *   <li>"by_duration:&lt;duration&gt;" for {@code BY_DURATION}, where duration is in ISO-8601 format (e.g., "PT1H" for 1 hour)
+ * </ul>
+ */
 public class ShareGroupAutoOffsetResetStrategy {
     public enum StrategyType {
         LATEST, EARLIEST, BY_DURATION;
@@ -115,15 +133,14 @@ public class ShareGroupAutoOffsetResetStrategy {
      * else return Optional.empty()
      */
     public Optional<Long> timestamp() {
-        if (type == StrategyType.EARLIEST)
-            return Optional.of(ListOffsetsRequest.EARLIEST_TIMESTAMP);
-        else if (type == StrategyType.LATEST)
-            return Optional.of(ListOffsetsRequest.LATEST_TIMESTAMP);
-        else if (type == StrategyType.BY_DURATION && duration.isPresent()) {
-            Instant now = Instant.now();
-            return Optional.of(now.minus(duration.get()).toEpochMilli());
-        } else
-            return Optional.empty();
+        return switch (type) {
+            case EARLIEST -> Optional.of(ListOffsetsRequest.EARLIEST_TIMESTAMP);
+            case LATEST -> Optional.of(ListOffsetsRequest.LATEST_TIMESTAMP);
+            case BY_DURATION -> duration.isPresent() 
+                ? Optional.of(Instant.now().minus(duration.get()).toEpochMilli())
+                : Optional.empty();
+            default -> Optional.empty();
+        };
     }
 
     @Override

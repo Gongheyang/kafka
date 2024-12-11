@@ -168,7 +168,7 @@ public class ShareFetchUtils {
      */
     static long offsetForTimestamp(TopicIdPartition topicIdPartition, ReplicaManager replicaManager, long timestampToSearch, int leaderEpoch) {
         Option<FileRecords.TimestampAndOffset> timestampAndOffset = replicaManager.fetchOffsetForTimestamp(
-            topicIdPartition.topicPartition(), timestampToSearch, Option.empty(), Optional.of(leaderEpoch), true).timestampAndOffsetOpt();
+            topicIdPartition.topicPartition(), timestampToSearch, new Some<>(IsolationLevel.READ_UNCOMMITTED), Optional.of(leaderEpoch), true).timestampAndOffsetOpt();
         if (timestampAndOffset.isEmpty()) {
             throw new OffsetNotAvailableException("offset for timestamp to search: " + timestampToSearch + " not found for topic partition: " + topicIdPartition);
         }

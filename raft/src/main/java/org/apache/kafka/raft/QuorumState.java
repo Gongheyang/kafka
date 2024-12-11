@@ -48,10 +48,6 @@ import java.util.Random;
  *    Candidate: After expiration of the election timeout
  *    Follower: After discovering a leader with an equal or larger epoch
  *
- * Voted transitions to:
- *    Unattached: After learning of a new election with a higher epoch
- *    Candidate: After expiration of the election timeout
- *
  * Candidate transitions to:
  *    Unattached: After learning of a new election with a higher epoch
  *    Candidate: After expiration of the election timeout
@@ -642,10 +638,9 @@ public class QuorumState {
     }
 
     public boolean canGrantVote(ReplicaKey replicaKey, boolean isLogUpToDate, boolean isPreVote) {
-        if (isPreVote) {
-            return state.canGrantPreVote(replicaKey, isLogUpToDate);
-        }
-        return state.canGrantVote(replicaKey, isLogUpToDate);
+        return isPreVote ?
+            state.canGrantPreVote(replicaKey, isLogUpToDate) :
+            state.canGrantVote(replicaKey, isLogUpToDate);
     }
 
     public FollowerState followerStateOrThrow() {

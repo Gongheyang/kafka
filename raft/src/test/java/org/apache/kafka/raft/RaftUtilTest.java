@@ -401,14 +401,14 @@ public class RaftUtilTest {
         long lastEpochOffset = 1000;
 
         VoteRequestData voteRequestData = RaftUtil.singletonVoteRequest(
-                topicPartition,
-                clusterId,
-                replicaEpoch,
-                ReplicaKey.of(1, TEST_DIRECTORY_ID1),
-                ReplicaKey.of(2, TEST_DIRECTORY_ID2),
-                lastEpoch,
-                lastEpochOffset,
-                version < 2 ? false : true
+            topicPartition,
+            clusterId,
+            replicaEpoch,
+            ReplicaKey.of(1, TEST_DIRECTORY_ID1),
+            ReplicaKey.of(2, TEST_DIRECTORY_ID2),
+            lastEpoch,
+            lastEpochOffset,
+            version >= 2
         );
         JsonNode json = VoteRequestDataJsonConverter.write(voteRequestData, version);
         assertEquals(expectedJson, json.toString());
@@ -428,7 +428,6 @@ public class RaftUtilTest {
                 Errors.NONE,
                 leaderEpoch,
                 leaderId,
-                true,
                 true,
                 Endpoints.fromInetSocketAddresses(singletonMap(listenerName, address))
         );

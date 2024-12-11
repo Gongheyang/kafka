@@ -759,25 +759,6 @@ public final class RaftClientTestContext {
         OptionalInt leaderId,
         boolean voteGranted
     ) {
-        assertSentVoteResponse(error, epoch, leaderId, voteGranted, false);
-    }
-
-    void assertSentPreVoteResponse(
-        Errors error,
-        int epoch,
-        OptionalInt leaderId,
-        boolean voteGranted
-    ) {
-        assertSentVoteResponse(error, epoch, leaderId, voteGranted, true);
-    }
-
-    void assertSentVoteResponse(
-        Errors error,
-        int epoch,
-        OptionalInt leaderId,
-        boolean voteGranted,
-        boolean preVote
-    ) {
         List<RaftResponse.Outbound> sentMessages = drainSentResponses(ApiKeys.VOTE);
         assertEquals(1, sentMessages.size());
         RaftMessage raftMessage = sentMessages.get(0);
@@ -793,7 +774,6 @@ public final class RaftClientTestContext {
         assertEquals(error, Errors.forCode(partitionResponse.errorCode()));
         assertEquals(leaderId.orElse(-1), partitionResponse.leaderId(), leaderIdDebugLog);
         assertEquals(epoch, partitionResponse.leaderEpoch());
-        assertEquals(preVote, partitionResponse.preVote());
 
         if (kip853Rpc && leaderId.isPresent()) {
             Endpoints expectedLeaderEndpoints = startingVoters.listeners(leaderId.getAsInt());
@@ -1535,7 +1515,6 @@ public final class RaftClientTestContext {
             epoch,
             leaderId.orElse(-1),
             voteGranted,
-            false,
             leaderId.isPresent() ? startingVoters.listeners(leaderId.getAsInt()) : Endpoints.empty()
         );
     }

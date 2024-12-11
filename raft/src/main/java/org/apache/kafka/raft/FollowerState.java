@@ -37,6 +37,10 @@ public class FollowerState implements EpochState {
     private final Set<Integer> voters;
     // Used for tracking the expiration of both the Fetch and FetchSnapshot requests
     private final Timer fetchTimer;
+    /* Used to track if we have fetched from the leader at least once since the transition to follower in this epoch.
+     * If we have not yet fetched from the leader, we may grant PreVotes.
+     */
+    private boolean hasFetchedFromLeader;
     private Optional<LogOffsetMetadata> highWatermark;
     /* Used to track the currently fetching snapshot. When fetching snapshot regular
      * Fetch request are paused
@@ -46,7 +50,6 @@ public class FollowerState implements EpochState {
     private final Timer updateVoterPeriodTimer;
 
     private final Logger log;
-    private boolean hasFetchedFromLeader;
 
     public FollowerState(
         Time time,
@@ -217,20 +220,21 @@ public class FollowerState implements EpochState {
 
     @Override
     public boolean canGrantPreVote(ReplicaKey replicaKey, boolean isLogUpToDate) {
-        if (hasFetchedFromLeader) {
+        boolean granting = !hasFetchedFromLeader && isLogUpToDate;
+        if (!granting) {
             log.debug(
-                "Rejecting PreVote request from replica ({}) since we already have a leader {} in epoch {}",
+                "Rejecting PreVote request from replica ({}) either because we have already fetched from leader {} " +
+                    "in epoch {} (hasFetchedFromLeader={}), or because the replica's log is not as up to date with " +
+                    "ours (isLogUpToDate={})",
                 replicaKey,
                 leaderId,
-                epoch
+                epoch,
+                hasFetchedFromLeader,
+                isLogUpToDate
             );
-            return false;
-        } else if (!isLogUpToDate) {
-            log.debug(
-                "Rejecting PreVote request from replica ({}) since replica epoch/offset is not up to date with us",
-                replicaKey);
         }
-        return isLogUpToDate;
+
+        return granting;
     }
 
     @Override

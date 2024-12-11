@@ -738,8 +738,7 @@ public final class KafkaRaftClient<T> implements RaftClient<T> {
         ListenerName listenerName,
         short apiVersion,
         Errors partitionLevelError,
-        boolean voteGranted,
-        boolean preVote
+        boolean voteGranted
     ) {
         return RaftUtil.singletonVoteResponse(
             listenerName,
@@ -750,7 +749,6 @@ public final class KafkaRaftClient<T> implements RaftClient<T> {
             quorum.epoch(),
             quorum.leaderIdOrSentinel(),
             voteGranted,
-            preVote,
             quorum.leaderEndpoints()
         );
     }
@@ -787,13 +785,16 @@ public final class KafkaRaftClient<T> implements RaftClient<T> {
 
         int lastEpoch = partitionRequest.lastOffsetEpoch();
         long lastEpochEndOffset = partitionRequest.lastOffset();
+        // if this is a standard vote, it is illegal for lastEpoch to be greater or equal than replicaEpoch
+        // if this is a preVote, it is only illegal for lastEpoch to be greater than replicaEpoch
         boolean isIllegalEpoch = preVote ? lastEpoch > replicaEpoch : lastEpoch >= replicaEpoch;
         if (isIllegalEpoch) {
             logger.info(
-                "Received a vote request from replica {} with illegal epoch {} and last epoch {}",
+                "Received a vote request from replica {} with illegal epoch {}, last epoch {}, preVote={}",
                 replicaId,
                 replicaEpoch,
-                lastEpoch
+                lastEpoch,
+                preVote
             );
         }
         if (lastEpochEndOffset < 0 || lastEpoch < 0 || isIllegalEpoch) {
@@ -801,8 +802,7 @@ public final class KafkaRaftClient<T> implements RaftClient<T> {
                 requestMetadata.listenerName(),
                 requestMetadata.apiVersion(),
                 Errors.INVALID_REQUEST,
-                false,
-                preVote
+                false
             );
         }
 
@@ -812,8 +812,7 @@ public final class KafkaRaftClient<T> implements RaftClient<T> {
                 requestMetadata.listenerName(),
                 requestMetadata.apiVersion(),
                 errorOpt.get(),
-                false,
-                preVote
+                false
             );
         }
 
@@ -836,8 +835,7 @@ public final class KafkaRaftClient<T> implements RaftClient<T> {
                 requestMetadata.listenerName(),
                 requestMetadata.apiVersion(),
                 Errors.INVALID_VOTER_KEY,
-                false,
-                preVote
+                false
             );
         }
 
@@ -856,16 +854,17 @@ public final class KafkaRaftClient<T> implements RaftClient<T> {
             transitionToUnattachedVoted(replicaKey, replicaEpoch);
         }
 
-        logger.info("Vote request {} with epoch {} is {}",
+        logger.info(
+            "Vote request {} with epoch {} is {}",
             request,
             replicaEpoch,
-            voteGranted ? "granted" : "rejected");
+            voteGranted ? "granted" : "rejected"
+        );
         return buildVoteResponse(
             requestMetadata.listenerName(),
             requestMetadata.apiVersion(),
             Errors.NONE,
-            voteGranted,
-            preVote
+            voteGranted
         );
     }
 

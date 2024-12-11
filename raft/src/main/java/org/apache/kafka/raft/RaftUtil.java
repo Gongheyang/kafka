@@ -192,7 +192,6 @@ public class RaftUtil {
         int leaderEpoch,
         int leaderId,
         boolean voteGranted,
-        boolean preVote,
         Endpoints endpoints
     ) {
         VoteResponseData.PartitionData partitionData = new VoteResponseData.PartitionData()
@@ -200,9 +199,6 @@ public class RaftUtil {
             .setLeaderId(leaderId)
             .setLeaderEpoch(leaderEpoch)
             .setVoteGranted(voteGranted);
-        if (apiVersion >= 2) {
-            partitionData.setPreVote(preVote);
-        }
 
         VoteResponseData response = new VoteResponseData()
             .setErrorCode(topLevelError.code())

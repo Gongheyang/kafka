@@ -75,6 +75,7 @@ Command line arguments:
  * `--max-messages <n>`
  * `--assignment-strategy <s>`
  * `--consumer.config <config-file>` - consumer config properties (typically empty)
+ * `--metadata-recovery-strategy` - metadata recovery strategy (default: "rebootstrap")
 
 Environment variables:
  * `LOG_DIR` - log output directory. Typically not needed if logs are written to stderr.

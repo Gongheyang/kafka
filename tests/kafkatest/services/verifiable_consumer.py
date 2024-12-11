@@ -234,7 +234,7 @@ class VerifiableConsumer(KafkaPathResolverMixin, VerifiableClientMixin, Backgrou
                  static_membership=False, max_messages=-1, session_timeout_sec=0, enable_autocommit=False,
                  assignment_strategy=None, group_protocol=None, group_remote_assignor=None,
                  version=DEV_BRANCH, stop_timeout_sec=30, log_level="INFO", jaas_override_variables=None,
-                 on_record_consumed=None, reset_policy="earliest", verify_offsets=True):
+                 on_record_consumed=None, reset_policy="earliest", verify_offsets=True, metadata_recovery_strategy="rebootstrap"):
         """
         :param jaas_override_variables: A dict of variables to be used in the jaas.conf template file
         """
@@ -255,6 +255,7 @@ class VerifiableConsumer(KafkaPathResolverMixin, VerifiableClientMixin, Backgrou
         self.stop_timeout_sec = stop_timeout_sec
         self.on_record_consumed = on_record_consumed
         self.verify_offsets = verify_offsets
+        self.metadata_recovery_strategy = metadata_recovery_strategy
 
         self.event_handlers = {}
         self.global_position = {}
@@ -425,6 +426,7 @@ class VerifiableConsumer(KafkaPathResolverMixin, VerifiableClientMixin, Backgrou
             cmd += " --max-messages %s" % str(self.max_messages)
 
         cmd += " --consumer.config %s" % VerifiableConsumer.CONFIG_FILE
+        cmd += " --metadata-recovery-strategy %s" % self.metadata_recovery_strategy
         cmd += " 2>> %s | tee -a %s &" % (VerifiableConsumer.STDOUT_CAPTURE, VerifiableConsumer.STDOUT_CAPTURE)
         return cmd
 

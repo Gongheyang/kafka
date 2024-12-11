@@ -45,6 +45,13 @@ jobs:
         with:
           persist-credentials:
             false
+      - name: Auto-approve PR Review
+        if: github.event.workflow_run.event == 'pull_request_review'
+        env:
+          RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          echo "PR_NUMBER=" >> "$GITHUB_ENV"
+          echo "RUN_ID=$RUN_ID" >> "$GITHUB_ENV"
       - name: Check PR Labels
         if: github.event.workflow_run.event == 'pull_request'
         env:

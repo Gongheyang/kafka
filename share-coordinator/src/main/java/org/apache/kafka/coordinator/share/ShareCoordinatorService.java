@@ -80,6 +80,7 @@ public class ShareCoordinatorService implements ShareCoordinator {
     private final Time time;
     private final Timer timer;
     private final PartitionWriter writer;
+    private final Map<TopicPartition, Long> lastPrunedOffsets;
 
     public static class Builder {
         private final int nodeId;
@@ -211,6 +212,7 @@ public class ShareCoordinatorService implements ShareCoordinator {
         this.time = time;
         this.timer = timer;
         this.writer = writer;
+        this.lastPrunedOffsets = new ConcurrentHashMap<>();
     }
 
     @Override
@@ -251,18 +253,17 @@ public class ShareCoordinatorService implements ShareCoordinator {
 
         log.info("Starting up.");
         numPartitions = shareGroupTopicPartitionCount.getAsInt();
-        Map<TopicPartition, Long> offsets = new ConcurrentHashMap<>();
-        setupRecordPruning(offsets);
+        setupRecordPruning();
         log.info("Startup complete.");
     }
 
-    private void setupRecordPruning(Map<TopicPartition, Long> offsets) {
+    private void setupRecordPruning() {
         log.info("Scheduling share state topic prune job.");
         timer.add(new TimerTask(config.shareCoordinatorTopicPruneIntervalMs()) {
             @Override
             public void run() {
                 List<CompletableFuture<Void>> futures = new ArrayList<>();
-                runtime.activeTopicPartitions().forEach(tp -> futures.add(performRecordPruning(tp, offsets)));
+                runtime.activeTopicPartitions().forEach(tp -> futures.add(performRecordPruning(tp)));
 
                 CompletableFuture.allOf(futures.toArray(new CompletableFuture[]{}))
                     .whenComplete((res, exp) -> {
@@ -270,15 +271,16 @@ public class ShareCoordinatorService implements ShareCoordinator {
                             log.error("Received error in share state topic prune.", exp);
                         }
                         // Perpetual recursion, failure or not.
-                        setupRecordPruning(offsets);
+                        setupRecordPruning();
                     });
             }
         });
     }
 
-    private CompletableFuture<Void> performRecordPruning(TopicPartition tp, Map<TopicPartition, Long> offsets) {
+    private CompletableFuture<Void> performRecordPruning(TopicPartition tp) {
         // This future will always be completed normally, exception or not.
         CompletableFuture<Void> fut = new CompletableFuture<>();
+
         runtime.scheduleWriteOperation(
             "write-state-record-prune",
             tp,
@@ -292,49 +294,35 @@ public class ShareCoordinatorService implements ShareCoordinator {
                 // or shard re-election. Will cause unnecessary noise, hence not logging
                 if (!(error.equals(Errors.COORDINATOR_LOAD_IN_PROGRESS) || error.equals(Errors.NOT_COORDINATOR))) {
                     log.error("Last redundant offset lookup for tp {} threw an error.", tp, exception);
-                    // Should not reschedule -> unknown exception.
                     fut.completeExceptionally(exception);
                     return;
                 }
-                // Should reschedule -> could be transient.
                 fut.complete(null);
                 return;
             }
             if (result.isPresent()) {
                 Long off = result.get();
-                // Guard and optimization.
-                if (off == Long.MAX_VALUE || off <= 0) {
-                    log.warn("Last redundant offset value {} not suitable to make delete call for {}.", off, tp);
-                    // Should reschedule -> next lookup could yield valid value.
-                    fut.complete(null);
-                    return;
-                }
 
-                if (offsets.containsKey(tp) && Objects.equals(offsets.get(tp), off)) {
+                if (lastPrunedOffsets.containsKey(tp) && Objects.equals(lastPrunedOffsets.get(tp), off)) {
                     log.debug("{} already pruned at offset {}", tp, off);
                     fut.complete(null);
                     return;
                 }
 
                 log.info("Pruning records in {} till offset {}.", tp, off);
-
                 writer.deleteRecords(tp, off)
                     .whenComplete((res, exp) -> {
                         if (exp != null) {
-                            // Should not reschedule -> problems while deleting.
                             log.debug("Exception while deleting records in {} till offset {}.", tp, off, exp);
                             fut.completeExceptionally(exp);
                             return;
                         }
-                        // Should reschedule -> successful delete
                         fut.complete(null);
-                        // Update offsets map as we do not want to
-                        // issue repeated deleted
-                        offsets.put(tp, off);
+                        // Best effort prevention of issuing duplicate delete calls.
+                        lastPrunedOffsets.put(tp, off);
                     });
             } else {
                 log.debug("No offset value for tp {} found.", tp);
-                // Should reschedule -> next lookup could yield valid value.
                 fut.complete(null);
             }
         });
@@ -641,6 +629,7 @@ public class ShareCoordinatorService implements ShareCoordinator {
     @Override
     public void onResignation(int partitionIndex, OptionalInt partitionLeaderEpoch) {
         throwIfNotActive();
+        lastPrunedOffsets.clear();
         runtime.scheduleUnloadOperation(
             new TopicPartition(Topic.SHARE_GROUP_STATE_TOPIC_NAME, partitionIndex),
             partitionLeaderEpoch

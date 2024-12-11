@@ -111,4 +111,5 @@ object Consumed {
   def `with`[K, V](
     resetPolicy: AutoOffsetReset
   )(implicit keySerde: Serde[K], valueSerde: Serde[V]): ConsumedJ[K, V] =
-    ConsumedJ.`with`(resetPolicy).withKeySerde(keySerde).withValueSerde(valueSerde)}
+    ConsumedJ.`with`(resetPolicy).withKeySerde(keySerde).withValueSerde(valueSerde)
+}

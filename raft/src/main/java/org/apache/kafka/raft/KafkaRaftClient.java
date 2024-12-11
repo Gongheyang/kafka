@@ -785,8 +785,15 @@ public final class KafkaRaftClient<T> implements RaftClient<T> {
 
         int lastEpoch = partitionRequest.lastOffsetEpoch();
         long lastEpochEndOffset = partitionRequest.lastOffset();
-        // if this is a standard vote, it is illegal for lastEpoch to be greater or equal than replicaEpoch
-        // if this is a preVote, it is only illegal for lastEpoch to be greater than replicaEpoch
+        /* Validate the replica epoch and the log's last epoch.
+         *
+         * For a standard vote, the candidate replica increases the epoch before sending a vote request.
+         * So we expect the replicaEpoch to be strictly greater than the log's last epoch. This is always true because
+         * the candidate has never seen a leader at replicaEpoch.
+         *
+         * For a PreVote, the prospective replica doesn't increase the epoch so it is possible for there to be a leader
+         * and a record in the log at the prospective replica's replicaEpoch.
+         */
         boolean isIllegalEpoch = preVote ? lastEpoch > replicaEpoch : lastEpoch >= replicaEpoch;
         if (isIllegalEpoch) {
             logger.info(

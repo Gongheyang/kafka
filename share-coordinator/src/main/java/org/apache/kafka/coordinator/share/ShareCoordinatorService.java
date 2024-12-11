@@ -629,9 +629,10 @@ public class ShareCoordinatorService implements ShareCoordinator {
     @Override
     public void onResignation(int partitionIndex, OptionalInt partitionLeaderEpoch) {
         throwIfNotActive();
-        lastPrunedOffsets.clear();
+        TopicPartition tp = new TopicPartition(Topic.SHARE_GROUP_STATE_TOPIC_NAME, partitionIndex);
+        lastPrunedOffsets.remove(tp);
         runtime.scheduleUnloadOperation(
-            new TopicPartition(Topic.SHARE_GROUP_STATE_TOPIC_NAME, partitionIndex),
+            tp,
             partitionLeaderEpoch
         );
     }

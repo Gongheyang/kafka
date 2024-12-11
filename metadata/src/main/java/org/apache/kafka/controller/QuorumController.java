@@ -527,7 +527,7 @@ public final class QuorumController implements Controller {
         long deltaNs = endProcessingTime - startProcessingTimeNs;
         log.debug("Processed {} in {} us", name,
             MICROSECONDS.convert(deltaNs, NANOSECONDS));
-        slowEventsLogger.maybeLog(name, deltaNs);
+        slowEventsLogger.maybeLogEvent(name, deltaNs);
         controllerMetrics.updateEventQueueProcessingTime(NANOSECONDS.toMillis(deltaNs));
     }
 
@@ -1592,7 +1592,7 @@ public final class QuorumController implements Controller {
         }
         registerElectUnclean(TimeUnit.MILLISECONDS.toNanos(uncleanLeaderElectionCheckIntervalMs));
         registerExpireDelegationTokens(MILLISECONDS.toNanos(delegationTokenExpiryCheckIntervalMs));
-
+        registerSlowEventUpdater(MILLISECONDS.toNanos(30000));
         // OffsetControlManager must be initialized last, because its constructor will take the
         // initial in-memory snapshot of all extant timeline data structures.
         this.offsetControl = new OffsetControlManager.Builder().
@@ -1604,7 +1604,7 @@ public final class QuorumController implements Controller {
         log.info("Creating new QuorumController with clusterId {}", clusterId);
 
         this.raftClient.register(metaLogListener);
-        this.slowEventsLogger = new SlowEventsLogger(controllerMetrics::getEventQueueProcessingTimeP99, log, time);
+        this.slowEventsLogger = new SlowEventsLogger(controllerMetrics::getEventQueueProcessingTimeP99, logContext);
     }
 
     /**
@@ -1626,6 +1626,16 @@ public final class QuorumController implements Controller {
             },
             maxIdleIntervalNs,
             EnumSet.noneOf(PeriodicTaskFlag.class)));
+    }
+
+    private void registerSlowEventUpdater(long maxSlowEventWindowNs) {
+        periodicControl.registerTask(new PeriodicTask("updateSlowEventP99",
+                () -> {
+                    slowEventsLogger.refreshPercentile();
+                    return ControllerResult.of(Collections.emptyList(), false);
+                },
+                maxSlowEventWindowNs,
+                EnumSet.noneOf(PeriodicTaskFlag.class)));
     }
 
     /**

@@ -59,7 +59,6 @@ import org.apache.kafka.connect.transforms.predicates.RecordIsTombstone;
 import org.apache.kafka.connect.util.Callback;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -428,7 +427,7 @@ public class ConnectorPluginsResourceTest {
     @Test
     public void testGetConnectorConfigDef() {
         String connName = ConnectorPluginsResourceTestConnector.class.getName();
-        when(herder.connectorPluginConfig(eq(connName))).thenAnswer(answer -> {
+        when(herder.connectorPluginConfig(eq(connName), eq(null))).thenAnswer(answer -> {
             List<ConfigKeyInfo> results = new ArrayList<>();
             for (ConfigDef.ConfigKey configKey : ConnectorPluginsResourceTestConnector.CONFIG_DEF.configKeys().values()) {
                 results.add(AbstractHerder.convertConfigKey(configKey));

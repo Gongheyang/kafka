@@ -83,10 +83,16 @@ class UnattachedStateWithVoteTest {
     public void testCanGrantVoteWithoutDirectoryId(boolean isLogUpToDate) {
         UnattachedState state = newUnattachedVotedState(ReplicaKey.NO_DIRECTORY_ID);
 
-        assertTrue(state.canGrantPreVote(ReplicaKey.of(votedId, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate));
+        assertEquals(
+            isLogUpToDate,
+            state.canGrantPreVote(ReplicaKey.of(votedId, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate)
+        );
         assertTrue(state.canGrantVote(ReplicaKey.of(votedId, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate));
 
-        assertTrue(state.canGrantPreVote(ReplicaKey.of(votedId, Uuid.randomUuid()), isLogUpToDate));
+        assertEquals(
+            isLogUpToDate,
+            state.canGrantPreVote(ReplicaKey.of(votedId, Uuid.randomUuid()), isLogUpToDate)
+        );
         assertTrue(state.canGrantVote(ReplicaKey.of(votedId, Uuid.randomUuid()), isLogUpToDate));
 
         // Can grant PreVote to other replicas even if we have granted a standard vote to another replica

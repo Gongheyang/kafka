@@ -223,8 +223,8 @@ public class RaftUtilTest {
                             "\"nodeEndpoints\":[{\"nodeId\":1,\"host\":\"localhost\",\"port\":9990}]}"),
                 Arguments.of((short) 2,
                         "{\"errorCode\":0,\"topics\":[{\"topicName\":\"topic\",\"partitions\":[{" +
-                            "\"partitionIndex\":0,\"errorCode\":0,\"leaderId\":1,\"leaderEpoch\":1,\"voteGranted\":true," +
-                            "\"preVote\":true}]}],\"nodeEndpoints\":[{\"nodeId\":1,\"host\":\"localhost\",\"port\":9990}]}")
+                            "\"partitionIndex\":0,\"errorCode\":0,\"leaderId\":1,\"leaderEpoch\":1,\"voteGranted\":true}]}]," +
+                            "\"nodeEndpoints\":[{\"nodeId\":1,\"host\":\"localhost\",\"port\":9990}]}")
         );
     }
 

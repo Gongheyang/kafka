@@ -18,7 +18,7 @@
   "type": "response",
   "name": "VoteResponse",
   // Version 1 adds leader endpoint (KIP-853)
-  // Version 2 adds PreVote field
+  // Version 2 handles PreVote requests
   "validVersions": "0-2",
   "flexibleVersions": "0+",
   "fields": [
@@ -39,9 +39,7 @@
             { "name": "LeaderEpoch", "type": "int32", "versions": "0+",
               "about": "The latest known leader epoch."},
             { "name": "VoteGranted", "type": "bool", "versions": "0+",
-              "about": "True if the vote was granted and false otherwise."},
-            { "name": "PreVote", "type": "bool", "versions": "2+",
-              "about": "Whether the response is a PreVote response or not."}
+              "about": "True if the vote was granted and false otherwise."}
           ]
         }
       ]

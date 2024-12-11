@@ -537,8 +537,8 @@ public class ProducerPerformanceTest {
         producerPerformanceSpy.start(args);
 
         verify(producerMock, times(10)).send(any(), any());
-        assertEquals(2, producerPerformanceSpy.warmupStats.totalCount());
-        assertEquals(8, producerPerformanceSpy.stats.totalCount());
+        assertEquals(10, producerPerformanceSpy.stats.totalCount());
+        assertEquals(10 - 2, producerPerformanceSpy.steadyStateStats.totalCount());
         verify(producerMock, times(1)).close();
     }
 

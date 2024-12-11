@@ -77,12 +77,9 @@ public class ProducerPerformance {
             SplittableRandom random = new SplittableRandom(0);
             ProducerRecord<byte[], byte[]> record;
             if (config.warmupRecords > 0) {
-                // TODO: Keep this message? Maybe unnecessary
                 System.out.println("Warmup first " + config.warmupRecords + " records. Steady state results will print after the complete test summary.");
-                warmupStats = new Stats(config.warmupRecords, DEFAULT_REPORTING_INTERVAL_MS);
-            } else {
-                stats = new Stats(config.numRecords, DEFAULT_REPORTING_INTERVAL_MS);
             }
+            stats = new Stats(config.numRecords, DEFAULT_REPORTING_INTERVAL_MS);
             long startMs = System.currentTimeMillis();
 
             ThroughputThrottler throttler = new ThroughputThrottler(config.throughput, startMs);
@@ -101,15 +98,14 @@ public class ProducerPerformance {
                 record = new ProducerRecord<>(config.topicName, payload);
 
                 long sendStartMs = System.currentTimeMillis();
-                if (warmupStats != null) {
+                if (config.warmupRecords > 0) {
                     if (i < config.warmupRecords) {
-                        cb = new PerfCallback(sendStartMs, payload.length, warmupStats);
+                        cb = new PerfCallback(sendStartMs, payload.length, stats);
                     } else {
                         if (i == config.warmupRecords) {
-                            // Create the steady-state 'stats' object here so its start time is correct
-                            stats = new Stats(config.numRecords - config.warmupRecords, DEFAULT_REPORTING_INTERVAL_MS, config.warmupRecords > 0);
+                            steadyStateStats = new Stats(config.numRecords - config.warmupRecords, DEFAULT_REPORTING_INTERVAL_MS, config.warmupRecords > 0);
                         }
-                        cb = new PerfCallback(sendStartMs, payload.length, stats);
+                        cb = new PerfCallback(sendStartMs, payload.length, stats, steadyStateStats);
                     }
                 } else {
                     cb = new PerfCallback(sendStartMs, payload.length, stats);
@@ -133,24 +129,24 @@ public class ProducerPerformance {
             if (!config.shouldPrintMetrics) {
                 producer.close();
 
-                /* print warmup stats if relevant */
-                if (warmupStats != null) {
-                    new Stats(warmupStats, stats).printTotal();
-                }
                 /* print final results */
                 stats.printTotal();
+                /* print steady-state stats if relevant */
+                if (steadyStateStats != null) {
+                    steadyStateStats.printTotal();
+                }
             } else {
                 // Make sure all messages are sent before printing out the stats and the metrics
                 // We need to do this in a different branch for now since tests/kafkatest/sanity_checks/test_performance_services.py
                 // expects this class to work with older versions of the client jar that don't support flush().
                 producer.flush();
 
-                /* print warmup stats if relevant */
-                if (warmupStats != null) {
-                    new Stats(warmupStats, stats).printTotal();
-                }
                 /* print final results */
                 stats.printTotal();
+                /* print steady-state stats if relevant */
+                if (steadyStateStats != null) {
+                    steadyStateStats.printTotal();
+                }
 
                 /* print out metrics */
                 ToolsUtils.printMetrics(producer.metrics());
@@ -175,7 +171,7 @@ public class ProducerPerformance {
     Callback cb;
 
     Stats stats;
-    Stats warmupStats;
+    Stats steadyStateStats;
 
     static byte[] generateRandomPayload(Integer recordSize, List<byte[]> payloadByteList, byte[] payload,
             SplittableRandom random, boolean payloadMonotonic, long recordValue) {
@@ -523,10 +519,19 @@ public class ProducerPerformance {
         private final long start;
         private final int bytes;
         private final Stats stats;
+        private final Stats steadyStateStats;
 
         public PerfCallback(long start, int bytes, Stats stats) {
             this.start = start;
             this.stats = stats;
+            this.steadyStateStats = null;
+            this.bytes = bytes;
+        }
+
+        public PerfCallback(long start, int bytes, Stats stats, Stats steadyStateStats) {
+            this.start = start;
+            this.stats = stats;
+            this.steadyStateStats = steadyStateStats;
             this.bytes = bytes;
         }
 
@@ -538,6 +543,10 @@ public class ProducerPerformance {
             if (exception == null) {
                 this.stats.record(latency, bytes, now);
                 this.stats.iteration++;
+                if (steadyStateStats != null) {
+                    this.steadyStateStats.record(latency, bytes, now);
+                    this.steadyStateStats.iteration++;
+                }
             }
             if (exception != null)
                 exception.printStackTrace();

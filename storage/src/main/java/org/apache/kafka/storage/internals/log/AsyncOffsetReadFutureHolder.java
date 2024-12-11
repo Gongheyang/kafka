@@ -14,17 +14,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.kafka.connect.runtime.rest.errors;
+package org.apache.kafka.storage.internals.log;
 
-import jakarta.ws.rs.core.Response;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Future;
 
-public class BadRequestException extends ConnectRestException {
-
-    public BadRequestException(String message) {
-        super(Response.Status.BAD_REQUEST, message);
-    }
-
-    public BadRequestException(String message, Throwable throwable) {
-        super(Response.Status.BAD_REQUEST, message, throwable);
-    }
+/**
+ * A remote log offset read task future holder. It contains two futures:
+ * <ol>
+ *   <li>JobFuture - Use this future to cancel the running job.
+ *   <li>TaskFuture - Use this future to get the result of the job/computation.
+ * </ol>
+ */
+public record AsyncOffsetReadFutureHolder<T>(Future<Void> jobFuture, CompletableFuture<T> taskFuture) {
 }

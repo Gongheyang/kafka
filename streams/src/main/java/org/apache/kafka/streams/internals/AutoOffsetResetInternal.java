@@ -14,17 +14,24 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.kafka.connect.runtime.rest.errors;
+package org.apache.kafka.streams.internals;
 
-import jakarta.ws.rs.core.Response;
+import org.apache.kafka.clients.consumer.internals.AutoOffsetResetStrategy.StrategyType;
+import org.apache.kafka.streams.AutoOffsetReset;
 
-public class BadRequestException extends ConnectRestException {
+import java.time.Duration;
+import java.util.Optional;
 
-    public BadRequestException(String message) {
-        super(Response.Status.BAD_REQUEST, message);
+public class AutoOffsetResetInternal extends AutoOffsetReset {
+
+    public AutoOffsetResetInternal(final AutoOffsetReset autoOffsetReset) {
+        super(autoOffsetReset);
     }
 
-    public BadRequestException(String message, Throwable throwable) {
-        super(Response.Status.BAD_REQUEST, message, throwable);
+    public StrategyType offsetResetStrategy() {
+        return offsetResetStrategy;
+    }
+    public Optional<Duration> duration() {
+        return duration;
     }
 }

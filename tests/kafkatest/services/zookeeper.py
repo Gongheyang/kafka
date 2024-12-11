@@ -187,7 +187,7 @@ class ZookeeperService(KafkaPathResolverMixin, Service):
 
         chroot_path = ('' if chroot is None else chroot) + path
 
-        kafka_run_class = self.path.script("kafka-run-class.sh", LATEST_3_9)
+        kafka_run_class = self.path.script("kafka-run-class.sh", LATEST_3_8)
         cmd = "%s %s -server %s %s get %s" % \
               (kafka_run_class, self.java_cli_class_name(), self.connect_setting(force_tls=self.zk_client_secure_port),
                self.zkTlsConfigFileOption(True),

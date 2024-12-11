@@ -238,7 +238,7 @@ public class ClientTelemetryReporterTest {
         assertEquals(Long.MAX_VALUE, telemetrySender.timeToNextUpdate(100));
 
         assertTrue(telemetrySender.maybeSetState(ClientTelemetryState.TERMINATED));
-        assertThrows(IllegalStateException.class, () -> telemetrySender.timeToNextUpdate(100));
+        assertEquals(Long.MAX_VALUE, telemetrySender.timeToNextUpdate(100));
     }
 
     @Test

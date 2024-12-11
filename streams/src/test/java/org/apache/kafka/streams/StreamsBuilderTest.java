@@ -1845,7 +1845,7 @@ public class StreamsBuilderTest {
         ));
 
         assertThat(counter.numUniqueStateStores(), CoreMatchers.is(3)); // one for join this, one for join that
-        assertThat(counter.numConnectedStateStores(), CoreMatchers.is(5));
+        assertThat(counter.numConnectedStateStores(), CoreMatchers.is(3));
     }
 
     @Test

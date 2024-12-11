@@ -47,7 +47,6 @@ public class KTableKTableRightJoinTest {
         final Processor<String, Change<String>, String, Change<Object>> join = new KTableKTableRightJoin<>(
             (KTableImpl<String, String, String>) builder.table("left", Consumed.with(Serdes.String(), Serdes.String())),
             (KTableImpl<String, String, String>) builder.table("right", Consumed.with(Serdes.String(), Serdes.String())),
-            null,
             null
         ).get();
 

@@ -39,9 +39,8 @@ class KTableKTableLeftJoin<K, V1, V2, VOut> extends KTableKTableAbstractJoin<K, 
 
     KTableKTableLeftJoin(final KTableImpl<K, ?, V1> table1,
                          final KTableImpl<K, ?, V2> table2,
-                         final ValueJoiner<? super V1, ? super V2, ? extends VOut> joiner,
-                         final StoreFactory stores) {
-        super(table1, table2, joiner, stores);
+                         final ValueJoiner<? super V1, ? super V2, ? extends VOut> joiner) {
+        super(table1, table2, joiner);
     }
 
     @Override

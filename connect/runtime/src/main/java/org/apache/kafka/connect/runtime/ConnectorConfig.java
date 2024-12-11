@@ -122,9 +122,6 @@ public class ConnectorConfig extends AbstractConfig {
     public static final String HEADER_CONVERTER_CLASS_CONFIG = WorkerConfig.HEADER_CONVERTER_CLASS_CONFIG;
     public static final String HEADER_CONVERTER_CLASS_DOC = WorkerConfig.HEADER_CONVERTER_CLASS_DOC;
     public static final String HEADER_CONVERTER_CLASS_DISPLAY = "Header converter class";
-    // The Connector config should not have a default for the header converter, since the absence of a config property means that
-    // the worker config settings should be used. Thus, we set the default to null here.
-    public static final String HEADER_CONVERTER_CLASS_DEFAULT = null;
     private static final ConfigDef.Validator HEADER_CONVERTER_CLASS_VALIDATOR = ConfigDef.CompositeValidator.of(
             ConcreteSubClassValidator.forSuperClass(HeaderConverter.class),
             new InstantiableClassValidator()
@@ -550,7 +547,7 @@ public class ConnectorConfig extends AbstractConfig {
     /**
      * An abstraction over "enrichable plugins" ({@link Transformation}s and {@link Predicate}s) used for computing the
      * contribution to a Connectors ConfigDef.
-     * <p>
+     *
      * This is not entirely elegant because
      * although they basically use the same "alias prefix" configuration idiom there are some differences.
      * The abstract method pattern is used to cope with this.
@@ -578,9 +575,7 @@ public class ConnectorConfig extends AbstractConfig {
             this.requireFullConfig = requireFullConfig;
         }
 
-        /**
-         * Add the configs for this alias to the given {@code ConfigDef}.
-         */
+        /** Add the configs for this alias to the given {@code ConfigDef}. */
         void enrich(ConfigDef newDef) {
             Object aliases = ConfigDef.parseType(aliasConfig, props.get(aliasConfig), Type.LIST);
             if (!(aliases instanceof List)) {
@@ -619,9 +614,7 @@ public class ConnectorConfig extends AbstractConfig {
             }
         }
 
-        /**
-         * Subclasses can add extra validation of the {@link #props}.
-         */
+        /** Subclasses can add extra validation of the {@link #props}. */
         protected void validateProps(String prefix) {
         }
 
@@ -654,9 +647,7 @@ public class ConnectorConfig extends AbstractConfig {
                     .configKeys().entrySet().stream();
         }
 
-        /**
-         * Get an initial ConfigDef
-         */
+        /** Get an initial ConfigDef */
         protected ConfigDef initialConfigDef() {
             return new ConfigDef();
         }
@@ -664,7 +655,6 @@ public class ConnectorConfig extends AbstractConfig {
         /**
          * Return {@link ConfigDef} from {@code cls}, which is expected to be a non-null {@code Class<T>},
          * by instantiating it and invoking {@link #config(T)}.
-         *
          * @param key
          * @param cls The subclass of the baseclass.
          */

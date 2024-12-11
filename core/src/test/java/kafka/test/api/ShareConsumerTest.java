@@ -1414,7 +1414,7 @@ public class ShareConsumerTest {
                 Thread.interrupted();
             }
 
-            assertDoesNotThrow(() -> shareConsumer.poll(Duration.ZERO));
+            assertDoesNotThrow(() -> shareConsumer.poll(Duration.ZERO), "Failed to consume records");
         }
     }
 
@@ -1707,7 +1707,7 @@ public class ShareConsumerTest {
             }
             for (int i = 0; i < messageCount; i++) {
                 final int index = i;
-                assertDoesNotThrow(() -> recordFutures[index].get());
+                assertDoesNotThrow(() -> recordFutures[index].get(), "Failed to send record");
                 messagesSent++;
             }
         }
@@ -1737,7 +1737,7 @@ public class ShareConsumerTest {
                 shareConsumer.subscribe(Collections.singleton(tp.topic()));
                 return consumeMessages(shareConsumer, totalMessagesConsumed, totalMessages, consumerNumber, maxPolls, commit);
             }
-        });
+        }, "Consumer " + consumerNumber + " failed with exception");
     }
 
     private int consumeMessages(AtomicInteger totalMessagesConsumed,
@@ -1754,7 +1754,7 @@ public class ShareConsumerTest {
                 shareConsumer.subscribe(Collections.singleton(tp.topic()));
                 return consumeMessages(shareConsumer, totalMessagesConsumed, totalMessages, consumerNumber, maxPolls, commit);
             }
-        });
+        }, "Consumer " + consumerNumber + " failed with exception");
     }
 
     private int consumeMessages(KafkaShareConsumer<byte[], byte[]> consumer,
@@ -1787,7 +1787,7 @@ public class ShareConsumerTest {
                 consumer.commitSync(Duration.ofMillis(10000));
             }
             return messagesConsumed;
-        });
+        }, "Consumer " + consumerNumber + " failed with exception");
     }
 
     private <K, V> List<ConsumerRecord<K, V>> consumeRecords(KafkaShareConsumer<K, V> consumer,
@@ -1809,7 +1809,7 @@ public class ShareConsumerTest {
             try (Admin admin = Admin.create(props)) {
                 admin.createTopics(Collections.singleton(new NewTopic(topicName, 1, (short) 1))).all().get();
             }
-        });
+        }, "Failed to create topic");
     }
 
     private void deleteTopic(String topicName) {
@@ -1818,7 +1818,7 @@ public class ShareConsumerTest {
             try (Admin admin = Admin.create(props)) {
                 admin.deleteTopics(Collections.singleton(topicName)).all().get();
             }
-        });
+        }, "Failed to delete topic");
     }
 
     private Admin createAdminClient() {
@@ -1886,6 +1886,6 @@ public class ShareConsumerTest {
         AlterConfigsOptions alterOptions = new AlterConfigsOptions();
         assertDoesNotThrow(() -> adminClient.incrementalAlterConfigs(alterEntries, alterOptions)
                 .all()
-                .get(60, TimeUnit.SECONDS));
+                .get(60, TimeUnit.SECONDS), "Failed to alter configs");
     }
 }

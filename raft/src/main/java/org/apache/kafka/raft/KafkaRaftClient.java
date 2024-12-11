@@ -1013,15 +1013,6 @@ public final class KafkaRaftClient<T> implements RaftClient<T> {
                                     VoteResponseData.PartitionData partitionResponse,
                                     int remoteNodeId,
                                     long currentTimeMs) {
-        if (quorum.isProspective() && !partitionResponse.preVote()) {
-            logger.error("Ignoring vote response {} since we sent a PreVote request but received a non-PreVote " +
-                    "response in epoch {} from {}.",
-                partitionResponse, quorum.epoch(), remoteNodeId);
-        } else if (quorum.isCandidate() && partitionResponse.preVote()) {
-            logger.debug("Ignoring vote response {} since we already became a Candidate for epoch {} but " +
-                    "received a PreVote response from {}",
-                partitionResponse, quorum.epoch(), remoteNodeId);
-        }
         if (partitionResponse.voteGranted()) {
             state.recordGrantedVote(remoteNodeId);
             maybeTransitionForward(state, currentTimeMs);

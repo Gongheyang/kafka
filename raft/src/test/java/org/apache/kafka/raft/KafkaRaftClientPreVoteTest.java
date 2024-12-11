@@ -760,7 +760,7 @@ public class KafkaRaftClientPreVoteTest {
         context.deliverResponse(
             voteRequest.correlationId(),
             voteRequest.destination(),
-            context.voteResponse(false, OptionalInt.empty(), epoch, true));
+            context.voteResponse(false, OptionalInt.empty(), epoch));
         // handle vote response and mark we should transition out of prospective
         context.client.poll();
         // transition
@@ -795,7 +795,7 @@ public class KafkaRaftClientPreVoteTest {
         assertEquals(2, voteRequests.size());
 
         // Simulate PreVote response with granted=false and a leaderId
-        VoteResponseData voteResponse1 = context.voteResponse(true, OptionalInt.of(leader.id()), epoch, false);
+        VoteResponseData voteResponse1 = context.voteResponse(true, OptionalInt.of(leader.id()), epoch);
         context.deliverResponse(
             voteRequests.get(0).correlationId(),
             voteRequests.get(0).destination(),

@@ -878,7 +878,7 @@ public class KafkaRaftClientTest {
         context.deliverResponse(
             request.correlationId(),
             request.destination(),
-            context.voteResponse(true, OptionalInt.empty(), 1, false)
+            context.voteResponse(true, OptionalInt.empty(), 1)
         );
 
         // Become leader after receiving the vote
@@ -925,7 +925,7 @@ public class KafkaRaftClientTest {
         context.deliverResponse(
             request.correlationId(),
             request.destination(),
-            context.voteResponse(true, OptionalInt.empty(), 1, false)
+            context.voteResponse(true, OptionalInt.empty(), 1)
         );
 
         VoteRequestData voteRequest = (VoteRequestData) request.data();
@@ -1417,7 +1417,7 @@ public class KafkaRaftClientTest {
         context.deliverResponse(
             request.correlationId(),
             request.destination(),
-            context.voteResponse(true, OptionalInt.empty(), 1, false)
+            context.voteResponse(true, OptionalInt.empty(), 1)
         );
         context.client.poll();
         context.assertVotedCandidate(epoch, localId);
@@ -1426,7 +1426,7 @@ public class KafkaRaftClientTest {
         context.deliverResponse(
             retryRequest.correlationId(),
             retryRequest.destination(),
-            context.voteResponse(true, OptionalInt.empty(), 1, false)
+            context.voteResponse(true, OptionalInt.empty(), 1)
         );
         context.client.poll();
         context.assertElectedLeader(epoch, localId);
@@ -1684,7 +1684,7 @@ public class KafkaRaftClientTest {
         context.deliverResponse(
             request.correlationId(),
             request.destination(),
-            context.voteResponse(false, OptionalInt.empty(), 1, false)
+            context.voteResponse(false, OptionalInt.empty(), 1)
         );
 
         context.client.poll();
@@ -2721,13 +2721,13 @@ public class KafkaRaftClientTest {
             assertEquals(2, voteRequests.size());
 
             // Become candidate after PreVote requests are granted
-            VoteResponseData voteResponse1 = context.voteResponse(true, OptionalInt.empty(), epoch, true);
+            VoteResponseData voteResponse1 = context.voteResponse(true, OptionalInt.empty(), epoch);
             context.deliverResponse(
                 voteRequests.get(0).correlationId(),
                 voteRequests.get(0).destination(),
                 voteResponse1
             );
-            VoteResponseData voteResponse2 = context.voteResponse(true, OptionalInt.of(voter3), epoch, true);
+            VoteResponseData voteResponse2 = context.voteResponse(true, OptionalInt.of(voter3), epoch);
             context.deliverResponse(
                 voteRequests.get(1).correlationId(),
                 voteRequests.get(1).destination(),
@@ -2753,14 +2753,14 @@ public class KafkaRaftClientTest {
         context.assertElectedLeader(epoch + 1, voter3);
 
         // The vote requests now return and should be ignored
-        VoteResponseData voteResponse1 = context.voteResponse(true, OptionalInt.empty(), epoch + 1, false);
+        VoteResponseData voteResponse1 = context.voteResponse(true, OptionalInt.empty(), epoch + 1);
         context.deliverResponse(
             voteRequests.get(0).correlationId(),
             voteRequests.get(0).destination(),
             voteResponse1
         );
 
-        VoteResponseData voteResponse2 = context.voteResponse(true, OptionalInt.of(voter3), epoch + 1, false);
+        VoteResponseData voteResponse2 = context.voteResponse(true, OptionalInt.of(voter3), epoch + 1);
         context.deliverResponse(
             voteRequests.get(1).correlationId(),
             voteRequests.get(1).destination(),

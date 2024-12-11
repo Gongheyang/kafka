@@ -59,6 +59,7 @@ public class SmokeTestDriverIntegrationTest {
         final Properties props = new Properties();
         props.setProperty(GroupCoordinatorConfig.GROUP_COORDINATOR_REBALANCE_PROTOCOLS_CONFIG, "classic,consumer,streams");
         props.setProperty(GroupCoordinatorConfig.STREAMS_GROUP_NUM_STANDBY_REPLICAS_CONFIG, "1");
+        props.setProperty(GroupCoordinatorConfig.STREAMS_GROUP_HEARTBEAT_INTERVAL_MS_CONFIG, "500");
         props.setProperty(ServerConfigs.UNSTABLE_API_VERSIONS_ENABLE_CONFIG, "true");
         cluster = new EmbeddedKafkaCluster(3, props);
         cluster.start();

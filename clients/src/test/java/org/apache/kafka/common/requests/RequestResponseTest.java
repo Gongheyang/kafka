@@ -1725,9 +1725,6 @@ public class RequestResponseTest {
             .setPartitionIndex(1)
             .setLeaderId(2)
             .setVoteGranted(false);
-        if (version >= 2) {
-            partitionData.setPreVote(true);
-        }
         VoteResponseData data = new VoteResponseData()
                 .setErrorCode(Errors.NONE.code())
                 .setTopics(singletonList(new VoteResponseData.TopicData()

@@ -895,7 +895,7 @@ class KafkaService(KafkaPathResolverMixin, JmxMixin, Service):
                 cmd += " --feature transaction.version=2"
             else:
                 if get_version(node).supports_feature_command():
-                    cmd += " --feature transaction.version=1"
+                    cmd += " --feature transaction.version=0"
             self.logger.info("Running log directory format command...\n%s" % cmd)
             node.account.ssh(cmd)
 

@@ -225,7 +225,7 @@ class TransactionsTest(Test):
                                   num_nodes=self.num_brokers,
                                   zk=None,
                                   controller_num_nodes_override=1,
-                                  uses_transactions_v2=uses_transactions_v2)
+                                  use_transactions_v2=use_transactions_v2)
         security_protocol = 'PLAINTEXT'
         self.kafka.security_protocol = security_protocol
         self.kafka.interbroker_security_protocol = security_protocol

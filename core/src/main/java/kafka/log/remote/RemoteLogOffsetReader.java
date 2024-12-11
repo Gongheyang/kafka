@@ -19,7 +19,7 @@ package kafka.log.remote;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.record.FileRecords;
 import org.apache.kafka.storage.internals.epoch.LeaderEpochFileCache;
-import org.apache.kafka.storage.log.OffsetResultHolder;
+import org.apache.kafka.storage.internals.log.OffsetResultHolder;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

@@ -92,8 +92,6 @@
     <subpackage name="storage.log">
         <allow pkg="org.apache.kafka.server" />
         <allow pkg="com.yammer.metrics" />
-        <allow pkg="org.apache.kafka.common.record" />
-        <allow pkg="org.apache.kafka.storage.log" />
     </subpackage>
 
     <!-- START OF TIERED STORAGE INTEGRATION TEST IMPORT DEPENDENCIES -->

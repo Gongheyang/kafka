@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.kafka.storage.log;
+package org.apache.kafka.storage.internals.log;
 
 import org.apache.kafka.common.errors.ApiException;
 import org.apache.kafka.common.record.FileRecords.TimestampAndOffset;

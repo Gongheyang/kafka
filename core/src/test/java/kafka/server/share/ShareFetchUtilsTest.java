@@ -36,7 +36,7 @@ import org.apache.kafka.server.share.fetch.ShareFetch;
 import org.apache.kafka.server.storage.log.FetchIsolation;
 import org.apache.kafka.server.storage.log.FetchParams;
 import org.apache.kafka.server.storage.log.FetchPartitionData;
-import org.apache.kafka.storage.log.OffsetResultHolder;
+import org.apache.kafka.storage.internals.log.OffsetResultHolder;
 
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;

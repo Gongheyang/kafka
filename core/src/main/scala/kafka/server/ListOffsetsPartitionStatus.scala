@@ -18,8 +18,8 @@ package kafka.server
 
 import org.apache.kafka.common.errors.ApiException
 import org.apache.kafka.common.message.ListOffsetsResponseData.ListOffsetsPartitionResponse
-import org.apache.kafka.common.record.FileRecords.TimestampAndOffset
 import org.apache.kafka.storage.internals.log.AsyncOffsetReadFutureHolder
+import org.apache.kafka.storage.internals.log.OffsetResultHolder.FileRecordsOrError
 
 import java.util.Optional
 

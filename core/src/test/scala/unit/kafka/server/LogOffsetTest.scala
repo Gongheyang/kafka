@@ -26,8 +26,7 @@ import org.apache.kafka.common.record.FileRecords
 import org.apache.kafka.common.requests.{FetchRequest, FetchResponse, ListOffsetsRequest, ListOffsetsResponse}
 import org.apache.kafka.common.utils.Time
 import org.apache.kafka.common.{IsolationLevel, TopicPartition}
-import org.apache.kafka.storage.internals.log.{LogSegment, LogStartOffsetIncrementReason}
-import org.apache.kafka.storage.log.OffsetResultHolder
+import org.apache.kafka.storage.internals.log.{LogSegment, LogStartOffsetIncrementReason, OffsetResultHolder}
 import org.junit.jupiter.api.Assertions._
 import org.junit.jupiter.api.Timeout
 import org.junit.jupiter.params.ParameterizedTest

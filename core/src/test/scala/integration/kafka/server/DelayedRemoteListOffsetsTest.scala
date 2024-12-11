@@ -24,8 +24,7 @@ import org.apache.kafka.common.record.FileRecords.TimestampAndOffset
 import org.apache.kafka.common.requests.ListOffsetsResponse
 import org.apache.kafka.server.purgatory.{DelayedOperationPurgatory, TopicPartitionOperationKey}
 import org.apache.kafka.server.util.timer.MockTimer
-import org.apache.kafka.storage.internals.log.AsyncOffsetReadFutureHolder
-import org.apache.kafka.storage.log.{AsyncOffsetReadFutureHolder, OffsetResultHolder}
+import org.apache.kafka.storage.internals.log.{AsyncOffsetReadFutureHolder, OffsetResultHolder}
 import org.junit.jupiter.api.{AfterEach, Test}
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.mockito.ArgumentMatchers.anyBoolean

@@ -25,7 +25,7 @@ import org.apache.kafka.common.protocol.Errors
 import org.apache.kafka.common.requests.ListOffsetsResponse
 import org.apache.kafka.server.metrics.KafkaMetricsGroup
 import org.apache.kafka.server.purgatory.DelayedOperation
-import org.apache.kafka.storage.log.OffsetResultHolder.FileRecordsOrError
+import org.apache.kafka.storage.internals.log.OffsetResultHolder.FileRecordsOrError
 
 import java.util.Optional
 import java.util.concurrent.TimeUnit

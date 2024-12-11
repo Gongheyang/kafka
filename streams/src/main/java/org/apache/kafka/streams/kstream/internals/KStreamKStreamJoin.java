@@ -41,7 +41,7 @@ import org.apache.kafka.streams.state.internals.TimestampedKeyAndJoinSide;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Optional;
 import java.util.Set;
 
@@ -88,7 +88,8 @@ abstract class KStreamKStreamJoin<K, VLeft, VRight, VOut, VThis, VOther> impleme
 
     @Override
     public Set<StoreBuilder<?>> stores() {
-        final Set<StoreBuilder<?>> stores = new HashSet<>();
+        // use ordered set for deterministic topology string in tests
+        final Set<StoreBuilder<?>> stores = new LinkedHashSet<>();
         stores.add(new FactoryWrappingStoreBuilder<>(otherWindowStoreFactory));
 
         if (outerJoinWindowStoreFactory.isPresent() && enableSpuriousResultFix) {

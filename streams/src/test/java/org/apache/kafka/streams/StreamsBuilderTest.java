@@ -90,6 +90,7 @@ import java.util.regex.Pattern;
 
 import static java.util.Arrays.asList;
 import static org.apache.kafka.streams.StreamsConfig.PROCESSOR_WRAPPER_CLASS_CONFIG;
+import static org.apache.kafka.streams.StreamsConfig.TOPOLOGY_OPTIMIZATION_CONFIG;
 import static org.apache.kafka.streams.processor.internals.assignment.AssignmentTestUtils.SUBTOPOLOGY_0;
 import static org.apache.kafka.streams.processor.internals.assignment.AssignmentTestUtils.SUBTOPOLOGY_1;
 import static org.apache.kafka.streams.state.Stores.inMemoryKeyValueStore;
@@ -1923,6 +1924,40 @@ public class StreamsBuilderTest {
         assertThat(counter.numWrappedProcessors(), CoreMatchers.is(5));
         assertThat(counter.numUniqueStateStores(), CoreMatchers.is(2));
         assertThat(counter.numConnectedStateStores(), CoreMatchers.is(4));
+    }
+
+    @Test
+    public void shouldWrapProcessorsForStreamStreamSelfJoinWithSharedStoreOptimization() {
+        final Map<Object, Object> props = dummyStreamsConfigMap();
+        props.put(PROCESSOR_WRAPPER_CLASS_CONFIG, RecordingProcessorWrapper.class);
+        props.put(TOPOLOGY_OPTIMIZATION_CONFIG, StreamsConfig.OPTIMIZE);
+
+        final WrapperRecorder counter = new WrapperRecorder();
+        props.put(PROCESSOR_WRAPPER_COUNTER_CONFIG, counter);
+
+        final StreamsBuilder builder = new StreamsBuilder(new TopologyConfig(new StreamsConfig(props)));
+
+        final KStream<String, String> stream1 = builder.stream("input", Consumed.as("source"));
+
+        stream1.join(
+                stream1,
+                MockValueJoiner.TOSTRING_JOINER,
+                JoinWindows.ofTimeDifferenceWithNoGrace(Duration.ofDays(1)),
+                StreamJoined.as("ss-join"))
+            .to("output", Produced.as("sink"));
+
+        builder.build();
+
+        // TODO: fix these names once we address https://issues.apache.org/jira/browse/KAFKA-18191
+        assertThat(counter.wrappedProcessorNames(), Matchers.containsInAnyOrder(
+            "KSTREAM-JOINTHIS-0000000003", "KSTREAM-JOINOTHER-0000000004",
+            "KSTREAM-WINDOWED-0000000001", "KSTREAM-WINDOWED-0000000002",
+            "KSTREAM-MERGE-0000000005"
+        ));
+        assertThat(counter.numWrappedProcessors(), CoreMatchers.is(5));
+        // only 1 store when topology optimizations enabled due to sharing self-join store
+        assertThat(counter.numUniqueStateStores(), CoreMatchers.is(1));
+        assertThat(counter.numConnectedStateStores(), CoreMatchers.is(2));
     }
 
     @Test

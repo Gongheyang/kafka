@@ -239,7 +239,7 @@ public class DeleteTopicTest {
     @ClusterTest(serverProperties = {
         @ClusterConfigProperty(key = "log.cleaner.enable", value = "true"),
         @ClusterConfigProperty(key = "log.cleanup.policy", value = "compact"),
-        @ClusterConfigProperty(key = "log.segment.bytes", value = "100"),
+        @ClusterConfigProperty(key = "log.segment.bytes", value = "1048576"),
         @ClusterConfigProperty(key = "log.cleaner.dedupe.buffer.size", value = "1048577")
     })
     public void testDeleteTopicWithCleaner(ClusterInstance cluster) throws Exception {
@@ -251,7 +251,8 @@ public class DeleteTopicTest {
             TestUtils.waitForCondition(() -> server.logManager().getLog(topicPartition, false).isDefined(),
                 "Replicas for topic test not created.");
             UnifiedLog log = server.logManager().getLog(topicPartition, false).get();
-            writeDups(100, 3, log);
+            // Following segment.bytes increase, need enough writes to ensure a segment roll.
+            writeDups(10000, 3, log);
             // wait for cleaner to clean
             server.logManager().cleaner().awaitCleaned(topicPartition, 0, 60000);
             admin.deleteTopics(List.of(DEFAULT_TOPIC)).all().get();

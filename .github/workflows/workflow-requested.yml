@@ -31,7 +31,7 @@ jobs:
     # Even though job conditionals are difficult to debug, this will reduce the number of unnecessary runs
     if: |
       github.event_name == 'workflow_run' && 
-      github.event.workflow_run.event == 'pull_request' &&
+      (github.event.workflow_run.event == 'pull_request' || github.event.workflow_run.event == 'pull_request_review') &&
       github.event.workflow_run.status == 'completed' && 
       github.event.workflow_run.conclusion == 'action_required'
     runs-on: ubuntu-latest

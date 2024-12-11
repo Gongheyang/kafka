@@ -130,6 +130,16 @@ The `eclipse` task has been configured to use `${project_dir}/build_eclipse` as 
 build directory (`${project_dir}/bin`) clashes with Kafka's scripts directory and we don't use Gradle's build directory
 to avoid known issues with this configuration.
 
+When developing Kafka in IntelliJ, **it is recommended to set the project SDK to Java 17**. While some modules, such as client
+and streams, support Java 11 as the minimum version, most modules require Java 17. Setting the SDK to Java 17 provides
+the best compromise for code navigation and overall development experience.
+
+Expected IntelliJ Behavior
+Due to Kafka's use of Gradle and varying module-level Java version requirements:
+- IntelliJ will automatically check Java syntax and compatibility for each module based on the Java version specified in the
+  module's `build.gradle` file.
+- IntelliJ does not automatically configure the correct Java version for each module in Structure > Project Settings > Modules.
+
 ### Publishing the streams quickstart archetype artifact to maven ###
 For the Streams archetype project, one cannot use gradle to upload to maven; instead the `mvn deploy` command needs to be called at the quickstart folder:
 
@@ -258,15 +268,3 @@ Apache Kafka is interested in building the community; we would welcome any thoug
 
 To contribute follow the instructions here:
  * https://kafka.apache.org/contributing.html 
-
-### IntelliJ Configuration for Kafka Development ###
-
-When developing Kafka in IntelliJ, **it is recommended to set the project SDK to Java 17**. While some modules, such as client 
-and streams, support Java 11 as the minimum version, most modules require Java 17. Setting the SDK to Java 17 provides 
-the best compromise for code navigation and overall development experience.
-
-Expected IntelliJ Behavior
-Due to Kafka's use of Gradle and varying module-level Java version requirements:
-- IntelliJ will automatically check Java syntax and compatibility for each module based on the Java version specified in the 
-  module's `build.gradle` file.
-- IntelliJ does not automatically configure the correct Java version for each module in Structure > Project Settings > Modules.

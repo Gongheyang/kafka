@@ -13,15 +13,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name: CI Requested
+name: Workflow Requested
+# For pull_request and pull_request_review workflows, non-committers must have an explicit
+# ci-approved label on their PR before a workflow will run. This workflow is responsible for
+# automatically approving pending workflow requests.
 
 on:
   workflow_run:
-    workflows: [CI]
+    workflows: [CI, Pull Request Reviewed]
     types:
       - requested
 
-run-name: CI Requested for ${{ github.event.workflow_run.display_title}}
+run-name: Workflow requested for ${{ github.event.workflow_run.display_title}}
 
 jobs:
   check-pr-labels:

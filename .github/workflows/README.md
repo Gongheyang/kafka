@@ -100,7 +100,7 @@ There are two files related to this workflow:
 
 * [pr-labeled.yml](pr-labeled.yml) approves a pending approval for PRs that have
 been labeled with `ci-approved`
-* [ci-requested.yml](ci-requested.yml) approves future CI requests automatically
+* [workflow-requested.yml](workflow-requested.yml) approves future workflow requests automatically
 if the PR has the `ci-approved` label
 
 _The pr-labeled.yml workflow includes pull_request_target!_

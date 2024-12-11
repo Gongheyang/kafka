@@ -1367,7 +1367,7 @@ public class InternalTopologyBuilder {
     }
 
     public AutoOffsetResetStrategy offsetResetStrategy(final String topic) {
-        Optional<Duration> resetDuration;
+        final Optional<Duration> resetDuration;
 
         if (maybeDecorateInternalSourceTopics(noneResetTopics).contains(topic) ||
             noneResetPatterns.stream().anyMatch(p -> p.matcher(topic).matches())) {

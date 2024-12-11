@@ -552,7 +552,6 @@ public class ConnectorConfig extends AbstractConfig {
      * This is not entirely elegant because
      * although they basically use the same "alias prefix" configuration idiom there are some differences.
      * The abstract method pattern is used to cope with this.
-     *
      * @param <T> The type of plugin (either {@code Transformation} or {@code Predicate}).
      */
     abstract static class EnrichablePlugin<T> {

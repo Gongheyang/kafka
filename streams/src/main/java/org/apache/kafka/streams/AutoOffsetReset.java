@@ -16,7 +16,7 @@
  */
 package org.apache.kafka.streams;
 
-import org.apache.kafka.streams.internals.OffsetResetStrategy;
+import org.apache.kafka.clients.consumer.internals.AutoOffsetResetStrategy.StrategyType;
 import org.apache.kafka.streams.kstream.KStream;
 import org.apache.kafka.streams.kstream.KTable;
 
@@ -29,10 +29,10 @@ import java.util.Optional;
  * or when creating {@link KStream} or {@link KTable} via {@link StreamsBuilder}.
  */
 public class AutoOffsetReset {
-    protected final OffsetResetStrategy offsetResetStrategy;
+    protected final StrategyType offsetResetStrategy;
     protected final Optional<Duration> duration;
 
-    private AutoOffsetReset(final OffsetResetStrategy offsetResetStrategy, final Optional<Duration> duration) {
+    private AutoOffsetReset(final StrategyType offsetResetStrategy, final Optional<Duration> duration) {
         this.offsetResetStrategy = offsetResetStrategy;
         this.duration = duration;
     }
@@ -42,21 +42,30 @@ public class AutoOffsetReset {
     }
 
     /**
+     * Creates an {@code AutoOffsetReset} instance representing "none".
+     *
+     * @return An {@link AutoOffsetReset} instance for no reset.
+     */
+    public static AutoOffsetReset none() {
+        return new AutoOffsetReset(StrategyType.NONE, Optional.empty());
+    }
+
+    /**
+     * Creates an {@code AutoOffsetReset} instance representing "earliest".
+     *
+     * @return An {@link AutoOffsetReset} instance for the "earliest" offset.
+     */
+    public static AutoOffsetReset earliest() {
+        return new AutoOffsetReset(StrategyType.EARLIEST, Optional.empty());
+    }
+
+    /**
      * Creates an {@code AutoOffsetReset} instance representing "latest".
      * 
      * @return An {@code AutoOffsetReset} instance for the "latest" offset.
      */
     public static AutoOffsetReset latest() {
-        return new AutoOffsetReset(OffsetResetStrategy.LATEST, Optional.empty());
-    }
-
-    /**
-     * Creates an {@code AutoOffsetReset} instance representing "earliest".
-     * 
-     * @return An {@link AutoOffsetReset} instance for the "earliest" offset.
-     */
-    public static AutoOffsetReset earliest() {
-        return new AutoOffsetReset(OffsetResetStrategy.EARLIEST, Optional.empty());
+        return new AutoOffsetReset(StrategyType.LATEST, Optional.empty());
     }
 
     /**
@@ -70,7 +79,7 @@ public class AutoOffsetReset {
         if (duration.isNegative()) {
             throw new IllegalArgumentException("Duration cannot be negative");
         }
-        return new AutoOffsetReset(OffsetResetStrategy.BY_DURATION, Optional.of(duration));
+        return new AutoOffsetReset(StrategyType.BY_DURATION, Optional.of(duration));
     }
 
     @Override

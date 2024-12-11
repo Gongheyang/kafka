@@ -39,35 +39,35 @@ import java.util.Random;
  * how they are triggered:
  *
  * Resigned transitions to:
- *    Unattached: After learning of a new election with a higher epoch
+ *    Unattached:  After learning of a new election with a higher epoch
  *    Prospective: After expiration of the election timeout
- *    Follower: After discovering a leader with an equal or larger epoch
+ *    Follower:    After discovering a leader with an equal or larger epoch
  *
  * Unattached transitions to:
- *    Unattached: After learning of a new election with a higher epoch or after giving a binding vote
+ *    Unattached:  After learning of a new election with a higher epoch or after giving a binding vote
  *    Prospective: After expiration of the election timeout
- *    Follower: After discovering a leader with an equal or larger epoch
+ *    Follower:    After discovering a leader with an equal or larger epoch
  *
  * Prospective transitions to:
- *    Unattached: After learning of an election with a higher epoch,
- *                or node did not have last known leader and loses/times out election
- *    Candidate: After receiving a majority of PreVotes granted
- *    Follower: After discovering a leader with a larger epoch,
- *              or node had a last known leader and loses/times out election
+ *    Unattached:  After learning of an election with a higher epoch, or node did not have last
+ *                 known leader and loses/times out election
+ *    Candidate:   After receiving a majority of PreVotes granted
+ *    Follower:    After discovering a leader with a larger epoch, or node had a last known leader
+ *                 and loses/times out election
  *
  * Candidate transitions to:
- *    Unattached: After learning of a new election with a higher epoch
- *    Candidate: After expiration of the election timeout
- *    Leader: After receiving a majority of votes
+ *    Unattached:  After learning of a new election with a higher epoch
+ *    Prospective: After expiration of the election timeout or loss of election
+ *    Leader:      After receiving a majority of votes
  *
  * Leader transitions to:
- *    Unattached: After learning of a new election with a higher epoch
- *    Resigned: When shutting down gracefully
+ *    Unattached:  After learning of a new election with a higher epoch
+ *    Resigned:    When shutting down gracefully
  *
  * Follower transitions to:
- *    Unattached: After learning of a new election with a higher epoch
+ *    Unattached:  After learning of a new election with a higher epoch
  *    Prospective: After expiration of the fetch timeout
- *    Follower: After discovering a leader with a larger epoch
+ *    Follower:    After discovering a leader with a larger epoch
  *
  * Observers follow a simpler state machine. The Voted/Prospective/Candidate/Leader/Resigned
  * states are not possible for observers, so the only transitions that are possible
@@ -75,11 +75,11 @@ import java.util.Random;
  *
  * Unattached transitions to:
  *    Unattached: After learning of a new election with a higher epoch
- *    Follower: After discovering a leader with an equal or larger epoch
+ *    Follower:   After discovering a leader with an equal or larger epoch
  *
  * Follower transitions to:
  *    Unattached: After learning of a new election with a higher epoch
- *    Follower: After discovering a leader with a larger epoch
+ *    Follower:   After discovering a leader with a larger epoch
  *
  */
 public class QuorumState {

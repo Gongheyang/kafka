@@ -17,6 +17,7 @@
 
 package org.apache.kafka.coordinator.group.taskassignor;
 
+import org.apache.kafka.coordinator.group.GroupCoordinatorConfig;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -122,7 +123,7 @@ public class StickyTaskAssignorTest {
         final GroupAssignment result = assignor.assign(
                 new GroupSpecImpl(members,
                         Arrays.asList("test-subtopology1", "test-subtopology2"),
-                        mkMap(mkEntry("numStandbyReplicas", "1"))),
+                        mkMap(mkEntry(GroupCoordinatorConfig.STREAMS_GROUP_NUM_STANDBY_REPLICAS_CONFIG, "1"))),
                 new TopologyDescriberImpl(3, true)
         );
 
@@ -486,7 +487,7 @@ public class StickyTaskAssignorTest {
         final GroupAssignment result = assignor.assign(
                 new GroupSpecImpl(members,
                         Collections.singletonList("test-subtopology"),
-                        mkMap(mkEntry("numStandbyReplicas", "1"))),
+                        mkMap(mkEntry(GroupCoordinatorConfig.STREAMS_GROUP_NUM_STANDBY_REPLICAS_CONFIG, "1"))),
                 new TopologyDescriberImpl(4, true)
         );
 
@@ -532,7 +533,7 @@ public class StickyTaskAssignorTest {
         final GroupAssignment result = assignor.assign(
                 new GroupSpecImpl(members,
                         Collections.singletonList("test-subtopology"),
-                        mkMap(mkEntry("numStandbyReplicas", "2"))),
+                        mkMap(mkEntry(GroupCoordinatorConfig.STREAMS_GROUP_NUM_STANDBY_REPLICAS_CONFIG, "2"))),
                 new TopologyDescriberImpl(3, true)
         );
 
@@ -552,7 +553,7 @@ public class StickyTaskAssignorTest {
         final GroupAssignment result = assignor.assign(
                 new GroupSpecImpl(members,
                         Collections.singletonList("test-subtopology"),
-                        mkMap(mkEntry("numStandbyReplicas", "1"))),
+                        mkMap(mkEntry(GroupCoordinatorConfig.STREAMS_GROUP_NUM_STANDBY_REPLICAS_CONFIG, "1"))),
                 new TopologyDescriberImpl(1, true)
         );
         assertTrue(getAllStandbyTasks(result, "member1").isEmpty());
@@ -572,7 +573,7 @@ public class StickyTaskAssignorTest {
         final GroupAssignment result = assignor.assign(
                 new GroupSpecImpl(members,
                         Collections.singletonList("test-subtopology"),
-                        mkMap(mkEntry("numStandbyReplicas", "1"))),
+                        mkMap(mkEntry(GroupCoordinatorConfig.STREAMS_GROUP_NUM_STANDBY_REPLICAS_CONFIG, "1"))),
                 new TopologyDescriberImpl(3, true)
         );
 
@@ -641,7 +642,7 @@ public class StickyTaskAssignorTest {
         final GroupAssignment result = assignor.assign(
                 new GroupSpecImpl(members,
                         Collections.singletonList("test-subtopology"),
-                        mkMap(mkEntry("numStandbyReplicas", "1"))),
+                        mkMap(mkEntry(GroupCoordinatorConfig.STREAMS_GROUP_NUM_STANDBY_REPLICAS_CONFIG, "1"))),
                 new TopologyDescriberImpl(3, true)
         );
 
@@ -681,7 +682,7 @@ public class StickyTaskAssignorTest {
         final GroupAssignment result = assignor.assign(
                 new GroupSpecImpl(members,
                         Collections.singletonList("test-subtopology"),
-                        mkMap(mkEntry("numStandbyReplicas", "1"))),
+                        mkMap(mkEntry(GroupCoordinatorConfig.STREAMS_GROUP_NUM_STANDBY_REPLICAS_CONFIG, "1"))),
                 new TopologyDescriberImpl(4, true)
         );
 
@@ -709,7 +710,7 @@ public class StickyTaskAssignorTest {
         final GroupAssignment result = assignor.assign(
                 new GroupSpecImpl(members,
                         Collections.singletonList("test-subtopology"),
-                        mkMap(mkEntry("numStandbyReplicas", "1"))),
+                        mkMap(mkEntry(GroupCoordinatorConfig.STREAMS_GROUP_NUM_STANDBY_REPLICAS_CONFIG, "1"))),
                 new TopologyDescriberImpl(4, true)
         );
 
@@ -740,7 +741,7 @@ public class StickyTaskAssignorTest {
         final GroupAssignment result = assignor.assign(
                 new GroupSpecImpl(members,
                         Collections.singletonList("test-subtopology"),
-                        mkMap(mkEntry("numStandbyReplicas", "1"))),
+                        mkMap(mkEntry(GroupCoordinatorConfig.STREAMS_GROUP_NUM_STANDBY_REPLICAS_CONFIG, "1"))),
                 new TopologyDescriberImpl(4, true)
         );
 

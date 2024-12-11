@@ -105,7 +105,7 @@ public class ProcessorNodeTest {
             new ProcessorNode<>(NAME, new IgnoredInternalExceptionsProcessor(), Collections.emptySet());
 
         final InternalProcessorContext<Object, Object> internalProcessorContext = mockInternalProcessorContext();
-        node.init(internalProcessorContext, new ProcessingExceptionHandlerMock(ProcessingExceptionHandler.ProcessingHandlerResponse.FAIL, internalProcessorContext, false));
+        node.init(internalProcessorContext, new ProcessingExceptionHandlerMock(ProcessingExceptionHandler.ProcessingExceptionResponse.failProcessing(), internalProcessorContext, false));
 
         final FailedProcessingException failedProcessingException = assertThrows(FailedProcessingException.class,
             () -> node.process(new Record<>(KEY, VALUE, TIMESTAMP)));
@@ -122,7 +122,7 @@ public class ProcessorNodeTest {
             new ProcessorNode<>(NAME, new IgnoredInternalExceptionsProcessor(), Collections.emptySet());
 
         final InternalProcessorContext<Object, Object> internalProcessorContext = mockInternalProcessorContext();
-        node.init(internalProcessorContext, new ProcessingExceptionHandlerMock(ProcessingExceptionHandler.ProcessingHandlerResponse.CONTINUE, internalProcessorContext, false));
+        node.init(internalProcessorContext, new ProcessingExceptionHandlerMock(ProcessingExceptionHandler.ProcessingExceptionResponse.continueProcessing(), internalProcessorContext, false));
 
         assertDoesNotThrow(() -> node.process(new Record<>(KEY, VALUE, TIMESTAMP)));
     }
@@ -149,7 +149,7 @@ public class ProcessorNodeTest {
 
         assertEquals(ignoredExceptionCause, runtimeException.getCause().getClass());
         assertEquals(ignoredExceptionCauseMessage, runtimeException.getCause().getMessage());
-        verify(processingExceptionHandler, never()).handle(any(), any(), any());
+        verify(processingExceptionHandler, never()).handleError(any(), any(), any());
     }
 
     @Test
@@ -158,7 +158,7 @@ public class ProcessorNodeTest {
                 new ProcessorNode<>(NAME, new IgnoredInternalExceptionsProcessor(), Collections.emptySet());
 
         final InternalProcessorContext<Object, Object> internalProcessorContext = mockInternalProcessorContext();
-        node.init(internalProcessorContext, new ProcessingExceptionHandlerMock(ProcessingExceptionHandler.ProcessingHandlerResponse.CONTINUE, internalProcessorContext, true));
+        node.init(internalProcessorContext, new ProcessingExceptionHandlerMock(ProcessingExceptionHandler.ProcessingExceptionResponse.continueProcessing(), internalProcessorContext, true));
 
         final FailedProcessingException failedProcessingException = assertThrows(FailedProcessingException.class,
             () -> node.process(new Record<>(KEY, VALUE, TIMESTAMP)));
@@ -390,12 +390,12 @@ public class ProcessorNodeTest {
     }
 
     public static class ProcessingExceptionHandlerMock implements ProcessingExceptionHandler {
-        private final ProcessingExceptionHandler.ProcessingHandlerResponse response;
+        private final ProcessingExceptionHandler.ProcessingExceptionResponse response;
         private final InternalProcessorContext<Object, Object> internalProcessorContext;
 
         private final boolean shouldThrowException;
 
-        public ProcessingExceptionHandlerMock(final ProcessingExceptionHandler.ProcessingHandlerResponse response,
+        public ProcessingExceptionHandlerMock(final ProcessingExceptionHandler.ProcessingExceptionResponse response,
                                               final InternalProcessorContext<Object, Object> internalProcessorContext,
                                               final boolean shouldThrowException) {
             this.response = response;
@@ -404,7 +404,7 @@ public class ProcessorNodeTest {
         }
 
         @Override
-        public ProcessingExceptionHandler.ProcessingHandlerResponse handle(final ErrorHandlerContext context, final Record<?, ?> record, final Exception exception) {
+        public ProcessingExceptionResponse handleError(final ErrorHandlerContext context, final Record<?, ?> record, final Exception exception) {
             assertEquals(internalProcessorContext.topic(), context.topic());
             assertEquals(internalProcessorContext.partition(), context.partition());
             assertEquals(internalProcessorContext.offset(), context.offset());

@@ -1163,6 +1163,8 @@ public abstract class AbstractHerder implements Herder, TaskStatus.Listener, Con
             pluginClass = p.pluginClass(pluginName, range);
         } catch (ClassNotFoundException cnfe) {
             throw new NotFoundException("Unknown plugin " + pluginName + ".");
+        } catch (VersionedPluginLoadingException e) {
+            throw new BadRequestException(e.getMessage(), e);
         }
 
         try (LoaderSwap loaderSwap = p.withClassLoader(pluginClass.getClassLoader())) {

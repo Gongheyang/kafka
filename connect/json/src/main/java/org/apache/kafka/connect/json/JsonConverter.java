@@ -275,7 +275,7 @@ public class JsonConverter implements Converter, HeaderConverter, Versioned {
 
     @Override
     public String version() {
-        return AppInfoParser.getVersion();
+        return "17";
     }
 
     @Override
@@ -285,6 +285,7 @@ public class JsonConverter implements Converter, HeaderConverter, Versioned {
 
     @Override
     public void configure(Map<String, ?> configs) {
+        System.out.println("JsonConverter configure 17");
         config = new JsonConverterConfig(configs);
 
         serializer.configure(configs, config.type() == ConverterType.KEY);

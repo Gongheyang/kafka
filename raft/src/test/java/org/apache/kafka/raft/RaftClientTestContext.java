@@ -589,7 +589,7 @@ public final class RaftClientTestContext {
             log.lastFetchedEpoch(), log.endOffset().offset());
 
         for (RaftRequest.Outbound request : voteRequests) {
-            VoteResponseData voteResponse = voteResponse(true, OptionalInt.empty(), epoch, preVote);
+            VoteResponseData voteResponse = voteResponse(true, OptionalInt.empty(), epoch);
             deliverResponse(request.correlationId(), request.destination(), voteResponse);
         }
 

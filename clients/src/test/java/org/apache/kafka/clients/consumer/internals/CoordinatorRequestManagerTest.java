@@ -175,6 +175,7 @@ public class CoordinatorRequestManagerTest {
             new LogContext(),
             RETRY_BACKOFF_MS,
             RETRY_BACKOFF_MS,
+            this.backgroundEventHandler,
             groupId
         );
     }

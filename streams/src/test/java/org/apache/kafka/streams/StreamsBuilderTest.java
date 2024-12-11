@@ -1861,7 +1861,7 @@ public class StreamsBuilderTest {
         final KTable<String, String> t1 = builder.table("input1", Consumed.as("input1")); // 1
         final KTable<String, String> t2 = builder.table("input2", Consumed.as("input2")); // 2
 
-        t1.leftJoin(t2, (v1, v2) -> v1 + v2, Named.as("join-processor")) // 3 (this), 4 (other), 5 (merger)
+        t1.leftJoin(t2, (v1, v2) -> v1 + v2, Named.as("join-processor"), Materialized.as("the_join")) // 3 (this), 4 (other), 5 (merger)
                 .toStream(Named.as("toStream")) // 6
                 .to("output", Produced.as("sink"));
 
@@ -1876,8 +1876,8 @@ public class StreamsBuilderTest {
                 "toStream"
         ));
 
-        assertThat(counter.numUniqueStateStores(), CoreMatchers.is(2)); // one for join this, one for join that
-        assertThat(counter.numConnectedStateStores(), CoreMatchers.is(2));
+        assertThat(counter.numUniqueStateStores(), CoreMatchers.is(3)); // table1, table2, join materialized
+        assertThat(counter.numConnectedStateStores(), CoreMatchers.is(3));
     }
 
     @Test
@@ -1893,7 +1893,7 @@ public class StreamsBuilderTest {
         final KTable<String, String> t1 = builder.table("input1", Consumed.as("input1")); // 1
         final KTable<String, String> t2 = builder.table("input2", Consumed.as("input2")); // 2
 
-        t1.outerJoin(t2, (v1, v2) -> v1 + v2, Named.as("join-processor")) // 3 (this), 4 (other), 5 (merger)
+        t1.outerJoin(t2, (v1, v2) -> v1 + v2, Named.as("join-processor"), Materialized.as("the_join")) // 3 (this), 4 (other), 5 (merger)
                 .toStream(Named.as("toStream")) // 6
                 .to("output", Produced.as("sink"));
 
@@ -1908,8 +1908,8 @@ public class StreamsBuilderTest {
                 "toStream"
         ));
 
-        assertThat(counter.numUniqueStateStores(), CoreMatchers.is(2)); // one for join this, one for join that
-        assertThat(counter.numConnectedStateStores(), CoreMatchers.is(2));
+        assertThat(counter.numUniqueStateStores(), CoreMatchers.is(3)); // table1, table2, join materialized
+        assertThat(counter.numConnectedStateStores(), CoreMatchers.is(3));
     }
 
     @Test

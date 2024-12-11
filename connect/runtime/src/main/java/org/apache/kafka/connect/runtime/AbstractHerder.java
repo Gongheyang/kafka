@@ -798,6 +798,7 @@ public abstract class AbstractHerder implements Herder, TaskStatus.Listener, Con
         }
         validatedConfig.get(CONNECTOR_CLASS_CONFIG).addErrorMessage(e.getMessage());
         validatedConfig.get(CONNECTOR_VERSION).addErrorMessage(e.getMessage());
+        validatedConfig.get(CONNECTOR_VERSION).recommendedValues(e.availableVersions().stream().map(v -> (Object) v).collect(Collectors.toList()));
         addNullValuedErrors(connectorProps, validatedConfig);
         return generateResult(connType, configDef.configKeys(), new ArrayList<>(validatedConfig.values()), new ArrayList<>(configDef.groups()));
     }

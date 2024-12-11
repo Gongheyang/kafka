@@ -19,9 +19,7 @@ package org.apache.kafka.streams.kstream.internals.graph;
 
 import org.apache.kafka.streams.kstream.ValueJoinerWithKey;
 import org.apache.kafka.streams.processor.internals.InternalTopologyBuilder;
-import org.apache.kafka.streams.processor.internals.StoreFactory;
 
-import java.util.Optional;
 
 /**
  * Too much information to generalize, so Stream-Stream joins are represented by a specific node.

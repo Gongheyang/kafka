@@ -85,7 +85,7 @@ class ShareCoordinatorShardTest {
         ShareCoordinatorShard build() {
             if (metadataImage == null) metadataImage = mock(MetadataImage.class, RETURNS_DEEP_STUBS);
             if (config == null) {
-                config = ShareCoordinatorConfigTest.createConfig(ShareCoordinatorConfigTest.testConfigMap(configOverrides));
+                config = ShareCoordinatorTestConfig.createConfig(ShareCoordinatorTestConfig.testConfigMap(configOverrides));
             }
 
             ShareCoordinatorShard shard = new ShareCoordinatorShard(

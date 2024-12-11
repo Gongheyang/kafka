@@ -28,7 +28,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class ShareCoordinatorConfigTest {
+public class ShareCoordinatorTestConfig {
 
     private static final List<ConfigDef> CONFIG_DEF_LIST = Collections.singletonList(
         ShareCoordinatorConfig.CONFIG_DEF

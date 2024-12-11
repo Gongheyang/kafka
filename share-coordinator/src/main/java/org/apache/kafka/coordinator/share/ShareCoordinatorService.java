@@ -58,7 +58,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.OptionalInt;
 import java.util.Properties;
 import java.util.concurrent.CompletableFuture;
@@ -204,7 +203,8 @@ public class ShareCoordinatorService implements ShareCoordinator {
         ShareCoordinatorMetrics shareCoordinatorMetrics,
         Time time,
         Timer timer,
-        PartitionWriter writer) {
+        PartitionWriter writer
+    ) {
         this.log = logContext.logger(ShareCoordinatorService.class);
         this.config = config;
         this.runtime = runtime;
@@ -258,7 +258,7 @@ public class ShareCoordinatorService implements ShareCoordinator {
     }
 
     private void setupRecordPruning() {
-        log.info("Scheduling share state topic prune job.");
+        log.info("Scheduling share-group state topic prune job.");
         timer.add(new TimerTask(config.shareCoordinatorTopicPruneIntervalMs()) {
             @Override
             public void run() {
@@ -268,7 +268,7 @@ public class ShareCoordinatorService implements ShareCoordinator {
                 CompletableFuture.allOf(futures.toArray(new CompletableFuture[]{}))
                     .whenComplete((res, exp) -> {
                         if (exp != null) {
-                            log.error("Received error in share state topic prune.", exp);
+                            log.error("Received error in share-group state topic prune.", exp);
                         }
                         // Perpetual recursion, failure or not.
                         setupRecordPruning();
@@ -302,9 +302,9 @@ public class ShareCoordinatorService implements ShareCoordinator {
             }
             if (result.isPresent()) {
                 Long off = result.get();
-
-                if (lastPrunedOffsets.containsKey(tp) && Objects.equals(lastPrunedOffsets.get(tp), off)) {
-                    log.debug("{} already pruned at offset {}", tp, off);
+                Long lastPrunedOffset = lastPrunedOffsets.get(tp);
+                if (lastPrunedOffset != null && lastPrunedOffset.longValue() == off) {
+                    log.debug("{} already pruned till offset {}", tp, off);
                     fut.complete(null);
                     return;
                 }

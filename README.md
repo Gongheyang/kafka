@@ -258,3 +258,15 @@ Apache Kafka is interested in building the community; we would welcome any thoug
 
 To contribute follow the instructions here:
  * https://kafka.apache.org/contributing.html 
+
+### IntelliJ Configuration for Kafka Development ###
+
+When developing Kafka in IntelliJ, **it is recommended to set the project SDK to Java 17**. While some modules, such as client 
+and streams, support Java 11 as the minimum version, most modules require Java 17. Setting the SDK to Java 17 provides 
+the best compromise for code navigation and overall development experience.
+
+Expected IntelliJ Behavior
+Due to Kafka's use of Gradle and varying module-level Java version requirements:
+- IntelliJ will automatically check Java syntax and compatibility for each module based on the Java version specified in the 
+  module's `build.gradle` file.
+- IntelliJ does not automatically configure the correct Java version for each module in Structure > Project Settings > Modules.

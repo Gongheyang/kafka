@@ -17,6 +17,7 @@
 package org.apache.kafka.streams;
 
 import org.apache.kafka.streams.internals.AutoOffsetResetInternal;
+
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;

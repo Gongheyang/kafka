@@ -21,4 +21,3 @@ public enum OffsetResetStrategy {
     EARLIEST,
     BY_DURATION
 }
-

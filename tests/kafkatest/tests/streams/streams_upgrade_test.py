@@ -15,17 +15,15 @@
 
 import random
 import time
-from ducktape.mark import matrix, ignore
+from ducktape.mark import matrix
 from ducktape.mark.resource import cluster
 from ducktape.tests.test import Test
 from kafkatest.services.kafka import KafkaService, quorum
-from kafkatest.services.streams import StreamsSmokeTestDriverService, StreamsSmokeTestJobRunnerService, \
-    StreamsUpgradeTestJobRunnerService
+from kafkatest.services.streams import StreamsSmokeTestDriverService, StreamsUpgradeTestJobRunnerService
 from kafkatest.tests.streams.utils import extract_generation_from_logs, extract_generation_id
 from kafkatest.version import (LATEST_0_11, LATEST_1_0, LATEST_1_1,
-    LATEST_2_0, LATEST_2_1, LATEST_2_2, LATEST_2_3, LATEST_2_4, LATEST_2_5, LATEST_2_6, LATEST_2_7, LATEST_2_8, \
-    LATEST_3_0, LATEST_3_1, LATEST_3_2, LATEST_3_3, LATEST_3_4, LATEST_3_5, LATEST_3_6, LATEST_3_7, LATEST_3_8, LATEST_3_9, \
-    DEV_BRANCH, DEV_VERSION, KafkaVersion)
+    LATEST_2_0, LATEST_2_1, LATEST_2_4, LATEST_2_5, LATEST_2_6, LATEST_2_7, LATEST_2_8, LATEST_3_0, LATEST_3_1, LATEST_3_2, \
+    LATEST_3_3, LATEST_3_4, LATEST_3_5, LATEST_3_6, LATEST_3_7, LATEST_3_8, LATEST_3_9, DEV_BRANCH, DEV_VERSION, KafkaVersion)
 
 # broker 0.10.0 is not compatible with newer Kafka Streams versions
 # broker 0.10.1 and 0.10.2 do not support headers, as required by suppress() (since v2.2.1)

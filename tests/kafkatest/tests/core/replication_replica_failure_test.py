@@ -17,18 +17,12 @@ from ducktape.utils.util import wait_until
 
 from ducktape.cluster.remoteaccount import RemoteCommandError
 from ducktape.mark import matrix
-from ducktape.mark import parametrize
 from ducktape.mark.resource import cluster
 
 from kafkatest.services.kafka import quorum, consumer_group
 from kafkatest.tests.end_to_end import EndToEndTest
-from kafkatest.services.kafka import config_property
 from kafkatest.services.trogdor.network_partition_fault_spec import NetworkPartitionFaultSpec
-from kafkatest.services.trogdor.task_spec import TaskSpec
 from kafkatest.services.trogdor.trogdor import TrogdorService
-
-import signal
-import time
 
 class ReplicationReplicaFailureTest(EndToEndTest):
 

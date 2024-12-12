@@ -18,7 +18,7 @@ from ducktape.utils.util import wait_until
 from ducktape.mark.resource import cluster
 
 from kafkatest.tests.verifiable_consumer_test import VerifiableConsumerTest
-from kafkatest.services.kafka import TopicPartition, quorum, consumer_group
+from kafkatest.services.kafka import quorum, consumer_group
 from kafkatest.version import LATEST_2_1, LATEST_2_3, LATEST_2_4, LATEST_2_5, \
     LATEST_3_2, LATEST_3_4, LATEST_3_5, LATEST_3_6, LATEST_3_7, LATEST_3_8, LATEST_3_9, DEV_BRANCH, KafkaVersion
 

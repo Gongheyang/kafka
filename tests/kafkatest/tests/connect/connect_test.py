@@ -20,7 +20,6 @@ from ducktape.mark import matrix, parametrize
 from ducktape.cluster.remoteaccount import RemoteCommandError
 from ducktape.errors import TimeoutError
 
-from kafkatest.services.zookeeper import ZookeeperService
 from kafkatest.services.kafka import KafkaService, quorum
 from kafkatest.services.connect import ConnectServiceBase, ConnectStandaloneService, ErrorTolerance
 from kafkatest.services.console_consumer import ConsoleConsumer

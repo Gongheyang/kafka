@@ -17,7 +17,6 @@ import os
 
 from kafkatest.services.kafka.util import fix_opts_for_new_jvm
 from kafkatest.services.performance import PerformanceService
-from kafkatest.services.security.security_config import SecurityConfig
 from kafkatest.version import get_version, V_3_4_0, DEV_BRANCH
 
 

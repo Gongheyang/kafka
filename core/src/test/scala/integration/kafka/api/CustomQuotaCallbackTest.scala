@@ -26,6 +26,7 @@ import org.apache.kafka.common.config.SaslConfigs
 import org.apache.kafka.common.config.internals.BrokerSecurityConfigs
 import org.apache.kafka.common.network.ListenerName
 import org.apache.kafka.common.security.auth._
+import org.apache.kafka.common.security.authenticator.DefaultKafkaPrincipalBuilder
 import org.apache.kafka.common.{Cluster, Reconfigurable}
 import org.apache.kafka.metadata.storage.Formatter
 import org.apache.kafka.server.config.{QuotaConfig, ServerConfigs}
@@ -324,7 +325,7 @@ object GroupedUserPrincipalBuilder {
   }
 }
 
-class GroupedUserPrincipalBuilder extends KafkaPrincipalBuilder {
+class GroupedUserPrincipalBuilder extends DefaultKafkaPrincipalBuilder(null, null) {
   override def build(context: AuthenticationContext): KafkaPrincipal = {
     val securityProtocol = context.securityProtocol
     if (securityProtocol == SecurityProtocol.SASL_PLAINTEXT || securityProtocol == SecurityProtocol.SASL_SSL) {

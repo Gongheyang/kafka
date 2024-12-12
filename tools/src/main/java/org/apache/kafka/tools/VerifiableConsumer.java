@@ -650,7 +650,6 @@ public class VerifiableConsumer implements Closeable, OffsetCommitCallback, Cons
         } else {
             // This means we're using the CLASSIC consumer group protocol.
             consumerProps.put(ConsumerConfig.PARTITION_ASSIGNMENT_STRATEGY_CONFIG, res.getString("assignmentStrategy"));
-            consumerProps.put(ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG, Integer.toString(res.getInt("sessionTimeout")));
         }
 
         Integer sessionTimeout = res.getInt("sessionTimeout");

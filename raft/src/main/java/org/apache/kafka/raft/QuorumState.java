@@ -575,10 +575,6 @@ public class QuorumState {
     }
 
     public void transitionToProspective() {
-        if (!partitionState.lastKraftVersion().isReconfigSupported()) {
-            throw new IllegalStateException("Cannot transition to Prospective since the current version " +
-                partitionState.lastKraftVersion() + " does not support PreVote");
-        }
         if (isObserver()) {
             throw new IllegalStateException(
                 String.format(
@@ -640,16 +636,9 @@ public class QuorumState {
                 )
             );
         }
-        if (partitionState.lastKraftVersion().isReconfigSupported()) {
-            if (!isProspective()) {
-                throw new IllegalStateException("Cannot transition to Candidate since the local broker.id=" + localId +
-                    " is state " + state);
-            }
-        } else {
-            if (isLeader()) {
-                throw new IllegalStateException("Cannot transition to Candidate since the local broker.id=" + localId +
-                    " since this node is already a Leader with state " + state);
-            }
+        if (!isProspective() && !isOnlyVoter()) {
+            throw new IllegalStateException("Cannot transition to Candidate since the local broker.id=" + localId +
+                " is state " + state);
         }
     }
 

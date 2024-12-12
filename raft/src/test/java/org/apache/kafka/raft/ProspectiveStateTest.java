@@ -51,15 +51,24 @@ public class ProspectiveStateTest {
     private final MockTime time = new MockTime();
     private final int electionTimeoutMs = 5000;
     private final LogContext logContext = new LogContext();
+    private final int localId = 0;
+    private final int votedId = 1;
+    private final Uuid votedDirectoryId = Uuid.randomUuid();
+    private final ReplicaKey votedKeyWithDirectoryId = ReplicaKey.of(votedId, votedDirectoryId);
+    private final ReplicaKey votedKeyWithoutDirectoryId = ReplicaKey.of(votedId, ReplicaKey.NO_DIRECTORY_ID);
 
-    private ProspectiveState newProspectiveState(VoterSet voters) {
+    private ProspectiveState newProspectiveState(
+        VoterSet voters,
+        OptionalInt leaderId,
+        Optional<ReplicaKey> votedKey
+    ) {
         return new ProspectiveState(
             time,
             localReplicaKey.id(),
             epoch,
-            OptionalInt.of(3),
-            Optional.empty(),
-            Optional.empty(),
+            leaderId,
+            leaderId.isPresent() ? Optional.of(leaderEndpoints) : Optional.empty(),
+            votedKey,
             voters,
             Optional.empty(),
             electionTimeoutMs,
@@ -67,13 +76,13 @@ public class ProspectiveStateTest {
         );
     }
 
-    private ProspectiveState newProspectiveStateWithLeaderEndpoints(VoterSet voters) {
+    private ProspectiveState newProspectiveState(VoterSet voters) {
         return new ProspectiveState(
             time,
             localReplicaKey.id(),
             epoch,
-            OptionalInt.of(3),
-            Optional.of(leaderEndpoints),
+            OptionalInt.empty(),
+            Optional.empty(),
             Optional.empty(),
             voters,
             Optional.empty(),
@@ -179,27 +188,23 @@ public class ProspectiveStateTest {
 
     @ParameterizedTest
     @ValueSource(booleans = { true, false })
-    public void testCannotChangeVoteGrantedToRejected(boolean withDirectoryId) {
-        int otherNodeId = 1;
+    public void testCanChangePreVote(boolean withDirectoryId) {
+        int voter1 = 1;
+        int voter2 = 2;
         ProspectiveState state = newProspectiveState(
-            voterSetWithLocal(IntStream.of(otherNodeId), withDirectoryId)
+            voterSetWithLocal(IntStream.of(voter1, voter2), withDirectoryId)
         );
-        assertTrue(state.recordGrantedVote(otherNodeId));
-        assertThrows(IllegalArgumentException.class, () -> state.recordRejectedVote(otherNodeId));
+        assertTrue(state.recordGrantedVote(voter1));
         assertTrue(state.isVoteGranted());
+        assertFalse(state.recordRejectedVote(voter1));
+        assertFalse(state.isVoteGranted());
+
+        assertTrue(state.recordRejectedVote(voter2));
+        assertTrue(state.isVoteRejected());
+        assertFalse(state.recordGrantedVote(voter2));
+        assertFalse(state.isVoteRejected());
     }
 
-    @ParameterizedTest
-    @ValueSource(booleans = { true, false })
-    public void testCannotChangeVoteRejectedToGranted(boolean withDirectoryId) {
-        int otherNodeId = 1;
-        ProspectiveState state = newProspectiveState(
-            voterSetWithLocal(IntStream.of(otherNodeId), withDirectoryId)
-        );
-        assertTrue(state.recordRejectedVote(otherNodeId));
-        assertThrows(IllegalArgumentException.class, () -> state.recordGrantedVote(otherNodeId));
-        assertTrue(state.isVoteRejected());
-    }
 
     @ParameterizedTest
     @ValueSource(booleans = { true, false })
@@ -238,21 +243,18 @@ public class ProspectiveStateTest {
         ReplicaKey node0 = replicaKey(0, withDirectoryId);
         ReplicaKey node1 = replicaKey(1, withDirectoryId);
         ReplicaKey node2 = replicaKey(2, withDirectoryId);
-        ReplicaKey node3 = replicaKey(3, withDirectoryId);
 
         ProspectiveState state = newProspectiveState(
-            voterSetWithLocal(Stream.of(node1, node2, node3), withDirectoryId)
+            voterSetWithLocal(Stream.of(node1, node2), withDirectoryId)
         );
 
         assertEquals(isLogUpToDate, state.canGrantPreVote(node0, isLogUpToDate));
         assertEquals(isLogUpToDate, state.canGrantPreVote(node1, isLogUpToDate));
         assertEquals(isLogUpToDate, state.canGrantPreVote(node2, isLogUpToDate));
-        assertEquals(isLogUpToDate, state.canGrantPreVote(node3, isLogUpToDate));
 
         assertEquals(isLogUpToDate, state.canGrantVote(node0, isLogUpToDate));
         assertEquals(isLogUpToDate, state.canGrantVote(node1, isLogUpToDate));
         assertEquals(isLogUpToDate, state.canGrantVote(node2, isLogUpToDate));
-        assertEquals(isLogUpToDate, state.canGrantVote(node3, isLogUpToDate));
     }
 
     @ParameterizedTest
@@ -261,30 +263,42 @@ public class ProspectiveStateTest {
         ReplicaKey node0 = replicaKey(0, withDirectoryId);
         ReplicaKey node1 = replicaKey(1, withDirectoryId);
         ReplicaKey node2 = replicaKey(2, withDirectoryId);
-        ReplicaKey node3 = replicaKey(3, withDirectoryId);
 
-        ProspectiveState state = new ProspectiveState(
-            time,
-            localReplicaKey.id(),
-            epoch,
+        ProspectiveState state = newProspectiveState(
+            voterSetWithLocal(Stream.of(node1, node2), withDirectoryId),
             OptionalInt.empty(),
-            Optional.empty(),
-            Optional.of(node1),
-            voterSetWithLocal(Stream.of(node1, node2, node3), withDirectoryId),
-            Optional.empty(),
-            electionTimeoutMs,
-            logContext
+            Optional.of(node1)
         );
 
         assertEquals(isLogUpToDate, state.canGrantPreVote(node0, isLogUpToDate));
         assertEquals(isLogUpToDate, state.canGrantPreVote(node1, isLogUpToDate));
         assertEquals(isLogUpToDate, state.canGrantPreVote(node2, isLogUpToDate));
-        assertEquals(isLogUpToDate, state.canGrantPreVote(node3, isLogUpToDate));
 
         assertFalse(state.canGrantVote(node0, isLogUpToDate));
         assertTrue(state.canGrantVote(node1, isLogUpToDate));
         assertFalse(state.canGrantVote(node2, isLogUpToDate));
-        assertFalse(state.canGrantVote(node3, isLogUpToDate));
+    }
+
+    @ParameterizedTest
+    @CsvSource({ "true,true", "true,false", "false,true", "false,false" })
+    public void testGrantVoteWithLeader(boolean isLogUpToDate, boolean withDirectoryId) {
+        ReplicaKey node0 = replicaKey(0, withDirectoryId);
+        ReplicaKey node1 = replicaKey(1, withDirectoryId);
+        ReplicaKey node2 = replicaKey(2, withDirectoryId);
+
+        ProspectiveState state = newProspectiveState(
+            voterSetWithLocal(Stream.of(node1, node2), withDirectoryId),
+            OptionalInt.of(node1.id()),
+            Optional.empty()
+        );
+
+        assertEquals(isLogUpToDate, state.canGrantPreVote(node0, isLogUpToDate));
+        assertEquals(isLogUpToDate, state.canGrantPreVote(node1, isLogUpToDate));
+        assertEquals(isLogUpToDate, state.canGrantPreVote(node2, isLogUpToDate));
+
+        assertEquals(isLogUpToDate, state.canGrantVote(node0, isLogUpToDate));
+        assertEquals(isLogUpToDate, state.canGrantVote(node1, isLogUpToDate));
+        assertEquals(isLogUpToDate, state.canGrantVote(node2, isLogUpToDate));
     }
 
     @ParameterizedTest
@@ -293,30 +307,142 @@ public class ProspectiveStateTest {
         VoterSet voters = voterSetWithLocal(IntStream.of(1, 2, 3), withDirectoryId);
         ProspectiveState state = newProspectiveState(voters);
         assertEquals(
+            ElectionState.withUnknownLeader(
+                epoch,
+                voters.voterIds()
+            ),
+            state.election()
+        );
+
+        // with leader
+        state = newProspectiveState(voters, OptionalInt.of(1), Optional.empty());
+        assertEquals(
+            ElectionState.withElectedLeader(
+                epoch,
+                1,
+                voters.voterIds()
+            ),
+            state.election()
+        );
+
+        // with voted key
+        ReplicaKey votedKey = replicaKey(1, withDirectoryId);
+        state = newProspectiveState(voters, OptionalInt.empty(), Optional.of(votedKey));
+        assertEquals(
             ElectionState.withVotedCandidate(
                 epoch,
-                localReplicaKey,
+                votedKey,
                 voters.voterIds()
             ),
             state.election()
         );
     }
 
+    @Test
+    public void testElectionTimeout() {
+        ProspectiveState state = newProspectiveState(
+            voterSetWithLocal(IntStream.empty(), true),
+            OptionalInt.empty(),
+            Optional.of(votedKeyWithDirectoryId)
+        );
+
+        assertEquals(epoch, state.epoch());
+        assertEquals(votedKeyWithDirectoryId, state.votedKey().get());
+        assertEquals(
+            ElectionState.withVotedCandidate(epoch, votedKeyWithDirectoryId, Collections.singleton(localId)),
+            state.election()
+        );
+        assertEquals(electionTimeoutMs, state.remainingElectionTimeMs(time.milliseconds()));
+        assertFalse(state.hasElectionTimeoutExpired(time.milliseconds()));
+
+        time.sleep(5000);
+        assertEquals(electionTimeoutMs - 5000, state.remainingElectionTimeMs(time.milliseconds()));
+        assertFalse(state.hasElectionTimeoutExpired(time.milliseconds()));
+
+        time.sleep(5000);
+        assertEquals(0, state.remainingElectionTimeMs(time.milliseconds()));
+        assertTrue(state.hasElectionTimeoutExpired(time.milliseconds()));
+    }
+
     @ParameterizedTest
     @ValueSource(booleans = {true, false})
-    public void testInvalidVoterSet(boolean withDirectoryId) {
-        assertThrows(
-            IllegalArgumentException.class,
-            () -> newProspectiveState(
-                VoterSetTest.voterSet(VoterSetTest.voterMap(IntStream.of(1, 2, 3), withDirectoryId))
-            )
+    public void testCanGrantVoteWithoutDirectoryId(boolean isLogUpToDate) {
+        ProspectiveState state = newProspectiveState(
+            voterSetWithLocal(IntStream.empty(), true),
+            OptionalInt.empty(),
+            Optional.of(votedKeyWithoutDirectoryId));
+
+        assertEquals(
+            isLogUpToDate,
+            state.canGrantPreVote(ReplicaKey.of(votedId, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate)
         );
+        assertTrue(state.canGrantVote(ReplicaKey.of(votedId, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate));
+
+        assertEquals(
+            isLogUpToDate,
+            state.canGrantPreVote(ReplicaKey.of(votedId, Uuid.randomUuid()), isLogUpToDate)
+        );
+        assertTrue(state.canGrantVote(ReplicaKey.of(votedId, Uuid.randomUuid()), isLogUpToDate));
+
+        // Can grant PreVote to other replicas even if we have granted a standard vote to another replica
+        assertEquals(
+            isLogUpToDate,
+            state.canGrantPreVote(ReplicaKey.of(votedId + 1, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate)
+        );
+        assertFalse(state.canGrantVote(ReplicaKey.of(votedId + 1, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate));
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void testCanGrantVoteWithDirectoryId(boolean isLogUpToDate) {
+        ProspectiveState state = newProspectiveState(
+            voterSetWithLocal(IntStream.empty(), true),
+            OptionalInt.empty(),
+            Optional.of(votedKeyWithDirectoryId));
+
+        // Same voterKey
+        // We will not grant PreVote for a replica we have already granted a standard vote to if their log is behind
+        assertEquals(
+            isLogUpToDate,
+            state.canGrantPreVote(votedKeyWithDirectoryId, isLogUpToDate)
+        );
+        assertTrue(state.canGrantVote(votedKeyWithDirectoryId, isLogUpToDate));
+
+        // Different directoryId
+        // We can grant PreVote for a replica we have already granted a standard vote to if their log is up-to-date,
+        // even if the directoryId is different
+        assertEquals(
+            isLogUpToDate,
+            state.canGrantPreVote(ReplicaKey.of(votedId, Uuid.randomUuid()), isLogUpToDate)
+        );
+        assertFalse(state.canGrantVote(ReplicaKey.of(votedId, Uuid.randomUuid()), isLogUpToDate));
+
+        // Missing directoryId
+        assertEquals(
+            isLogUpToDate,
+            state.canGrantPreVote(ReplicaKey.of(votedId, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate)
+        );
+        assertFalse(state.canGrantVote(ReplicaKey.of(votedId, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate));
+
+        // Different voterId
+        assertEquals(
+            isLogUpToDate,
+            state.canGrantPreVote(ReplicaKey.of(votedId + 1, votedDirectoryId), isLogUpToDate)
+        );
+        assertEquals(
+            isLogUpToDate,
+            state.canGrantPreVote(ReplicaKey.of(votedId + 1, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate)
+        );
+        assertFalse(state.canGrantVote(ReplicaKey.of(votedId + 1, votedDirectoryId), true));
+        assertFalse(state.canGrantVote(ReplicaKey.of(votedId + 1, ReplicaKey.NO_DIRECTORY_ID), true));
     }
 
     @Test
     public void testLeaderEndpoints() {
         ProspectiveState state = newProspectiveState(
-            voterSetWithLocal(IntStream.of(1, 2, 3), true)
+            voterSetWithLocal(IntStream.of(1, 2, 3), true),
+            OptionalInt.empty(),
+            Optional.of(ReplicaKey.of(1, Uuid.randomUuid()))
         );
 
         assertEquals(Endpoints.empty(), state.leaderEndpoints());

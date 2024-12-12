@@ -719,14 +719,6 @@ public final class KafkaRaftClient<T> implements RaftClient<T> {
         onBecomeProspective(currentTimeMs);
     }
 
-    private void transitionToVotingState(long currentTimeMs) {
-        if (partitionState.lastKraftVersion().isReconfigSupported()) {
-            transitionToProspective(currentTimeMs);
-        } else {
-            transitionToCandidate(currentTimeMs);
-        }
-    }
-
     private void transitionToUnattached(int epoch) {
         transitionToUnattached(epoch, OptionalInt.empty());
     }
@@ -3015,7 +3007,7 @@ public final class KafkaRaftClient<T> implements RaftClient<T> {
             stateTimeoutMs = shutdown.remainingTimeMs();
         } else if (state.hasElectionTimeoutExpired(currentTimeMs)) {
             if (quorum.isVoter()) {
-                transitionToVotingState(currentTimeMs);
+                transitionToProspective(currentTimeMs);
             } else {
                 // It is possible that the old leader is not a voter in the new voter set.
                 // In that case increase the epoch and transition to unattached. The epoch needs
@@ -3132,8 +3124,8 @@ public final class KafkaRaftClient<T> implements RaftClient<T> {
             return Math.min(shutdown.remainingTimeMs(), minRequestBackoffMs);
         } else if (state.isBackingOff()) {
             if (state.isBackoffComplete(currentTimeMs)) {
-                logger.info("Re-elect as candidate after election backoff has completed");
-                transitionToCandidate(currentTimeMs);
+                logger.info("Transition to prospective after election backoff has completed");
+                transitionToProspective(currentTimeMs);
                 return 0L;
             }
             return state.remainingBackoffMs(currentTimeMs);
@@ -3200,7 +3192,7 @@ public final class KafkaRaftClient<T> implements RaftClient<T> {
             backoffMs = 0;
         } else if (state.hasFetchTimeoutExpired(currentTimeMs)) {
             logger.info("Transitioning to VotingState (Prospective or Candidate) due to fetch timeout");
-            transitionToVotingState(currentTimeMs);
+            transitionToProspective(currentTimeMs);
             backoffMs = 0;
         } else if (state.hasUpdateVoterPeriodExpired(currentTimeMs)) {
             if (partitionState.lastKraftVersion().isReconfigSupported() &&
@@ -3302,7 +3294,7 @@ public final class KafkaRaftClient<T> implements RaftClient<T> {
             // shutdown completes or an epoch bump forces another state transition
             return shutdown.remainingTimeMs();
         } else if (state.hasElectionTimeoutExpired(currentTimeMs)) {
-            transitionToVotingState(currentTimeMs);
+            transitionToProspective(currentTimeMs);
             return 0L;
         } else {
             return state.remainingElectionTimeMs(currentTimeMs);

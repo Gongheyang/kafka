@@ -21,9 +21,11 @@ import org.apache.kafka.common.message.VoteResponseData;
 import org.apache.kafka.common.protocol.ApiKeys;
 import org.apache.kafka.common.protocol.Errors;
 import org.apache.kafka.common.record.MemoryRecords;
-
+import org.apache.kafka.raft.RaftClientTestContext.RaftProtocol;
+import org.apache.kafka.server.common.KRaftVersion;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import java.util.Arrays;
@@ -36,6 +38,7 @@ import java.util.stream.Stream;
 
 import static org.apache.kafka.raft.KafkaRaftClientTest.randomReplicaId;
 import static org.apache.kafka.raft.KafkaRaftClientTest.replicaKey;
+import static org.apache.kafka.raft.RaftClientTestContext.RaftProtocol.KIP_996_PROTOCOL;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -52,7 +55,7 @@ public class KafkaRaftClientPreVoteTest {
 
         RaftClientTestContext context = new RaftClientTestContext.Builder(localId, voters)
             .withElectedLeader(epoch, electedLeaderId)
-            .withKip853Rpc(true)
+            .withRaftProtocol(KIP_996_PROTOCOL)
             .build();
 
         if (hasFetchedFromLeader) {
@@ -92,6 +95,27 @@ public class KafkaRaftClientPreVoteTest {
     }
 
     @Test
+    public void testHandlePreVoteRequestAsFollowerWithVotedCandidate() throws Exception {
+        int localId = randomReplicaId();
+        int epoch = 2;
+        ReplicaKey otherNodeKey = replicaKey(localId + 1, true);
+        ReplicaKey votedCandidateKey = replicaKey(localId + 2, true);
+        Set<Integer> voters = Set.of(localId, otherNodeKey.id(), votedCandidateKey.id());
+
+        RaftClientTestContext context = new RaftClientTestContext.Builder(localId, voters)
+            .withVotedCandidate(epoch, votedCandidateKey)
+            .withRaftProtocol(KIP_996_PROTOCOL)
+            .build();
+
+        context.deliverRequest(context.preVoteRequest(epoch, otherNodeKey, epoch, 1));
+        context.pollUntilResponse();
+
+        // follower can grant pre-votes if it has not fetched successfully from leader yet
+        context.assertSentVoteResponse(Errors.NONE, epoch, OptionalInt.empty(), true);
+        context.assertVotedCandidate(epoch, votedCandidateKey.id());
+    }
+
+    @Test
     public void testHandlePreVoteRequestAsCandidate() throws Exception {
         int localId = randomReplicaId();
         ReplicaKey otherNodeKey = replicaKey(localId + 1, true);
@@ -101,7 +125,7 @@ public class KafkaRaftClientPreVoteTest {
 
         RaftClientTestContext context = new RaftClientTestContext.Builder(localId, voters)
             .withVotedCandidate(leaderEpoch, ReplicaKey.of(localId, ReplicaKey.NO_DIRECTORY_ID))
-            .withKip853Rpc(true)
+            .withRaftProtocol(KIP_996_PROTOCOL)
             .build();
         assertTrue(context.client.quorum().isCandidate());
 
@@ -140,7 +164,7 @@ public class KafkaRaftClientPreVoteTest {
 
         RaftClientTestContext context = new RaftClientTestContext.Builder(localId, voters)
             .withUnknownLeader(epoch)
-            .withKip853Rpc(true)
+            .withRaftProtocol(KIP_996_PROTOCOL)
             .build();
 
         context.deliverRequest(context.preVoteRequest(epoch, replica1, epoch, 1));
@@ -182,7 +206,7 @@ public class KafkaRaftClientPreVoteTest {
 
         RaftClientTestContext context = new RaftClientTestContext.Builder(localId, voters)
             .withVotedCandidate(epoch, replica2)
-            .withKip853Rpc(true)
+            .withRaftProtocol(KIP_996_PROTOCOL)
             .build();
 
         context.deliverRequest(context.preVoteRequest(epoch, replica1, epoch, 1));
@@ -225,7 +249,7 @@ public class KafkaRaftClientPreVoteTest {
 
         RaftClientTestContext context = new RaftClientTestContext.Builder(localId, voters)
             .withElectedLeader(epoch, leader.id())
-            .withKip853Rpc(true)
+            .withRaftProtocol(KIP_996_PROTOCOL)
             .build();
 
         context.deliverRequest(context.preVoteRequest(epoch, replica1, epoch, 1));
@@ -267,7 +291,7 @@ public class KafkaRaftClientPreVoteTest {
 
         RaftClientTestContext context = new RaftClientTestContext.Builder(localId, localKey.directoryId().get())
             .withElectedLeader(epoch, leader.id())
-            .withKip853Rpc(true)
+            .withRaftProtocol(KIP_996_PROTOCOL)
             .withBootstrapSnapshot(Optional.of(VoterSetTest.voterSet(Stream.of(localKey, leader, follower))))
             .build();
         context.assertElectedLeader(epoch, leader.id());
@@ -301,14 +325,14 @@ public class KafkaRaftClientPreVoteTest {
 
         RaftClientTestContext context = new RaftClientTestContext.Builder(localId, voters)
             .withUnknownLeader(epoch)
-            .withKip853Rpc(true)
+            .withRaftProtocol(KIP_996_PROTOCOL)
             .build();
 
         context.deliverRequest(context.preVoteRequest(epoch - 1, otherNodeKey, epoch - 1, 1));
         context.pollUntilResponse();
 
         context.assertSentVoteResponse(Errors.FENCED_LEADER_EPOCH, epoch, OptionalInt.empty(), false);
-        context.assertUnknownLeader(epoch);
+        context.assertUnknownLeaderAndNoVotedCandidate(epoch);
     }
 
     @Test
@@ -319,11 +343,11 @@ public class KafkaRaftClientPreVoteTest {
 
         RaftClientTestContext context = new RaftClientTestContext.Builder(localId, localKey.directoryId().get())
             .withUnknownLeader(2)
-            .withKip853Rpc(true)
+            .withRaftProtocol(KIP_996_PROTOCOL)
             .withBootstrapSnapshot(Optional.of(VoterSetTest.voterSet(Stream.of(localKey, otherNodeKey))))
             .build();
 
-        context.becomeLeader();
+        context.unattachedToLeader();
         int leaderEpoch = context.currentEpoch();
 
         context.deliverRequest(context.preVoteRequest(leaderEpoch, otherNodeKey, leaderEpoch, 1));
@@ -341,11 +365,11 @@ public class KafkaRaftClientPreVoteTest {
         ReplicaKey otherNodeKey = replicaKey(localId + 1, true);
 
         RaftClientTestContext context = new RaftClientTestContext.Builder(localId, localKey.directoryId().get())
-            .withKip853Rpc(true)
+            .withRaftProtocol(KIP_996_PROTOCOL)
             .withBootstrapSnapshot(Optional.of(VoterSetTest.voterSet(Stream.of(localKey, otherNodeKey))))
             .build();
 
-        context.becomeLeader();
+        context.unattachedToLeader();
         int epoch = context.currentEpoch();
 
         // valid cluster id is accepted
@@ -376,11 +400,11 @@ public class KafkaRaftClientPreVoteTest {
         ReplicaKey otherNodeKey = replicaKey(localId + 1, true);
 
         RaftClientTestContext context = new RaftClientTestContext.Builder(localId, localKey.directoryId().get())
-            .withKip853Rpc(true)
+            .withRaftProtocol(KIP_996_PROTOCOL)
             .withBootstrapSnapshot(Optional.of(VoterSetTest.voterSet(Stream.of(localKey, otherNodeKey))))
             .build();
 
-        context.becomeLeader();
+        context.unattachedToLeader();
         int epoch = context.currentEpoch();
 
         // invalid voter id is rejected
@@ -422,11 +446,11 @@ public class KafkaRaftClientPreVoteTest {
 
         RaftClientTestContext context = new RaftClientTestContext.Builder(localId, localKey.directoryId().get())
             .withUnknownLeader(4)
-            .withKip853Rpc(true)
+            .withRaftProtocol(KIP_996_PROTOCOL)
             .withBootstrapSnapshot(Optional.of(VoterSetTest.voterSet(Stream.of(localKey, otherNodeKey))))
             .build();
 
-        context.becomeLeader();
+        context.unattachedToLeader();
         int epoch = context.currentEpoch();
 
         ReplicaKey observerKey = replicaKey(localId + 2, true);
@@ -446,9 +470,9 @@ public class KafkaRaftClientPreVoteTest {
         Set<Integer> voters = Set.of(localId, otherNodeKey.id());
 
         RaftClientTestContext context = new RaftClientTestContext.Builder(localId, voters)
-            .withKip853Rpc(true)
+            .withRaftProtocol(KIP_996_PROTOCOL)
             .build();
-        context.becomeLeader();
+        context.unattachedToLeader();
         context.client.quorum().transitionToResigned(Collections.emptyList());
         assertTrue(context.client.quorum().isResigned());
 
@@ -466,7 +490,7 @@ public class KafkaRaftClientPreVoteTest {
     }
 
     @Test
-    public void testInvalidVoteRequest() throws Exception {
+    public void testInvalidPreVoteRequest() throws Exception {
         int localId = randomReplicaId();
         ReplicaKey otherNodeKey = replicaKey(localId + 1, true);
         int epoch = 5;
@@ -474,7 +498,7 @@ public class KafkaRaftClientPreVoteTest {
 
         RaftClientTestContext context = new RaftClientTestContext.Builder(localId, voters)
             .withElectedLeader(epoch, otherNodeKey.id())
-            .withKip853Rpc(true)
+            .withRaftProtocol(KIP_996_PROTOCOL)
             .build();
         assertEquals(epoch, context.currentEpoch());
         context.assertElectedLeader(epoch, otherNodeKey.id());
@@ -513,18 +537,26 @@ public class KafkaRaftClientPreVoteTest {
         context.assertElectedLeader(epoch, otherNodeKey.id());
     }
 
-    @Test
-    public void testFollowerGrantsPreVoteIfHasNotFetchedYet() throws Exception {
+    @ParameterizedTest
+    @EnumSource(value = KRaftVersion.class)
+    public void testFollowerGrantsPreVoteIfHasNotFetchedYet(KRaftVersion kraftVersion) throws Exception {
         int localId = randomReplicaId();
-        int epoch = 2;
+        ReplicaKey local = replicaKey(localId, true);
         ReplicaKey replica1 = replicaKey(localId + 1, true);
         ReplicaKey replica2 = replicaKey(localId + 2, true);
-        Set<Integer> voters = Set.of(replica1.id(), replica2.id());
+        int epoch = 2;
 
-        RaftClientTestContext context = new RaftClientTestContext.Builder(localId, voters)
+        RaftClientTestContext context = new RaftClientTestContext.Builder(
+            Optional.of(local),
+            Optional.of(VoterSetTest.voterSet(Stream.of(replica1, replica2))),
+            kraftVersion
+        )
             .withElectedLeader(epoch, replica1.id())
-            .withKip853Rpc(true)
+            .withRaftProtocol(KIP_996_PROTOCOL)
             .build();
+
+        context.assertElectedLeader(epoch, replica1.id());
+
         assertTrue(context.client.quorum().isFollower());
 
         // We will grant PreVotes before fetching successfully from the leader, it will NOT contain the leaderId
@@ -552,6 +584,7 @@ public class KafkaRaftClientPreVoteTest {
         assertTrue(context.client.quorum().isFollower());
     }
 
+<<<<<<< HEAD
     @Test
     public void testRejectPreVoteIfRemoteLogIsNotUpToDate() throws Exception {
         int localId = randomReplicaId();
@@ -583,21 +616,25 @@ public class KafkaRaftClientPreVoteTest {
         context.assertSentVoteResponse(Errors.NONE, epoch, OptionalInt.empty(), false);
     }
 
-    @Test
-    public void testPreVoteResponseIgnoredAfterBecomingFollower() throws Exception {
+    @ParameterizedTest
+    @EnumSource(value = KRaftVersion.class)
+    public void testPreVoteResponseIgnoredAfterBecomingFollower(KRaftVersion kraftVersion) throws Exception {
         int localId = randomReplicaId();
         ReplicaKey local = replicaKey(localId, true);
         ReplicaKey voter2 = replicaKey(localId + 1, true);
         ReplicaKey voter3 = replicaKey(localId + 2, true);
         int epoch = 5;
 
-        RaftClientTestContext context = new RaftClientTestContext.Builder(localId, local.directoryId().get())
+        RaftClientTestContext context = new RaftClientTestContext.Builder(
+            Optional.of(local),
+            Optional.of(VoterSetTest.voterSet(Stream.of(local, voter2, voter3))),
+            kraftVersion
+        )
             .withUnknownLeader(epoch)
-            .withKip853Rpc(true)
-            .withBootstrapSnapshot(Optional.of(VoterSetTest.voterSet(Stream.of(local, voter2, voter3))))
+            .withRaftProtocol(KIP_996_PROTOCOL)
             .build();
 
-        context.assertUnknownLeader(epoch);
+        context.assertUnknownLeaderAndNoVotedCandidate(epoch);
 
         // Sleep a little to ensure that we become a prospective
         context.time.sleep(context.electionTimeoutMs() * 2L);
@@ -632,74 +669,94 @@ public class KafkaRaftClientPreVoteTest {
         context.assertElectedLeader(epoch, voter3.id());
     }
 
-    @Test
-    public void testStaticQuorumDoesNotSendPreVoteRequest() throws Exception {
+    @ParameterizedTest
+    @EnumSource(value = KRaftVersion.class)
+    public void testPreVoteNotSupportedByRemote(KRaftVersion kraftVersion) throws Exception {
         int localId = randomReplicaId();
         ReplicaKey local = replicaKey(localId, true);
-        ReplicaKey voter2Bootstrap = replicaKey(localId + 1, true);
+        ReplicaKey voter2Key = replicaKey(localId + 1, true);
+        ReplicaKey voter3Key = replicaKey(localId + 2, true);
         int epoch = 5;
 
-        RaftClientTestContext context = new RaftClientTestContext.Builder(localId, local.directoryId().get())
+        RaftClientTestContext context = new RaftClientTestContext.Builder(
+            Optional.of(local),
+            Optional.of(VoterSetTest.voterSet(Stream.of(local, voter2Key, voter3Key))),
+            kraftVersion
+        )
             .withUnknownLeader(epoch)
-            .withStaticVoters(VoterSetTest.voterSet(Stream.of(local, voter2Bootstrap)))
+            .withRaftProtocol(KIP_996_PROTOCOL)
             .build();
 
-        context.assertUnknownLeader(epoch);
-
-        // Sleep a little to ensure that we transition to a Voting state
-        context.time.sleep(context.electionTimeoutMs() * 2L);
-        context.pollUntilRequest();
-
-        // We should transition to Candidate state
-        assertTrue(context.client.quorum().isCandidate());
-
-        // Candidate state should not send PreVote requests
-        List<RaftRequest.Outbound> voteRequests = context.collectVoteRequests(epoch + 1, 0, 0);
-        assertEquals(1, voteRequests.size());
-        context.assertVotedCandidate(epoch + 1, localId);
-    }
-
-    @Test
-    public void testPreVoteNotSupportedByRemote() throws Exception {
-        int localId = randomReplicaId();
-        ReplicaKey local = replicaKey(localId, true);
-        Uuid localDirectoryId = local.directoryId().orElse(Uuid.randomUuid());
-        int voter2 = localId + 1;
-        ReplicaKey voter2Key = replicaKey(voter2, true);
-        int epoch = 5;
-
-        RaftClientTestContext context = new RaftClientTestContext.Builder(localId, localDirectoryId)
-            .withUnknownLeader(epoch)
-            .withBootstrapSnapshot(Optional.of(VoterSetTest.voterSet(Stream.of(local, voter2Key))))
-            .build();
-
-        context.assertUnknownLeader(epoch);
+        context.assertUnknownLeaderAndNoVotedCandidate(epoch);
 
         // Sleep a little to ensure that we transition to Prospective
         context.time.sleep(context.electionTimeoutMs() * 2L);
         context.pollUntilRequest();
-
+        assertEquals(epoch, context.currentEpoch());
         assertTrue(context.client.quorum().isProspective());
 
-        // Simulate remote node not supporting PreVote with UNSUPPORTED_VERSION response.
-        // Note: with the mocked network client this is a bit different, in reality this response would be generated
-        // from the network client and not sent from the remote node.
-        List<RaftRequest.Outbound> voteRequests = context.collectVoteRequests(epoch, 0, 0);
-        assertEquals(1, voteRequests.size());
+        // Simulate one remote node not supporting PreVote with UNSUPPORTED_VERSION response.
+        // Note: with the mocked network client we simulate this is a bit differently, in reality this response would
+        // be generated from the network client and not sent from the remote node.
+        List<RaftRequest.Outbound> voteRequests = context.collectPreVoteRequests(epoch, 0, 0);
+        assertEquals(2, voteRequests.size());
         context.deliverResponse(
             voteRequests.get(0).correlationId(),
             voteRequests.get(0).destination(),
             RaftUtil.errorResponse(ApiKeys.VOTE, Errors.UNSUPPORTED_VERSION)
         );
-        context.client.poll();
 
         // Local should transition to Candidate since it realizes remote node does not support PreVote.
+        context.client.poll();
         assertEquals(epoch + 1, context.currentEpoch());
+        context.client.quorum().isCandidate();
+
+        // Any further PreVote requests should be ignored
+        context.deliverResponse(
+            voteRequests.get(1).correlationId(),
+            voteRequests.get(1).destination(),
+            context.voteResponse(true, OptionalInt.empty(), epoch)
+        );
+        context.client.poll();
+        assertEquals(epoch + 1, context.currentEpoch());
+        context.client.quorum().isCandidate();
+
+        // Sleep to transition back to Prospective
+        context.time.sleep(context.client.quorum().candidateStateOrThrow().remainingElectionTimeMs(context.time.milliseconds()));
+        context.client.poll();
+        context.time.sleep(context.client.quorum().candidateStateOrThrow().remainingBackoffMs(context.time.milliseconds()));
+        context.collectVoteRequests(epoch + 1, 0, 0);
+        context.client.poll();
+        assertEquals(epoch + 1, context.currentEpoch());
+        assertTrue(context.client.quorum().isProspective());
+
+        // Simulate receiving enough valid PreVote responses for election to succeed
+        context.pollUntilRequest();
+        voteRequests = context.collectPreVoteRequests(epoch + 1, 0, 0);
+        assertEquals(2, voteRequests.size());
+        context.deliverResponse(
+            voteRequests.get(0).correlationId(),
+            voteRequests.get(0).destination(),
+            context.voteResponse(true, OptionalInt.empty(), epoch + 1)
+        );
+        context.client.poll();
+        assertEquals(epoch + 2, context.currentEpoch());
+        context.client.quorum().isCandidate();
+
+        // Any further PreVote requests should be ignored
+        context.deliverResponse(
+            voteRequests.get(1).correlationId(),
+            voteRequests.get(1).destination(),
+            RaftUtil.errorResponse(ApiKeys.VOTE, Errors.UNSUPPORTED_VERSION)
+        );
+        context.client.poll();
+        assertEquals(epoch + 2, context.currentEpoch());
         context.client.quorum().isCandidate();
     }
 
-    @Test
-    public void testProspectiveReceivesBeginQuorumRequest() throws Exception {
+    @ParameterizedTest
+    @EnumSource(value = RaftProtocol.class)
+    public void testProspectiveReceivesBeginQuorumRequest(RaftProtocol raftProtocol) throws Exception {
         int localId = randomReplicaId();
         ReplicaKey local = replicaKey(localId, true);
         ReplicaKey leader = replicaKey(localId + 1, true);
@@ -707,11 +764,11 @@ public class KafkaRaftClientPreVoteTest {
 
         RaftClientTestContext context = new RaftClientTestContext.Builder(localId, local.directoryId().get())
             .withUnknownLeader(epoch)
-            .withKip853Rpc(true)
+            .withRaftProtocol(raftProtocol)
             .withBootstrapSnapshot(Optional.of(VoterSetTest.voterSet(Stream.of(local, leader))))
             .build();
 
-        context.assertUnknownLeader(epoch);
+        context.assertUnknownLeaderAndNoVotedCandidate(epoch);
 
         // Sleep a little to ensure that we transition to Prospective
         context.time.sleep(context.electionTimeoutMs() * 2L);
@@ -735,10 +792,10 @@ public class KafkaRaftClientPreVoteTest {
 
         RaftClientTestContext context = new RaftClientTestContext.Builder(localId, local.directoryId().get())
             .withUnknownLeader(epoch)
-            .withKip853Rpc(true)
+            .withRaftProtocol(KIP_996_PROTOCOL)
             .withBootstrapSnapshot(Optional.of(VoterSetTest.voterSet(Stream.of(local, otherNode))))
             .build();
-        context.assertUnknownLeader(epoch);
+        context.assertUnknownLeaderAndNoVotedCandidate(epoch);
 
         // Sleep a little to ensure that we transition to Prospective
         context.time.sleep(context.electionTimeoutMs() * 2L);
@@ -766,10 +823,97 @@ public class KafkaRaftClientPreVoteTest {
         // transition
         context.client.poll();
         assertTrue(context.client.quorum().isUnattached());
+
+        // After election times out again, we will transition back to Prospective and continue sending PreVote requests
+        context.time.sleep(context.electionTimeoutMs() * 2L);
+        context.pollUntilRequest();
+        voteRequest = context.assertSentVoteRequest(epoch, 0, 0L, 1);
+
+        // If we receive vote response with different leaderId but empty leader endpoint, we will transition to
+        // unattached with leader immediately
+        context.deliverResponse(
+            voteRequest.correlationId(),
+            voteRequest.destination(),
+            context.voteResponse(false, OptionalInt.of(localId + 2), epoch + 1));
+        context.client.poll();
+        assertTrue(context.client.quorum().isUnattached());
+        assertEquals(epoch + 1, context.currentEpoch());
+        context.assertElectedLeader(epoch + 1, localId + 2);
     }
 
     @Test
-    public void testPreVoteResponseIncludesLeaderId() throws Exception {
+    public void testProspectiveWithLeaderTransitionsToFollower() throws Exception {
+        int localId = randomReplicaId();
+        ReplicaKey local = replicaKey(localId, true);
+        ReplicaKey replica1 = replicaKey(localId + 1, true);
+        ReplicaKey replica2 = replicaKey(localId + 2, true);
+        int epoch = 5;
+
+        RaftClientTestContext context = new RaftClientTestContext.Builder(localId, local.directoryId().get())
+            .withElectedLeader(epoch, replica1.id())
+            .withRaftProtocol(KIP_996_PROTOCOL)
+            .withBootstrapSnapshot(Optional.of(VoterSetTest.voterSet(Stream.of(local, replica1, replica2))))
+            .build();
+        context.assertElectedLeader(epoch, replica1.id());
+        assertTrue(context.client.quorum().isFollower());
+
+        // Sleep a little to ensure that we transition to Prospective
+        context.time.sleep(context.fetchTimeoutMs);
+        context.pollUntilRequest();
+        assertTrue(context.client.quorum().isProspective());
+        context.assertSentVoteRequest(epoch, 0, 0L, 2);
+
+        // If election timeout expires, we should transition back to Follower if we haven't found new leader yet
+        context.time.sleep(context.electionTimeoutMs() * 2L);
+        context.pollUntilRequest();
+        context.assertSentFetchRequest();
+        assertTrue(context.client.quorum().isFollower());
+        context.assertElectedLeader(epoch, replica1.id());
+
+        // After election times out again, we will transition back to Prospective and continue sending PreVote requests
+        context.time.sleep(context.fetchTimeoutMs);
+        context.pollUntilRequest();
+        List<RaftRequest.Outbound> voteRequests = context.collectVoteRequests(epoch, 0, 0);
+        assertEquals(2, voteRequests.size());
+        assertTrue(context.client.quorum().isProspective());
+        context.assertElectedLeader(epoch, replica1.id());
+
+        // If we receive enough rejected votes without leaderId, we also transition to Follower immediately
+        context.deliverResponse(
+            voteRequests.get(0).correlationId(),
+            voteRequests.get(0).destination(),
+            context.voteResponse(false, OptionalInt.empty(), epoch));
+        context.deliverResponse(
+            voteRequests.get(1).correlationId(),
+            voteRequests.get(1).destination(),
+            context.voteResponse(false, OptionalInt.empty(), epoch));
+        // handle vote response and mark we should transition out of prospective
+        context.client.poll();
+        // transition
+        context.pollUntilRequest();
+        assertTrue(context.client.quorum().isFollower());
+        context.assertSentFetchRequest();
+
+        // After election times out again, we will transition back to Prospective and continue sending PreVote requests
+        context.time.sleep(context.fetchTimeoutMs);
+        context.pollUntilRequest();
+        voteRequests = context.collectVoteRequests(epoch, 0, 0);
+        assertEquals(2, voteRequests.size());
+        assertTrue(context.client.quorum().isProspective());
+        context.assertElectedLeader(epoch, replica1.id());
+
+        // If we receive vote response with different leaderId, we will transition to follower immediately
+        context.deliverResponse(
+            voteRequests.get(0).correlationId(),
+            voteRequests.get(0).destination(),
+            context.voteResponse(false, OptionalInt.of(replica2.id()), epoch + 1));
+        context.client.poll();
+        assertTrue(context.client.quorum().isFollower());
+        context.assertElectedLeader(epoch + 1, replica2.id());
+    }
+
+    @Test
+    public void testProspectiveWithoutLeaderTransitionsToFollower() throws Exception {
         ReplicaKey local = replicaKey(randomReplicaId(), true);
         ReplicaKey leader = replicaKey(local.id() + 1, true);
         ReplicaKey follower = replicaKey(local.id() + 2, true);
@@ -778,12 +922,12 @@ public class KafkaRaftClientPreVoteTest {
         VoterSet voters = VoterSetTest.voterSet(Stream.of(local, leader, follower));
 
         RaftClientTestContext context = new RaftClientTestContext.Builder(local.id(), local.directoryId().get())
-            .withKip853Rpc(true)
+            .withRaftProtocol(KIP_996_PROTOCOL)
             .withBootstrapSnapshot(Optional.of(voters))
             .withUnknownLeader(epoch)
             .build();
 
-        context.assertUnknownLeader(epoch);
+        context.assertUnknownLeaderAndNoVotedCandidate(epoch);
 
         // Sleep a little to ensure that we transition to Prospective
         context.time.sleep(context.electionTimeoutMs() * 2L);
@@ -794,7 +938,7 @@ public class KafkaRaftClientPreVoteTest {
         List<RaftRequest.Outbound> voteRequests = context.collectVoteRequests(epoch, 0, 0);
         assertEquals(2, voteRequests.size());
 
-        // Simulate PreVote response with granted=false and a leaderId
+        // Simulate PreVote response with granted=true and a leaderId
         VoteResponseData voteResponse1 = context.voteResponse(true, OptionalInt.of(leader.id()), epoch);
         context.deliverResponse(
             voteRequests.get(0).correlationId(),

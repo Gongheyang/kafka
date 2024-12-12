@@ -13,7 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 {
-  "name": "StructMessage",
+  "name": "NullableStructMessage",
   "type": "header",
   "validVersions": "0-2",
   "flexibleVersions": "1+",
@@ -36,12 +36,6 @@
     ]},
     { "name": "NullableStruct4", "type": "MyStruct4", "versions": "1+", "nullableVersions": "1+",
       "tag": 1, "taggedVersions": "1+",
-      "fields": [
-        { "name": "MyString", "type": "string", "versions": "1+" },
-        { "name": "MyInt", "type": "int32", "versions": "1+" }
-    ]},
-    { "name": "NonNullableStruct", "type": "MyStruct5", "versions": "1+",
-      "tag": 2, "taggedVersions": "1+",
       "fields": [
         { "name": "MyString", "type": "string", "versions": "1+" },
         { "name": "MyInt", "type": "int32", "versions": "1+" }

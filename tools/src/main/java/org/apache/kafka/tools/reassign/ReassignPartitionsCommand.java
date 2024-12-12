@@ -1100,10 +1100,10 @@ public class ReassignPartitionsCommand {
         topicNames.forEach(topicName -> {
             List<AlterConfigOp> ops = new ArrayList<>();
             if (leaderThrottles.containsKey(topicName)) {
-                ops.add(new AlterConfigOp(new ConfigEntry(QuotaConfig.LEADER_REPLICATION_THROTTLED_REPLICAS_CONFIG, leaderThrottles.get(topicName)), AlterConfigOp.OpType.SET));
+                ops.add(new AlterConfigOp(new ConfigEntry(QuotaConfig.LEADER_REPLICATION_THROTTLED_REPLICAS_CONFIG, leaderThrottles.get(topicName)), AlterConfigOp.OpType.APPEND));
             }
             if (followerThrottles.containsKey(topicName)) {
-                ops.add(new AlterConfigOp(new ConfigEntry(QuotaConfig.FOLLOWER_REPLICATION_THROTTLED_REPLICAS_CONFIG, followerThrottles.get(topicName)), AlterConfigOp.OpType.SET));
+                ops.add(new AlterConfigOp(new ConfigEntry(QuotaConfig.FOLLOWER_REPLICATION_THROTTLED_REPLICAS_CONFIG, followerThrottles.get(topicName)), AlterConfigOp.OpType.APPEND));
             }
             if (!ops.isEmpty()) {
                 configs.put(new ConfigResource(ConfigResource.Type.TOPIC, topicName), ops);
@@ -1119,10 +1119,80 @@ public class ReassignPartitionsCommand {
     ) throws ExecutionException, InterruptedException {
         Map<String, String> leaderThrottles = calculateLeaderThrottles(moveMap);
         Map<String, String> followerThrottles = calculateFollowerThrottles(moveMap);
-        modifyTopicThrottles(admin, leaderThrottles, followerThrottles);
+
+        // the throttles values might be too long to be serializable as Type.NULLABLE_STRING,
+        // so check if each map needs to be split in multiple maps
+        List<Map<String, String>> leaderThrottlesList = splitMapWithCSV(leaderThrottles, Short.MAX_VALUE / 5);
+        List<Map<String, String>> followerThrottlesList = splitMapWithCSV(followerThrottles, Short.MAX_VALUE / 5);
+        for (int l = 0, f = 0; l < leaderThrottlesList.size() || f < followerThrottlesList.size(); l++, f++) {
+            final Map<String, String> lt = (l < leaderThrottlesList.size()) ? leaderThrottlesList.get(l) : Collections.emptyMap();
+            final Map<String, String> ft = (f < followerThrottlesList.size()) ? followerThrottlesList.get(f) : Collections.emptyMap();
+            modifyTopicThrottles(admin, lt, ft);
+        }
 
         Set<Integer> reassigningBrokers = calculateReassigningBrokers(moveMap);
         modifyInterBrokerThrottle(admin, reassigningBrokers, interBrokerThrottle);
+    }
+
+    /**
+     * Convert the map into a list of maps with shorter CSV values.
+     *
+     * The map values are expected to be strings of comma-separated tokens, e.g.
+     * "440:3,440:5,441:3,441:4,442:4,442:5" representing leader.replication.throttled.replicas
+     * (or follower).
+     * If any map values are longer than the given limit, split the input map
+     * in multiple maps so that, for each key,
+     * the concatenated values (with comma separation) equal the value in the input map.
+     *
+     * @param map       a map with CSV string value
+     * @param limit     max allowed length of each CSV
+     * @return          a collection of maps where the concatenated CSVs equal the input CSV per each key
+     */
+    static List<Map<String, String>> splitMapWithCSV(Map<String, String> map, int limit) {
+        // shortcut if maps value are all short
+        List<Integer> valuesSizes = map.values().stream().map(s -> s.length()).collect(Collectors.toList());
+        if (Collections.max(valuesSizes) <= limit) {
+            return Collections.singletonList(map);
+        }
+
+        List<Map<String, String>> mapList = new ArrayList<>();
+        for (Map.Entry<String, String> e : map.entrySet()) {
+            String k = e.getKey();
+            String v = e.getValue();
+            List<String> vList = splitCSV(v, limit);
+            for (int i = 0; i < vList.size(); i++) {
+                if (mapList.size() < i + 1) {
+                    mapList.add(new HashMap<>());
+                }
+                mapList.get(i).put(k, vList.get(i));
+            }
+        }
+        return mapList;
+    }
+
+    /**
+     * Convert the input CSV string into a list of shorter CSVs.
+     *
+     * @param   csv a string of comma-separated tokens
+     * @param   limit max allowed length of each returned string
+     * @throws  IllegalArgumentException if a single token in the CSV is longer than the given limit,
+     * @return  a list of CSVs that concatenated equal the input CSV
+     */
+    static List<String> splitCSV(String csv, int limit) {
+        if (csv.length() <= limit) {
+            return Collections.singletonList(csv);
+        }
+        List<String> result = new ArrayList<>();
+        while (csv.length() > limit) {
+            int idx = csv.lastIndexOf(",", limit);
+            if (idx == -1) {
+                throw new IllegalArgumentException(String.format("CSV %s cannot be divided with limit %d", csv, limit));
+            }
+            result.add(csv.substring(0, idx));
+            csv = csv.substring(idx + 1);
+        }
+        result.add(csv);
+        return result;
     }
 
     /**

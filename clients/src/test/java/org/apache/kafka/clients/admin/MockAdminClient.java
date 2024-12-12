@@ -937,6 +937,16 @@ public class MockAdminClient extends AdminClient {
                         case DELETE:
                             newMap.remove(op.configEntry().name());
                             break;
+                        case APPEND:
+                            // should check if entry is splittable but prefer to keep this simple
+                            newMap.compute(op.configEntry().name(), (k, v) -> {
+                                if (v != null) {
+                                    return v + "," + op.configEntry().value();
+                                } else {
+                                    return op.configEntry().value();
+                                }
+                            });
+                            break;
                         default:
                             return new InvalidRequestException(
                                 "Unsupported op type " + op.opType());

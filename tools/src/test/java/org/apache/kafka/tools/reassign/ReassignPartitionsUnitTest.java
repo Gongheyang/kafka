@@ -765,4 +765,53 @@ public class ReassignPartitionsUnitTest {
                 assertThrows(AdminOperationException.class, () -> executeAssignment(adminClient, false, "{invalid_json", -1L, -1L, 10000L, Time.SYSTEM)).getMessage());
         }
     }
+
+    @Test
+    public void testSplitCSV() {
+        assertEquals(List.of("1234567890"),
+                ReassignPartitionsCommand.splitCSV("1234567890", 10));
+
+        String s = "1234567890,123456789,1234567,1234";
+        assertThrows(IllegalArgumentException.class, () ->
+                ReassignPartitionsCommand.splitCSV(s, 9));
+
+        assertEquals(List.of("1234567890", "123456789", "1234567", "1234"),
+                ReassignPartitionsCommand.splitCSV(s, 10));
+
+        assertEquals(List.of("1234567890", "123456789", "1234567", "1234"),
+                ReassignPartitionsCommand.splitCSV(s, 11));
+
+        assertEquals(List.of("1234567890,123456789", "1234567,1234"),
+                ReassignPartitionsCommand.splitCSV(s, 20));
+
+        assertEquals(List.of(s), ReassignPartitionsCommand.splitCSV(s, 40));
+    }
+
+    @Test
+    public void testSplitMapWithCSV() {
+        Map<String, String> m = new HashMap<>();
+        m.put("k1", "1234567890,123456789,1234567,1234");
+        m.put("k2", "1234567890,123456789");
+        m.put("k3", "1234567890");
+        List<Map<String, String>> result = ReassignPartitionsCommand.splitMapWithCSV(m, 10);
+
+        List<Map<String, String>> expected = new ArrayList<>();
+        Map<String, String> m1 = new HashMap<>();
+        m1.put("k1", "1234567890");
+        m1.put("k2", "1234567890");
+        m1.put("k3", "1234567890");
+        expected.add(m1);
+        Map<String, String> m2 = new HashMap<>();
+        m2.put("k1", "123456789");
+        m2.put("k2", "123456789");
+        expected.add(m2);
+        Map<String, String> m3 = new HashMap<>();
+        m3.put("k1", "1234567");
+        expected.add(m3);
+        Map<String, String> m4 = new HashMap<>();
+        m4.put("k1", "1234");
+        expected.add(m4);
+
+        assertEquals(expected, result);
+    }
 }

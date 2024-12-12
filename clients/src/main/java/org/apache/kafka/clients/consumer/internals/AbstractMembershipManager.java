@@ -1176,7 +1176,22 @@ public abstract class AbstractMembershipManager<R extends AbstractResponse> impl
         // Invoke user call back.
         CompletableFuture<Void> result = signalPartitionsAssigned(addedPartitions);
         // Enable newly added partitions to start fetching and updating positions for them.
-        result.whenComplete((__, exception) -> subscriptions.enablePartitionsAwaitingCallback(addedPartitions));
+        result.whenComplete((__, exception) -> {
+            if (exception == null) {
+                // Enable assigned partitions to start fetching and updating positions for them.
+                subscriptions.enablePartitionsAwaitingCallback(
+                        assignedPartitions.stream().map(TopicIdPartition::topicPartition).collect(Collectors.toSet()));
+            } else {
+                // Keeping newly added partitions as non-fetchable after the callback failure.
+                // They will be retried on the next reconciliation loop, until it succeeds or the
+                // broker removes them from the assignment.
+                if (!addedPartitions.isEmpty()) {
+                    log.warn("Leaving newly assigned partitions {} marked as non-fetchable and not " +
+                                    "requiring initializing positions after onPartitionsAssigned callback failed.",
+                            addedPartitions, exception);
+                }
+            }
+        });
 
         // Clear topic names cache, removing topics that are not assigned to the member anymore.
         Set<String> assignedTopics = assignedPartitions.stream().map(TopicIdPartition::topic).collect(Collectors.toSet());

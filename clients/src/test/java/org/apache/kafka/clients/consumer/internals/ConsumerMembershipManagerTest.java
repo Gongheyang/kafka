@@ -1893,11 +1893,11 @@ public class ConsumerMembershipManagerTest {
             true
         );
 
-        verify(subscriptionState).enablePartitionsAwaitingCallback(addedPartitions);
+        verify(subscriptionState).enablePartitionsAwaitingCallback(assignedPartitions);
     }
 
     @Test
-    public void testAddedPartitionsEnabledAfterFailedOnPartitionsAssignedCallback() {
+    public void testAddedPartitionsNotEnabledAfterFailedOnPartitionsAssignedCallback() {
         ConsumerMembershipManager membershipManager = createMembershipManagerJoiningGroup();
         String topicName = "topic1";
         ConsumerRebalanceListenerInvoker invoker = consumerRebalanceListenerInvoker();
@@ -1924,7 +1924,7 @@ public class ConsumerMembershipManagerTest {
             addedPartitions,
             true
         );
-        verify(subscriptionState).enablePartitionsAwaitingCallback(addedPartitions);
+        verify(subscriptionState, never()).enablePartitionsAwaitingCallback(any());
     }
 
     @Test

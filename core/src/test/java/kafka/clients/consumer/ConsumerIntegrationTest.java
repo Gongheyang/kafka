@@ -23,6 +23,7 @@ import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.consumer.internals.AbstractHeartbeatRequestManager;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.UnsupportedVersionException;
 import org.apache.kafka.common.serialization.ByteArraySerializer;
@@ -41,6 +42,8 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 @ExtendWith(ClusterTestExtensions.class)
 public class ConsumerIntegrationTest {
@@ -123,6 +126,63 @@ public class ConsumerIntegrationTest {
             TestUtils.waitForCondition(() -> consumer.poll(Duration.ofSeconds(1)).count() == 1,
                     5000,
                     "failed to poll data");
+        }
+    }
+
+    @ClusterTest(serverProperties = {
+        @ClusterConfigProperty(key = "offsets.topic.num.partitions", value = "1"),
+        @ClusterConfigProperty(key = "offsets.topic.replication.factor", value = "1"),
+    })
+    public void testFetchPartitionsWithAlwaysFailedListenerWithGroupProtocolClassic(ClusterInstance clusterInstance)
+            throws InterruptedException {
+        testFetchPartitionsWithAlwaysFailedListener(clusterInstance, GroupProtocol.CLASSIC);
+    }
+
+    @ClusterTest(serverProperties = {
+        @ClusterConfigProperty(key = "offsets.topic.num.partitions", value = "1"),
+        @ClusterConfigProperty(key = "offsets.topic.replication.factor", value = "1"),
+    })
+    public void testFetchPartitionsWithAlwaysFailedListenerWithGroupProtocolConsumer(ClusterInstance clusterInstance)
+            throws InterruptedException {
+        testFetchPartitionsWithAlwaysFailedListener(clusterInstance, GroupProtocol.CONSUMER);
+    }
+
+    private static void testFetchPartitionsWithAlwaysFailedListener(ClusterInstance clusterInstance, GroupProtocol groupProtocol)
+            throws InterruptedException {
+        var topic = "topic";
+        try (var producer = clusterInstance.producer(Map.of(
+                ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, ByteArraySerializer.class,
+                ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, ByteArraySerializer.class))) {
+            producer.send(new ProducerRecord<>(topic, "key".getBytes(), "value".getBytes()));
+        }
+
+        try (var consumer = clusterInstance.consumer(Map.of(
+                ConsumerConfig.GROUP_PROTOCOL_CONFIG, groupProtocol.name()))) {
+            consumer.subscribe(List.of(topic), new ConsumerRebalanceListener() {
+                @Override
+                public void onPartitionsRevoked(Collection<TopicPartition> partitions) {
+                }
+
+                @Override
+                public void onPartitionsAssigned(Collection<TopicPartition> partitions) {
+                    throw new IllegalArgumentException("always failed");
+                }
+            });
+
+            long startTimeMillis = System.currentTimeMillis();
+            long currentTimeMillis = System.currentTimeMillis();
+            while (currentTimeMillis < startTimeMillis + 3000) {
+                currentTimeMillis = System.currentTimeMillis();
+                try {
+                    // In the async consumer, there is a possibility that the ConsumerRebalanceListenerCallbackCompletedEvent
+                    // has not yet reached the application thread. And a poll operation might still succeed, but it
+                    // should not return any records since none of the assigned topic partitions are marked as fetchable.
+                    assertEquals(0, consumer.poll(Duration.ofSeconds(1)).count());
+                } catch (KafkaException ex) {
+                    assertEquals("User rebalance callback throws an error", ex.getMessage());
+                }
+                Thread.sleep(300);
+            }
         }
     }
 }

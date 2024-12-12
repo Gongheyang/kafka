@@ -383,6 +383,78 @@ public class PersisterStateBatchCombinerTest {
         );
     }
 
+    private static Stream<BatchTestHolder> generatorPruneOnlyCases() {
+        return Stream.of(
+            new BatchTestHolder(
+                "Current batch prunable and no new batches.",
+                BatchTestHolder.multiBatch()
+                    .addBatch(100, 130, 0, 1)
+                    .addBatch(115, 130, 0, 1)
+                    .build(),
+                Collections.emptyList(),
+                BatchTestHolder.multiBatch()            // No merging
+                    .addBatch(120, 130, 0, 1)
+                    .addBatch(120, 130, 0, 1)
+                    .build(),
+                120
+            ),
+
+            new BatchTestHolder(
+                "Current batch empty and new batch prunable.",
+                Collections.emptyList(),
+                BatchTestHolder.multiBatch()
+                    .addBatch(100, 130, 0, 1)
+                    .addBatch(115, 130, 0, 1)
+                    .build(),
+                BatchTestHolder.multiBatch()            // No merging
+                    .addBatch(120, 130, 0, 1)
+                    .addBatch(120, 130, 0, 1)
+                    .build(),
+                120
+            ),
+
+            new BatchTestHolder(
+                "None of the batches prunable.",
+                BatchTestHolder.singleBatch(100, 130, 0, 1),
+                BatchTestHolder.singleBatch(112, 130, 0, 1),
+                BatchTestHolder.multiBatch()
+                    .addBatch(100, 130, 0, 1)
+                    .addBatch(112, 130, 0, 1)
+                    .build(),
+                99
+            ),
+
+            new BatchTestHolder(
+                "Both current and new batches prunable.",
+                BatchTestHolder.singleBatch(100, 130, 0, 1),
+                BatchTestHolder.singleBatch(120, 135, 0, 1),
+                BatchTestHolder.multiBatch()
+                    .addBatch(125, 130, 0, 1)
+                    .addBatch(125, 135, 0, 1)
+                    .build(),
+                125
+            ),
+
+            new BatchTestHolder(
+                "Some batches in both current and new batches prunable.",
+                BatchTestHolder.multiBatch()
+                    .addBatch(110, 120, 0, 1)
+                    .addBatch(125, 135, 0, 1)
+                    .build(),
+                BatchTestHolder.multiBatch()
+                    .addBatch(115, 118, 0, 1)
+                    .addBatch(128, 130, 0, 1)
+                    .build(),
+                BatchTestHolder.multiBatch()
+                    .addBatch(120, 120, 0, 1)  // Partial prune
+                    .addBatch(125, 135, 0, 1)
+                    .addBatch(128, 130, 0, 1)
+                    .build(),
+                120
+            )
+        );
+    }
+
     @ParameterizedTest
     @MethodSource("generatorDifferentStates")
     public void testStateBatchCombineDifferentStates(BatchTestHolder test) {
@@ -392,7 +464,7 @@ public class PersisterStateBatchCombinerTest {
                     test.batchesSoFar,
                     test.newBatches,
                     test.startOffset)
-                    .combineStateBatches(),
+                    .combineStateBatches(false),
                 test.testName
             );
         }
@@ -407,7 +479,7 @@ public class PersisterStateBatchCombinerTest {
                     test.batchesSoFar,
                     test.newBatches,
                     test.startOffset)
-                    .combineStateBatches(),
+                    .combineStateBatches(false),
                 test.testName
             );
         }
@@ -422,7 +494,7 @@ public class PersisterStateBatchCombinerTest {
                     test.batchesSoFar,
                     test.newBatches,
                     test.startOffset)
-                    .combineStateBatches(),
+                    .combineStateBatches(false),
                 test.testName
             );
         }
@@ -437,7 +509,22 @@ public class PersisterStateBatchCombinerTest {
                     test.batchesSoFar,
                     test.newBatches,
                     test.startOffset)
-                    .combineStateBatches(),
+                    .combineStateBatches(false),
+                test.testName
+            );
+        }
+    }
+
+    @ParameterizedTest
+    @MethodSource("generatorPruneOnlyCases")
+    public void testStateBatchCombinePruneOnlyCases(BatchTestHolder test) {
+        if (test.shouldRun) {
+            assertEquals(test.expectedResult,
+                new PersisterStateBatchCombiner(
+                    test.batchesSoFar,
+                    test.newBatches,
+                    test.startOffset)
+                    .combineStateBatches(true),
                 test.testName
             );
         }

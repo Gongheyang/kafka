@@ -315,9 +315,14 @@ class ShareCoordinatorShardTest {
         assertEquals(incrementalUpdate.snapshotEpoch(), combinedState.snapshotEpoch());
         assertEquals(incrementalUpdate.leaderEpoch(), combinedState.leaderEpoch());
         assertEquals(incrementalUpdate.startOffset(), combinedState.startOffset());
-        // The batches should have combined to 1 since same state.
-        assertEquals(Collections.singletonList(new PersisterStateBatch(0, 20, (byte) 0, (short) 1)),
-            combinedState.stateBatches());
+        // The batches should only be pruned, based on start offset. Not combined.
+        assertEquals(
+            List.of(
+                new PersisterStateBatch(0, 10, (byte) 0, (short) 1),
+                new PersisterStateBatch(11, 20, (byte) 0, (short) 1)
+            ),
+            combinedState.stateBatches()
+        );
         assertEquals(0, shard.getLeaderMapValue(shareCoordinatorKey));
     }
 

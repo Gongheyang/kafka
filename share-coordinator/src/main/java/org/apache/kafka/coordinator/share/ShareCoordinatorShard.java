@@ -335,15 +335,19 @@ public class ShareCoordinatorShard implements CoordinatorShard<CoordinatorRecord
         } else {
             // Leader epoch update might be needed
             ShareGroupOffset offsetValue = shareStateMap.get(key);
-            List<ReadShareGroupStateResponseData.StateBatch> stateBatches = (offsetValue.stateBatches() != null && !offsetValue.stateBatches().isEmpty()) ?
-                offsetValue.stateBatches().stream()
+            List<ReadShareGroupStateResponseData.StateBatch> stateBatches = Collections.emptyList();
+            if (offsetValue.stateBatches() != null && !offsetValue.stateBatches().isEmpty()) {
+                stateBatches = new PersisterStateBatchCombiner(Collections.emptyList(), offsetValue.stateBatches(), offsetValue.startOffset())
+                    // Reads are infrequent compared to writes, lets merge deeply (combine overlapping).
+                    .combineStateBatches(false).stream()
                     .map(
                         stateBatch -> new ReadShareGroupStateResponseData.StateBatch()
                             .setFirstOffset(stateBatch.firstOffset())
                             .setLastOffset(stateBatch.lastOffset())
                             .setDeliveryState(stateBatch.deliveryState())
                             .setDeliveryCount(stateBatch.deliveryCount())
-                    ).collect(Collectors.toList()) : Collections.emptyList();
+                    ).toList();
+            }
 
             responseData = ReadShareGroupStateResponse.toResponseData(
                 topicId,
@@ -403,7 +407,7 @@ public class ShareCoordinatorShard implements CoordinatorShard<CoordinatorRecord
                     .setStartOffset(partitionData.startOffset())
                     .setLeaderEpoch(partitionData.leaderEpoch())
                     .setStateEpoch(partitionData.stateEpoch())
-                    .setStateBatches(mergeBatches(Collections.emptyList(), partitionData))
+                    .setStateBatches(mergeBatches(Collections.emptyList(), partitionData, true))
                     .build());
         } else if (snapshotUpdateCount.getOrDefault(key, 0) >= config.shareCoordinatorSnapshotUpdateRecordsPerSnapshot()) {
             ShareGroupOffset currentState = shareStateMap.get(key); // shareStateMap will have the entry as containsKey is true
@@ -421,7 +425,8 @@ public class ShareCoordinatorShard implements CoordinatorShard<CoordinatorRecord
                     .setStartOffset(newStartOffset)
                     .setLeaderEpoch(newLeaderEpoch)
                     .setStateEpoch(newStateEpoch)
-                    .setStateBatches(mergeBatches(currentState.stateBatches(), partitionData, newStartOffset))
+                    // Snapshots are infrequent - lets merge deeply (combine, remove overlapping).
+                    .setStateBatches(mergeBatches(currentState.stateBatches(), partitionData, newStartOffset, false))
                     .build());
         } else {
             ShareGroupOffset currentState = shareStateMap.get(key); // shareStateMap will have the entry as containsKey is true.
@@ -435,21 +440,24 @@ public class ShareCoordinatorShard implements CoordinatorShard<CoordinatorRecord
                     .setSnapshotEpoch(currentState.snapshotEpoch()) // Use same snapshotEpoch as last share snapshot.
                     .setStartOffset(partitionData.startOffset())
                     .setLeaderEpoch(partitionData.leaderEpoch())
-                    .setStateBatches(mergeBatches(Collections.emptyList(), partitionData))
+                    // Updates are frequent, lets merge with pruning only.
+                    .setStateBatches(mergeBatches(Collections.emptyList(), partitionData, true))
                     .build());
         }
     }
 
     private List<PersisterStateBatch> mergeBatches(
         List<PersisterStateBatch> soFar,
-        WriteShareGroupStateRequestData.PartitionData partitionData) {
-        return mergeBatches(soFar, partitionData, partitionData.startOffset());
+        WriteShareGroupStateRequestData.PartitionData partitionData,
+        boolean pruneOnly) {
+        return mergeBatches(soFar, partitionData, partitionData.startOffset(), pruneOnly);
     }
 
     private List<PersisterStateBatch> mergeBatches(
         List<PersisterStateBatch> soFar,
         WriteShareGroupStateRequestData.PartitionData partitionData,
-        long startOffset) {
+        long startOffset,
+        boolean pruneOnly) {
         return new PersisterStateBatchCombiner(
             soFar,
             partitionData.stateBatches().stream()
@@ -457,7 +465,7 @@ public class ShareCoordinatorShard implements CoordinatorShard<CoordinatorRecord
                 .collect(Collectors.toList()),
             startOffset
         )
-            .combineStateBatches();
+            .combineStateBatches(pruneOnly);
     }
 
     private Optional<CoordinatorResult<WriteShareGroupStateResponseData, CoordinatorRecord>> maybeGetWriteStateError(
@@ -585,8 +593,9 @@ public class ShareCoordinatorShard implements CoordinatorShard<CoordinatorRecord
             .setLeaderEpoch(newLeaderEpoch)
             .setStateBatches(new PersisterStateBatchCombiner(currentBatches, newData.stateBatches().stream()
                 .map(ShareCoordinatorShard::toPersisterStateBatch)
-                .collect(Collectors.toList()), newStartOffset)
-                .combineStateBatches())
+                .toList(), newStartOffset)
+                // merge is called at every share update replay, it is frequent so let merge with prune only.
+                .combineStateBatches(true))
             .build();
     }
 

@@ -86,8 +86,11 @@ public class PersisterStateBatchCombiner {
      *
      * @return list of {@link PersisterStateBatch} representing non-overlapping combined batches
      */
-    public List<PersisterStateBatch> combineStateBatches() {
+    public List<PersisterStateBatch> combineStateBatches(boolean pruneOnly) {
         pruneBatches();
+        if (pruneOnly) {
+            return combinedBatchList;
+        }
         mergeBatches();
         return finalBatchList;
     }

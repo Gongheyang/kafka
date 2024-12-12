@@ -29,7 +29,7 @@ import java.util.stream.Collectors;
  * Encapsulate election state stored on disk after every state change.
  */
 public final class ElectionState {
-    static final int UNKNOWN_LEADER_ID = -1;
+    private static final int UNKNOWN_LEADER_ID = -1;
     private static final int NOT_VOTED = -1;
 
     private final int epoch;

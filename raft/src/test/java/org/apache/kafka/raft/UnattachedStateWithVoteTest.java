@@ -110,7 +110,7 @@ class UnattachedStateWithVoteTest {
         UnattachedState state = newUnattachedVotedState(votedDirectoryId);
 
         // Same voterKey
-        // We will not grant PreVote for a replica we have already granted a standard vote to if their log is behind
+        // We can reject PreVote for a replica we have already granted a standard vote to if their log is behind
         assertEquals(
             isLogUpToDate,
             state.canGrantPreVote(ReplicaKey.of(votedId, votedDirectoryId), isLogUpToDate)

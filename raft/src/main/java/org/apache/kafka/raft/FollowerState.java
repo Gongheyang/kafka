@@ -40,7 +40,7 @@ public class FollowerState implements EpochState {
     /* Used to track if we have fetched from the leader at least once since the transition to follower in this epoch.
      * If we have not yet fetched from the leader, we may grant PreVotes.
      */
-    private boolean hasFetchedFromLeader;
+    private boolean hasFetchedSuccessfullyFromLeader;
     private Optional<LogOffsetMetadata> highWatermark;
     /* Used to track the currently fetching snapshot. When fetching snapshot regular
      * Fetch request are paused
@@ -70,7 +70,7 @@ public class FollowerState implements EpochState {
         this.updateVoterPeriodTimer = time.timer(updateVoterPeriodMs());
         this.highWatermark = highWatermark;
         this.log = logContext.logger(FollowerState.class);
-        this.hasFetchedFromLeader = false;
+        this.hasFetchedSuccessfullyFromLeader = false;
     }
 
     @Override
@@ -126,7 +126,7 @@ public class FollowerState implements EpochState {
     public void resetFetchTimeoutForSuccessfulFetch(long currentTimeMs) {
         fetchTimer.update(currentTimeMs);
         fetchTimer.reset(fetchTimeoutMs);
-        hasFetchedFromLeader = true;
+        hasFetchedSuccessfullyFromLeader = true;
     }
 
     public void overrideFetchTimeout(long currentTimeMs, long timeoutMs) {
@@ -220,7 +220,7 @@ public class FollowerState implements EpochState {
 
     @Override
     public boolean canGrantPreVote(ReplicaKey replicaKey, boolean isLogUpToDate) {
-        boolean granting = !hasFetchedFromLeader && isLogUpToDate;
+        boolean granting = !hasFetchedSuccessfullyFromLeader && isLogUpToDate;
         if (!granting) {
             log.debug(
                 "Rejecting PreVote request from replica ({}) either because we have already fetched from leader {} " +
@@ -229,7 +229,7 @@ public class FollowerState implements EpochState {
                 replicaKey,
                 leaderId,
                 epoch,
-                hasFetchedFromLeader,
+                hasFetchedSuccessfullyFromLeader,
                 isLogUpToDate
             );
         }

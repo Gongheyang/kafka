@@ -47,7 +47,7 @@
             { "name": "LastOffsetEpoch", "type": "int32", "versions": "0+",
               "about": "The epoch of the last record written to the metadata log."},
             { "name": "LastOffset", "type": "int64", "versions": "0+",
-              "about": "The offset of the last record written to the metadata log."},
+              "about": "The log end offset of the metadata log of the voter sending the request."},
             { "name": "PreVote", "type": "bool", "versions": "2+",
               "about": "Whether the request is a PreVote request (not persisted) or not."}
           ]

@@ -163,6 +163,8 @@ public abstract class AbstractHeartbeatRequestManager<R extends AbstractResponse
     public NetworkClientDelegate.PollResult poll(long currentTimeMs) {
         if (coordinatorRequestManager.coordinator().isEmpty() || membershipManager().shouldSkipHeartbeat()) {
             membershipManager().onHeartbeatRequestSkipped();
+            coordinatorRequestManager.getAndClearFatalError()
+                    .ifPresent(throwable -> backgroundEventHandler.add(new ErrorEvent(throwable)));
             return NetworkClientDelegate.PollResult.EMPTY;
         }
         pollTimer.update(currentTimeMs);

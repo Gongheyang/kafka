@@ -130,6 +130,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
@@ -546,7 +547,7 @@ public class RemoteLogManager implements Closeable {
         }
     }
 
-    private void deleteRemoteLogPartition(TopicIdPartition partition) throws RemoteStorageException, ExecutionException, InterruptedException {
+    private void deleteRemoteLogPartition(TopicIdPartition partition) throws RemoteStorageException, ExecutionException, InterruptedException, TimeoutException {
         List<RemoteLogSegmentMetadata> metadataList = new ArrayList<>();
         remoteLogMetadataManager.listRemoteLogSegments(partition).forEachRemaining(metadataList::add);
 
@@ -555,7 +556,7 @@ public class RemoteLogManager implements Closeable {
                         new RemoteLogSegmentMetadataUpdate(metadata.remoteLogSegmentId(), time.milliseconds(),
                                 metadata.customMetadata(), RemoteLogSegmentState.DELETE_SEGMENT_STARTED, brokerId))
                 .collect(Collectors.toList());
-        publishEvents(deleteSegmentStartedEvents).get();
+        publishEvents(deleteSegmentStartedEvents).get(1000, TimeUnit.MILLISECONDS);
 
         // KAFKA-15313: Delete remote log segments partition asynchronously when a partition is deleted.
         Collection<Uuid> deletedSegmentIds = new ArrayList<>();
@@ -570,7 +571,7 @@ public class RemoteLogManager implements Closeable {
                         new RemoteLogSegmentMetadataUpdate(metadata.remoteLogSegmentId(), time.milliseconds(),
                                 metadata.customMetadata(), RemoteLogSegmentState.DELETE_SEGMENT_FINISHED, brokerId))
                 .collect(Collectors.toList());
-        publishEvents(deleteSegmentFinishedEvents).get();
+        publishEvents(deleteSegmentFinishedEvents).get(1000, TimeUnit.MILLISECONDS);
     }
 
     private CompletableFuture<Void> publishEvents(List<RemoteLogSegmentMetadataUpdate> events) throws RemoteStorageException {
@@ -821,7 +822,7 @@ public class RemoteLogManager implements Closeable {
             }
         }
 
-        protected abstract void execute(UnifiedLog log) throws InterruptedException, RemoteStorageException, ExecutionException;
+        protected abstract void execute(UnifiedLog log) throws InterruptedException, RemoteStorageException, ExecutionException, TimeoutException;
 
         public String toString() {
             return this.getClass() + "[" + topicIdPartition + "]";
@@ -985,8 +986,8 @@ public class RemoteLogManager implements Closeable {
         }
 
         private void copyLogSegment(UnifiedLog log, LogSegment segment, RemoteLogSegmentId segmentId, long nextSegmentBaseOffset)
-                throws InterruptedException, ExecutionException, RemoteStorageException, IOException,
-                CustomMetadataSizeLimitExceededException {
+            throws InterruptedException, ExecutionException, RemoteStorageException, IOException,
+            CustomMetadataSizeLimitExceededException, TimeoutException {
             File logFile = segment.log().file();
             String logFileName = logFile.getName();
 
@@ -1004,7 +1005,7 @@ public class RemoteLogManager implements Closeable {
                     segment.largestTimestamp(), brokerId, time.milliseconds(), segment.log().sizeInBytes(),
                     segmentLeaderEpochs, isTxnIdxEmpty);
 
-            remoteLogMetadataManager.addRemoteLogSegmentMetadata(copySegmentStartedRlsm).get();
+            remoteLogMetadataManager.addRemoteLogSegmentMetadata(copySegmentStartedRlsm).get(1000, TimeUnit.MILLISECONDS);
 
             ByteBuffer leaderEpochsIndex = epochEntriesAsByteBuffer(getLeaderEpochEntries(log, -1, nextSegmentBaseOffset));
             LogSegmentData segmentData = new LogSegmentData(logFile.toPath(), toPathIfExists(segment.offsetIndex().file()),
@@ -1051,7 +1052,7 @@ public class RemoteLogManager implements Closeable {
                 }
             }
 
-            remoteLogMetadataManager.updateRemoteLogSegmentMetadata(copySegmentFinishedRlsm).get();
+            remoteLogMetadataManager.updateRemoteLogSegmentMetadata(copySegmentFinishedRlsm).get(1000, TimeUnit.MILLISECONDS);
             brokerTopicStats.topicStats(log.topicPartition().topic())
                 .remoteCopyBytesRate().mark(copySegmentStartedRlsm.segmentSizeInBytes());
             brokerTopicStats.allTopicsStats().remoteCopyBytesRate().mark(copySegmentStartedRlsm.segmentSizeInBytes());
@@ -1102,7 +1103,7 @@ public class RemoteLogManager implements Closeable {
         }
 
         @Override
-        protected void execute(UnifiedLog log) throws InterruptedException, RemoteStorageException, ExecutionException {
+        protected void execute(UnifiedLog log) throws InterruptedException, RemoteStorageException, ExecutionException, TimeoutException {
             cleanupExpiredRemoteLogSegments();
         }
 
@@ -1191,7 +1192,7 @@ public class RemoteLogManager implements Closeable {
             // unreferenced because they are not part of the current leader epoch lineage.
             private boolean deleteLogSegmentsDueToLeaderEpochCacheTruncation(EpochEntry earliestEpochEntry,
                                                                              RemoteLogSegmentMetadata metadata)
-                    throws RemoteStorageException, ExecutionException, InterruptedException {
+                throws RemoteStorageException, ExecutionException, InterruptedException, TimeoutException {
                 boolean isSegmentDeleted = deleteRemoteLogSegment(metadata, 
                     ignored -> metadata.segmentLeaderEpochs().keySet().stream().allMatch(epoch -> epoch < earliestEpochEntry.epoch));
                 if (isSegmentDeleted) {
@@ -1219,7 +1220,7 @@ public class RemoteLogManager implements Closeable {
         }
 
         /** Cleanup expired and dangling remote log segments. */
-        void cleanupExpiredRemoteLogSegments() throws RemoteStorageException, ExecutionException, InterruptedException {
+        void cleanupExpiredRemoteLogSegments() throws RemoteStorageException, ExecutionException, InterruptedException, TimeoutException {
             if (isCancelled()) {
                 logger.info("Returning from remote log segments cleanup as the task state is changed");
                 return;
@@ -1470,7 +1471,7 @@ public class RemoteLogManager implements Closeable {
     private boolean deleteRemoteLogSegment(
         RemoteLogSegmentMetadata segmentMetadata,
         Predicate<RemoteLogSegmentMetadata> predicate
-    ) throws RemoteStorageException, ExecutionException, InterruptedException {
+    ) throws RemoteStorageException, ExecutionException, InterruptedException, TimeoutException {
         if (predicate.test(segmentMetadata)) {
             LOGGER.debug("Deleting remote log segment {}", segmentMetadata.remoteLogSegmentId());
             String topic = segmentMetadata.topicIdPartition().topic();
@@ -1478,7 +1479,7 @@ public class RemoteLogManager implements Closeable {
             // Publish delete segment started event.
             remoteLogMetadataManager.updateRemoteLogSegmentMetadata(
                 new RemoteLogSegmentMetadataUpdate(segmentMetadata.remoteLogSegmentId(), time.milliseconds(),
-                    segmentMetadata.customMetadata(), RemoteLogSegmentState.DELETE_SEGMENT_STARTED, brokerId)).get();
+                    segmentMetadata.customMetadata(), RemoteLogSegmentState.DELETE_SEGMENT_STARTED, brokerId)).get(1000, TimeUnit.MILLISECONDS);
 
             brokerTopicStats.topicStats(topic).remoteDeleteRequestRate().mark();
             brokerTopicStats.allTopicsStats().remoteDeleteRequestRate().mark();
@@ -1495,7 +1496,7 @@ public class RemoteLogManager implements Closeable {
             // Publish delete segment finished event.
             remoteLogMetadataManager.updateRemoteLogSegmentMetadata(
                 new RemoteLogSegmentMetadataUpdate(segmentMetadata.remoteLogSegmentId(), time.milliseconds(),
-                    segmentMetadata.customMetadata(), RemoteLogSegmentState.DELETE_SEGMENT_FINISHED, brokerId)).get();
+                    segmentMetadata.customMetadata(), RemoteLogSegmentState.DELETE_SEGMENT_FINISHED, brokerId)).get(1000, TimeUnit.MILLISECONDS);
             LOGGER.debug("Deleted remote log segment {}", segmentMetadata.remoteLogSegmentId());
             return true;
         }

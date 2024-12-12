@@ -126,6 +126,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
@@ -156,6 +157,7 @@ import static org.apache.kafka.test.TestUtils.tempFile;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -2174,6 +2176,36 @@ public class RemoteLogManagerTest {
         verify(remoteLogMetadataManager, times(16)).updateRemoteLogSegmentMetadata(any());
     }
 
+    @Test
+    public void testStopPartitionsWithDeletionTimeout() throws RemoteStorageException {
+        remoteLogManager.startup();
+        Map<TopicPartition, Throwable> errors = new HashMap<>();
+        BiConsumer<TopicPartition, Throwable> errorHandler = errors::put;
+        Set<StopPartition> partitions = new HashSet<>();
+        partitions.add(new StopPartition(leaderTopicIdPartition.topicPartition(), true, true, true));
+        partitions.add(new StopPartition(followerTopicIdPartition.topicPartition(), true, true, true));
+
+        when(remoteLogMetadataManager.listRemoteLogSegments(eq(leaderTopicIdPartition)))
+            .thenReturn(listRemoteLogSegmentMetadata(leaderTopicIdPartition, 5, 100, 1024, RemoteLogSegmentState.DELETE_SEGMENT_FINISHED).iterator());
+        when(remoteLogMetadataManager.listRemoteLogSegments(eq(followerTopicIdPartition)))
+            .thenReturn(listRemoteLogSegmentMetadata(followerTopicIdPartition, 3, 100, 1024, RemoteLogSegmentState.DELETE_SEGMENT_FINISHED).iterator());
+        CompletableFuture<Void> dummyFuture = new CompletableFuture<>();
+        when(remoteLogMetadataManager.updateRemoteLogSegmentMetadata(any()))
+            .thenReturn(dummyFuture);
+
+        remoteLogManager.onLeadershipChange(Collections.singleton(mockPartition(leaderTopicIdPartition)),
+            Collections.singleton(mockPartition(followerTopicIdPartition)), topicIds);
+        assertNotNull(remoteLogManager.leaderCopyTask(leaderTopicIdPartition));
+        assertNotNull(remoteLogManager.leaderExpirationTask(leaderTopicIdPartition));
+        assertNotNull(remoteLogManager.followerTask(followerTopicIdPartition));
+
+        remoteLogManager.stopPartitions(partitions, errorHandler);
+        time.sleep(1000); // sleep 1000ms to trigger CompletableFuture#get timeout
+        assertEquals(2, errors.size());
+        assertInstanceOf(TimeoutException.class, errors.get(leaderTopicIdPartition.topicPartition()));
+        assertInstanceOf(TimeoutException.class, errors.get(followerTopicIdPartition.topicPartition()));
+    }
+
     /**
      * This test asserts that the newly elected leader for a partition is able to find the log-start-offset.
      * Note that the case tested here is that the previous leader deleted the log segments up-to offset 500. And, the
@@ -2280,7 +2312,7 @@ public class RemoteLogManagerTest {
     }
 
     @Test
-    public void testDeletionSkippedForSegmentsBeingCopied() throws RemoteStorageException, IOException, InterruptedException, ExecutionException {
+    public void testDeletionSkippedForSegmentsBeingCopied() throws RemoteStorageException, IOException, InterruptedException, ExecutionException, TimeoutException {
         RemoteLogMetadataManager remoteLogMetadataManager = new NoOpRemoteLogMetadataManager() {
             List<RemoteLogSegmentMetadata> metadataList = new ArrayList<>();
 
@@ -2422,7 +2454,7 @@ public class RemoteLogManagerTest {
                 copySegmentDataLatch.await();
                 expirationTask.cleanupExpiredRemoteLogSegments();
                 copyLogSegmentLatch.countDown();
-            } catch (RemoteStorageException | ExecutionException | InterruptedException e) {
+            } catch (RemoteStorageException | ExecutionException | InterruptedException | TimeoutException e) {
                 throw new RuntimeException(e);
             }
         });
@@ -2446,7 +2478,7 @@ public class RemoteLogManagerTest {
     @CsvSource(value = {"0, -1", "-1, 0"})
     public void testDeletionOnRetentionBreachedSegments(long retentionSize,
                                                         long retentionMs)
-            throws RemoteStorageException, ExecutionException, InterruptedException {
+        throws RemoteStorageException, ExecutionException, InterruptedException, TimeoutException {
         Map<String, Long> logProps = new HashMap<>();
         logProps.put("retention.bytes", retentionSize);
         logProps.put("retention.ms", retentionMs);
@@ -2498,7 +2530,7 @@ public class RemoteLogManagerTest {
     @CsvSource(value = {"0, -1", "-1, 0"})
     public void testDeletionOnOverlappingRetentionBreachedSegments(long retentionSize,
                                                                    long retentionMs)
-            throws RemoteStorageException, ExecutionException, InterruptedException {
+        throws RemoteStorageException, ExecutionException, InterruptedException, TimeoutException {
         Map<String, Long> logProps = new HashMap<>();
         logProps.put("retention.bytes", retentionSize);
         logProps.put("retention.ms", retentionMs);
@@ -2566,7 +2598,7 @@ public class RemoteLogManagerTest {
     @CsvSource(value = {"0, -1", "-1, 0"})
     public void testRemoteDeleteLagsOnRetentionBreachedSegments(long retentionSize,
                                                                 long retentionMs)
-            throws RemoteStorageException, ExecutionException, InterruptedException {
+        throws RemoteStorageException, ExecutionException, InterruptedException, TimeoutException {
         Map<String, Long> logProps = new HashMap<>();
         logProps.put("retention.bytes", retentionSize);
         logProps.put("retention.ms", retentionMs);
@@ -2611,7 +2643,7 @@ public class RemoteLogManagerTest {
 
     @Test
     public void testRemoteLogSizeRetentionShouldFilterOutCopySegmentStartState()
-            throws RemoteStorageException, ExecutionException, InterruptedException {
+        throws RemoteStorageException, ExecutionException, InterruptedException, TimeoutException {
         int segmentSize = 1024;
         Map<String, Long> logProps = new HashMap<>();
         // set the retention.bytes to 10 segment size
@@ -2700,7 +2732,7 @@ public class RemoteLogManagerTest {
     }
 
     @Test
-    public void testDeleteRetentionMsBeingCancelledBeforeSecondDelete() throws RemoteStorageException, ExecutionException, InterruptedException {
+    public void testDeleteRetentionMsBeingCancelledBeforeSecondDelete() throws RemoteStorageException, ExecutionException, InterruptedException, TimeoutException {
         RemoteLogManager.RLMExpirationTask leaderTask = remoteLogManager.new RLMExpirationTask(leaderTopicIdPartition);
 
         when(mockLog.topicPartition()).thenReturn(leaderTopicIdPartition.topicPartition());
@@ -2797,7 +2829,7 @@ public class RemoteLogManagerTest {
     @ParameterizedTest(name = "testFailedDeleteExpiredSegments retentionSize={0} retentionMs={1}")
     @CsvSource(value = {"0, -1", "-1, 0"})
     public void testFailedDeleteExpiredSegments(long retentionSize,
-                                                long retentionMs) throws RemoteStorageException, ExecutionException, InterruptedException {
+                                                long retentionMs) throws RemoteStorageException, ExecutionException, InterruptedException, TimeoutException {
         Map<String, Long> logProps = new HashMap<>();
         logProps.put("retention.bytes", retentionSize);
         logProps.put("retention.ms", retentionMs);
@@ -2853,7 +2885,7 @@ public class RemoteLogManagerTest {
     @CsvSource(value = {"50, 0", "50, 1", "50, 23", "50, 50"})
     public void testDeleteLogSegmentDueToRetentionSizeBreach(int segmentCount,
                                                              int deletableSegmentCount)
-            throws RemoteStorageException, ExecutionException, InterruptedException {
+        throws RemoteStorageException, ExecutionException, InterruptedException, TimeoutException {
         int recordsPerSegment = 100;
         int segmentSize = 1024;
         List<EpochEntry> epochEntries = Arrays.asList(
@@ -2891,7 +2923,7 @@ public class RemoteLogManagerTest {
     @CsvSource(value = {"50, 0", "50, 1", "50, 23", "50, 50"})
     public void testDeleteLogSegmentDueToRetentionTimeBreach(int segmentCount,
                                                              int deletableSegmentCount)
-            throws RemoteStorageException, ExecutionException, InterruptedException {
+        throws RemoteStorageException, ExecutionException, InterruptedException, TimeoutException {
         int recordsPerSegment = 100;
         int segmentSize = 1024;
         List<EpochEntry> epochEntries = Arrays.asList(
@@ -2943,7 +2975,7 @@ public class RemoteLogManagerTest {
     private void verifyDeleteLogSegment(List<RemoteLogSegmentMetadata> segmentMetadataList,
                                         int deletableSegmentCount,
                                         int currentLeaderEpoch)
-            throws RemoteStorageException, ExecutionException, InterruptedException {
+        throws RemoteStorageException, ExecutionException, InterruptedException, TimeoutException {
         when(remoteLogMetadataManager.listRemoteLogSegments(leaderTopicIdPartition))
                 .thenReturn(segmentMetadataList.iterator());
         when(remoteLogMetadataManager.listRemoteLogSegments(eq(leaderTopicIdPartition), anyInt()))
@@ -3017,7 +3049,7 @@ public class RemoteLogManagerTest {
 
             verifyNoMoreInteractions(remoteStorageManager);
             assertEquals(0L, logStartOffset.get());
-        } catch (ExecutionException | InterruptedException e) {
+        } catch (ExecutionException | InterruptedException | TimeoutException e) {
             throw new RuntimeException(e);
         }
     }

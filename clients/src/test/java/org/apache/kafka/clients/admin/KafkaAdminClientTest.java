@@ -321,6 +321,7 @@ import static org.mockito.Mockito.when;
  */
 @Timeout(120)
 public class KafkaAdminClientTest {
+
     private static final Logger log = LoggerFactory.getLogger(KafkaAdminClientTest.class);
     private static final String GROUP_ID = "group-0";
     private static final int THROTTLE = 10;
@@ -5025,18 +5026,19 @@ public class KafkaAdminClientTest {
             final DescribeStreamsGroupsResult result = env.adminClient().describeStreamsGroups(singletonList(GROUP_ID));
             final StreamsGroupDescription groupDescription = result.describedGroups().get(GROUP_ID).get();
 
+            final String subtopologyId = "my_subtopology";
             StreamsGroupMemberAssignment.TaskIds expectedActiveTasks1 =
-                new StreamsGroupMemberAssignment.TaskIds("my_subtopology", asList(0, 1, 2));
+                new StreamsGroupMemberAssignment.TaskIds(subtopologyId, asList(0, 1, 2));
             StreamsGroupMemberAssignment.TaskIds expectedStandbyTasks1 =
-                new StreamsGroupMemberAssignment.TaskIds("my_subtopology", asList(3, 4, 5));
+                new StreamsGroupMemberAssignment.TaskIds(subtopologyId, asList(3, 4, 5));
             StreamsGroupMemberAssignment.TaskIds expectedWarmupTasks1 =
-                new StreamsGroupMemberAssignment.TaskIds("my_subtopology", asList(6, 7, 8));
+                new StreamsGroupMemberAssignment.TaskIds(subtopologyId, asList(6, 7, 8));
             StreamsGroupMemberAssignment.TaskIds expectedActiveTasks2 =
-                new StreamsGroupMemberAssignment.TaskIds("my_subtopology", asList(3, 4, 5));
+                new StreamsGroupMemberAssignment.TaskIds(subtopologyId, asList(3, 4, 5));
             StreamsGroupMemberAssignment.TaskIds expectedStandbyTasks2 =
-                new StreamsGroupMemberAssignment.TaskIds("my_subtopology", asList(6, 7, 8));
+                new StreamsGroupMemberAssignment.TaskIds(subtopologyId, asList(6, 7, 8));
             StreamsGroupMemberAssignment.TaskIds expectedWarmupTasks2 =
-                new StreamsGroupMemberAssignment.TaskIds("my_subtopology", asList(0, 1, 2));
+                new StreamsGroupMemberAssignment.TaskIds(subtopologyId, asList(0, 1, 2));
             StreamsGroupMemberAssignment expectedMemberAssignment = new StreamsGroupMemberAssignment(
                 singletonList(expectedActiveTasks1),
                 singletonList(expectedStandbyTasks1),
@@ -5047,19 +5049,21 @@ public class KafkaAdminClientTest {
                 singletonList(expectedStandbyTasks2),
                 singletonList(expectedWarmupTasks2)
             );
+            final String instanceId = "instance-id";
+            final String rackId = "rack-id";
             StreamsGroupMemberDescription expectedMemberOne = new StreamsGroupMemberDescription(
                 "0",
                 1,
-                Optional.of("instance-id"),
-                Optional.of("rack-id"),
+                Optional.of(instanceId),
+                Optional.of(rackId),
                 "clientId0",
                 "clientHost",
                 0,
                 "processId",
                 Optional.of(new StreamsGroupMemberDescription.Endpoint("localhost", 8080)),
                 Collections.singletonMap("key", "value"),
-                Collections.singletonList(new StreamsGroupMemberDescription.TaskOffset("my_subtopology", 0, 0)),
-                Collections.singletonList(new StreamsGroupMemberDescription.TaskOffset("my_subtopology", 0, 1)),
+                Collections.singletonList(new StreamsGroupMemberDescription.TaskOffset(subtopologyId, 0, 0)),
+                Collections.singletonList(new StreamsGroupMemberDescription.TaskOffset(subtopologyId, 0, 1)),
                 expectedMemberAssignment,
                 expectedTargetAssignment,
                 true
@@ -5084,7 +5088,7 @@ public class KafkaAdminClientTest {
             );
 
             StreamsGroupSubtopologyDescription expectedSubtopologyDescription = new StreamsGroupSubtopologyDescription(
-                "my_subtopology",
+                subtopologyId,
                 Collections.singletonList("my_source_topic"),
                 Collections.singletonList("my_repartition_sink_topic"),
                 Collections.singletonMap(

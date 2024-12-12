@@ -121,7 +121,6 @@ public class DescribeStreamsGroupsHandler extends AdminApiHandler.Batched<Coordi
 
             final Set<AclOperation> authorizedOperations = validAclOperations(describedGroup.authorizedOperations());
 
-
             final StreamsGroupDescription streamsGroupDescription = new StreamsGroupDescription(
                     describedGroup.groupId(),
                     describedGroup.groupEpoch(),

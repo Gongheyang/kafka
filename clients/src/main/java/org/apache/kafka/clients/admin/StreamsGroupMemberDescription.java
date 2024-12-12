@@ -46,6 +46,7 @@ public class StreamsGroupMemberDescription {
     private final StreamsGroupMemberAssignment targetAssignment;
     private final boolean isClassic;
 
+    @SuppressWarnings("ParameterNumber")
     public StreamsGroupMemberDescription(
         final String memberId,
         final int memberEpoch,
@@ -147,21 +148,21 @@ public class StreamsGroupMemberDescription {
      * Used for rack-aware assignment algorithm.
      */
     public Map<String, String> clientTags() {
-        return clientTags;
+        return Map.copyOf(clientTags);
     }
 
     /**
      * Cumulative offsets for tasks.
      */
     public List<TaskOffset> taskOffsets() {
-        return taskOffsets;
+        return List.copyOf(taskOffsets);
     }
 
     /**
      * Cumulative task changelog end offsets for tasks.
      */
     public List<TaskOffset> taskEndOffsets() {
-        return taskEndOffsets;
+        return List.copyOf(taskEndOffsets);
     }
 
     /**
@@ -185,6 +186,7 @@ public class StreamsGroupMemberDescription {
         return isClassic;
     }
 
+    @SuppressWarnings("CyclomaticComplexity")
     @Override
     public boolean equals(final Object o) {
         if (this == o) {

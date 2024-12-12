@@ -60,28 +60,28 @@ public class StreamsGroupSubtopologyDescription {
      * The topics the topology reads from.
      */
     public List<String> sourceTopics() {
-        return sourceTopics;
+        return List.copyOf(sourceTopics);
     }
 
     /**
      * The repartition topics the topology writes to.
      */
     public List<String> repartitionSinkTopics() {
-        return repartitionSinkTopics;
+        return List.copyOf(repartitionSinkTopics);
     }
 
     /**
      * The set of state changelog topics associated with this subtopology.
      */
     public Map<String, TopicInfo> stateChangelogTopics() {
-        return stateChangelogTopics;
+        return Map.copyOf(stateChangelogTopics);
     }
 
     /**
      * The set of source topics that are internally created repartition topics.
      */
     public Map<String, TopicInfo> repartitionSourceTopics() {
-        return repartitionSourceTopics;
+        return Map.copyOf(repartitionSourceTopics);
     }
 
     @Override
@@ -156,7 +156,7 @@ public class StreamsGroupSubtopologyDescription {
          * Topic-level configurations as key-value pairs. Default configuration can be omitted.
          */
         public Map<String, String> topicConfigs() {
-            return topicConfigs;
+            return Map.copyOf(topicConfigs);
         }
 
         @Override

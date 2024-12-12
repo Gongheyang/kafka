@@ -46,21 +46,21 @@ public class StreamsGroupMemberAssignment {
      * Active tasks for this client.
      */
     public List<TaskIds> activeTasks() {
-        return activeTasks;
+        return List.copyOf(activeTasks);
     }
 
     /**
      * Standby tasks for this client.
      */
     public List<TaskIds> standbyTasks() {
-        return standbyTasks;
+        return List.copyOf(standbyTasks);
     }
 
     /**
      * Warmup tasks for this client.
      */
     public List<TaskIds> warmupTasks() {
-        return warmupTasks;
+        return List.copyOf(warmupTasks);
     }
 
     @Override
@@ -118,7 +118,7 @@ public class StreamsGroupMemberAssignment {
          * The partitions of the subtopology processed by this member.
          */
         public List<Integer> partitions() {
-            return partitions;
+            return List.copyOf(partitions);
         }
 
         @Override

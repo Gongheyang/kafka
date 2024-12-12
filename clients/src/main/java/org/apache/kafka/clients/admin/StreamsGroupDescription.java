@@ -60,8 +60,8 @@ public class StreamsGroupDescription {
         this.topologyEpoch = topologyEpoch;
         this.subtopologies = Objects.requireNonNull(subtopologies, "subtopologies must be non-null");
         this.members = Objects.requireNonNull(members, "members must be non-null");
-        this.groupState = groupState;
-        this.coordinator = coordinator;
+        this.groupState = Objects.requireNonNull(groupState, "groupState must be non-null");
+        this.coordinator = Objects.requireNonNull(coordinator, "coordinator must be non-null");
         this.authorizedOperations = authorizedOperations;
     }
 

@@ -36,7 +36,7 @@ public class DescribeStreamsGroupsResult {
     private final Map<String, KafkaFuture<StreamsGroupDescription>> futures;
 
     public DescribeStreamsGroupsResult(final Map<String, KafkaFuture<StreamsGroupDescription>> futures) {
-        this.futures = futures;
+        this.futures = Map.copyOf(futures);
     }
 
     /**

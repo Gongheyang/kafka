@@ -322,7 +322,7 @@ public class SharePartitionTest {
         final ShareGroupAutoOffsetResetStrategy resetStrategy = Mockito.mock(ShareGroupAutoOffsetResetStrategy.class);
         final long expectedTimestamp = MOCK_TIME.milliseconds() - TimeUnit.HOURS.toMillis(1);
         Mockito.when(resetStrategy.type()).thenReturn(ShareGroupAutoOffsetResetStrategy.StrategyType.BY_DURATION);
-        Mockito.when(resetStrategy.timestamp()).thenReturn(Optional.of(expectedTimestamp));
+        Mockito.when(resetStrategy.timestamp()).thenReturn(expectedTimestamp);
 
         Mockito.when(groupConfig.shareAutoOffsetReset()).thenReturn(resetStrategy);
 
@@ -520,7 +520,7 @@ public class SharePartitionTest {
         Mockito.when(groupConfig.shareAutoOffsetReset()).thenReturn(resetStrategy);
 
         Mockito.when(resetStrategy.type()).thenReturn(ShareGroupAutoOffsetResetStrategy.StrategyType.BY_DURATION);
-        Mockito.when(resetStrategy.timestamp()).thenReturn(Optional.of(expectedTimestamp));
+        Mockito.when(resetStrategy.timestamp()).thenReturn(expectedTimestamp);
 
         ReplicaManager replicaManager = Mockito.mock(ReplicaManager.class);
 

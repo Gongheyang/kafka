@@ -19,7 +19,6 @@ package kafka.server.share;
 import kafka.server.ReplicaManager;
 import kafka.server.share.SharePartitionManager.SharePartitionListener;
 
-import org.apache.kafka.clients.consumer.NoOffsetForPartitionException;
 import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.TopicIdPartition;
 import org.apache.kafka.common.Uuid;
@@ -2135,15 +2134,13 @@ public class SharePartition {
             offsetResetStrategy = GroupConfig.defaultShareAutoOffsetReset();
         }
 
-        final long timestamp = offsetResetStrategy.timestamp()
-            .orElseThrow(() -> new NoOffsetForPartitionException(topicIdPartition.topicPartition()));
-
         if (offsetResetStrategy.type() == ShareGroupAutoOffsetResetStrategy.StrategyType.LATEST) {
             return offsetForLatestTimestamp(topicIdPartition, replicaManager, leaderEpoch);
         } else if (offsetResetStrategy.type() == ShareGroupAutoOffsetResetStrategy.StrategyType.EARLIEST) {
             return offsetForEarliestTimestamp(topicIdPartition, replicaManager, leaderEpoch);
         } else {
-            return offsetForTimestamp(topicIdPartition, replicaManager, timestamp, leaderEpoch);
+            // offsetResetStrategy type is BY_DURATION
+            return offsetForTimestamp(topicIdPartition, replicaManager, offsetResetStrategy.timestamp(), leaderEpoch);
         }
     }
 

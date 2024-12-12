@@ -23,7 +23,6 @@ import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -92,18 +91,17 @@ public class ShareGroupAutoOffsetResetStrategyTest {
     public void testTimestamp() {
         ShareGroupAutoOffsetResetStrategy earliest1 = ShareGroupAutoOffsetResetStrategy.fromString("earliest");
         ShareGroupAutoOffsetResetStrategy earliest2 = ShareGroupAutoOffsetResetStrategy.fromString("earliest");
-        assertEquals(Optional.of(ListOffsetsRequest.EARLIEST_TIMESTAMP), earliest1.timestamp());
+        assertEquals(ListOffsetsRequest.EARLIEST_TIMESTAMP, earliest1.timestamp());
         assertEquals(earliest1, earliest2);
 
         ShareGroupAutoOffsetResetStrategy latest1 = ShareGroupAutoOffsetResetStrategy.fromString("latest");
         ShareGroupAutoOffsetResetStrategy latest2 = ShareGroupAutoOffsetResetStrategy.fromString("latest");
-        assertEquals(Optional.of(ListOffsetsRequest.LATEST_TIMESTAMP), latest1.timestamp());
+        assertEquals(ListOffsetsRequest.LATEST_TIMESTAMP, latest1.timestamp());
         assertEquals(latest1, latest2);
 
         ShareGroupAutoOffsetResetStrategy byDuration1 = ShareGroupAutoOffsetResetStrategy.fromString("by_duration:PT1H");
-        Optional<Long> timestamp = byDuration1.timestamp();
-        assertTrue(timestamp.isPresent());
-        assertTrue(timestamp.get() <= Instant.now().toEpochMilli() - Duration.ofHours(1).toMillis());
+        Long timestamp = byDuration1.timestamp();
+        assertTrue(timestamp <= Instant.now().toEpochMilli() - Duration.ofHours(1).toMillis());
 
         ShareGroupAutoOffsetResetStrategy byDuration2 = ShareGroupAutoOffsetResetStrategy.fromString("by_duration:PT1H");
         ShareGroupAutoOffsetResetStrategy byDuration3 = ShareGroupAutoOffsetResetStrategy.fromString("by_duration:PT2H");

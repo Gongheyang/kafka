@@ -65,9 +65,6 @@ class ProspectiveStateWithVoteTest {
         );
     }
 
-    // todo: need with leader state
-    // todo: don't forget to fix quorum state keeping leaderid, and prospective to follower transition
-
     @Test
     public void testElectionTimeout() {
         ProspectiveState state = newProspectiveVotedState(voterSetWithLocal(IntStream.empty(), true), Optional.of(votedKeyWithDirectoryId));
@@ -95,10 +92,16 @@ class ProspectiveStateWithVoteTest {
     public void testCanGrantVoteWithoutDirectoryId(boolean isLogUpToDate) {
         ProspectiveState state = newProspectiveVotedState(voterSetWithLocal(IntStream.empty(), true), Optional.of(votedKeyWithoutDirectoryId));
 
-        assertTrue(state.canGrantPreVote(ReplicaKey.of(votedId, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate));
+        assertEquals(
+            isLogUpToDate,
+            state.canGrantPreVote(ReplicaKey.of(votedId, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate)
+        );
         assertTrue(state.canGrantVote(ReplicaKey.of(votedId, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate));
 
-        assertTrue(state.canGrantPreVote(ReplicaKey.of(votedId, Uuid.randomUuid()), isLogUpToDate));
+        assertEquals(
+            isLogUpToDate,
+            state.canGrantPreVote(ReplicaKey.of(votedId, Uuid.randomUuid()), isLogUpToDate)
+        );
         assertTrue(state.canGrantVote(ReplicaKey.of(votedId, Uuid.randomUuid()), isLogUpToDate));
 
         // Can grant PreVote to other replicas even if we have granted a standard vote to another replica

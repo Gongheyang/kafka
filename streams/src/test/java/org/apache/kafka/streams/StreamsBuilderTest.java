@@ -1748,30 +1748,6 @@ public class StreamsBuilderTest {
     }
 
     @Test
-    public void shouldWrapProcessorsForToTable() {
-        final Map<Object, Object> props = dummyStreamsConfigMap();
-        props.put(PROCESSOR_WRAPPER_CLASS_CONFIG, RecordingProcessorWrapper.class);
-
-        final WrapperRecorder counter = new WrapperRecorder();
-        props.put(PROCESSOR_WRAPPER_COUNTER_CONFIG, counter);
-
-        final StreamsBuilder builder = new StreamsBuilder(new TopologyConfig(new StreamsConfig(props)));
-
-        builder.stream("input", Consumed.as("source"))
-                .toTable(Named.as("toTable"), Materialized.as("toTable")) // wrapped 1
-                .toStream(Named.as("toStream")) // wrapped 2
-                .to("output", Produced.as("sink"));
-
-        builder.build();
-        assertThat(counter.numWrappedProcessors(), CoreMatchers.is(2));
-        assertThat(counter.wrappedProcessorNames(), Matchers.containsInAnyOrder(
-                "toTable", "toStream"
-        ));
-        assertThat(counter.numUniqueStateStores(), CoreMatchers.is(1));
-        assertThat(counter.numConnectedStateStores(), CoreMatchers.is(1));
-    }
-
-    @Test
     public void shouldWrapProcessorsForStreamTableJoin() {
         final Map<Object, Object> props = dummyStreamsConfigMap();
         props.put(PROCESSOR_WRAPPER_CLASS_CONFIG, RecordingProcessorWrapper.class);

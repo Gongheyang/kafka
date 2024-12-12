@@ -831,10 +831,20 @@ public class LeaderState<T> implements EpochState {
     }
 
     @Override
-    public boolean canGrantVote(ReplicaKey candidateKey, boolean isLogUpToDate) {
+    public boolean canGrantVote(ReplicaKey replicaKey, boolean isLogUpToDate) {
         log.debug(
-            "Rejecting vote request from candidate ({}) since we are already leader in epoch {}",
-            candidateKey,
+            "Rejecting Vote request from candidate ({}) since we are already leader in epoch {}",
+            replicaKey,
+            epoch
+        );
+        return false;
+    }
+
+    @Override
+    public boolean canGrantPreVote(ReplicaKey replicaKey, boolean isLogUpToDate) {
+        log.debug(
+            "Rejecting PreVote request from replica ({}) since we are already leader in epoch {}",
+            replicaKey,
             epoch
         );
         return false;

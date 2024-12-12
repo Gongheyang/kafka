@@ -562,7 +562,10 @@ public final class RaftClientTestContext {
     public void becomeLeader() throws Exception {
         int currentEpoch = currentEpoch();
         time.sleep(electionTimeoutMs * 2L);
-        expectAndGrantVotes(currentEpoch + 1);
+        if (kraftVersion.isReconfigSupported()) {
+            expectAndGrantVotes(currentEpoch, true);
+        }
+        expectAndGrantVotes(currentEpoch + 1, false);
         expectBeginEpoch(currentEpoch + 1);
     }
 
@@ -579,19 +582,23 @@ public final class RaftClientTestContext {
         return new LeaderAndEpoch(election.optionalLeaderId(), election.epoch());
     }
 
-    void expectAndGrantVotes(int epoch) throws Exception {
+    void expectAndGrantVotes(int epoch, boolean preVote) throws Exception {
         pollUntilRequest();
 
         List<RaftRequest.Outbound> voteRequests = collectVoteRequests(epoch,
             log.lastFetchedEpoch(), log.endOffset().offset());
 
         for (RaftRequest.Outbound request : voteRequests) {
-            VoteResponseData voteResponse = voteResponse(true, OptionalInt.empty(), epoch);
+            VoteResponseData voteResponse = voteResponse(true, OptionalInt.empty(), epoch, preVote);
             deliverResponse(request.correlationId(), request.destination(), voteResponse);
         }
 
         client.poll();
-        assertElectedLeader(epoch, localIdOrThrow());
+        if (preVote) {
+            assertTrue(client.quorum().isCandidate());
+        } else {
+            assertElectedLeader(epoch, localIdOrThrow());
+        }
     }
 
     private int localIdOrThrow() {
@@ -629,38 +636,45 @@ public final class RaftClientTestContext {
     }
 
     void assertVotedCandidate(int epoch, int candidateId) {
+        ReplicaKey candidateKey = ReplicaKey.of(candidateId, ReplicaKey.NO_DIRECTORY_ID);
+        assertVotedCandidate(epoch, candidateKey);
+    }
+
+    void assertVotedCandidate(int epoch, ReplicaKey candidateKey) {
         assertEquals(
             ElectionState.withVotedCandidate(
                 epoch,
-                ReplicaKey.of(candidateId, ReplicaKey.NO_DIRECTORY_ID),
-                startingVoters.voterIds()
+                candidateKey,
+                expectedVoters()
             ),
             quorumStateStore.readElectionState().get()
         );
     }
 
     public void assertElectedLeader(int epoch, int leaderId) {
-        Set<Integer> voters = kraftVersion.isReconfigSupported() ?
-                Collections.emptySet() : startingVoters.voterIds();
         assertEquals(
-            ElectionState.withElectedLeader(epoch, leaderId, voters),
+            ElectionState.withElectedLeader(epoch, leaderId, expectedVoters()),
             quorumStateStore.readElectionState().get()
         );
     }
 
     void assertUnknownLeader(int epoch) {
         assertEquals(
-            ElectionState.withUnknownLeader(epoch, startingVoters.voterIds()),
-            quorumStateStore.readElectionState().get()
-        );
+            ElectionState.withUnknownLeader(epoch, expectedVoters()),
+            quorumStateStore.readElectionState().get());
     }
 
     void assertResignedLeader(int epoch, int leaderId) {
         assertTrue(client.quorum().isResigned());
         assertEquals(
-            ElectionState.withElectedLeader(epoch, leaderId, startingVoters.voterIds()),
+            ElectionState.withElectedLeader(epoch, leaderId, expectedVoters()),
             quorumStateStore.readElectionState().get()
         );
+    }
+
+    // Voters are only written to ElectionState in KRaftVersion 0
+    private Set<Integer> expectedVoters() {
+        return kraftVersion.isReconfigSupported() ? Collections.emptySet() : startingVoters.voterIds();
     }
 
     DescribeQuorumResponseData collectDescribeQuorumResponse() {
@@ -768,11 +782,11 @@ public final class RaftClientTestContext {
 
         VoteResponseData.PartitionData partitionResponse = response.topics().get(0).partitions().get(0);
 
-        String voterIdDebugLog = "Leader Id: " + leaderId +
+        String leaderIdDebugLog = "Leader Id: " + leaderId +
             " Partition response leader Id: " + partitionResponse.leaderId();
-        assertEquals(voteGranted, partitionResponse.voteGranted(), voterIdDebugLog);
-        assertEquals(error, Errors.forCode(partitionResponse.errorCode()), voterIdDebugLog);
-        assertEquals(leaderId.orElse(-1), partitionResponse.leaderId());
+        assertEquals(voteGranted, partitionResponse.voteGranted());
+        assertEquals(error, Errors.forCode(partitionResponse.errorCode()));
+        assertEquals(leaderId.orElse(-1), partitionResponse.leaderId(), leaderIdDebugLog);
         assertEquals(epoch, partitionResponse.leaderEpoch());
 
         if (kip853Rpc && leaderId.isPresent()) {
@@ -786,6 +800,28 @@ public final class RaftClientTestContext {
         }
     }
 
+    List<RaftRequest.Outbound> collectPreVoteRequests(
+        int epoch,
+        int lastEpoch,
+        long lastEpochOffset
+    ) {
+        List<RaftRequest.Outbound> voteRequests = new ArrayList<>();
+        for (RaftRequest.Outbound raftMessage : channel.drainSendQueue()) {
+            if (raftMessage.data() instanceof VoteRequestData) {
+                VoteRequestData request = (VoteRequestData) raftMessage.data();
+                VoteRequestData.PartitionData partitionRequest = unwrap(request);
+
+                assertTrue(partitionRequest.preVote());
+                assertEquals(epoch, partitionRequest.replicaEpoch());
+                assertEquals(localIdOrThrow(), partitionRequest.replicaId());
+                assertEquals(lastEpoch, partitionRequest.lastOffsetEpoch());
+                assertEquals(lastEpochOffset, partitionRequest.lastOffset());
+                voteRequests.add(raftMessage);
+            }
+        }
+        return voteRequests;
+    }
+
     List<RaftRequest.Outbound> collectVoteRequests(
         int epoch,
         int lastEpoch,
@@ -797,8 +833,8 @@ public final class RaftClientTestContext {
                 VoteRequestData request = (VoteRequestData) raftMessage.data();
                 VoteRequestData.PartitionData partitionRequest = unwrap(request);
 
-                assertEquals(epoch, partitionRequest.candidateEpoch());
-                assertEquals(localIdOrThrow(), partitionRequest.candidateId());
+                assertEquals(epoch, partitionRequest.replicaEpoch());
+                assertEquals(localIdOrThrow(), partitionRequest.replicaId());
                 assertEquals(lastEpoch, partitionRequest.lastOffsetEpoch());
                 assertEquals(lastEpochOffset, partitionRequest.lastOffset());
                 voteRequests.add(raftMessage);
@@ -1440,7 +1476,24 @@ public final class RaftClientTestContext {
             epoch,
             candidateKey,
             lastEpoch,
-            lastEpochOffset
+            lastEpochOffset,
+            false
+        );
+    }
+
+    VoteRequestData preVoteRequest(
+        int epoch,
+        ReplicaKey candidateKey,
+        int lastEpoch,
+        long lastEpochOffset
+    ) {
+        return voteRequest(
+            clusterId,
+            epoch,
+            candidateKey,
+            lastEpoch,
+            lastEpochOffset,
+            true
         );
     }
 
@@ -1449,7 +1502,8 @@ public final class RaftClientTestContext {
         int epoch,
         ReplicaKey candidateKey,
         int lastEpoch,
-        long lastEpochOffset
+        long lastEpochOffset,
+        boolean preVote
     ) {
         ReplicaKey localReplicaKey = kip853Rpc ?
             ReplicaKey.of(localIdOrThrow(), localDirectoryId) :
@@ -1461,7 +1515,8 @@ public final class RaftClientTestContext {
             candidateKey,
             localReplicaKey,
             lastEpoch,
-            lastEpochOffset
+            lastEpochOffset,
+            preVote
         );
     }
 
@@ -1471,7 +1526,8 @@ public final class RaftClientTestContext {
         ReplicaKey candidateKey,
         ReplicaKey voterKey,
         int lastEpoch,
-        long lastEpochOffset
+        long lastEpochOffset,
+        boolean preVote
     ) {
         return RaftUtil.singletonVoteRequest(
                 metadataPartition,
@@ -1480,14 +1536,19 @@ public final class RaftClientTestContext {
                 candidateKey,
                 voterKey,
                 lastEpoch,
-                lastEpochOffset
+                lastEpochOffset,
+                preVote
         );
     }
 
     VoteResponseData voteResponse(boolean voteGranted, OptionalInt leaderId, int epoch) {
+        return voteResponse(voteGranted, leaderId, epoch, voteRpcVersion());
+    }
+
+    VoteResponseData voteResponse(boolean voteGranted, OptionalInt leaderId, int epoch, short version) {
         return RaftUtil.singletonVoteResponse(
             channel.listenerName(),
-            voteRpcVersion(),
+            version,
             Errors.NONE,
             metadataPartition,
             Errors.NONE,
@@ -1818,9 +1879,9 @@ public final class RaftClientTestContext {
         }
     }
 
-    private short voteRpcVersion() {
+    short voteRpcVersion() {
         if (kip853Rpc) {
-            return 1;
+            return ApiKeys.VOTE.latestVersion();
         } else {
             return 0;
         }

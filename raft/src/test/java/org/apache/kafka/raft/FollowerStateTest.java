@@ -94,6 +94,19 @@ public class FollowerStateTest {
 
     @ParameterizedTest
     @ValueSource(booleans = {true, false})
+    public void testPreVoteIfHasNotFetchedFromLeaderYet(boolean isLogUpToDate) {
+        FollowerState state = newFollowerState(
+            Set.of(1, 2, 3),
+            Optional.empty()
+        );
+
+        assertEquals(isLogUpToDate, state.canGrantPreVote(ReplicaKey.of(1, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate));
+        assertEquals(isLogUpToDate, state.canGrantPreVote(ReplicaKey.of(2, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate));
+        assertEquals(isLogUpToDate, state.canGrantPreVote(ReplicaKey.of(3, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate));
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
     public void testGrantVote(boolean isLogUpToDate) {
         FollowerState state = newFollowerState(
             Set.of(1, 2, 3),

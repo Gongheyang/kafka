@@ -27,43 +27,55 @@ import org.junit.jupiter.params.provider.ValueSource;
 import java.util.Collections;
 import java.util.Optional;
 import java.util.OptionalInt;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-class UnattachedStateWithVoteTest {
+class ProspectiveStateWithVoteTest {
 
     private final MockTime time = new MockTime();
     private final LogContext logContext = new LogContext();
+    private final int localId = 0;
+    private final ReplicaKey localReplicaKey = ReplicaKey.of(localId, Uuid.randomUuid());
     private final int epoch = 5;
     private final int votedId = 1;
+    private final Uuid votedDirectoryId = Uuid.randomUuid();
+    private final ReplicaKey votedKeyWithDirectoryId = ReplicaKey.of(votedId, votedDirectoryId);
+    private final ReplicaKey votedKeyWithoutDirectoryId = ReplicaKey.of(votedId, ReplicaKey.NO_DIRECTORY_ID);
     private final int electionTimeoutMs = 10000;
 
-    private UnattachedState newUnattachedVotedState(
-        Uuid votedDirectoryId
+    private ProspectiveState newProspectiveVotedState(
+        VoterSet voters,
+        Optional<ReplicaKey> votedKey
     ) {
-        return new UnattachedState(
+        return new ProspectiveState(
             time,
+            localId,
             epoch,
             OptionalInt.empty(),
-            Optional.of(ReplicaKey.of(votedId, votedDirectoryId)),
-            Collections.emptySet(),
+            Optional.empty(),
+            votedKey,
+            voters,
             Optional.empty(),
             electionTimeoutMs,
             logContext
         );
     }
 
+    // todo: need with leader state
+    // todo: don't forget to fix quorum state keeping leaderid, and prospective to follower transition
+
     @Test
     public void testElectionTimeout() {
-        UnattachedState state = newUnattachedVotedState(ReplicaKey.NO_DIRECTORY_ID);
-        ReplicaKey votedKey  = ReplicaKey.of(votedId, ReplicaKey.NO_DIRECTORY_ID);
+        ProspectiveState state = newProspectiveVotedState(voterSetWithLocal(IntStream.empty(), true), Optional.of(votedKeyWithDirectoryId));
 
         assertEquals(epoch, state.epoch());
-        assertEquals(votedKey, state.votedKey().get());
+        assertEquals(votedKeyWithDirectoryId, state.votedKey().get());
         assertEquals(
-            ElectionState.withVotedCandidate(epoch, votedKey, Collections.emptySet()),
+            ElectionState.withVotedCandidate(epoch, votedKeyWithDirectoryId, Collections.singleton(localId)),
             state.election()
         );
         assertEquals(electionTimeoutMs, state.remainingElectionTimeMs(time.milliseconds()));
@@ -81,7 +93,7 @@ class UnattachedStateWithVoteTest {
     @ParameterizedTest
     @ValueSource(booleans = {true, false})
     public void testCanGrantVoteWithoutDirectoryId(boolean isLogUpToDate) {
-        UnattachedState state = newUnattachedVotedState(ReplicaKey.NO_DIRECTORY_ID);
+        ProspectiveState state = newProspectiveVotedState(voterSetWithLocal(IntStream.empty(), true), Optional.of(votedKeyWithoutDirectoryId));
 
         assertTrue(state.canGrantPreVote(ReplicaKey.of(votedId, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate));
         assertTrue(state.canGrantVote(ReplicaKey.of(votedId, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate));
@@ -100,16 +112,15 @@ class UnattachedStateWithVoteTest {
     @ParameterizedTest
     @ValueSource(booleans = {true, false})
     void testCanGrantVoteWithDirectoryId(boolean isLogUpToDate) {
-        Uuid votedDirectoryId = Uuid.randomUuid();
-        UnattachedState state = newUnattachedVotedState(votedDirectoryId);
+        ProspectiveState state = newProspectiveVotedState(voterSetWithLocal(IntStream.empty(), true), Optional.of(votedKeyWithDirectoryId));
 
         // Same voterKey
         // We will not grant PreVote for a replica we have already granted a standard vote to if their log is behind
         assertEquals(
             isLogUpToDate,
-            state.canGrantPreVote(ReplicaKey.of(votedId, votedDirectoryId), isLogUpToDate)
+            state.canGrantPreVote(votedKeyWithDirectoryId, isLogUpToDate)
         );
-        assertTrue(state.canGrantVote(ReplicaKey.of(votedId, votedDirectoryId), isLogUpToDate));
+        assertTrue(state.canGrantVote(votedKeyWithDirectoryId, isLogUpToDate));
 
         // Different directoryId
         // We can grant PreVote for a replica we have already granted a standard vote to if their log is up-to-date,
@@ -142,9 +153,32 @@ class UnattachedStateWithVoteTest {
 
     @Test
     void testLeaderEndpoints() {
-        Uuid votedDirectoryId = Uuid.randomUuid();
-        UnattachedState state = newUnattachedVotedState(votedDirectoryId);
+        ProspectiveState state = newProspectiveVotedState(voterSetWithLocal(IntStream.empty(), true), Optional.of(votedKeyWithDirectoryId));
 
         assertEquals(Endpoints.empty(), state.leaderEndpoints());
     }
+
+    private ReplicaKey replicaKey(int id, boolean withDirectoryId) {
+        Uuid directoryId = withDirectoryId ? Uuid.randomUuid() : ReplicaKey.NO_DIRECTORY_ID;
+        return ReplicaKey.of(id, directoryId);
+    }
+
+    private VoterSet voterSetWithLocal(IntStream remoteVoterIds, boolean withDirectoryId) {
+        Stream<ReplicaKey> remoteVoterKeys = remoteVoterIds
+            .boxed()
+            .map(id -> replicaKey(id, withDirectoryId));
+
+        return voterSetWithLocal(remoteVoterKeys, withDirectoryId);
+    }
+
+    private VoterSet voterSetWithLocal(Stream<ReplicaKey> remoteVoterKeys, boolean withDirectoryId) {
+        ReplicaKey actualLocalVoter = withDirectoryId ?
+            localReplicaKey :
+            ReplicaKey.of(localReplicaKey.id(), ReplicaKey.NO_DIRECTORY_ID);
+
+        return VoterSetTest.voterSet(
+            Stream.concat(Stream.of(actualLocalVoter), remoteVoterKeys)
+        );
+    }
 }
+

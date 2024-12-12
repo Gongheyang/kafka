@@ -37,6 +37,10 @@ public class FollowerState implements EpochState {
     private final Set<Integer> voters;
     // Used for tracking the expiration of both the Fetch and FetchSnapshot requests
     private final Timer fetchTimer;
+    /* Used to track if we have fetched from the leader at least once since the transition to follower in this epoch.
+     * If we have not yet fetched from the leader, we may grant PreVotes.
+     */
+    private boolean hasFetchedFromLeader;
     private Optional<LogOffsetMetadata> highWatermark;
     /* Used to track the currently fetching snapshot. When fetching snapshot regular
      * Fetch request are paused
@@ -66,6 +70,7 @@ public class FollowerState implements EpochState {
         this.updateVoterPeriodTimer = time.timer(updateVoterPeriodMs());
         this.highWatermark = highWatermark;
         this.log = logContext.logger(FollowerState.class);
+        this.hasFetchedFromLeader = false;
     }
 
     @Override
@@ -118,9 +123,10 @@ public class FollowerState implements EpochState {
         return fetchTimer.isExpired();
     }
 
-    public void resetFetchTimeout(long currentTimeMs) {
+    public void resetFetchTimeoutForSuccessfulFetch(long currentTimeMs) {
         fetchTimer.update(currentTimeMs);
         fetchTimer.reset(fetchTimeoutMs);
+        hasFetchedFromLeader = true;
     }
 
     public void overrideFetchTimeout(long currentTimeMs, long timeoutMs) {
@@ -202,14 +208,33 @@ public class FollowerState implements EpochState {
     }
 
     @Override
-    public boolean canGrantVote(ReplicaKey candidateKey, boolean isLogUpToDate) {
+    public boolean canGrantVote(ReplicaKey replicaKey, boolean isLogUpToDate) {
         log.debug(
             "Rejecting vote request from candidate ({}) since we already have a leader {} in epoch {}",
-            candidateKey,
+            replicaKey,
             leaderId,
             epoch
         );
         return false;
+    }
+
+    @Override
+    public boolean canGrantPreVote(ReplicaKey replicaKey, boolean isLogUpToDate) {
+        boolean granting = !hasFetchedFromLeader && isLogUpToDate;
+        if (!granting) {
+            log.debug(
+                "Rejecting PreVote request from replica ({}) either because we have already fetched from leader {} " +
+                    "in epoch {} (hasFetchedFromLeader={}), or because the replica's log is not as up to date with " +
+                    "ours (isLogUpToDate={})",
+                replicaKey,
+                leaderId,
+                epoch,
+                hasFetchedFromLeader,
+                isLogUpToDate
+            );
+        }
+
+        return granting;
     }
 
     @Override

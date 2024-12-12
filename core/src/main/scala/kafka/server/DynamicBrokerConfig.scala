@@ -1168,9 +1168,9 @@ class DynamicRemoteLogConfig(server: KafkaBroker) extends BrokerReconfigurable w
         }
       }
 
-      // No validations are done for copier and expiration thread pools, it follows the default validation
-      // defined in the ConfigDef
-      if (RemoteLogManagerConfig.REMOTE_LOG_READER_THREADS_PROP.equals(k)) {
+      if (RemoteLogManagerConfig.REMOTE_LOG_READER_THREADS_PROP.equals(k) ||
+          RemoteLogManagerConfig.REMOTE_LOG_MANAGER_COPIER_THREAD_POOL_SIZE_PROP.equals(k) ||
+          RemoteLogManagerConfig.REMOTE_LOG_MANAGER_EXPIRATION_THREAD_POOL_SIZE_PROP.equals(k)) {
         val newValue = v.asInstanceOf[Int]
         val oldValue = server.config.getInt(k)
         if (newValue != oldValue) {

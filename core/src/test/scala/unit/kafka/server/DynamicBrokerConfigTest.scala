@@ -206,9 +206,8 @@ class DynamicBrokerConfigTest {
   def testUpdateRemoteLogManagerDynamicThreadPool(): Unit = {
     val origProps = TestUtils.createBrokerConfig(0, TestUtils.MockZkConnect, port = 8181)
     val config = KafkaConfig(origProps)
-    // When copierThreadPool and expirationThreadPool are not configured, then it defaults to the remoteLogManagerThreadPoolSize
-    assertEquals(RemoteLogManagerConfig.DEFAULT_REMOTE_LOG_MANAGER_THREAD_POOL_SIZE, config.remoteLogManagerConfig.remoteLogManagerCopierThreadPoolSize())
-    assertEquals(RemoteLogManagerConfig.DEFAULT_REMOTE_LOG_MANAGER_THREAD_POOL_SIZE, config.remoteLogManagerConfig.remoteLogManagerExpirationThreadPoolSize())
+    assertEquals(RemoteLogManagerConfig.DEFAULT_REMOTE_LOG_MANAGER_COPIER_THREAD_POOL_SIZE, config.remoteLogManagerConfig.remoteLogManagerCopierThreadPoolSize())
+    assertEquals(RemoteLogManagerConfig.DEFAULT_REMOTE_LOG_MANAGER_EXPIRATION_THREAD_POOL_SIZE, config.remoteLogManagerConfig.remoteLogManagerExpirationThreadPoolSize())
     assertEquals(RemoteLogManagerConfig.DEFAULT_REMOTE_LOG_READER_THREADS, config.remoteLogManagerConfig.remoteLogReaderThreads())
 
     val serverMock = mock(classOf[KafkaBroker])
@@ -233,42 +232,48 @@ class DynamicBrokerConfigTest {
     assertEquals(7, config.remoteLogManagerConfig.remoteLogManagerExpirationThreadPoolSize())
     verify(remoteLogManager).resizeExpirationThreadPool(7)
 
-    // When copier and expiration thread pools are set to -1 dynamically, then it defaults to the remoteLogManagerThreadPoolSize
-    props.put(RemoteLogManagerConfig.REMOTE_LOG_MANAGER_COPIER_THREAD_POOL_SIZE_PROP, "-1")
-    config.dynamicConfig.validate(props, perBrokerConfig = true)
-    config.dynamicConfig.updateDefaultConfig(props)
-    assertEquals(RemoteLogManagerConfig.DEFAULT_REMOTE_LOG_MANAGER_THREAD_POOL_SIZE, config.remoteLogManagerConfig.remoteLogManagerCopierThreadPoolSize())
-    verify(remoteLogManager).resizeCopierThreadPool(RemoteLogManagerConfig.DEFAULT_REMOTE_LOG_MANAGER_THREAD_POOL_SIZE)
-
-    props.put(RemoteLogManagerConfig.REMOTE_LOG_MANAGER_EXPIRATION_THREAD_POOL_SIZE_PROP, "-1")
-    config.dynamicConfig.validate(props, perBrokerConfig = false)
-    config.dynamicConfig.updateDefaultConfig(props)
-    assertEquals(RemoteLogManagerConfig.DEFAULT_REMOTE_LOG_MANAGER_THREAD_POOL_SIZE, config.remoteLogManagerConfig.remoteLogManagerExpirationThreadPoolSize())
-    verify(remoteLogManager).resizeExpirationThreadPool(RemoteLogManagerConfig.DEFAULT_REMOTE_LOG_MANAGER_THREAD_POOL_SIZE)
-
     props.put(RemoteLogManagerConfig.REMOTE_LOG_READER_THREADS_PROP, "6")
     config.dynamicConfig.validate(props, perBrokerConfig = true)
     config.dynamicConfig.updateDefaultConfig(props)
     assertEquals(6, config.remoteLogManagerConfig.remoteLogReaderThreads())
     verify(remoteLogManager).resizeReaderThreadPool(6)
     props.clear()
+    verifyNoMoreInteractions(remoteLogManager)
+  }
+
+  @Test
+  def testRemoteLogDynamicThreadPoolWithInvalidValues(): Unit = {
+    val origProps = TestUtils.createBrokerConfig(0, TestUtils.MockZkConnect, port = 8181)
+    val config = KafkaConfig(origProps)
+
+    val serverMock = mock(classOf[KafkaBroker])
+    val remoteLogManager = mock(classOf[RemoteLogManager])
+    when(serverMock.config).thenReturn(config)
+    when(serverMock.remoteLogManagerOpt).thenReturn(Some(remoteLogManager))
+
+    config.dynamicConfig.initialize(None, None)
+    config.dynamicConfig.addBrokerReconfigurable(new DynamicRemoteLogConfig(serverMock))
 
     // Test dynamic update with invalid values
+    val props = new Properties()
     props.put(RemoteLogManagerConfig.REMOTE_LOG_MANAGER_COPIER_THREAD_POOL_SIZE_PROP, "0")
-    assertThrows(classOf[ConfigException], () => config.dynamicConfig.validate(props, perBrokerConfig = true))
-    props.clear()
+    val err = assertThrows(classOf[ConfigException], () => config.dynamicConfig.validate(props, perBrokerConfig = true))
+    assertTrue(err.getMessage.contains("Value must be at least 1"))
 
-    props.put(RemoteLogManagerConfig.REMOTE_LOG_MANAGER_EXPIRATION_THREAD_POOL_SIZE_PROP, "-2")
-    assertThrows(classOf[ConfigException], () => config.dynamicConfig.validate(props, perBrokerConfig = false))
-    props.clear()
+    val props1 = new Properties()
+    props1.put(RemoteLogManagerConfig.REMOTE_LOG_MANAGER_EXPIRATION_THREAD_POOL_SIZE_PROP, "-1")
+    val err1 = assertThrows(classOf[ConfigException], () => config.dynamicConfig.validate(props1, perBrokerConfig = false))
+    assertTrue(err1.getMessage.contains("Value must be at least 1"))
 
-    props.put(RemoteLogManagerConfig.REMOTE_LOG_READER_THREADS_PROP, "2")
-    assertThrows(classOf[ConfigException], () => config.dynamicConfig.validate(props, perBrokerConfig = false))
-    props.clear()
+    val props2 = new Properties()
+    props2.put(RemoteLogManagerConfig.REMOTE_LOG_READER_THREADS_PROP, "2")
+    val err2 = assertThrows(classOf[ConfigException], () => config.dynamicConfig.validate(props2, perBrokerConfig = false))
+    assertTrue(err2.getMessage.contains("value should be at least half the current value"))
 
-    props.put(RemoteLogManagerConfig.REMOTE_LOG_READER_THREADS_PROP, "-1")
-    assertThrows(classOf[ConfigException], () => config.dynamicConfig.validate(props, perBrokerConfig = true))
-    props.clear()
+    val props3 = new Properties()
+    props3.put(RemoteLogManagerConfig.REMOTE_LOG_READER_THREADS_PROP, "-1")
+    val err3 = assertThrows(classOf[ConfigException], () => config.dynamicConfig.validate(props, perBrokerConfig = true))
+    assertTrue(err3.getMessage.contains("Value must be at least 1"))
     verifyNoMoreInteractions(remoteLogManager)
   }
 

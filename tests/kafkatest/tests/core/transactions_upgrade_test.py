@@ -50,7 +50,7 @@ class TransactionsUpgradeTest(Test):
         # Test parameters
         self.num_input_partitions = 1
         self.num_output_partitions = 1
-        self.num_seed_messages = 4000
+        self.num_seed_messages = 4500
         self.transaction_size = 5
 
         # The transaction timeout should be lower than the progress timeout, but at
@@ -143,11 +143,13 @@ class TransactionsUpgradeTest(Test):
         self.kafka.upgrade_metadata_version(LATEST_STABLE_METADATA_VERSION)
         self.logger.info("Changing transaction.version to %s" % LATEST_STABLE_TRANSACTION_VERSION)
         self.kafka.run_features_command("upgrade", "transaction.version", LATEST_STABLE_TRANSACTION_VERSION)
-        # Restart last broker to resend api versions
-        node = self.kafka.nodes[2]
-        self.kafka.stop_node(node)
-        self.kafka.start_node(node)
-        self.wait_until_rejoin()
+        # Restart brokers to ensure new api versions sent
+        for node in self.kafka.nodes:
+            self.logger.info("Stopping broker node %s" % node.account.hostname)
+            self.kafka.stop_node(node)
+            self.logger.info("Restarting broker node %s" % node.account.hostname)
+            self.kafka.start_node(node)
+            self.wait_until_rejoin()
 
     def copy_messages_transactionally_during_upgrade(self, input_topic, output_topic,
                                                      num_copiers, num_messages_to_copy,
@@ -176,7 +178,7 @@ class TransactionsUpgradeTest(Test):
 
         self.perform_upgrade(from_kafka_version)
 
-        copier_timeout_sec = 120
+        copier_timeout_sec = 180
         for copier in copiers:
             wait_until(lambda: copier.is_done,
                        timeout_sec=copier_timeout_sec,

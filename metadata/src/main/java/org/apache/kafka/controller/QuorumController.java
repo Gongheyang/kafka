@@ -94,7 +94,6 @@ import org.apache.kafka.common.utils.Utils;
 import org.apache.kafka.controller.errors.ControllerExceptions;
 import org.apache.kafka.controller.errors.EventHandlerExceptionInfo;
 import org.apache.kafka.controller.metrics.QuorumControllerMetrics;
-import org.apache.kafka.controller.metrics.SlowEventsLogger;
 import org.apache.kafka.deferred.DeferredEvent;
 import org.apache.kafka.deferred.DeferredEventQueue;
 import org.apache.kafka.metadata.BrokerHeartbeatReply;
@@ -152,7 +151,6 @@ import java.util.function.Supplier;
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
-import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.kafka.controller.QuorumController.ControllerOperationFlag.DOES_NOT_UPDATE_QUEUE_TIME;
 
 
@@ -178,16 +176,21 @@ import static org.apache.kafka.controller.QuorumController.ControllerOperationFl
  */
 public final class QuorumController implements Controller {
     /**
-     * The maximum records that the controller will write in a single batch.
+     * The default maximum records that the controller will write in a single batch.
      */
-    private static final int MAX_RECORDS_PER_BATCH = 10000;
+    private static final int DEFAULT_MAX_RECORDS_PER_BATCH = 10000;
+
+    /**
+     * The default minimum event time that can be logged as a slow event.
+     */
+    private static final int DEFAULT_MIN_SLOW_EVENT_TIME_MS = 200;
 
     /**
      * The maximum records any user-initiated operation is allowed to generate.
      *
      * For now, this is set to the maximum records in a single batch.
      */
-    static final int MAX_RECORDS_PER_USER_OP = MAX_RECORDS_PER_BATCH;
+    static final int MAX_RECORDS_PER_USER_OP = DEFAULT_MAX_RECORDS_PER_BATCH;
 
     /**
      * A builder class which creates the QuorumController.
@@ -216,7 +219,8 @@ public final class QuorumController implements Controller {
         private ConfigurationValidator configurationValidator = ConfigurationValidator.NO_OP;
         private Map<String, Object> staticConfig = Collections.emptyMap();
         private BootstrapMetadata bootstrapMetadata = null;
-        private int maxRecordsPerBatch = MAX_RECORDS_PER_BATCH;
+        private int maxRecordsPerBatch = DEFAULT_MAX_RECORDS_PER_BATCH;
+        private int minSlowEventTimeMs = DEFAULT_MIN_SLOW_EVENT_TIME_MS;
         private DelegationTokenCache tokenCache;
         private String tokenSecretKeyString;
         private long delegationTokenMaxLifeMs;
@@ -321,6 +325,11 @@ public final class QuorumController implements Controller {
 
         public Builder setMaxRecordsPerBatch(int maxRecordsPerBatch) {
             this.maxRecordsPerBatch = maxRecordsPerBatch;
+            return this;
+        }
+
+        public Builder setMinSlowEventTimeMs(int minSlowEventTimeMs) {
+            this.minSlowEventTimeMs = minSlowEventTimeMs;
             return this;
         }
 
@@ -436,7 +445,8 @@ public final class QuorumController implements Controller {
                     delegationTokenExpiryTimeMs,
                     delegationTokenExpiryCheckIntervalMs,
                     uncleanLeaderElectionCheckIntervalMs,
-                    interBrokerListenerName
+                    interBrokerListenerName,
+                    minSlowEventTimeMs
                 );
             } catch (Exception e) {
                 Utils.closeQuietly(queue, "event queue");
@@ -1482,7 +1492,8 @@ public final class QuorumController implements Controller {
         long delegationTokenExpiryTimeMs,
         long delegationTokenExpiryCheckIntervalMs,
         long uncleanLeaderElectionCheckIntervalMs,
-        String interBrokerListenerName
+        String interBrokerListenerName,
+        int minSlowEventTimeMs
     ) {
         this.nonFatalFaultHandler = nonFatalFaultHandler;
         this.fatalFaultHandler = fatalFaultHandler;
@@ -1592,7 +1603,7 @@ public final class QuorumController implements Controller {
         }
         registerElectUnclean(TimeUnit.MILLISECONDS.toNanos(uncleanLeaderElectionCheckIntervalMs));
         registerExpireDelegationTokens(MILLISECONDS.toNanos(delegationTokenExpiryCheckIntervalMs));
-        registerSlowEventUpdater(MILLISECONDS.toNanos(30000));
+        registerUpdateSlowEventLogger(MILLISECONDS.toNanos(30000));
         // OffsetControlManager must be initialized last, because its constructor will take the
         // initial in-memory snapshot of all extant timeline data structures.
         this.offsetControl = new OffsetControlManager.Builder().
@@ -1604,7 +1615,8 @@ public final class QuorumController implements Controller {
         log.info("Creating new QuorumController with clusterId {}", clusterId);
 
         this.raftClient.register(metaLogListener);
-        this.slowEventsLogger = new SlowEventsLogger(controllerMetrics::getEventQueueProcessingTimeP99, logContext);
+        this.slowEventsLogger = new SlowEventsLogger(minSlowEventTimeMs,
+            controllerMetrics::getEventQueueProcessingTime99, logContext);
     }
 
     /**
@@ -1628,14 +1640,14 @@ public final class QuorumController implements Controller {
             EnumSet.noneOf(PeriodicTaskFlag.class)));
     }
 
-    private void registerSlowEventUpdater(long maxSlowEventWindowNs) {
-        periodicControl.registerTask(new PeriodicTask("updateSlowEventP99",
-                () -> {
-                    slowEventsLogger.refreshPercentile();
-                    return ControllerResult.of(Collections.emptyList(), false);
-                },
-                maxSlowEventWindowNs,
-                EnumSet.noneOf(PeriodicTaskFlag.class)));
+    private void registerUpdateSlowEventLogger(long maxSlowEventWindowNs) {
+        periodicControl.registerTask(new PeriodicTask("updateSlowEventLoggerP99",
+            () -> {
+                slowEventsLogger.refreshPercentile();
+                return ControllerResult.of(Collections.emptyList(), false);
+            },
+            maxSlowEventWindowNs,
+            EnumSet.noneOf(PeriodicTaskFlag.class)));
     }
 
     /**

@@ -242,7 +242,8 @@ class ControllerServer(
           setDelegationTokenExpiryTimeMs(config.delegationTokenExpiryTimeMs).
           setDelegationTokenExpiryCheckIntervalMs(config.delegationTokenExpiryCheckIntervalMs).
           setUncleanLeaderElectionCheckIntervalMs(config.uncleanLeaderElectionCheckIntervalMs).
-          setInterBrokerListenerName(config.interBrokerListenerName.value())
+          setInterBrokerListenerName(config.interBrokerListenerName.value()).
+          setMinSlowEventTimeMs(config.minSlowEventTimeMs)
       }
       controller = controllerBuilder.build()
 

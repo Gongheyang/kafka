@@ -28,7 +28,6 @@ import static org.apache.kafka.common.config.ConfigDef.Importance.HIGH;
 import static org.apache.kafka.common.config.ConfigDef.Importance.LOW;
 import static org.apache.kafka.common.config.ConfigDef.Importance.MEDIUM;
 import static org.apache.kafka.common.config.ConfigDef.Range.atLeast;
-import static org.apache.kafka.common.config.ConfigDef.Type.BOOLEAN;
 import static org.apache.kafka.common.config.ConfigDef.Type.INT;
 import static org.apache.kafka.common.config.ConfigDef.Type.LIST;
 import static org.apache.kafka.common.config.ConfigDef.Type.LONG;
@@ -51,6 +50,7 @@ public class KRaftConfigs {
     public static final String BROKER_SESSION_TIMEOUT_MS_CONFIG = "broker.session.timeout.ms";
     public static final int BROKER_SESSION_TIMEOUT_MS_DEFAULT = 9000;
     public static final String BROKER_SESSION_TIMEOUT_MS_DOC = "The length of time in milliseconds that a broker lease lasts if no heartbeats are made. Used when running in KRaft mode.";
+
 
     public static final String NODE_ID_CONFIG = "node.id";
     public static final int EMPTY_NODE_ID = -1;
@@ -118,14 +118,6 @@ public class KRaftConfigs {
     public static final int MIN_SLOW_EVENT_TIME_MS_DEFAULT = 200;
     public static final String MIN_SLOW_EVENT_TIME_MS_DOC = "Do not log slow controller events which are slowed than this duration.";
 
-    /** ZK to KRaft Migration configs */
-    public static final String MIGRATION_ENABLED_CONFIG = "zookeeper.metadata.migration.enable";
-    public static final String MIGRATION_ENABLED_DOC = "Enable ZK to KRaft migration";
-
-    public static final String MIGRATION_METADATA_MIN_BATCH_SIZE_CONFIG = "zookeeper.metadata.migration.min.batch.size";
-    public static final int MIGRATION_METADATA_MIN_BATCH_SIZE_DEFAULT = 200;
-    public static final String MIGRATION_METADATA_MIN_BATCH_SIZE_DOC = "Soft minimum batch size to use when migrating metadata from ZooKeeper to KRaft";
-
     public static final ConfigDef CONFIG_DEF =  new ConfigDef()
             .define(METADATA_SNAPSHOT_MAX_NEW_RECORD_BYTES_CONFIG, LONG, METADATA_SNAPSHOT_MAX_NEW_RECORD_BYTES, atLeast(1), HIGH, METADATA_SNAPSHOT_MAX_NEW_RECORD_BYTES_DOC)
             .define(METADATA_SNAPSHOT_MAX_INTERVAL_MS_CONFIG, LONG, METADATA_SNAPSHOT_MAX_INTERVAL_MS_DEFAULT, atLeast(0), HIGH, METADATA_SNAPSHOT_MAX_INTERVAL_MS_DOC)
@@ -143,9 +135,6 @@ public class KRaftConfigs {
             .define(METADATA_MAX_RETENTION_BYTES_CONFIG, LONG, METADATA_MAX_RETENTION_BYTES_DEFAULT, null, HIGH, METADATA_MAX_RETENTION_BYTES_DOC)
             .define(METADATA_MAX_RETENTION_MILLIS_CONFIG, LONG, LogConfig.DEFAULT_RETENTION_MS, null, HIGH, METADATA_MAX_RETENTION_MILLIS_DOC)
             .define(METADATA_MAX_IDLE_INTERVAL_MS_CONFIG, INT, METADATA_MAX_IDLE_INTERVAL_MS_DEFAULT, atLeast(0), LOW, METADATA_MAX_IDLE_INTERVAL_MS_DOC)
-            .defineInternal(SERVER_MAX_STARTUP_TIME_MS_CONFIG, LONG, SERVER_MAX_STARTUP_TIME_MS_DEFAULT, atLeast(0), MEDIUM, SERVER_MAX_STARTUP_TIME_MS_DOC)
             .defineInternal(MIN_SLOW_EVENT_TIME_MS_CONFIG, INT, MIN_SLOW_EVENT_TIME_MS_DEFAULT, atLeast(0), MEDIUM, MIN_SLOW_EVENT_TIME_MS_DOC)
-            .define(MIGRATION_ENABLED_CONFIG, BOOLEAN, false, HIGH, MIGRATION_ENABLED_DOC)
-            .defineInternal(MIGRATION_METADATA_MIN_BATCH_SIZE_CONFIG, INT, MIGRATION_METADATA_MIN_BATCH_SIZE_DEFAULT, atLeast(1),
-                    MEDIUM, MIGRATION_METADATA_MIN_BATCH_SIZE_DOC);
+            .defineInternal(SERVER_MAX_STARTUP_TIME_MS_CONFIG, LONG, SERVER_MAX_STARTUP_TIME_MS_DEFAULT, atLeast(0), MEDIUM, SERVER_MAX_STARTUP_TIME_MS_DOC);
 }

@@ -78,12 +78,12 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.apache.kafka.test.TestUtils.DEFAULT_MAX_WAIT_MS;
@@ -1029,7 +1029,7 @@ public class ShareConsumerTest {
         CompletableFuture.allOf(producerFutures.toArray(CompletableFuture[]::new)).get(60, TimeUnit.SECONDS);
         CompletableFuture.allOf(consumerFutures.toArray(CompletableFuture[]::new)).get(60, TimeUnit.SECONDS);
 
-        int totalResult = consumerFutures.stream().map(CompletableFuture::join).reduce(Integer::sum).orElse(0);
+        int totalResult = consumerFutures.stream().mapToInt(CompletableFuture::join).sum();
         assertEquals(producerCount * messagesPerProducer, totalMessagesConsumed.get());
         assertEquals(producerCount * messagesPerProducer, totalResult);
     }
@@ -1062,7 +1062,7 @@ public class ShareConsumerTest {
         // Wait for the producers to run
         assertDoesNotThrow(() -> CompletableFuture.allOf(producerFutures.toArray(CompletableFuture[]::new))
                 .get(15, TimeUnit.SECONDS), "Exception awaiting produceMessages");
-        int actualMessageSent = producerFutures.stream().map(CompletableFuture::join).reduce(Integer::sum).orElse(0);
+        int actualMessageSent = producerFutures.stream().mapToInt(CompletableFuture::join).sum();
 
         List<CompletableFuture<Integer>> consumeMessagesFutures1 = new ArrayList<>();
         List<CompletableFuture<Integer>> consumeMessagesFutures2 = new ArrayList<>();
@@ -1088,9 +1088,9 @@ public class ShareConsumerTest {
                         consumeMessagesFutures3.stream()).flatMap(Function.identity()).toArray(CompletableFuture[]::new))
                 .get(120, TimeUnit.SECONDS);
 
-        int totalResult1 = consumeMessagesFutures1.stream().map(CompletableFuture::join).reduce(Integer::sum).orElse(0);
-        int totalResult2 = consumeMessagesFutures2.stream().map(CompletableFuture::join).reduce(Integer::sum).orElse(0);
-        int totalResult3 = consumeMessagesFutures3.stream().map(CompletableFuture::join).reduce(Integer::sum).orElse(0);
+        int totalResult1 = consumeMessagesFutures1.stream().mapToInt(CompletableFuture::join).sum();
+        int totalResult2 = consumeMessagesFutures2.stream().mapToInt(CompletableFuture::join).sum();
+        int totalResult3 = consumeMessagesFutures3.stream().mapToInt(CompletableFuture::join).sum();
 
         assertEquals(totalMessagesSent, totalMessagesConsumedGroup1.get());
         assertEquals(totalMessagesSent, totalMessagesConsumedGroup2.get());
@@ -1190,7 +1190,7 @@ public class ShareConsumerTest {
         CompletableFuture.allOf(produceMessageFutures.toArray(CompletableFuture[]::new)).get(60, TimeUnit.SECONDS);
         CompletableFuture.allOf(consumeMessagesFutures.toArray(CompletableFuture[]::new)).get(60, TimeUnit.SECONDS);
 
-        int totalSuccessResult = consumeMessagesFutures.stream().map(CompletableFuture::join).reduce(Integer::sum).orElse(0);
+        int totalSuccessResult = consumeMessagesFutures.stream().mapToInt(CompletableFuture::join).sum();
         assertEquals(producerCount * messagesPerProducer, totalMessagesConsumed.get());
         assertEquals(producerCount * messagesPerProducer, totalSuccessResult);
     }
@@ -1697,21 +1697,13 @@ public class ShareConsumerTest {
         }
     }
 
-    private Integer produceMessages(int messageCount) {
-        Future<?>[] recordFutures = new Future<?>[messageCount];
-        int messagesSent = 0;
+    private int produceMessages(int messageCount) {
         try (KafkaProducer<byte[], byte[]> producer = createProducer(new ByteArraySerializer(), new ByteArraySerializer())) {
             ProducerRecord<byte[], byte[]> record = new ProducerRecord<>(tp.topic(), tp.partition(), null, "key".getBytes(), "value".getBytes());
-            for (int i = 0; i < messageCount; i++) {
-                recordFutures[i] = producer.send(record);
-            }
-            for (int i = 0; i < messageCount; i++) {
-                final int index = i;
-                assertDoesNotThrow(() -> recordFutures[index].get(), "Failed to send record");
-                messagesSent++;
-            }
+            IntStream.range(0, messageCount).forEach(__ -> producer.send(record));
+            producer.flush();
         }
-        return messagesSent;
+        return messageCount;
     }
 
     private void produceMessagesWithTimestamp(int messageCount, long startingTimestamp) {

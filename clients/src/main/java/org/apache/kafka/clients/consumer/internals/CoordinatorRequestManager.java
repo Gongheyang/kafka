@@ -20,6 +20,7 @@ import org.apache.kafka.clients.consumer.internals.events.BackgroundEventHandler
 import org.apache.kafka.clients.consumer.internals.events.ErrorEvent;
 import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.Node;
+import org.apache.kafka.common.errors.DisconnectException;
 import org.apache.kafka.common.errors.GroupAuthorizationException;
 import org.apache.kafka.common.errors.RetriableException;
 import org.apache.kafka.common.message.FindCoordinatorRequestData;
@@ -123,6 +124,21 @@ public class CoordinatorRequestManager implements RequestManager {
     }
 
     /**
+     * Handles the disconnection of the current coordinator.
+     * This method checks if the given exception is an instance of {@link DisconnectException}.
+     * If so, it marks the coordinator as unknown, indicating that the client should
+     * attempt to discover a new coordinator. For any other exception type, no action is performed.
+     *
+     * @param exception     The exception to handle, which was received as part of a request response.
+     * @param currentTimeMs The current time in milliseconds.
+     */
+    public void handleCoordinatorDisconnect(Throwable exception, long currentTimeMs) {
+        if (exception instanceof DisconnectException) {
+            markCoordinatorUnknown(exception.getMessage(), currentTimeMs);
+        }
+    }
+
+    /**
      * Mark the current coordinator null.
      *
      * @param cause         why the coordinator is marked unknown.
@@ -194,7 +210,7 @@ public class CoordinatorRequestManager implements RequestManager {
     ) {
         // handles Runtime exception
         Optional<FindCoordinatorResponseData.Coordinator> coordinator = response.coordinatorByKey(this.groupId);
-        if (!coordinator.isPresent()) {
+        if (coordinator.isEmpty()) {
             String msg = String.format("Response did not contain expected coordinator section for groupId: %s", this.groupId);
             onFailedResponse(currentTimeMs, new IllegalStateException(msg));
             return;

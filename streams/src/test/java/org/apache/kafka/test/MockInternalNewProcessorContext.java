@@ -48,7 +48,7 @@ public class MockInternalNewProcessorContext<KOut, VOut> extends MockProcessorCo
 
     private ProcessorNode currentNode;
     private long currentSystemTimeMs;
-    private TaskType taskType = TaskType.ACTIVE;
+    private final TaskType taskType = TaskType.ACTIVE;
 
     private long timestamp = 0;
     private Headers headers = new RecordHeaders();
@@ -231,7 +231,7 @@ public class MockInternalNewProcessorContext<KOut, VOut> extends MockProcessorCo
     }
 
     @Override
-    public ProcessorMetadata getProcessorMetadata() {
+    public ProcessorMetadata processorMetadata() {
         return processorMetadata;
     }
 

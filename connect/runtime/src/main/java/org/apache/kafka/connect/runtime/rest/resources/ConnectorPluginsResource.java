@@ -20,12 +20,18 @@ import org.apache.kafka.connect.runtime.ConnectorConfig;
 import org.apache.kafka.connect.runtime.Herder;
 import org.apache.kafka.connect.runtime.isolation.PluginDesc;
 import org.apache.kafka.connect.runtime.isolation.PluginType;
+import org.apache.kafka.connect.runtime.isolation.PluginUtils;
 import org.apache.kafka.connect.runtime.rest.RestRequestTimeout;
 import org.apache.kafka.connect.runtime.rest.entities.ConfigInfos;
 import org.apache.kafka.connect.runtime.rest.entities.ConfigKeyInfo;
 import org.apache.kafka.connect.runtime.rest.entities.PluginInfo;
 import org.apache.kafka.connect.runtime.rest.errors.ConnectRestException;
-import org.apache.kafka.connect.util.*;
+import org.apache.kafka.connect.util.FutureCallback;
+import org.apache.kafka.connect.util.Stage;
+import org.apache.kafka.connect.util.StagedTimeoutException;
+
+import org.apache.maven.artifact.versioning.InvalidVersionSpecificationException;
+import org.apache.maven.artifact.versioning.VersionRange;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -54,8 +60,6 @@ import javax.ws.rs.core.Response;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
-import org.apache.maven.artifact.versioning.InvalidVersionSpecificationException;
-import org.apache.maven.artifact.versioning.VersionRange;
 
 @Path("/connector-plugins")
 @Produces(MediaType.APPLICATION_JSON)
@@ -159,9 +163,9 @@ public class ConnectorPluginsResource {
 
         VersionRange range = null;
         try {
-            range = PluginVersionUtils.connectorVersionRequirement(version);
+            range = PluginUtils.connectorVersionRequirement(version);
         } catch (InvalidVersionSpecificationException e) {
-            throw new BadRequestException("Invalid version specification: " + version);
+            throw new BadRequestException("Invalid version specification: " + version, e);
         }
 
         synchronized (this) {

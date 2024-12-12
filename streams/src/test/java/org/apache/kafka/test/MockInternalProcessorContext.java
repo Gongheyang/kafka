@@ -51,7 +51,7 @@ public class MockInternalProcessorContext extends org.apache.kafka.streams.proce
     private ProcessorNode currentNode;
     private RecordCollector recordCollector;
     private long currentSystemTimeMs;
-    private TaskType taskType = TaskType.ACTIVE;
+    private final TaskType taskType = TaskType.ACTIVE;
     private ProcessorMetadata processorMetadata;
 
     public MockInternalProcessorContext() {
@@ -205,7 +205,7 @@ public class MockInternalProcessorContext extends org.apache.kafka.streams.proce
     }
 
     @Override
-    public ProcessorMetadata getProcessorMetadata() {
+    public ProcessorMetadata processorMetadata() {
         return processorMetadata;
     }
 

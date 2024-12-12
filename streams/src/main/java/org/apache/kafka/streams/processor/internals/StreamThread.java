@@ -23,7 +23,7 @@ import org.apache.kafka.clients.consumer.ConsumerRebalanceListener;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.InvalidOffsetException;
-import org.apache.kafka.clients.consumer.OffsetResetStrategy;
+import org.apache.kafka.clients.consumer.internals.AutoOffsetResetStrategy;
 import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.KafkaFuture;
 import org.apache.kafka.common.Metric;
@@ -46,8 +46,8 @@ import org.apache.kafka.streams.ThreadMetadata;
 import org.apache.kafka.streams.errors.StreamsException;
 import org.apache.kafka.streams.errors.TaskCorruptedException;
 import org.apache.kafka.streams.errors.TaskMigratedException;
-import org.apache.kafka.streams.internals.StreamsConfigUtils;
 import org.apache.kafka.streams.internals.metrics.ClientMetrics;
+import org.apache.kafka.streams.internals.metrics.StreamsThreadMetricsDelegatingReporter;
 import org.apache.kafka.streams.processor.StandbyUpdateListener;
 import org.apache.kafka.streams.processor.StateRestoreListener;
 import org.apache.kafka.streams.processor.TaskId;
@@ -80,12 +80,14 @@ import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 import static org.apache.kafka.streams.internals.StreamsConfigUtils.eosEnabled;
-import static org.apache.kafka.streams.internals.StreamsConfigUtils.processingMode;
-import static org.apache.kafka.streams.processor.internals.ClientUtils.getConsumerClientId;
-import static org.apache.kafka.streams.processor.internals.ClientUtils.getRestoreConsumerClientId;
-import static org.apache.kafka.streams.processor.internals.ClientUtils.getSharedAdminClientId;
+import static org.apache.kafka.streams.processor.internals.ClientUtils.adminClientId;
+import static org.apache.kafka.streams.processor.internals.ClientUtils.consumerClientId;
+import static org.apache.kafka.streams.processor.internals.ClientUtils.restoreConsumerClientId;
 
 public class StreamThread extends Thread implements ProcessingThread {
+
+    private static final String THREAD_ID_SUBSTRING = "-StreamThread-";
+    private static final String STATE_UPDATER_ID_SUBSTRING = "-StateUpdater-";
 
     /**
      * Stream thread states are the possible states that a stream thread can be in.
@@ -318,7 +320,7 @@ public class StreamThread extends Thread implements ProcessingThread {
     private volatile State state = State.CREATED;
     private volatile ThreadMetadata threadMetadata;
     private StreamThread.StateListener stateListener;
-    private final Optional<String> getGroupInstanceID;
+    private final Optional<String> groupInstanceID;
 
     private final ChangelogReader changelogReader;
     private final ConsumerRebalanceListener rebalanceListener;
@@ -342,15 +344,13 @@ public class StreamThread extends Thread implements ProcessingThread {
     private final AtomicLong cacheResizeSize = new AtomicLong(-1L);
     private final AtomicBoolean leaveGroupRequested = new AtomicBoolean(false);
     private final boolean eosEnabled;
-    private final StreamsConfigUtils.ProcessingMode processingMode;
     private final boolean stateUpdaterEnabled;
     private final boolean processingThreadsEnabled;
 
     private volatile long fetchDeadlineClientInstanceId = -1;
     private volatile KafkaFutureImpl<Uuid> mainConsumerInstanceIdFuture = new KafkaFutureImpl<>();
     private volatile KafkaFutureImpl<Uuid> restoreConsumerInstanceIdFuture = new KafkaFutureImpl<>();
-    private volatile KafkaFutureImpl<Map<String, KafkaFuture<Uuid>>> producerInstanceIdFuture = new KafkaFutureImpl<>();
-    private volatile KafkaFutureImpl<Uuid> threadProducerInstanceIdFuture = new KafkaFutureImpl<>();
+    private volatile KafkaFutureImpl<Uuid> producerInstanceIdFuture = new KafkaFutureImpl<>();
 
     public static StreamThread create(final TopologyMetadata topologyMetadata,
                                       final StreamsConfig config,
@@ -368,10 +368,16 @@ public class StreamThread extends Thread implements ProcessingThread {
                                       final int threadIdx,
                                       final Runnable shutdownErrorHook,
                                       final BiConsumer<Throwable, Boolean> streamsUncaughtExceptionHandler) {
-        final String threadId = clientId + "-StreamThread-" + threadIdx;
+
+        final boolean stateUpdaterEnabled = InternalConfig.stateUpdaterEnabled(config.originals());
+
+        final String threadId = clientId + THREAD_ID_SUBSTRING + threadIdx;
+        final String stateUpdaterId = threadId.replace(THREAD_ID_SUBSTRING, STATE_UPDATER_ID_SUBSTRING);
+        final String restorationThreadId = stateUpdaterEnabled ? stateUpdaterId : threadId;
 
         final String logPrefix = String.format("stream-thread [%s] ", threadId);
         final LogContext logContext = new LogContext(logPrefix);
+        final LogContext restorationLogContext = stateUpdaterEnabled ? new LogContext(String.format("state-updater [%s] ", restorationThreadId)) : logContext;
         final Logger log = logContext.logger(StreamThread.class);
 
         final ReferenceContainer referenceContainer = new ReferenceContainer();
@@ -381,13 +387,13 @@ public class StreamThread extends Thread implements ProcessingThread {
         referenceContainer.clientTags = config.getClientTags();
 
         log.info("Creating restore consumer client");
-        final Map<String, Object> restoreConsumerConfigs = config.getRestoreConsumerConfigs(getRestoreConsumerClientId(threadId));
+        final Map<String, Object> restoreConsumerConfigs = config.getRestoreConsumerConfigs(restoreConsumerClientId(restorationThreadId));
         final Consumer<byte[], byte[]> restoreConsumer = clientSupplier.getRestoreConsumer(restoreConsumerConfigs);
 
         final StoreChangelogReader changelogReader = new StoreChangelogReader(
             time,
             config,
-            logContext,
+            restorationLogContext,
             adminClient,
             restoreConsumer,
             userStateRestoreListener,
@@ -396,8 +402,7 @@ public class StreamThread extends Thread implements ProcessingThread {
 
         final ThreadCache cache = new ThreadCache(logContext, cacheSizeBytes, streamsMetrics);
 
-        final boolean stateUpdaterEnabled = InternalConfig.getStateUpdaterEnabled(config.originals());
-        final boolean proceessingThreadsEnabled = InternalConfig.getProcessingThreadsEnabled(config.originals());
+        final boolean proceessingThreadsEnabled = InternalConfig.processingThreadsEnabled(config.originals());
         final ActiveTaskCreator activeTaskCreator = new ActiveTaskCreator(
             topologyMetadata,
             config,
@@ -408,6 +413,7 @@ public class StreamThread extends Thread implements ProcessingThread {
             time,
             clientSupplier,
             threadId,
+            threadIdx,
             processId,
             log,
             stateUpdaterEnabled,
@@ -425,7 +431,7 @@ public class StreamThread extends Thread implements ProcessingThread {
 
         final Tasks tasks = new Tasks(new LogContext(logPrefix));
         final boolean processingThreadsEnabled =
-            InternalConfig.getProcessingThreadsEnabled(config.originals());
+            InternalConfig.processingThreadsEnabled(config.originals());
 
         final DefaultTaskManager schedulingTaskManager =
             maybeCreateSchedulingTaskManager(processingThreadsEnabled, stateUpdaterEnabled, topologyMetadata, time, threadId, tasks);
@@ -460,7 +466,7 @@ public class StreamThread extends Thread implements ProcessingThread {
 
         log.info("Creating consumer client");
         final String applicationId = config.getString(StreamsConfig.APPLICATION_ID_CONFIG);
-        final Map<String, Object> consumerConfigs = config.getMainConsumerConfigs(applicationId, getConsumerClientId(threadId), threadIdx);
+        final Map<String, Object> consumerConfigs = config.getMainConsumerConfigs(applicationId, consumerClientId(threadId), threadIdx);
         consumerConfigs.put(StreamsConfig.InternalConfig.REFERENCE_CONTAINER_PARTITION_ASSIGNOR, referenceContainer);
 
         final String originalReset = (String) consumerConfigs.get(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG);
@@ -472,6 +478,9 @@ public class StreamThread extends Thread implements ProcessingThread {
         final Consumer<byte[], byte[]> mainConsumer = clientSupplier.getConsumer(consumerConfigs);
         taskManager.setMainConsumer(mainConsumer);
         referenceContainer.mainConsumer = mainConsumer;
+
+        final StreamsThreadMetricsDelegatingReporter reporter = new StreamsThreadMetricsDelegatingReporter(mainConsumer, threadId, stateUpdaterId);
+        streamsMetrics.metricsRegistry().addReporter(reporter);
 
         final StreamThread streamThread = new StreamThread(
             time,
@@ -495,7 +504,7 @@ public class StreamThread extends Thread implements ProcessingThread {
             cache::resize
         );
 
-        return streamThread.updateThreadMetadata(getSharedAdminClientId(clientId));
+        return streamThread.updateThreadMetadata(adminClientId(clientId));
     }
 
     private static DefaultTaskManager maybeCreateSchedulingTaskManager(final boolean processingThreadsEnabled,
@@ -533,7 +542,7 @@ public class StreamThread extends Thread implements ProcessingThread {
                                                                 final String clientId,
                                                                 final int threadIdx) {
         if (stateUpdaterEnabled) {
-            final String name = clientId + "-StateUpdater-" + threadIdx;
+            final String name = clientId + STATE_UPDATER_ID_SUBSTRING + threadIdx;
             final StateUpdater stateUpdater = new DefaultStateUpdater(
                 name,
                 streamsMetrics.metricsRegistry(),
@@ -605,6 +614,14 @@ public class StreamThread extends Thread implements ProcessingThread {
             streamsMetrics,
             time.milliseconds()
         );
+        ThreadMetrics.addThreadStateTelemetryMetric(
+            threadId,
+            streamsMetrics,
+            (metricConfig, now) -> this.state().ordinal());
+        ThreadMetrics.addThreadStateMetric(
+            threadId,
+            streamsMetrics,
+            (metricConfig, now) -> this.state());
         ThreadMetrics.addThreadBlockedTimeMetric(
             threadId,
             new StreamThreadTotalBlockedTime(
@@ -629,7 +646,7 @@ public class StreamThread extends Thread implements ProcessingThread {
         this.originalReset = originalReset;
         this.nextProbingRebalanceMs = nextProbingRebalanceMs;
         this.nonFatalExceptionsToHandle = nonFatalExceptionsToHandle;
-        this.getGroupInstanceID = mainConsumer.groupMetadata().groupInstanceId();
+        this.groupInstanceID = mainConsumer.groupMetadata().groupInstanceId();
 
         this.pollTime = Duration.ofMillis(config.getLong(StreamsConfig.POLL_MS_CONFIG));
         final int dummyThreadIdx = 1;
@@ -640,9 +657,8 @@ public class StreamThread extends Thread implements ProcessingThread {
 
         this.numIterations = 1;
         this.eosEnabled = eosEnabled(config);
-        this.processingMode = processingMode(config);
-        this.stateUpdaterEnabled = InternalConfig.getStateUpdaterEnabled(config.originals());
-        this.processingThreadsEnabled = InternalConfig.getProcessingThreadsEnabled(config.originals());
+        this.stateUpdaterEnabled = InternalConfig.stateUpdaterEnabled(config.originals());
+        this.processingThreadsEnabled = InternalConfig.processingThreadsEnabled(config.originals());
         this.logSummaryIntervalMs = config.getLong(StreamsConfig.LOG_SUMMARY_INTERVAL_MS_CONFIG);
     }
 
@@ -685,7 +701,6 @@ public class StreamThread extends Thread implements ProcessingThread {
      * @throws IllegalStateException If store gets registered after initialized is already finished
      * @throws StreamsException      if the store's change log does not contain the partition
      */
-    @SuppressWarnings("deprecation") // Needed to include StreamsConfig.EXACTLY_ONCE_BETA in error log for UnsupportedVersionException
     boolean runLoop() {
         subscribeConsumer();
 
@@ -742,9 +757,9 @@ public class StreamThread extends Thread implements ProcessingThread {
                     errorMessage.startsWith("Broker unexpectedly doesn't support requireStable flag on version ")) {
 
                     log.error("Shutting down because the Kafka cluster seems to be on a too old version. " +
-                              "Setting {}=\"{}\"/\"{}\" requires broker version 2.5 or higher.",
+                              "Setting {}=\"{}\" requires broker version 2.5 or higher.",
                           StreamsConfig.PROCESSING_GUARANTEE_CONFIG,
-                          StreamsConfig.EXACTLY_ONCE_V2, StreamsConfig.EXACTLY_ONCE_BETA);
+                          StreamsConfig.EXACTLY_ONCE_V2);
                 }
                 failedStreamThreadSensor.record();
                 this.streamsUncaughtExceptionHandler.accept(new StreamsException(e), false);
@@ -806,46 +821,34 @@ public class StreamThread extends Thread implements ProcessingThread {
                 }
             }
 
-            if (!processingMode.equals(StreamsConfigUtils.ProcessingMode.EXACTLY_ONCE_ALPHA) &&
-                    !threadProducerInstanceIdFuture.isDone()) {
-
+            if (!producerInstanceIdFuture.isDone()) {
                 if (fetchDeadlineClientInstanceId >= time.milliseconds()) {
                     try {
-                        threadProducerInstanceIdFuture.complete(
-                            taskManager.threadProducer().kafkaProducer().clientInstanceId(Duration.ZERO)
+                        producerInstanceIdFuture.complete(
+                            taskManager.streamsProducer().kafkaProducer().clientInstanceId(Duration.ZERO)
                         );
                     } catch (final IllegalStateException disabledError) {
                         // if telemetry is disabled on a client, we swallow the error,
                         // to allow returning a partial result for all other clients
-                        threadProducerInstanceIdFuture.complete(null);
+                        producerInstanceIdFuture.complete(null);
                     } catch (final TimeoutException swallow) {
                         // swallow
                     } catch (final Exception error) {
-                        threadProducerInstanceIdFuture.completeExceptionally(error);
+                        producerInstanceIdFuture.completeExceptionally(error);
                     }
                 } else {
-                    threadProducerInstanceIdFuture.completeExceptionally(
+                    producerInstanceIdFuture.completeExceptionally(
                         new TimeoutException("Could not retrieve thread producer client instance id.")
                     );
                 }
             }
 
-            maybeResetFetchDeadline();
-        }
-    }
+            if (mainConsumerInstanceIdFuture.isDone()
+                && (!stateUpdaterEnabled && restoreConsumerInstanceIdFuture.isDone())
+                && producerInstanceIdFuture.isDone()) {
 
-    private void maybeResetFetchDeadline() {
-        boolean reset = mainConsumerInstanceIdFuture.isDone()
-            && (!stateUpdaterEnabled && restoreConsumerInstanceIdFuture.isDone());
-
-        if (processingMode.equals(StreamsConfigUtils.ProcessingMode.EXACTLY_ONCE_ALPHA)) {
-            throw new UnsupportedOperationException("not implemented yet");
-        } else if (!threadProducerInstanceIdFuture.isDone()) {
-            reset = false;
-        }
-
-        if (reset) {
-            fetchDeadlineClientInstanceId = -1L;
+                fetchDeadlineClientInstanceId = -1L;
+            }
         }
     }
 
@@ -931,14 +934,14 @@ public class StreamThread extends Thread implements ProcessingThread {
 
     /**
      * One iteration of a thread includes the following steps:
-     *
+     * <p>
      * 1. poll records from main consumer and add to buffer;
      * 2. restore from restore consumer and update standby tasks if necessary;
      * 3. process active tasks from the buffers;
      * 4. punctuate active tasks if necessary;
      * 5. commit all tasks if necessary;
      *
-     * Among them, step 3/4/5 is done in batches in which we try to process as much as possible while trying to
+     * <p> Among them, step 3/4/5 is done in batches in which we try to process as much as possible while trying to
      * stop iteration to call the next iteration when it's close to the next main consumer's poll deadline
      *
      * @throws IllegalStateException If store gets registered after initialized is already finished
@@ -1083,7 +1086,7 @@ public class StreamThread extends Thread implements ProcessingThread {
 
     /**
      * One iteration of a thread includes the following steps:
-     *
+     * <p>
      * 1. poll records from main consumer and add to buffer;
      * 2. check the task manager for any exceptions to be handled
      * 3. commit all tasks if necessary;
@@ -1253,6 +1256,9 @@ public class StreamThread extends Thread implements ProcessingThread {
             pollRecordsSensor.record(numRecords, now);
             taskManager.addRecordsToTasks(records);
         }
+        if (!records.nextOffsets().isEmpty()) {
+            taskManager.updateNextOffsets(records.nextOffsets());
+        }
 
         while (!nonFatalExceptionsToHandle.isEmpty()) {
             streamsUncaughtExceptionHandler.accept(nonFatalExceptionsToHandle.poll(), true);
@@ -1288,29 +1294,26 @@ public class StreamThread extends Thread implements ProcessingThread {
         final Set<TopicPartition> notReset = new HashSet<>();
 
         for (final TopicPartition partition : partitions) {
-            final OffsetResetStrategy offsetResetStrategy = topologyMetadata.offsetResetStrategy(partition.topic());
+            final AutoOffsetResetStrategy offsetResetStrategy = topologyMetadata.offsetResetStrategy(partition.topic());
 
             // This may be null if the task we are currently processing was apart of a named topology that was just removed.
             // TODO KAFKA-13713: keep the StreamThreads and TopologyMetadata view of named topologies in sync until final thread has acked
             if (offsetResetStrategy != null) {
-                switch (offsetResetStrategy) {
-                    case EARLIEST:
-                        addToResetList(partition, seekToBeginning, "Setting topic '{}' to consume from {} offset", "earliest", loggedTopics);
-                        break;
-                    case LATEST:
-                        addToResetList(partition, seekToEnd, "Setting topic '{}' to consume from {} offset", "latest", loggedTopics);
-                        break;
-                    case NONE:
-                        if ("earliest".equals(originalReset)) {
-                            addToResetList(partition, seekToBeginning, "No custom setting defined for topic '{}' using original config '{}' for offset reset", "earliest", loggedTopics);
-                        } else if ("latest".equals(originalReset)) {
-                            addToResetList(partition, seekToEnd, "No custom setting defined for topic '{}' using original config '{}' for offset reset", "latest", loggedTopics);
-                        } else {
-                            notReset.add(partition);
-                        }
-                        break;
-                    default:
-                        throw new IllegalStateException("Unable to locate topic " + partition.topic() + " in the topology");
+                if (offsetResetStrategy == AutoOffsetResetStrategy.EARLIEST) {
+                    addToResetList(partition, seekToBeginning, "Setting topic '{}' to consume from {} offset", "earliest", loggedTopics);
+                } else if (offsetResetStrategy == AutoOffsetResetStrategy.LATEST) {
+                    addToResetList(partition, seekToEnd, "Setting topic '{}' to consume from {} offset", "latest", loggedTopics);
+                } else if (offsetResetStrategy == AutoOffsetResetStrategy.NONE) {
+                    final AutoOffsetResetStrategy autoOffsetResetStrategy = AutoOffsetResetStrategy.fromString(originalReset);
+                    if (AutoOffsetResetStrategy.EARLIEST == autoOffsetResetStrategy) {
+                        addToResetList(partition, seekToBeginning, "No custom setting defined for topic '{}' using original config '{}' for offset reset", "earliest", loggedTopics);
+                    } else if (AutoOffsetResetStrategy.LATEST == autoOffsetResetStrategy) {
+                        addToResetList(partition, seekToEnd, "No custom setting defined for topic '{}' using original config '{}' for offset reset", "latest", loggedTopics);
+                    } else {
+                        notReset.add(partition);
+                    }
+                } else {
+                    throw new IllegalStateException("Unable to locate topic " + partition.topic() + " in the topology");
                 }
             }
         }
@@ -1367,11 +1370,10 @@ public class StreamThread extends Thread implements ProcessingThread {
     /**
      * Try to commit all active tasks owned by this thread.
      *
-     * Visible for testing.
-     *
      * @throws TaskMigratedException if committing offsets failed (non-EOS)
      *                               or if the task producer got fenced (EOS)
      */
+    // visible for testing
     int maybeCommit() {
         final int committed;
         if (now - lastCommitMs > commitTimeMs) {
@@ -1500,8 +1502,8 @@ public class StreamThread extends Thread implements ProcessingThread {
         threadMetadata = new ThreadMetadataImpl(
             getName(),
             state().name(),
-            getConsumerClientId(getName()),
-            getRestoreConsumerClientId(getName()),
+            consumerClientId(getName()),
+            restoreConsumerClientId(getName()),
             taskManager.producerClientIds(),
             adminClientId,
             Collections.emptySet(),
@@ -1537,8 +1539,8 @@ public class StreamThread extends Thread implements ProcessingThread {
         threadMetadata = new ThreadMetadataImpl(
             getName(),
             state().name(),
-            getConsumerClientId(getName()),
-            getRestoreConsumerClientId(getName()),
+            consumerClientId(getName()),
+            restoreConsumerClientId(getName()),
             taskManager.producerClientIds(),
             adminClientId,
             activeTasksMetadata,
@@ -1586,8 +1588,8 @@ public class StreamThread extends Thread implements ProcessingThread {
         return indent + "\tStreamsThread threadId: " + getName() + "\n" + taskManager.toString(indent);
     }
 
-    public Optional<String> getGroupInstanceID() {
-        return getGroupInstanceID;
+    public Optional<String> groupInstanceID() {
+        return groupInstanceID;
     }
 
     public void requestLeaveGroupDuringShutdown() {
@@ -1611,7 +1613,7 @@ public class StreamThread extends Thread implements ProcessingThread {
     }
 
     // this method is NOT thread-safe (we rely on the callee to be `synchronized`)
-    public Map<String, KafkaFuture<Uuid>> consumerClientInstanceIds(final Duration timeout) {
+    public Map<String, KafkaFuture<Uuid>> clientInstanceIds(final Duration timeout) {
         boolean setDeadline = false;
 
         final Map<String, KafkaFuture<Uuid>> result = new HashMap<>();
@@ -1640,17 +1642,6 @@ public class StreamThread extends Thread implements ProcessingThread {
         }
         result.put(getName() + "-restore-consumer", restoreConsumerInstanceIdFuture);
 
-        if (setDeadline) {
-            fetchDeadlineClientInstanceId = time.milliseconds() + timeout.toMillis();
-        }
-
-        return result;
-    }
-
-    // this method is NOT thread-safe (we rely on the callee to be `synchronized`)
-    public KafkaFuture<Map<String, KafkaFuture<Uuid>>> producersClientInstanceIds(final Duration timeout) {
-        boolean setDeadline = false;
-
         if (producerInstanceIdFuture.isDone()) {
             if (producerInstanceIdFuture.isCompletedExceptionally()) {
                 producerInstanceIdFuture = new KafkaFutureImpl<>();
@@ -1659,26 +1650,13 @@ public class StreamThread extends Thread implements ProcessingThread {
         } else {
             setDeadline = true;
         }
+        result.put(getName() + "-producer", producerInstanceIdFuture);
 
-        if (processingMode.equals(StreamsConfigUtils.ProcessingMode.EXACTLY_ONCE_ALPHA)) {
-            throw new UnsupportedOperationException("not yet implemented");
-        } else {
-            if (threadProducerInstanceIdFuture.isDone()) {
-                if (threadProducerInstanceIdFuture.isCompletedExceptionally()) {
-                    threadProducerInstanceIdFuture = new KafkaFutureImpl<>();
-                    setDeadline = true;
-                }
-            } else {
-                setDeadline = true;
-            }
-            producerInstanceIdFuture.complete(Collections.singletonMap(getName() + "-producer", threadProducerInstanceIdFuture));
-
-            if (setDeadline) {
-                fetchDeadlineClientInstanceId = time.milliseconds() + timeout.toMillis();
-            }
+        if (setDeadline) {
+            fetchDeadlineClientInstanceId = time.milliseconds() + timeout.toMillis();
         }
 
-        return producerInstanceIdFuture;
+        return result;
     }
 
     // the following are for testing only

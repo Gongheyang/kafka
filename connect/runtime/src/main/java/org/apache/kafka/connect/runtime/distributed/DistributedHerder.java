@@ -255,6 +255,7 @@ public class DistributedHerder extends AbstractHerder implements Runnable {
      * @param uponShutdown       any {@link AutoCloseable} objects that should be closed when this herder is {@link #stop() stopped},
      *                           after all services and resources owned by this herder are stopped
      */
+    @SuppressWarnings("this-escape")
     public DistributedHerder(DistributedConfig config,
                              Time time,
                              Worker worker,
@@ -272,6 +273,7 @@ public class DistributedHerder extends AbstractHerder implements Runnable {
     }
 
     // visible for testing
+    @SuppressWarnings("this-escape")
     DistributedHerder(DistributedConfig config,
                       Worker worker,
                       String workerId,
@@ -897,26 +899,6 @@ public class DistributedHerder extends AbstractHerder implements Runnable {
                         new NotFoundException("Connector " + connName + " not found"), null);
                 } else {
                     callback.onCompletion(null, connectorInfo(connName));
-                }
-                return null;
-            },
-            forwardErrorAndTickThreadStages(callback)
-        );
-    }
-
-    @Override
-    public void tasksConfig(String connName, final Callback<Map<ConnectorTaskId, Map<String, String>>> callback) {
-        log.trace("Submitting tasks config request {}", connName);
-
-        addRequest(
-            () -> {
-                if (checkRebalanceNeeded(callback))
-                    return null;
-
-                if (!configState.contains(connName)) {
-                    callback.onCompletion(new NotFoundException("Connector " + connName + " not found"), null);
-                } else {
-                    callback.onCompletion(null, buildTasksConfig(connName));
                 }
                 return null;
             },

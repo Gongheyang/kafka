@@ -101,6 +101,9 @@ class OffsetValidationTest(VerifiableConsumerTest):
         partition = TopicPartition(self.TOPIC, 0)
 
         producer = self.setup_producer(self.TOPIC)
+        # Due to KIP-899, which rebootstrap is performed when there are no available brokers in the current metadata.
+        # We disable rebootstrapping by setting `metadata.recovery.strategy=none` for the consumer, as the test expects no metadata changes.
+        # see KAFKA-18194
         consumer = self.setup_consumer(self.TOPIC, group_protocol=group_protocol, prop_file="metadata.recovery.strategy=none")
 
         producer.start()

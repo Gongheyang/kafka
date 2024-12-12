@@ -62,21 +62,25 @@ public class TableProcessorNode<K, V> extends GraphNode {
     @SuppressWarnings("unchecked")
     @Override
     public void writeToTopology(final InternalTopologyBuilder topologyBuilder) {
+        processorParameters.addProcessorTo(topologyBuilder, parentNodeNames());
+
         final String processorName = processorParameters.processorName();
-        topologyBuilder.addProcessor(processorName, processorParameters.processorSupplier(), parentNodeNames());
 
         if (storeNames.length > 0) {
+            // todo(rodesai): remove me once all operators have been moved to ProcessorSupplier
             topologyBuilder.connectProcessorAndStateStores(processorName, storeNames);
         }
 
         final KTableSource<K, V> tableSource =  processorParameters.processorSupplier() instanceof KTableSource ?
                 (KTableSource<K, V>) processorParameters.processorSupplier() : null;
         if (tableSource != null) {
+            // todo(rodesai): remove once KTableImpl#doJoinOnForeignKey moved to ProcessorSupplier
             if (tableSource.materialized()) {
                 topologyBuilder.addStateStore(Objects.requireNonNull(storeFactory, "storeFactory was null"),
                                               processorName);
             }
         } else if (storeFactory != null) {
+            // todo(rodesai) remove when KTableImpl#doFilter, KTableImpl#doTransformValues moved to ProcessorSupplier
             topologyBuilder.addStateStore(storeFactory, processorName);
         }
     }

@@ -1622,6 +1622,26 @@ public class StreamsBuilderTest {
     }
 
     @Test
+    public void shouldWrapProcessorsForMapValuesWithMaterializedStore() {
+        final Map<Object, Object> props = dummyStreamsConfigMap();
+        props.put(PROCESSOR_WRAPPER_CLASS_CONFIG, RecordingProcessorWrapper.class);
+        final WrapperRecorder counter = new WrapperRecorder();
+        props.put(PROCESSOR_WRAPPER_COUNTER_CONFIG, counter);
+        final StreamsBuilder builder = new StreamsBuilder(new TopologyConfig(new StreamsConfig(props)));
+
+        builder.table("input", Consumed.as("source-table"))
+            .mapValues(v -> null, Named.as("map-values"), Materialized.as("map-values-store"))
+            .toStream(Named.as("to-stream"))
+            .to("output-topic", Produced.as("sink"));
+        builder.build();
+
+        assertThat(counter.wrappedProcessorNames(),
+            Matchers.containsInAnyOrder("source-table", "map-values", "to-stream"));
+        assertThat(counter.numUniqueStateStores(), is(1));
+        assertThat(counter.numConnectedStateStores(), is(1));
+    }
+
+    @Test
     public void shouldWrapProcessorsForTableAggregate() {
         final Map<Object, Object> props = dummyStreamsConfigMap();
         props.put(PROCESSOR_WRAPPER_CLASS_CONFIG, RecordingProcessorWrapper.class);
@@ -1687,16 +1707,16 @@ public class StreamsBuilderTest {
             .selectKey((k, v) -> k, Named.as("selectKey")) // wrapped 3
             .peek((k, v) -> { }, Named.as("peek")) // wrapped 4
             .flatMapValues(e -> new ArrayList<>(), Named.as("flatMap")) // wrapped 5
-            .toTable(Named.as("toTable")) // wrapped 6
-            .filter((k, v) -> true, Named.as("filter-table")) // should be wrapped once we do TableProcessorNode
-            .toStream(Named.as("toStream")) // wrapped 7
+            .toTable(Named.as("toTable")) // should be wrapped when we do StreamToTableNode
+            .filter((k, v) -> true, Named.as("filter-table")) // wrapped 7
+            .toStream(Named.as("toStream")) // wrapped 8
             .to("output", Produced.as("sink"));
 
         builder.build();
         assertThat(counter.numWrappedProcessors(), CoreMatchers.is(8));
         assertThat(counter.wrappedProcessorNames(), Matchers.containsInAnyOrder(
             "filter-stream", "map", "selectKey", "peek", "flatMap",
-            "toTable-repartition-filter", "toStream", "toTable"
+            "toTable-repartition-filter", "filter-table", "toStream"
         ));
         assertThat(counter.numUniqueStateStores(), CoreMatchers.is(0));
         assertThat(counter.numConnectedStateStores(), CoreMatchers.is(0));

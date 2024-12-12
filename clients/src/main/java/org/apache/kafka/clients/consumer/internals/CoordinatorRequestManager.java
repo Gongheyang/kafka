@@ -246,4 +246,8 @@ public class CoordinatorRequestManager implements RequestManager {
         this.fatalError = Optional.empty();
         return fatalError;
     }
+    
+    public Optional<Throwable> fatalError() {
+        return fatalError;
+    }
 }

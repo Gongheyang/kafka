@@ -121,10 +121,10 @@ public class TestUtils {
 
         while (true) {
             try {
-                String conditionDetail = conditionDetails == null ? "" : conditionDetails;
                 if (testCondition.get()) {
                     return;
                 }
+                String conditionDetail = conditionDetails == null ? "" : conditionDetails;
                 throw new TimeoutException("Condition not met: " + conditionDetail);
             } catch (final AssertionError t) {
                 if (expectedEnd <= System.currentTimeMillis()) {

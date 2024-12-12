@@ -31,6 +31,13 @@ public class AutoOffsetResetInternal extends AutoOffsetReset {
         return offsetResetStrategy;
     }
 
+    // calling `Optional.get()` w/o checking `isPresent()` results in a warning that we suppress
+    // (there is unfortunately no speficif suppression for `Optional.get()` warnings)
+    //
+    // we do call `get()` unconditionally on purpose here, as it should only be called before `offsetResetStrategy()`
+    // was used to verify that the strategy is "by_duration"
+    // if the strategy is not "by_duration" and `duration()` is called,
+    // we want to fail right away to surface the bug in the caller code
     @SuppressWarnings("all")
     public Duration duration() {
         return duration.get();

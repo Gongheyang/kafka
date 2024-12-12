@@ -614,7 +614,7 @@ public class VerifiableConsumer implements Closeable, OffsetCommitCallback, Cons
                 .type(String.class)
                 .metavar("CONFIG_FILE")
                 .help("Consumer config properties file (config options shared with command line parameters will be overridden).");
-        
+
         return parser;
     }
 
@@ -663,7 +663,7 @@ public class VerifiableConsumer implements Closeable, OffsetCommitCallback, Cons
         if (groupInstanceId != null) {
             consumerProps.put(ConsumerConfig.GROUP_INSTANCE_ID_CONFIG, groupInstanceId);
         }
-        
+
         consumerProps.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, brokerHostandPort);
 
         consumerProps.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, useAutoCommit);

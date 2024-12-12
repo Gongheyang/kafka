@@ -59,6 +59,10 @@
                             Please use <code>log.message.timestamp.before.max.ms</code> and <code>log.message.timestamp.after.max.ms</code> instead.
                             See <a href="https://cwiki.apache.org/confluence/display/KAFKA/KIP-937%3A+Improve+Message+Timestamp+Validation">KIP-937</a> for details.
                         </li>
+                        <li>
+                            The minimum <code>segment.bytes/log.segment.bytes</code> has changed from 14 bytes to 1MB.
+                            See <a href="https://cwiki.apache.org/confluence/display/KAFKA/KIP-1030%3A+Change+constraints+and+default+values+for+various+configurations">KIP-1030</a> 
+                        </li>
                     </ul>
                 </li>
                 <li><b>MirrorMaker</b>

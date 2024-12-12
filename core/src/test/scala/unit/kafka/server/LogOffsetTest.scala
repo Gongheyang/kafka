@@ -52,7 +52,7 @@ class LogOffsetTest extends BaseRequestTest {
     props.put("num.partitions", "20")
     props.put("log.retention.hours", "10")
     props.put("log.retention.check.interval.ms", (5 * 1000 * 60).toString)
-    props.put("log.segment.bytes", "140")
+    props.put("log.segment.bytes", "1048576")
   }
 
   @deprecated("ListOffsetsRequest V0", since = "")
@@ -83,14 +83,14 @@ class LogOffsetTest extends BaseRequestTest {
     log.deleteOldSegments()
 
     val offsets = log.legacyFetchOffsetsBefore(ListOffsetsRequest.LATEST_TIMESTAMP, 15)
-    assertEquals(Seq(20L, 18L, 16L, 14L, 12L, 10L, 8L, 6L, 4L, 3L), offsets)
+    assertEquals(Seq(20L, 3L), offsets)
 
     TestUtils.waitUntilTrue(() => isLeaderLocalOnBroker(topic, topicPartition.partition, broker),
       "Leader should be elected")
     val request = ListOffsetsRequest.Builder.forReplica(0, 0)
       .setTargetTimes(buildTargetTimes(topicPartition, ListOffsetsRequest.LATEST_TIMESTAMP, 15).asJava).build()
     val consumerOffsets = findPartition(sendListOffsetsRequest(request).topics.asScala, topicPartition).oldStyleOffsets.asScala
-    assertEquals(Seq(20L, 18L, 16L, 14L, 12L, 10L, 8L, 6L, 4L, 3L), consumerOffsets)
+    assertEquals(Seq(20L, 3L), consumerOffsets)
   }
 
   @ParameterizedTest
@@ -150,14 +150,14 @@ class LogOffsetTest extends BaseRequestTest {
     log.flush(false)
 
     val offsets = log.legacyFetchOffsetsBefore(ListOffsetsRequest.LATEST_TIMESTAMP, 15)
-    assertEquals(Seq(20L, 18L, 16L, 14L, 12L, 10L, 8L, 6L, 4L, 2L, 0L), offsets)
+    assertEquals(Seq(20L, 0L), offsets)
 
     TestUtils.waitUntilTrue(() => isLeaderLocalOnBroker(topic, 0, broker),
       "Leader should be elected")
     val request = ListOffsetsRequest.Builder.forReplica(0, 0)
       .setTargetTimes(buildTargetTimes(topicPartition, ListOffsetsRequest.LATEST_TIMESTAMP, 15).asJava).build()
     val consumerOffsets = findPartition(sendListOffsetsRequest(request).topics.asScala, topicPartition).oldStyleOffsets.asScala
-    assertEquals(Seq(20L, 18L, 16L, 14L, 12L, 10L, 8L, 6L, 4L, 2L, 0L), consumerOffsets)
+    assertEquals(Seq(20L, 0L), consumerOffsets)
 
     // try to fetch using latest offset
     val fetchRequest = FetchRequest.Builder.forConsumer(ApiKeys.FETCH.latestVersion, 0, 1,
@@ -224,14 +224,14 @@ class LogOffsetTest extends BaseRequestTest {
     val now = Time.SYSTEM.milliseconds + 30000 // pretend it is the future to avoid race conditions with the fs
 
     val offsets = log.legacyFetchOffsetsBefore(now, 15)
-    assertEquals(Seq(20L, 18L, 16L, 14L, 12L, 10L, 8L, 6L, 4L, 2L, 0L), offsets)
+    assertEquals(Seq(20L, 0L), offsets)
 
     TestUtils.waitUntilTrue(() => isLeaderLocalOnBroker(topic, topicPartition.partition, broker),
       "Leader should be elected")
     val request = ListOffsetsRequest.Builder.forReplica(0, 0)
       .setTargetTimes(buildTargetTimes(topicPartition, now, 15).asJava).build()
     val consumerOffsets = findPartition(sendListOffsetsRequest(request).topics.asScala, topicPartition).oldStyleOffsets.asScala
-    assertEquals(Seq(20L, 18L, 16L, 14L, 12L, 10L, 8L, 6L, 4L, 2L, 0L), consumerOffsets)
+    assertEquals(Seq(20L, 0L), consumerOffsets)
   }
 
   @deprecated("legacyFetchOffsetsBefore", since = "")

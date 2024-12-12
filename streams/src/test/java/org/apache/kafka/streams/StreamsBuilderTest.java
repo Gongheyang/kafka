@@ -1946,15 +1946,15 @@ public class StreamsBuilderTest {
                 StreamJoined.as("ss-join"))
             .to("output", Produced.as("sink"));
 
-        builder.build();
+        final Properties properties = new Properties();
+        properties.putAll(props);
+        builder.build(properties);
 
         // TODO: fix these names once we address https://issues.apache.org/jira/browse/KAFKA-18191
         assertThat(counter.wrappedProcessorNames(), Matchers.containsInAnyOrder(
-            "KSTREAM-JOINTHIS-0000000003", "KSTREAM-JOINOTHER-0000000004",
-            "KSTREAM-WINDOWED-0000000001", "KSTREAM-WINDOWED-0000000002",
-            "KSTREAM-MERGE-0000000005"
+            "KSTREAM-WINDOWED-0000000001", "KSTREAM-MERGE-0000000005"
         ));
-        assertThat(counter.numWrappedProcessors(), CoreMatchers.is(5));
+        assertThat(counter.numWrappedProcessors(), CoreMatchers.is(2));
         // only 1 store when topology optimizations enabled due to sharing self-join store
         assertThat(counter.numUniqueStateStores(), CoreMatchers.is(1));
         assertThat(counter.numConnectedStateStores(), CoreMatchers.is(2));

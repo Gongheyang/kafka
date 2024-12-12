@@ -97,7 +97,7 @@ fail due to code changes. You can just run:
 Using compiled files:
 
     KAFKA_CLUSTER_ID="$(./bin/kafka-storage.sh random-uuid)"
-    ./bin/kafka-storage.sh format -t $KAFKA_CLUSTER_ID -c config/kraft/reconfig-server.properties
+    ./bin/kafka-storage.sh format --standalone -t $KAFKA_CLUSTER_ID -c config/kraft/reconfig-server.properties
     ./bin/kafka-server-start.sh config/kraft/reconfig-server.properties
 
 Using docker image:
@@ -177,6 +177,7 @@ You can run checkstyle using:
 
 The checkstyle warnings will be found in `reports/checkstyle/reports/main.html` and `reports/checkstyle/reports/test.html` files in the
 subproject build directories. They are also printed to the console. The build will fail if Checkstyle fails.
+For experiments (or regression testing purposes) add `-PcheckstyleVersion=X.y.z` switch (to override project-defined checkstyle version).
 
 #### Spotless ####
 The import order is a part of static check. please call `spotlessApply` to optimize the imports of Java codes before filing pull request.

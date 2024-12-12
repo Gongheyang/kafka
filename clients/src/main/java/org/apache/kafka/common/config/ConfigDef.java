@@ -661,7 +661,6 @@ public class ConfigDef {
         ConfigValue value = configs.get(name);
         if (key.recommender != null) {
             try {
-                System.out.println(name + " " + parsed);
                 List<Object> recommendedValues = key.recommender.validValues(name, parsed);
                 List<Object> originalRecommendedValues = value.recommendedValues();
                 if (!originalRecommendedValues.isEmpty()) {

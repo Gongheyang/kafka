@@ -174,7 +174,8 @@ public class EmbeddedKafkaCluster {
         final String consumerGroupId = "group-warmup-" + uuid;
         final Map<String, Object> consumerConfig = Map.of(
             GROUP_ID_CONFIG, consumerGroupId,
-            GROUP_PROTOCOL_CONFIG, GroupProtocol.CLASSIC.name());
+            GROUP_PROTOCOL_CONFIG, GroupProtocol.CLASSIC.name()
+        );
         final String topic = "topic-warmup-" + uuid;
 
         createTopic(topic);

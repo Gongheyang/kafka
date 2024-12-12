@@ -101,7 +101,7 @@ class OffsetValidationTest(VerifiableConsumerTest):
         partition = TopicPartition(self.TOPIC, 0)
 
         producer = self.setup_producer(self.TOPIC)
-        consumer = self.setup_consumer(self.TOPIC, group_protocol=group_protocol, metadata_recovery_strategy="none")
+        consumer = self.setup_consumer(self.TOPIC, group_protocol=group_protocol, prop_file="metadata.recovery.strategy=none")
 
         producer.start()
         self.await_produced_messages(producer)

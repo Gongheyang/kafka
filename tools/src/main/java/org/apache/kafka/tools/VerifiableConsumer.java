@@ -16,8 +16,6 @@
  */
 package org.apache.kafka.tools;
 
-import org.apache.kafka.clients.CommonClientConfigs;
-import org.apache.kafka.clients.MetadataRecoveryStrategy;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRebalanceListener;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -617,14 +615,6 @@ public class VerifiableConsumer implements Closeable, OffsetCommitCallback, Cons
                 .metavar("CONFIG_FILE")
                 .help("Consumer config properties file (config options shared with command line parameters will be overridden).");
         
-        parser.addArgument("--metadata-recovery-strategy")
-                .action(store())
-                .required(false)
-                .setDefault("rebootstrap")
-                .type(String.class)
-                .dest("metadataRecoveryStrategy")
-                .help(String.format("Set metadata recovery strategy, eg. %s", String.join(", ", Arrays.stream(MetadataRecoveryStrategy.values()).map(Enum::name).collect(Collectors.toList()))));
-
         return parser;
     }
 
@@ -674,7 +664,6 @@ public class VerifiableConsumer implements Closeable, OffsetCommitCallback, Cons
             consumerProps.put(ConsumerConfig.GROUP_INSTANCE_ID_CONFIG, groupInstanceId);
         }
         
-        consumerProps.put(CommonClientConfigs.METADATA_RECOVERY_STRATEGY_CONFIG, res.getString("metadataRecoveryStrategy"));
         consumerProps.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, brokerHostandPort);
 
         consumerProps.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, useAutoCommit);

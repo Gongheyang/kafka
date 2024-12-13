@@ -103,8 +103,7 @@ public class OffsetResultHolder {
                 Optional<Exception> exception,
                 Optional<TimestampAndOffset> timestampAndOffset
         ) {
-            if ((exception.isPresent() && timestampAndOffset.isPresent()) || 
-                    (exception.isEmpty() && timestampAndOffset.isEmpty())) {
+            if (exception.isPresent() && timestampAndOffset.isPresent()) {
                 throw new IllegalArgumentException("Either exception or timestampAndOffset should be present, but not both");
             }
             this.exception = exception;

@@ -17,7 +17,6 @@
 
 package org.apache.kafka.coordinator.share.metrics;
 
-import com.yammer.metrics.core.MetricsRegistry;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.metrics.Metrics;
 import org.apache.kafka.common.metrics.Sensor;
@@ -28,6 +27,8 @@ import org.apache.kafka.common.utils.Utils;
 import org.apache.kafka.coordinator.common.runtime.CoordinatorMetrics;
 import org.apache.kafka.coordinator.common.runtime.CoordinatorMetricsShard;
 import org.apache.kafka.timeline.SnapshotRegistry;
+
+import com.yammer.metrics.core.MetricsRegistry;
 
 import java.util.Arrays;
 import java.util.Collections;

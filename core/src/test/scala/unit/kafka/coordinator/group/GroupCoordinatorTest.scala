@@ -178,7 +178,7 @@ class GroupCoordinatorTest {
     assertEquals(Some(Errors.NONE), heartbeatError)
 
     // DescribeGroups
-    val (describeGroupError, _) = groupCoordinator.handleDescribeGroup(otherGroupId)
+    val (describeGroupError, _, _) = groupCoordinator.handleDescribeGroup(otherGroupId, ApiKeys.DESCRIBE_GROUPS.latestVersion)
     assertEquals(Errors.COORDINATOR_LOAD_IN_PROGRESS, describeGroupError)
 
     // ListGroups
@@ -190,15 +190,16 @@ class GroupCoordinatorTest {
     assertEquals(Some(Errors.COORDINATOR_LOAD_IN_PROGRESS), deleteGroupsErrors.get(otherGroupId))
 
     // Check that non-loading groups are still accessible
-    assertEquals(Errors.NONE, groupCoordinator.handleDescribeGroup(groupId)._1)
+    assertEquals(Errors.GROUP_ID_NOT_FOUND, groupCoordinator.handleDescribeGroup(groupId, ApiKeys.DESCRIBE_GROUPS.latestVersion)._1)
 
     // After loading, we should be able to access the group
     val otherGroupMetadataTopicPartition = new TopicPartition(Topic.GROUP_METADATA_TOPIC_NAME, otherGroupPartitionId)
     when(replicaManager.getLog(otherGroupMetadataTopicPartition)).thenReturn(None)
+
     // Call removeGroupsAndOffsets so that partition removed from loadingPartitions
     groupCoordinator.groupManager.removeGroupsAndOffsets(otherGroupMetadataTopicPartition, OptionalInt.of(1), group => {})
     groupCoordinator.groupManager.loadGroupsAndOffsets(otherGroupMetadataTopicPartition, 1, group => {}, 0L)
-    assertEquals(Errors.NONE, groupCoordinator.handleDescribeGroup(otherGroupId)._1)
+    assertEquals(Errors.GROUP_ID_NOT_FOUND, groupCoordinator.handleDescribeGroup(otherGroupId, ApiKeys.DESCRIBE_GROUPS.latestVersion)._1)
   }
 
   @Test
@@ -2612,8 +2613,9 @@ class GroupCoordinatorTest {
     assertEquals(Errors.NONE, fetchError)
     assertEquals(Some(0), partitionData.get(tip.topicPartition).map(_.offset))
 
-    val (describeError, summary) = groupCoordinator.handleDescribeGroup(groupId)
+    var (describeError, describeErrorMessage, summary) = groupCoordinator.handleDescribeGroup(groupId, ApiKeys.DESCRIBE_GROUPS.latestVersion)
     assertEquals(Errors.NONE, describeError)
+    assertTrue(describeErrorMessage.isEmpty)
     assertEquals(Empty.toString, summary.state)
 
     val groupTopicPartition = new TopicPartition(Topic.GROUP_METADATA_TOPIC_NAME, groupPartitionId)
@@ -3412,15 +3414,21 @@ class GroupCoordinatorTest {
 
   @Test
   def testDescribeGroupWrongCoordinator(): Unit = {
-    val (error, _) = groupCoordinator.handleDescribeGroup(otherGroupId)
+    val (error, _, _) = groupCoordinator.handleDescribeGroup(otherGroupId, ApiKeys.DESCRIBE_GROUPS.latestVersion)
     assertEquals(Errors.NOT_COORDINATOR, error)
   }
 
   @Test
   def testDescribeGroupInactiveGroup(): Unit = {
-    val (error, summary) = groupCoordinator.handleDescribeGroup(groupId)
+    val (error, errorMessage, summary) = groupCoordinator.handleDescribeGroup(groupId, 5)
     assertEquals(Errors.NONE, error)
+    assertTrue(errorMessage.isEmpty)
     assertEquals(GroupCoordinator.DeadGroup, summary)
+
+    val (errorV6, errorMessageV6, summaryV6) = groupCoordinator.handleDescribeGroup(groupId, 6)
+    assertEquals(Errors.GROUP_ID_NOT_FOUND, errorV6)
+    assertEquals(s"Group $groupId not found.", errorMessageV6.get)
+    assertEquals(GroupCoordinator.DeadGroup, summaryV6)
   }
 
   @Test
@@ -3434,8 +3442,9 @@ class GroupCoordinatorTest {
     val syncGroupResult = syncGroupLeader(groupId, generationId, assignedMemberId, Map(assignedMemberId -> Array[Byte]()))
     assertEquals(Errors.NONE, syncGroupResult.error)
 
-    val (error, summary) = groupCoordinator.handleDescribeGroup(groupId)
+    val (error, errorMessage, summary) = groupCoordinator.handleDescribeGroup(groupId, ApiKeys.DESCRIBE_GROUPS.latestVersion)
     assertEquals(Errors.NONE, error)
+    assertTrue(errorMessage.isEmpty)
     assertEquals(protocolType, summary.protocolType)
     assertEquals("range", summary.protocol)
     assertEquals(List(assignedMemberId), summary.members.map(_.memberId))
@@ -3452,8 +3461,9 @@ class GroupCoordinatorTest {
     val syncGroupResult = syncGroupLeader(groupId, generationId, assignedMemberId, Map(assignedMemberId -> Array[Byte]()))
     assertEquals(Errors.NONE, syncGroupResult.error)
 
-    val (error, summary) = groupCoordinator.handleDescribeGroup(groupId)
+    val (error, errorMessage, summary) = groupCoordinator.handleDescribeGroup(groupId, ApiKeys.DESCRIBE_GROUPS.latestVersion)
     assertEquals(Errors.NONE, error)
+    assertTrue(errorMessage.isEmpty)
     assertEquals(protocolType, summary.protocolType)
     assertEquals("range", summary.protocol)
     assertEquals(List(assignedMemberId), summary.members.map(_.memberId))
@@ -3467,8 +3477,9 @@ class GroupCoordinatorTest {
     val joinGroupError = joinGroupResult.error
     assertEquals(Errors.NONE, joinGroupError)
 
-    val (error, summary) = groupCoordinator.handleDescribeGroup(groupId)
+    val (error, errorMessage, summary) = groupCoordinator.handleDescribeGroup(groupId, ApiKeys.DESCRIBE_GROUPS.latestVersion)
     assertEquals(Errors.NONE, error)
+    assertTrue(errorMessage.isEmpty)
     assertEquals(protocolType, summary.protocolType)
     assertEquals(GroupCoordinator.NoProtocol, summary.protocol)
     assertEquals(CompletingRebalance.toString, summary.state)
@@ -3535,9 +3546,9 @@ class GroupCoordinatorTest {
     val commitOffsetResult = commitOffsets(groupId, assignedMemberId, joinGroupResult.generationId, Map(tip -> offset))
     assertEquals(Map(tip -> Errors.NONE), commitOffsetResult)
 
-    val describeGroupResult = groupCoordinator.handleDescribeGroup(groupId)
-    assertEquals(Stable.toString, describeGroupResult._2.state)
-    assertEquals(assignedMemberId, describeGroupResult._2.members.head.memberId)
+    val describeGroupResult = groupCoordinator.handleDescribeGroup(groupId, ApiKeys.DESCRIBE_GROUPS.latestVersion)
+    assertEquals(Stable.toString, describeGroupResult._3.state)
+    assertEquals(assignedMemberId, describeGroupResult._3.members.head.memberId)
 
     val leaveGroupResults = singleLeaveGroup(groupId, assignedMemberId)
     verifyLeaveGroupResult(leaveGroupResults)
@@ -3552,7 +3563,7 @@ class GroupCoordinatorTest {
     val result = groupCoordinator.handleDeleteGroups(Set(groupId))
     assert(result.size == 1 && result.contains(groupId) && result.get(groupId).contains(Errors.NONE))
 
-    assertEquals(Dead.toString, groupCoordinator.handleDescribeGroup(groupId)._2.state)
+    assertEquals(Dead.toString, groupCoordinator.handleDescribeGroup(groupId, ApiKeys.DESCRIBE_GROUPS.latestVersion)._3.state)
   }
 
   @Test

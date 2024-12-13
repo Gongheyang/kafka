@@ -2893,7 +2893,7 @@ public class SenderTest {
     private void addPartitionToTxn(Sender sender, TransactionManager txnManager, TopicPartition tp) {
         txnManager.maybeAddPartition(tp);
         client.prepareResponse(buildAddPartitionsToTxnResponseData(0, Collections.singletonMap(tp, Errors.NONE)));
-        runUntil(sender, () -> txnManager.isPartitionAdded(tp));
+        runUntil(sender, () -> txnManager.transactionContainsPartition(tp));
         assertFalse(txnManager.hasInFlightRequest());
     }
 

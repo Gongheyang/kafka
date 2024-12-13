@@ -487,7 +487,8 @@ public class RequestResponseTest {
                                 createTopicProduceData(PRODUCE.latestVersion(), records1, tp1)).iterator()))
                         .setAcks((short) 1)
                         .setTimeoutMs(5000)
-                        .setTransactionalId("transactionalId"))
+                        .setTransactionalId("transactionalId"),
+                true)
             .build((short) 3);
         assertEquals(2, request.partitionSizes().size());
         assertEquals(records0.sizeInBytes(), (int) request.partitionSizes().get(tp0));
@@ -2186,9 +2187,9 @@ public class RequestResponseTest {
         JoinGroupRequestData.JoinGroupRequestProtocolCollection protocols =
             new JoinGroupRequestData.JoinGroupRequestProtocolCollection(
                 Collections.singleton(
-                new JoinGroupRequestData.JoinGroupRequestProtocol()
-                        .setName("consumer-range")
-                        .setMetadata(new byte[0])).iterator()
+                        new JoinGroupRequestData.JoinGroupRequestProtocol()
+                                .setName("consumer-range")
+                                .setMetadata(new byte[0])).iterator()
         );
 
         JoinGroupRequestData data = new JoinGroupRequestData()
@@ -2578,7 +2579,8 @@ public class RequestResponseTest {
                         ))
                         .setAcks((short) 1)
                         .setTimeoutMs(5000)
-                        .setTransactionalId(version >= 3 ? "transactionalId" : null))
+                        .setTransactionalId(version >= 3 ? "transactionalId" : null),
+                true)
                 .build(version);
     }
 
@@ -3122,7 +3124,18 @@ public class RequestResponseTest {
                 "groupId",
                 21L,
                 (short) 42,
-                offsets).build();
+                offsets,
+                false).build();
+        } else if (version < 5) {
+            return new TxnOffsetCommitRequest.Builder("transactionalId",
+                "groupId",
+                21L,
+                (short) 42,
+                offsets,
+                "member",
+                2,
+                Optional.of("instance"),
+                false).build(version);
         } else {
             return new TxnOffsetCommitRequest.Builder("transactionalId",
                 "groupId",
@@ -3131,7 +3144,8 @@ public class RequestResponseTest {
                 offsets,
                 "member",
                 2,
-                Optional.of("instance")).build(version);
+                Optional.of("instance"),
+                true).build(version);
         }
     }
 
@@ -3149,7 +3163,8 @@ public class RequestResponseTest {
             offsets,
             "member",
             2,
-            Optional.of("instance")).build();
+            Optional.of("instance"),
+            false).build();
     }
 
     private TxnOffsetCommitResponse createTxnOffsetCommitResponse() {

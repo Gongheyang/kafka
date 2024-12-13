@@ -85,22 +85,22 @@ class UnattachedStateWithVoteTest {
 
         assertEquals(
             isLogUpToDate,
-            state.canGrantPreVote(ReplicaKey.of(votedId, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate)
+            state.canGrantVote(ReplicaKey.of(votedId, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate, true)
         );
-        assertTrue(state.canGrantVote(ReplicaKey.of(votedId, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate));
+        assertTrue(state.canGrantVote(ReplicaKey.of(votedId, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate, false));
 
         assertEquals(
             isLogUpToDate,
-            state.canGrantPreVote(ReplicaKey.of(votedId, Uuid.randomUuid()), isLogUpToDate)
+            state.canGrantVote(ReplicaKey.of(votedId, Uuid.randomUuid()), isLogUpToDate, true)
         );
-        assertTrue(state.canGrantVote(ReplicaKey.of(votedId, Uuid.randomUuid()), isLogUpToDate));
+        assertTrue(state.canGrantVote(ReplicaKey.of(votedId, Uuid.randomUuid()), isLogUpToDate, false));
 
         // Can grant PreVote to other replicas even if we have granted a standard vote to another replica
         assertEquals(
             isLogUpToDate,
-            state.canGrantPreVote(ReplicaKey.of(votedId + 1, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate)
+            state.canGrantVote(ReplicaKey.of(votedId + 1, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate, true)
         );
-        assertFalse(state.canGrantVote(ReplicaKey.of(votedId + 1, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate));
+        assertFalse(state.canGrantVote(ReplicaKey.of(votedId + 1, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate, false));
     }
 
     @ParameterizedTest
@@ -113,37 +113,37 @@ class UnattachedStateWithVoteTest {
         // We can reject PreVote for a replica we have already granted a standard vote to if their log is behind
         assertEquals(
             isLogUpToDate,
-            state.canGrantPreVote(ReplicaKey.of(votedId, votedDirectoryId), isLogUpToDate)
+            state.canGrantVote(ReplicaKey.of(votedId, votedDirectoryId), isLogUpToDate, true)
         );
-        assertTrue(state.canGrantVote(ReplicaKey.of(votedId, votedDirectoryId), isLogUpToDate));
+        assertTrue(state.canGrantVote(ReplicaKey.of(votedId, votedDirectoryId), isLogUpToDate, false));
 
         // Different directoryId
         // We can grant PreVote for a replica we have already granted a standard vote to if their log is up-to-date,
         // even if the directoryId is different
         assertEquals(
             isLogUpToDate,
-            state.canGrantPreVote(ReplicaKey.of(votedId, Uuid.randomUuid()), isLogUpToDate)
+            state.canGrantVote(ReplicaKey.of(votedId, Uuid.randomUuid()), isLogUpToDate, true)
         );
-        assertFalse(state.canGrantVote(ReplicaKey.of(votedId, Uuid.randomUuid()), isLogUpToDate));
+        assertFalse(state.canGrantVote(ReplicaKey.of(votedId, Uuid.randomUuid()), isLogUpToDate, false));
 
         // Missing directoryId
         assertEquals(
             isLogUpToDate,
-            state.canGrantPreVote(ReplicaKey.of(votedId, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate)
+            state.canGrantVote(ReplicaKey.of(votedId, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate, true)
         );
-        assertFalse(state.canGrantVote(ReplicaKey.of(votedId, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate));
+        assertFalse(state.canGrantVote(ReplicaKey.of(votedId, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate, false));
 
         // Different voterId
         assertEquals(
             isLogUpToDate,
-            state.canGrantPreVote(ReplicaKey.of(votedId + 1, votedDirectoryId), isLogUpToDate)
+            state.canGrantVote(ReplicaKey.of(votedId + 1, votedDirectoryId), isLogUpToDate, true)
         );
         assertEquals(
             isLogUpToDate,
-            state.canGrantPreVote(ReplicaKey.of(votedId + 1, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate)
+            state.canGrantVote(ReplicaKey.of(votedId + 1, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate, true)
         );
-        assertFalse(state.canGrantVote(ReplicaKey.of(votedId + 1, votedDirectoryId), true));
-        assertFalse(state.canGrantVote(ReplicaKey.of(votedId + 1, ReplicaKey.NO_DIRECTORY_ID), true));
+        assertFalse(state.canGrantVote(ReplicaKey.of(votedId + 1, votedDirectoryId), true, false));
+        assertFalse(state.canGrantVote(ReplicaKey.of(votedId + 1, ReplicaKey.NO_DIRECTORY_ID), true, false));
     }
 
     @Test

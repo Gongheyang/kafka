@@ -29,23 +29,14 @@ public interface EpochState extends Closeable {
      * Decide whether to grant a vote to a replica.
      *
      * It is the responsibility of the caller to invoke
-     * {@link QuorumState#transitionToUnattachedVotedState(int, ReplicaKey)} if vote is granted.
+     * {@link QuorumState#transitionToUnattachedVotedState(int, ReplicaKey)} if a standard vote is granted.
      *
      * @param replicaKey the id and directory of the replica requesting the vote
      * @param isLogUpToDate whether the replica's log is at least as up-to-date as receiver’s log
+     * @param isPreVote whether the vote request is a PreVote (non-binding) or standard vote
      * @return true if it can grant the vote, false otherwise
      */
-    boolean canGrantVote(ReplicaKey replicaKey, boolean isLogUpToDate);
-
-    /**
-     * Decide whether to grant a PreVote to a replica. This is based on if we have been able
-     * to contact the leader and if the replica's log is up-to-date.
-     *
-     * @param replicaKey the id and directory of the replica requesting the vote
-     * @param isLogUpToDate whether the replica's log is at least as up-to-date as receiver’s log
-     * @return true if it can grant the vote, false otherwise
-     */
-    boolean canGrantPreVote(ReplicaKey replicaKey, boolean isLogUpToDate);
+    boolean canGrantVote(ReplicaKey replicaKey, boolean isLogUpToDate, boolean isPreVote);
 
     /**
      * Get the current election state, which is guaranteed to be immutable.

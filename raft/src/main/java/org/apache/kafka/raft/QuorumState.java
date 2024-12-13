@@ -638,9 +638,7 @@ public class QuorumState {
     }
 
     public boolean canGrantVote(ReplicaKey replicaKey, boolean isLogUpToDate, boolean isPreVote) {
-        return isPreVote ?
-            state.canGrantPreVote(replicaKey, isLogUpToDate) :
-            state.canGrantVote(replicaKey, isLogUpToDate);
+        return state.canGrantVote(replicaKey, isLogUpToDate, isPreVote);
     }
 
     public FollowerState followerStateOrThrow() {

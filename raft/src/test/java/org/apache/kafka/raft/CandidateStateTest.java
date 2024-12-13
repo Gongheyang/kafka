@@ -219,15 +219,15 @@ public class CandidateStateTest {
             voterSetWithLocal(Stream.of(node1, node2, node3), withDirectoryId)
         );
 
-        assertEquals(isLogUpToDate, state.canGrantPreVote(node0, isLogUpToDate));
-        assertEquals(isLogUpToDate, state.canGrantPreVote(node1, isLogUpToDate));
-        assertEquals(isLogUpToDate, state.canGrantPreVote(node2, isLogUpToDate));
-        assertEquals(isLogUpToDate, state.canGrantPreVote(node3, isLogUpToDate));
+        assertEquals(isLogUpToDate, state.canGrantVote(node0, isLogUpToDate, true));
+        assertEquals(isLogUpToDate, state.canGrantVote(node1, isLogUpToDate, true));
+        assertEquals(isLogUpToDate, state.canGrantVote(node2, isLogUpToDate, true));
+        assertEquals(isLogUpToDate, state.canGrantVote(node3, isLogUpToDate, true));
 
-        assertFalse(state.canGrantVote(node0, isLogUpToDate));
-        assertFalse(state.canGrantVote(node1, isLogUpToDate));
-        assertFalse(state.canGrantVote(node2, isLogUpToDate));
-        assertFalse(state.canGrantVote(node3, isLogUpToDate));
+        assertFalse(state.canGrantVote(node0, isLogUpToDate, false));
+        assertFalse(state.canGrantVote(node1, isLogUpToDate, false));
+        assertFalse(state.canGrantVote(node2, isLogUpToDate, false));
+        assertFalse(state.canGrantVote(node3, isLogUpToDate, false));
     }
 
     @ParameterizedTest

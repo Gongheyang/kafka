@@ -379,13 +379,7 @@ abstract class KafkaServerTestHarness extends QuorumTestHarness {
     }
   }
 
-  private def createBrokerFromConfig(config: KafkaConfig): KafkaBroker = {
-    if (isKRaftTest()) {
-      createBroker(config, brokerTime(config.brokerId), startup = false)
-    } else {
-      TestUtils.createServer(config, time = brokerTime(config.brokerId), threadNamePrefix = None, startup = false)
-    }
-  }
+  private def createBrokerFromConfig(config: KafkaConfig): KafkaBroker = createBroker(config, brokerTime(config.brokerId), startup = false)
 
   def aliveBrokers: Seq[KafkaBroker] = {
     _brokers.filter(broker => alive(broker.config.brokerId)).toSeq

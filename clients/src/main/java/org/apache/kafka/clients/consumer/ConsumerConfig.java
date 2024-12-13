@@ -378,7 +378,7 @@ public class ConsumerConfig extends AbstractConfig {
     /** <code>temp.fetch.mode</code> */
     public static final String TEMP_FETCH_MODE_CONFIG = "temp.fetch.mode";
     private static final String TEMP_FETCH_MODE_DOC = "This is a temporary configuration for testing";
-    public static final TempFetchMode DEFAULT_TEMP_FETCH_MODE = TempFetchMode.SKIP_NODE;
+    public static final TempFetchMode DEFAULT_TEMP_FETCH_MODE = TempFetchMode.SKIP_BUFFERED;
 
     /**
      * <code>security.providers</code>

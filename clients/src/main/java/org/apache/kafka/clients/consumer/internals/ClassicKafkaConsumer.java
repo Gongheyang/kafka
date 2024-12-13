@@ -370,7 +370,7 @@ public class ClassicKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
                 checkCrcs,
                 rackId,
                 isolationLevel,
-                TempFetchMode.SKIP_BUFFERED
+                ConsumerConfig.DEFAULT_TEMP_FETCH_MODE
         );
         this.fetcher = new Fetcher<>(
             logContext,

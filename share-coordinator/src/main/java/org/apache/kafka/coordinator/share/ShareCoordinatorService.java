@@ -319,7 +319,7 @@ public class ShareCoordinatorService implements ShareCoordinator {
                         }
                         shareCoordinatorMetrics.record(
                             ShareCoordinatorMetrics.SHARE_COORDINATOR_SHARE_GROUP_STATE_TOPIC_PRUNE_SENSOR_NAME,
-                            off - lastPrunedOffset
+                            off
                         );
                         fut.complete(null);
                         // Best effort prevention of issuing duplicate delete calls.

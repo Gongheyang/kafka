@@ -2328,14 +2328,11 @@ class KafkaApis(val requestChannel: RequestChannel,
         requestHelper.sendResponseMaybeThrottle(request, createResponse)
       }
 
-      // If the request is greater than version 4, we know the client supports transaction version 2.
-      val clientTransactionVersion = if (endTxnRequest.version() > 4) TransactionVersion.TV_2 else TransactionVersion.TV_0
-
       txnCoordinator.handleEndTransaction(endTxnRequest.data.transactionalId,
         endTxnRequest.data.producerId,
         endTxnRequest.data.producerEpoch,
         endTxnRequest.result(),
-        clientTransactionVersion,
+        TransactionVersion.transactionVersionForEndTxn(endTxnRequest),
         sendResponseCallback,
         requestLocal)
     } else
@@ -2614,6 +2611,7 @@ class KafkaApis(val requestChannel: RequestChannel,
               transaction.producerEpoch,
               authorizedPartitions,
               sendResponseCallback,
+              TransactionVersion.transactionVersionForAddPartitionsToTxn(addPartitionsToTxnRequest),
               requestLocal)
           } else {
             txnCoordinator.handleVerifyPartitionsInTransaction(transactionalId,
@@ -2673,6 +2671,7 @@ class KafkaApis(val requestChannel: RequestChannel,
         addOffsetsToTxnRequest.data.producerEpoch,
         Set(offsetTopicPartition),
         sendResponseCallback,
+        TransactionVersion.TV_0, // This request will always come from the client not using TV 2.
         requestLocal)
     }
   }
@@ -3161,7 +3160,7 @@ class KafkaApis(val requestChannel: RequestChannel,
       new KafkaPrincipal(entry.principalType, entry.principalName))
 
     // DelegationToken changes only need to be executed on the controller during migration
-    if (config.migrationEnabled && (!zkSupport.controller.isActive)) {
+    if (!zkSupport.controller.isActive) {
       requestHelper.sendResponseMaybeThrottle(request, requestThrottleMs =>
         CreateDelegationTokenResponse.prepareResponse(request.context.requestVersion, requestThrottleMs,
           Errors.NOT_CONTROLLER, owner, requester))
@@ -3205,7 +3204,7 @@ class KafkaApis(val requestChannel: RequestChannel,
                .setExpiryTimestampMs(expiryTimestamp)))
     }
     // DelegationToken changes only need to be executed on the controller during migration
-    if (config.migrationEnabled && (!zkSupport.controller.isActive)) {
+    if (!zkSupport.controller.isActive) {
       requestHelper.sendResponseMaybeThrottle(request, requestThrottleMs =>
         new RenewDelegationTokenResponse(
           new RenewDelegationTokenResponseData()
@@ -3251,7 +3250,7 @@ class KafkaApis(val requestChannel: RequestChannel,
               .setExpiryTimestampMs(expiryTimestamp)))
     }
     // DelegationToken changes only need to be executed on the controller during migration
-    if (config.migrationEnabled && (!zkSupport.controller.isActive)) {
+    if (!zkSupport.controller.isActive) {
       requestHelper.sendResponseMaybeThrottle(request, requestThrottleMs =>
         new ExpireDelegationTokenResponse(
           new ExpireDelegationTokenResponseData()

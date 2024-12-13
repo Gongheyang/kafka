@@ -36,6 +36,7 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * This class manages the fetching process with the brokers.
@@ -61,6 +62,7 @@ public class Fetcher<K, V> extends AbstractFetch {
     private final Logger log;
     private final ConsumerNetworkClient client;
     private final FetchCollector<K, V> fetchCollector;
+    private final ReentrantLock lock = new ReentrantLock();
 
     public Fetcher(LogContext logContext,
                    ConsumerNetworkClient client,
@@ -102,21 +104,22 @@ public class Fetcher<K, V> extends AbstractFetch {
      * an in-flight fetch or pending fetch data.
      * @return number of fetches sent
      */
-    public synchronized int sendFetches() {
-        final Map<Node, FetchSessionHandler.FetchRequestData> fetchRequests = prepareFetchRequests();
-        sendFetchesInternal(
-                fetchRequests,
-                (fetchTarget, data, clientResponse) -> {
-                    synchronized (Fetcher.this) {
+    public int sendFetches() {
+        try {
+            lock.lock();
+            final Map<Node, FetchSessionHandler.FetchRequestData> fetchRequests = prepareFetchRequests();
+            sendFetchesInternal(
+                    fetchRequests,
+                    (fetchTarget, data, clientResponse) -> {
                         handleFetchSuccess(fetchTarget, data, clientResponse);
-                    }
-                },
-                (fetchTarget, data, error) -> {
-                    synchronized (Fetcher.this) {
+                    },
+                    (fetchTarget, data, error) -> {
                         handleFetchFailure(fetchTarget, data, error);
-                    }
-                });
-        return fetchRequests.size();
+                    });
+            return fetchRequests.size();
+        } finally {
+            lock.unlock();
+        }
     }
 
     protected void maybeCloseFetchSessions(final Timer timer) {

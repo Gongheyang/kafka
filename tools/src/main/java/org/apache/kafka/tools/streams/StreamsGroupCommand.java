@@ -125,8 +125,8 @@ public class StreamsGroupCommand {
         List<String> listStreamsGroups() {
             try {
                 ListGroupsResult result = adminClient.listGroups(new ListGroupsOptions()
-                    .timeoutMs(opts.options.valueOf(opts.timeoutMsOpt).intValue()));
-//                    .withTypes(Set.of(GroupType.STREAMS)));
+                    .timeoutMs(opts.options.valueOf(opts.timeoutMsOpt).intValue())
+                    .withTypes(Set.of(GroupType.STREAMS)));
                 Collection<GroupListing> listings = result.all().get();
                 return listings.stream().map(GroupListing::groupId).collect(Collectors.toList());
             } catch (InterruptedException | ExecutionException e) {

@@ -1738,9 +1738,9 @@ public class StreamsBuilderTest {
             .to("output", Produced.as("sink"));
 
         builder.build();
-        assertThat(counter.numWrappedProcessors(), CoreMatchers.is(5));
+        assertThat(counter.numWrappedProcessors(), CoreMatchers.is(6));
         assertThat(counter.wrappedProcessorNames(), Matchers.containsInAnyOrder(
-            "map-values", "map-values-stateful",
+            "to-table", "map-values", "map-values-stateful",
             "filter-table", "filter-table-stateful", "to-stream"
         ));
         assertThat(counter.numUniqueStateStores(), CoreMatchers.is(1));

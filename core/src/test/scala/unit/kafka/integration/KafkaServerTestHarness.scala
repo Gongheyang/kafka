@@ -233,19 +233,14 @@ abstract class KafkaServerTestHarness extends QuorumTestHarness {
   def deleteTopic(
     topic: String,
     listenerName: ListenerName = listenerName
-  ): Unit = {
-    if (isKRaftTest()) {
-      Using.resource(createAdminClient(brokers, listenerName)) { admin =>
-        TestUtils.deleteTopicWithAdmin(
-          admin = admin,
-          topic = topic,
-          brokers = aliveBrokers,
-          controllers = controllerServers)
-      }
-    } else {
-      adminZkClient.deleteTopic(topic)
+  ): Unit = 
+    Using.resource(createAdminClient(brokers, listenerName)) { admin =>
+      TestUtils.deleteTopicWithAdmin(
+        admin = admin,
+        topic = topic,
+        brokers = aliveBrokers,
+        controllers = controllerServers)
     }
-  }
 
   def addAndVerifyAcls(acls: Set[AccessControlEntry], resource: ResourcePattern): Unit = {
     val authorizerForWrite = pickAuthorizerForWrite(brokers, controllerServers)

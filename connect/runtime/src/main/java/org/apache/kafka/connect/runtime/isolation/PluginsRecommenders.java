@@ -210,7 +210,7 @@ public class PluginsRecommenders {
     // Recommender for transformation and predicate plugins
     public abstract class SMTPluginRecommender<T> implements ConfigDef.Recommender {
 
-        abstract protected Function<String, Set<PluginDesc<T>>> plugins();
+        protected abstract Function<String, Set<PluginDesc<T>>> plugins();
 
         protected final String classOrAliasConfig;
 

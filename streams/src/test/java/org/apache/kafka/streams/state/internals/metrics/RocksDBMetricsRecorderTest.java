@@ -176,7 +176,7 @@ public class RocksDBMetricsRecorderTest {
     @Test
     public void shouldThrowIfMetricRecorderIsInitialisedWithNullMetrics() {
         assertThrows(
-            IllegalStateException.class,
+            NullPointerException.class,
             () -> recorder.init(null, TASK_ID1)
         );
     }
@@ -184,7 +184,7 @@ public class RocksDBMetricsRecorderTest {
     @Test
     public void shouldThrowIfMetricRecorderIsInitialisedWithNullTaskId() {
         assertThrows(
-            IllegalStateException.class,
+            NullPointerException.class,
             () -> recorder.init(streamsMetrics, null)
         );
     }

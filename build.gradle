@@ -3533,6 +3533,7 @@ project(':connect:runtime') {
     implementation libs.classgraph
     implementation libs.mavenArtifact
     implementation libs.swaggerAnnotations
+    implementation libs.javaxWsRs
 
     compileOnly libs.bndlib
     compileOnly libs.spotbugs

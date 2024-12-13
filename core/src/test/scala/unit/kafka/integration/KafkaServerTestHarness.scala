@@ -176,30 +176,18 @@ abstract class KafkaServerTestHarness extends QuorumTestHarness {
     topicConfig: Properties = new Properties,
     listenerName: ListenerName = listenerName,
     adminClientConfig: Properties = new Properties
-  ): scala.collection.immutable.Map[Int, Int] = {
-    if (isKRaftTest()) {
-      Using.resource(createAdminClient(brokers, listenerName, adminClientConfig)) { admin =>
-        TestUtils.createTopicWithAdmin(
-          admin = admin,
-          topic = topic,
-          brokers = brokers,
-          controllers = controllerServers,
-          numPartitions = numPartitions,
-          replicationFactor = replicationFactor,
-          topicConfig = topicConfig
-        )
-      }
-    } else {
-      TestUtils.createTopic(
-        zkClient = zkClient,
+  ): scala.collection.immutable.Map[Int, Int] = 
+    Using.resource(createAdminClient(brokers, listenerName, adminClientConfig)) { admin =>
+      TestUtils.createTopicWithAdmin(
+        admin = admin,
         topic = topic,
+        brokers = brokers,
+        controllers = controllerServers,
         numPartitions = numPartitions,
         replicationFactor = replicationFactor,
-        servers = servers,
         topicConfig = topicConfig
       )
     }
-  }
 
   /**
    * Create a topic in ZooKeeper using a customized replica assignment.

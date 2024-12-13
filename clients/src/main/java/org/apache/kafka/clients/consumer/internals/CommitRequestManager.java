@@ -544,7 +544,17 @@ public class CommitRequestManager implements RequestManager, MemberStateListener
             }
             if (error == null) {
                 maybeUpdateLastSeenEpochIfNewer(res);
-                result.complete(res);
+                if (fetchRequest.isSubset.equals(Optional.empty()) || fetchRequest.isSubset.equals(Optional.of(false))) {
+                    result.complete(res);
+                } else {
+                    Map<TopicPartition, OffsetAndMetadata> subsetRes = new HashMap<>(res.size());
+                    res.forEach((key, value) -> {
+                        if (fetchRequest.requestedPartitions.contains(key)) {
+                            subsetRes.put(key, value);
+                        }
+                    });
+                    result.complete(subsetRes);
+                }
             } else {
                 if (error instanceof RetriableException || isStaleEpochErrorAndValidEpochAvailable(error)) {
                     if (fetchRequest.isExpired()) {
@@ -921,6 +931,11 @@ public class CommitRequestManager implements RequestManager, MemberStateListener
         public final Set<TopicPartition> requestedPartitions;
 
         /**
+         * Empty is not reused, true is subset , false is there is same request
+         */
+        public Optional<Boolean> isSubset = Optional.empty();
+
+        /**
          * Future with the result of the request. This can be reset using {@link #resetFuture()}
          * to get a new result when the request is retried.
          */
@@ -950,7 +965,19 @@ public class CommitRequestManager implements RequestManager, MemberStateListener
         }
 
         public boolean sameRequest(final OffsetFetchRequestState request) {
-            return requestedPartitions.equals(request.requestedPartitions);
+            if (requestedPartitions.equals(request.requestedPartitions)) {
+                request.isSubset = Optional.of(false);
+                return true;
+            }
+            return false;
+        }
+
+        public boolean subsetRequest(final OffsetFetchRequestState request) {
+            if (requestedPartitions.containsAll(request.requestedPartitions)) {
+                request.isSubset = Optional.of(true);
+                return true;
+            }
+            return false;
         }
 
         public NetworkClientDelegate.UnsentRequest toUnsentRequest() {
@@ -1129,6 +1156,19 @@ public class CommitRequestManager implements RequestManager, MemberStateListener
             return super.toStringBase() +
                     ", requestedPartitions=" + requestedPartitions;
         }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(requestedPartitions);
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) return true;
+            if (obj == null || getClass() != obj.getClass()) return false;
+            OffsetFetchRequestState other = (OffsetFetchRequestState) obj;
+            return requestedPartitions.equals(other.requestedPartitions);
+        }
     }
 
     /**
@@ -1137,7 +1177,7 @@ public class CommitRequestManager implements RequestManager, MemberStateListener
      * <li>unsentOffsetFetches holds the offset fetch requests that have not been sent out</li>
      * <li>inflightOffsetFetches holds the offset fetch requests that have been sent out but not completed</>.
      * <p>
-     * {@code addOffsetFetchRequest} dedupes the requests to avoid sending the same requests.
+     * {@code addOffsetFetchRequest} dedupes the requests to avoid sending the same or subset requests.
      */
 
     class PendingRequests {
@@ -1162,7 +1202,7 @@ public class CommitRequestManager implements RequestManager, MemberStateListener
         }
 
         /**
-         * <p>Adding an offset fetch request to the outgoing buffer.  If the same request was made, we chain the future
+         * <p>Adding an offset fetch request to the outgoing buffer.  If the same or subest request was made, we chain the future
          * to the existing one.
          *
          * <p>If the request is new, it invokes a callback to remove itself from the {@code inflightOffsetFetches}
@@ -1170,9 +1210,9 @@ public class CommitRequestManager implements RequestManager, MemberStateListener
          */
         private CompletableFuture<Map<TopicPartition, OffsetAndMetadata>> addOffsetFetchRequest(final OffsetFetchRequestState request) {
             Optional<OffsetFetchRequestState> dupe =
-                    unsentOffsetFetches.stream().filter(r -> r.sameRequest(request)).findAny();
+                    unsentOffsetFetches.stream().filter(r -> r.sameRequest(request) || r.subsetRequest(request)).findAny();
             Optional<OffsetFetchRequestState> inflight =
-                    inflightOffsetFetches.stream().filter(r -> r.sameRequest(request)).findAny();
+                    inflightOffsetFetches.stream().filter(r -> r.sameRequest(request) || r.subsetRequest(request)).findAny();
 
             if (dupe.isPresent() || inflight.isPresent()) {
                 log.debug("Duplicated unsent offset fetch request found for partitions: {}", request.requestedPartitions);

@@ -850,6 +850,74 @@ public class CommitRequestManagerTest {
             "request should be removed from the queue when a response is received.");
     }
 
+    @Test
+    public void testReuseOffsetFetch() {
+        CommitRequestManager commitManager = create(false, 100);
+        when(coordinatorRequestManager.coordinator()).thenReturn(Optional.of(mockedNode));
+
+        long deadlineMs = time.milliseconds() + defaultApiTimeoutMs;
+
+
+        TopicPartition tp1 = new TopicPartition("test-1", 0);
+        TopicPartition tp2 = new TopicPartition("test-2", 0);
+
+        Set<TopicPartition> superSetPartition = new HashSet<>();
+        superSetPartition.add(tp1);
+        superSetPartition.add(tp2);
+
+        Set<TopicPartition> subSetPartition = Collections.singleton(tp1);
+
+        CompletableFuture<Map<TopicPartition, OffsetAndMetadata>> superSetFetchResult =
+                commitManager.fetchOffsets(superSetPartition, deadlineMs);
+
+        CompletableFuture<Map<TopicPartition, OffsetAndMetadata>> subSetFetchResult =
+                commitManager.fetchOffsets(subSetPartition, deadlineMs);
+
+        // Send fetch request
+        NetworkClientDelegate.PollResult result = commitManager.poll(time.milliseconds());
+        assertEquals(1, result.unsentRequests.size());
+        assertEquals(1, commitManager.pendingRequests.inflightOffsetFetches.size());
+        assertFalse(superSetFetchResult.isDone());
+
+        // Complete request with a response
+        long expectedOffset = 100;
+        NetworkClientDelegate.UnsentRequest req = result.unsentRequests.get(0);
+        Map<TopicPartition, OffsetFetchResponse.PartitionData> topicPartitionData = new HashMap<>();
+        topicPartitionData.put(tp1, new OffsetFetchResponse.PartitionData(expectedOffset, Optional.of(1), "", Errors.NONE));
+        topicPartitionData.put(tp2, new OffsetFetchResponse.PartitionData(expectedOffset, Optional.of(2), "", Errors.NONE));
+        req.handler().onComplete(buildOffsetFetchClientResponse(req, topicPartitionData, Errors.NONE, false));
+
+        // Validate request future completes with the response received
+        assertTrue(superSetFetchResult.isDone());
+        assertFalse(superSetFetchResult.isCompletedExceptionally());
+        Map<TopicPartition, OffsetAndMetadata> superSetOffsetsAndMetadata = null;
+        Map<TopicPartition, OffsetAndMetadata> subSetOffsetsAndMetadata = null;
+        try {
+            superSetOffsetsAndMetadata = superSetFetchResult.get();
+        } catch (InterruptedException | ExecutionException e) {
+            fail(e);
+        }
+        try {
+            subSetOffsetsAndMetadata = subSetFetchResult.get();
+        } catch (InterruptedException | ExecutionException e) {
+            fail(e);
+        }
+        assertNotNull(superSetOffsetsAndMetadata);
+        assertEquals(2, superSetOffsetsAndMetadata.size());
+        assertTrue(superSetOffsetsAndMetadata.containsKey(tp1));
+        assertTrue(superSetOffsetsAndMetadata.containsKey(tp2));
+        assertEquals(expectedOffset, superSetOffsetsAndMetadata.get(tp1).offset());
+        assertEquals(expectedOffset, superSetOffsetsAndMetadata.get(tp2).offset());
+
+        assertNotNull(subSetOffsetsAndMetadata);
+        assertEquals(1, subSetOffsetsAndMetadata.size());
+        assertTrue(subSetOffsetsAndMetadata.containsKey(tp1));
+        assertEquals(expectedOffset, superSetOffsetsAndMetadata.get(tp1).offset());
+
+        assertEquals(0, commitManager.pendingRequests.inflightOffsetFetches.size(), "Inflight " +
+                "request should be removed from the queue when a response is received.");
+    }
+
     @ParameterizedTest
     @MethodSource("offsetFetchRetriableCoordinatorErrors")
     public void testOffsetFetchMarksCoordinatorUnknownOnRetriableCoordinatorErrors(Errors error,

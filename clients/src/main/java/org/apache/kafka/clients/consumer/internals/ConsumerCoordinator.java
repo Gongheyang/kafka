@@ -146,6 +146,10 @@ public final class ConsumerCoordinator extends AbstractCoordinator {
         private boolean sameRequest(final Set<TopicPartition> currentRequest, final Generation currentGeneration) {
             return Objects.equals(requestedGeneration, currentGeneration) && requestedPartitions.equals(currentRequest);
         }
+
+        private boolean subsetRequest(final Set<TopicPartition> currentRequest, final Generation currentGeneration) {
+            return Objects.equals(requestedGeneration, currentGeneration) && requestedPartitions.containsAll(currentRequest);
+        }
     }
 
     private final RebalanceProtocol protocol;
@@ -925,7 +929,8 @@ public final class ConsumerCoordinator extends AbstractCoordinator {
 
         final Generation generationForOffsetRequest = generationIfStable();
         if (pendingCommittedOffsetRequest != null &&
-            !pendingCommittedOffsetRequest.sameRequest(partitions, generationForOffsetRequest)) {
+            !pendingCommittedOffsetRequest.sameRequest(partitions, generationForOffsetRequest) &&
+            !pendingCommittedOffsetRequest.subsetRequest(partitions, generationForOffsetRequest)) {
             // if we were waiting for a different request, then just clear it.
             pendingCommittedOffsetRequest = null;
         }
@@ -936,8 +941,12 @@ public final class ConsumerCoordinator extends AbstractCoordinator {
 
             // contact coordinator to fetch committed offsets
             final RequestFuture<Map<TopicPartition, OffsetAndMetadata>> future;
+            boolean isReuseSubsetRequest = true;
             if (pendingCommittedOffsetRequest != null) {
                 future = pendingCommittedOffsetRequest.response;
+                if (pendingCommittedOffsetRequest.sameRequest(partitions, generationForOffsetRequest)) {
+                    isReuseSubsetRequest = false;
+                }
             } else {
                 future = sendOffsetFetchRequest(partitions);
                 pendingCommittedOffsetRequest = new PendingCommittedOffsetRequest(partitions, generationForOffsetRequest, future);
@@ -948,7 +957,16 @@ public final class ConsumerCoordinator extends AbstractCoordinator {
                 pendingCommittedOffsetRequest = null;
 
                 if (future.succeeded()) {
-                    return future.value();
+                    if (!isReuseSubsetRequest) {
+                        return future.value();
+                    }
+                    Map<TopicPartition, OffsetAndMetadata> results = new HashMap<>(future.value().size());
+                    future.value().forEach((key, value) -> {
+                        if (partitions.contains(key)) {
+                            results.put(key, value);
+                        }
+                    });
+                    return results;
                 } else if (!future.isRetriable()) {
                     throw future.exception();
                 } else {

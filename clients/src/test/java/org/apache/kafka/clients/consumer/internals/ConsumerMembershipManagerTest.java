@@ -1740,12 +1740,12 @@ public class ConsumerMembershipManagerTest {
 
     @Test
     public void testListenerCallbacksThrowsErrorOnPartitionsRevoked() {
-        testErrorsOnPartitionsRevoked(Optional.of(new WakeupException()));
-        testErrorsOnPartitionsRevoked(Optional.of(new InterruptException("Intentional onPartitionsRevoked() error")));
-        testErrorsOnPartitionsRevoked(Optional.of(new IllegalArgumentException("Intentional onPartitionsRevoked() error")));
+        testErrorsOnPartitionsRevoked(new WakeupException());
+        testErrorsOnPartitionsRevoked(new InterruptException("Intentional onPartitionsRevoked() error"));
+        testErrorsOnPartitionsRevoked(new IllegalArgumentException("Intentional onPartitionsRevoked() error"));
     }
 
-    private void testErrorsOnPartitionsRevoked(Optional<RuntimeException> error) {
+    private void testErrorsOnPartitionsRevoked(RuntimeException error) {
         // Step 1: set up mocks
         String topicName = "topic1";
         Uuid topicId = Uuid.randomUuid();
@@ -1753,7 +1753,7 @@ public class ConsumerMembershipManagerTest {
         ConsumerMembershipManager membershipManager = createMemberInStableState();
         mockOwnedPartition(membershipManager, topicId, topicName);
         CounterConsumerRebalanceListener listener = new CounterConsumerRebalanceListener(
-                error,
+                Optional.ofNullable(error),
                 Optional.empty(),
                 Optional.empty()
         );
@@ -1800,12 +1800,12 @@ public class ConsumerMembershipManagerTest {
 
     @Test
     public void testListenerCallbacksThrowsErrorOnPartitionsAssigned() {
-        testErrorsOnPartitionsAssigned(Optional.of(new WakeupException()));
-        testErrorsOnPartitionsAssigned(Optional.of(new InterruptException("Intentional error")));
-        testErrorsOnPartitionsAssigned(Optional.of(new IllegalArgumentException("Intentional error")));
+        testErrorsOnPartitionsAssigned(new WakeupException());
+        testErrorsOnPartitionsAssigned(new InterruptException("Intentional error"));
+        testErrorsOnPartitionsAssigned(new IllegalArgumentException("Intentional error"));
     }
 
-    private void testErrorsOnPartitionsAssigned(Optional<RuntimeException> error) {
+    private void testErrorsOnPartitionsAssigned(RuntimeException error) {
         // Step 1: set up mocks
         ConsumerMembershipManager membershipManager = createMemberInStableState();
         String topicName = "topic1";
@@ -1813,7 +1813,7 @@ public class ConsumerMembershipManagerTest {
         mockOwnedPartition(membershipManager, topicId, topicName);
         CounterConsumerRebalanceListener listener = new CounterConsumerRebalanceListener(
                 Optional.empty(),
-                error,
+                Optional.ofNullable(error),
                 Optional.empty()
         );
         ConsumerRebalanceListenerInvoker invoker = consumerRebalanceListenerInvoker();
@@ -1929,14 +1929,14 @@ public class ConsumerMembershipManagerTest {
 
     @Test
     public void testOnPartitionsLostNoError() {
-        testOnPartitionsLost(Optional.empty());
+        testOnPartitionsLost(null);
     }
 
     @Test
     public void testOnPartitionsLostError() {
-        testOnPartitionsLost(Optional.of(new KafkaException("Intentional error for test")));
-        testOnPartitionsLost(Optional.of(new WakeupException()));
-        testOnPartitionsLost(Optional.of(new InterruptException("Intentional error for test")));
+        testOnPartitionsLost(new KafkaException("Intentional error for test"));
+        testOnPartitionsLost(new WakeupException());
+        testOnPartitionsLost(new InterruptException("Intentional error for test"));
     }
 
     private void assertLeaveGroupDueToExpiredPollAndTransitionToStale(ConsumerMembershipManager membershipManager) {
@@ -2070,7 +2070,7 @@ public class ConsumerMembershipManagerTest {
         receiveAssignment(topicId, Arrays.asList(partitionOwned, partitionAdded), membershipManager);
     }
 
-    private void testOnPartitionsLost(Optional<RuntimeException> lostError) {
+    private void testOnPartitionsLost(RuntimeException lostError) {
         // Step 1: set up mocks
         ConsumerMembershipManager membershipManager = createMemberInStableState();
         String topicName = "topic1";
@@ -2079,7 +2079,7 @@ public class ConsumerMembershipManagerTest {
         CounterConsumerRebalanceListener listener = new CounterConsumerRebalanceListener(
                 Optional.empty(),
                 Optional.empty(),
-                lostError
+                Optional.ofNullable(lostError)
         );
         ConsumerRebalanceListenerInvoker invoker = consumerRebalanceListenerInvoker();
 

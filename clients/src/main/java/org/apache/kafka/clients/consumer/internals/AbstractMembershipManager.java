@@ -1179,6 +1179,11 @@ public abstract class AbstractMembershipManager<R extends AbstractResponse> impl
         result.whenComplete((__, exception) -> {
             if (exception == null) {
                 // Enable assigned partitions to start fetching and updating positions for them.
+                // We use assignedPartitions here instead of addedPartitions because there's a chance that the callback
+                // might throw an exception, leaving addedPartitions empty. This would result in the poll operation
+                // returning no records, as no topic partitions are marked as fetchable. In contrast, with the classic consumer,
+                // if the first callback fails but the next one succeeds, polling can still retrieve data. To align with
+                // this behavior, we rely on assignedPartitions to avoid such scenarios.
                 subscriptions.enablePartitionsAwaitingCallback(
                         assignedPartitions.stream().map(TopicIdPartition::topicPartition).collect(Collectors.toSet()));
             } else {
@@ -1187,8 +1192,8 @@ public abstract class AbstractMembershipManager<R extends AbstractResponse> impl
                 // broker removes them from the assignment.
                 if (!addedPartitions.isEmpty()) {
                     log.warn("Leaving newly assigned partitions {} marked as non-fetchable and not " +
-                                    "requiring initializing positions after onPartitionsAssigned callback failed.",
-                            addedPartitions, exception);
+                            "requiring initializing positions after onPartitionsAssigned callback failed.",
+                        addedPartitions, exception);
                 }
             }
         });

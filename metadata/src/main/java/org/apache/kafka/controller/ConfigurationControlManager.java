@@ -315,11 +315,9 @@ public class ConfigurationControlManager {
         for (ApiMessageAndVersion newRecord : recordsExplicitlyAltered) {
             ConfigRecord configRecord = (ConfigRecord) newRecord.message();
             if (configRecord.value() == null) {
-                if (featureControl.isElrFeatureEnabled()) {
-                    if (configResource.equals(DEFAULT_NODE)) {
-                        if (configRecord.name() == MIN_IN_SYNC_REPLICAS_CONFIG )
-                            return new ApiError(INVALID_CONFIG, "It is not allowed to delete cluster level min isr config when ELR is enabled.");
-                    }
+                if (featureControl.isElrFeatureEnabled() && configResource.equals(DEFAULT_NODE) &&
+                    configRecord.name() == MIN_IN_SYNC_REPLICAS_CONFIG) {
+                    return new ApiError(INVALID_CONFIG, "It is not allowed to delete cluster level min isr config when ELR is enabled.");
                 }
                 allConfigs.remove(configRecord.name());
             } else {

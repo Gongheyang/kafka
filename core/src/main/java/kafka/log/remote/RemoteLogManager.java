@@ -128,6 +128,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
@@ -2093,28 +2094,10 @@ public class RemoteLogManager implements Closeable {
         }
     }
 
-    private static void shutdownAndAwaitTermination(ExecutorService pool, String poolName, long timeout, TimeUnit timeUnit) {
-        // This pattern of shutting down thread pool is adopted from here: https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/concurrent/ExecutorService.html
-        LOGGER.info("Shutting down of thread pool {} is started", poolName);
-        pool.shutdown(); // Disable new tasks from being submitted
-        try {
-            // Wait a while for existing tasks to terminate
-            if (!pool.awaitTermination(timeout, timeUnit)) {
-                LOGGER.info("Shutting down of thread pool {} could not be completed. It will retry cancelling the tasks using shutdownNow.", poolName);
-                pool.shutdownNow(); // Cancel currently executing tasks
-                // Wait a while for tasks to respond to being cancelled
-                if (!pool.awaitTermination(timeout, timeUnit))
-                    LOGGER.warn("Shutting down of thread pool {} could not be completed even after retrying cancellation of the tasks using shutdownNow.", poolName);
-            }
-        } catch (InterruptedException ex) {
-            // (Re-)Cancel if current thread also interrupted
-            LOGGER.warn("Encountered InterruptedException while shutting down thread pool {}. It will retry cancelling the tasks using shutdownNow.", poolName);
-            pool.shutdownNow();
-            // Preserve interrupt status
-            Thread.currentThread().interrupt();
-        }
-
-        LOGGER.info("Shutting down of thread pool {} is completed", poolName);
+    private static void shutdownAndAwaitTermination(ExecutorService executor, String poolName, long timeout, TimeUnit timeUnit) {
+        LOGGER.info("Shutting down {} executor", poolName);
+        ThreadUtils.shutdownExecutorServiceQuietly(executor, timeout, timeUnit);
+        LOGGER.info("{} executor shutdown completed", poolName);
     }
 
     //Visible for testing
@@ -2187,11 +2170,13 @@ public class RemoteLogManager implements Closeable {
         }
 
         private ScheduledThreadPoolExecutor createPool(int poolSize) {
+            ThreadFactory threadFactory = ThreadUtils.createThreadFactory(threadNamePattern, true,
+                    (t, e) -> LOGGER.error("Uncaught exception in thread '{}':", t.getName(), e));
             ScheduledThreadPoolExecutor threadPool = new ScheduledThreadPoolExecutor(poolSize);
             threadPool.setRemoveOnCancelPolicy(true);
             threadPool.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
             threadPool.setContinueExistingPeriodicTasksAfterShutdownPolicy(false);
-            threadPool.setThreadFactory(ThreadUtils.createThreadFactory(threadNamePattern, true));
+            threadPool.setThreadFactory(threadFactory);
             return threadPool;
         }
 

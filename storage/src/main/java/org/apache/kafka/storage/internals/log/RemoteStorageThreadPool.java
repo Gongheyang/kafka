@@ -39,8 +39,14 @@ public final class RemoteStorageThreadPool extends ThreadPoolExecutor {
     public RemoteStorageThreadPool(String threadNamePattern,
                                    int numThreads,
                                    int maxPendingTasks) {
-        super(numThreads, numThreads, 0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>(maxPendingTasks),
-                ThreadUtils.createThreadFactory(threadNamePattern, false));
+        super(numThreads,
+                numThreads,
+                0L,
+                TimeUnit.MILLISECONDS,
+                new LinkedBlockingQueue<>(maxPendingTasks),
+                ThreadUtils.createThreadFactory(threadNamePattern, false,
+                        (t, e) -> LOGGER.error("Uncaught exception in thread '{}':", t.getName(), e))
+        );
         metricsGroup.newGauge(REMOTE_LOG_READER_TASK_QUEUE_SIZE_METRIC.getName(),
                 () -> getQueue().size());
         metricsGroup.newGauge(REMOTE_LOG_READER_AVG_IDLE_PERCENT_METRIC.getName(),

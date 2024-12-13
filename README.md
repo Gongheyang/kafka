@@ -121,7 +121,7 @@ Streams has multiple sub-projects, but you can run all the tests:
     ./gradlew tasks
 
 ### Building IDE project ####
-*Note Pleasure ensure that JDK17 is used when developing Kafka.*
+*Note Please ensure that JDK17 is used when developing Kafka.*
 
 *Note that this is not strictly necessary (IntelliJ IDEA has good built-in support for Gradle projects, for example).*
 

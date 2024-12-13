@@ -147,8 +147,8 @@ public class ProduceRequest extends AbstractRequest {
                         topicData.partitionData().forEach(partitionData ->
                             // While topic id and name will never be populated at the same time in the request, to simplify
                             // initializing `TopicIdPartition` the code will use both topic name and id.
-                            // Topic Id will be Uuid.ZERO_UUID in versions < 12 and topic name will be used as main identifier of topic partition.
-                            // Topic Name will be empty string in versions >= 12 and topic id will be used as the main identifier.
+                            // Topic Id will be Uuid.ZERO_UUID in versions < 13 and topic name will be used as main identifier of topic partition.
+                            // Topic Name will be empty string in versions >= 13 and topic id will be used as the main identifier.
                             tmpPartitionSizes.compute(new TopicIdPartition(topicData.topicId(), partitionData.index(), topicData.name()),
                                 (ignored, previousValue) ->
                                     partitionData.records().sizeInBytes() + (previousValue == null ? 0 : previousValue))

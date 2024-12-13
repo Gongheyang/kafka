@@ -974,7 +974,7 @@ public final class MessageTest {
                 responseData.setThrottleTimeMs(0);
             }
 
-            if (version >= 12) {
+            if (version >= 13) {
                 responseData.responses().iterator().next().setTopicId(topicId);
             } else {
                 responseData.responses().iterator().next().setName(topicName);

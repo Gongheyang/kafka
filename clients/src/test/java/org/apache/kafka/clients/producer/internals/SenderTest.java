@@ -176,7 +176,7 @@ public class SenderTest {
     @BeforeEach
     public void setup() {
         setupWithTransactionState(null);
-        apiVersions.update("0", NodeApiVersions.create(ApiKeys.PRODUCE.id, (short) 0, (short) 12));
+        apiVersions.update("0", NodeApiVersions.create(ApiKeys.PRODUCE.id, (short) 0, (short) 13));
         this.client.updateMetadata(
                 RequestTestUtils.metadataUpdateWithIds(1,
                         Collections.singletonMap(TOPIC_NAME, 3),
@@ -193,7 +193,7 @@ public class SenderTest {
         request.data().topicData().forEach(tpData -> tpData.partitionData().forEach(p -> {
             String topicName = tpData.name();
 
-            if (request.version() >= 12) {
+            if (request.version() >= 13) {
                 topicName = TOPIC_IDS.entrySet().stream().filter(e -> e.getValue() == tpData.topicId()).map(Map.Entry::getKey).findFirst().get();
             }
 
@@ -595,7 +595,7 @@ public class SenderTest {
                 new BufferPool(totalSize, batchSize, m, time, "producer-internal-metrics"));
 
             SenderMetricsRegistry senderMetrics = new SenderMetricsRegistry(m);
-            apiVersions.update("0", NodeApiVersions.create(ApiKeys.PRODUCE.id, (short) 0, (short) 12));
+            apiVersions.update("0", NodeApiVersions.create(ApiKeys.PRODUCE.id, (short) 0, (short) 13));
 
             Sender sender = new Sender(logContext, client, metadata, this.accumulator, false, MAX_REQUEST_SIZE, ACKS_ALL, 1,
                 senderMetrics, time, REQUEST_TIMEOUT, 1000L, null, apiVersions);
@@ -2422,7 +2422,7 @@ public class SenderTest {
 
         txnManager.beginTransaction();
         txnManager.maybeAddPartition(tp);
-        apiVersions.update("0", NodeApiVersions.create(ApiKeys.PRODUCE.id, (short) 0, (short) 12));
+        apiVersions.update("0", NodeApiVersions.create(ApiKeys.PRODUCE.id, (short) 0, (short) 13));
         client.prepareResponse(buildAddPartitionsToTxnResponseData(0, Collections.singletonMap(tp, Errors.NONE)));
         sender.runOnce();
 
@@ -2451,7 +2451,7 @@ public class SenderTest {
             MetadataResponse metadataUpdate1 = RequestTestUtils.metadataUpdateWithIds(2, Collections.singletonMap(topic, 2), TOPIC_IDS);
             client.prepareMetadataUpdate(metadataUpdate1);
             metadataUpdate1.brokers().stream().forEach(node ->
-                    apiVersions.update(node.idString(), NodeApiVersions.create(ApiKeys.PRODUCE.id, (short) 0, (short) 12))
+                    apiVersions.update(node.idString(), NodeApiVersions.create(ApiKeys.PRODUCE.id, (short) 0, (short) 13))
             );
 
             // Send the first message.
@@ -3451,7 +3451,7 @@ public class SenderTest {
                     }));
             Cluster startingMetadataCluster = metadata.fetch();
             startingMetadataCluster.nodes().forEach(node ->
-                    apiVersions.update(node.idString(), NodeApiVersions.create(ApiKeys.PRODUCE.id, (short) 0, (short) 12))
+                    apiVersions.update(node.idString(), NodeApiVersions.create(ApiKeys.PRODUCE.id, (short) 0, (short) 13))
             );
 
             // Produce to tp0/1/2, where NO_LEADER_OR_FOLLOWER with new leader info is returned for tp0/1, and tp2 is returned without errors.
@@ -3474,7 +3474,7 @@ public class SenderTest {
             responses.put(tp1, new OffsetAndError(-1, Errors.NOT_LEADER_OR_FOLLOWER));
             responses.put(tp2, new OffsetAndError(100, Errors.NONE));
             newNodes.forEach(node ->
-                    apiVersions.update(node.idString(), NodeApiVersions.create(ApiKeys.PRODUCE.id, (short) 0, (short) 12))
+                    apiVersions.update(node.idString(), NodeApiVersions.create(ApiKeys.PRODUCE.id, (short) 0, (short) 13))
             );
             Map<TopicPartition, ProduceResponseData.LeaderIdAndEpoch> partitionLeaderInfo = new HashMap<>();
             ProduceResponseData.LeaderIdAndEpoch tp0LeaderInfo = new ProduceResponseData.LeaderIdAndEpoch();

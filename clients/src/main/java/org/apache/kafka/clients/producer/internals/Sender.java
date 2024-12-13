@@ -612,7 +612,7 @@ public class Sender implements Runnable {
                 // This will be set by completeBatch.
                 Map<TopicPartition, Metadata.LeaderIdAndEpoch> partitionsWithUpdatedLeaderInfo = new HashMap<>();
                 produceResponse.data().responses().forEach(r -> r.partitionResponses().forEach(p -> {
-                    // Version 12 drop topic name and add support to topic id. However, metadata can be used to map topic id to topic name.
+                    // Version 13 drop topic name and add support to topic id. However, metadata can be used to map topic id to topic name.
                     String topicName = metadata.topicNames().getOrDefault(r.topicId(), r.name());
                     TopicPartition tp = new TopicPartition(topicName, p.index());
                     ProduceResponse.PartitionResponse partResp = new ProduceResponse.PartitionResponse(

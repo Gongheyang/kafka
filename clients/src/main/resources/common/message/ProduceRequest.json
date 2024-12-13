@@ -55,7 +55,7 @@
       "about": "The timeout to await a response in milliseconds." },
     { "name": "TopicData", "type": "[]TopicProduceData", "versions": "0+",
       "about": "Each topic to produce to.", "fields": [
-      { "name": "Name", "type": "string", "versions": "0-13", "entityType": "topicName", "mapKey": true, "ignorable": true,
+      { "name": "Name", "type": "string", "versions": "0-12", "entityType": "topicName", "mapKey": true, "ignorable": true,
         "about": "The topic name." },
       { "name": "TopicId", "type": "uuid", "versions": "13+", "mapKey": true, "ignorable": true, "about": "The unique topic ID" },
       { "name": "PartitionData", "type": "[]PartitionProduceData", "versions": "0+",

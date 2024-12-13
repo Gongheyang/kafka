@@ -150,7 +150,8 @@ public class ProduceRequestTest {
                                                         new ProduceRequestData.PartitionProduceData().setIndex(9).setRecords(builder.build()))))
                                 .iterator()))
                         .setAcks((short) 1)
-                        .setTimeoutMs(5000));
+                        .setTimeoutMs(5000),
+                false);
         assertEquals(3, requestBuilder.oldestAllowedVersion());
         assertEquals(11, requestBuilder.latestAllowedVersion());
     }

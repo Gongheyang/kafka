@@ -489,6 +489,10 @@ public class KafkaConsumerTest {
         return consumer;
     }
 
+    // Test may need to be updated
+    // Test relies on constructor failing from an invalid bootstrap server address
+    // This conflicts with KIP-909 since we want to eliminate client construction failure due to bootstrapping
+    //
     @ParameterizedTest
     @EnumSource(GroupProtocol.class)
     public void testConstructorClose(GroupProtocol groupProtocol) {

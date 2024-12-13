@@ -101,7 +101,6 @@ import org.apache.kafka.common.utils.Timer;
 import org.slf4j.Logger;
 import org.slf4j.event.Level;
 
-import java.net.InetSocketAddress;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collection;
@@ -331,8 +330,6 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
                     interceptorList,
                     Arrays.asList(deserializers.keyDeserializer, deserializers.valueDeserializer));
             this.metadata = metadataFactory.build(config, subscriptions, logContext, clusterResourceListeners);
-            final List<InetSocketAddress> addresses = ClientUtils.parseAndValidateAddresses(config);
-            metadata.bootstrap(addresses);
 
             FetchMetricsManager fetchMetricsManager = createFetchMetricsManager(metrics);
             FetchConfig fetchConfig = new FetchConfig(config);

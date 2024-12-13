@@ -116,7 +116,7 @@ public class KRaftConfigs {
 
     public static final String MIN_SLOW_EVENT_TIME_MS_CONFIG = "controller.slow.event.min.ms";
     public static final int MIN_SLOW_EVENT_TIME_MS_DEFAULT = 200;
-    public static final String MIN_SLOW_EVENT_TIME_MS_DOC = "Do not log slow controller events which are slowed than this duration.";
+    public static final String MIN_SLOW_EVENT_TIME_MS_DOC = "Log controller events with a p99 duration slower than this amount.";
 
     public static final ConfigDef CONFIG_DEF =  new ConfigDef()
             .define(METADATA_SNAPSHOT_MAX_NEW_RECORD_BYTES_CONFIG, LONG, METADATA_SNAPSHOT_MAX_NEW_RECORD_BYTES, atLeast(1), HIGH, METADATA_SNAPSHOT_MAX_NEW_RECORD_BYTES_DOC)

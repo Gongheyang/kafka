@@ -150,6 +150,7 @@ import java.util.function.Supplier;
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
+import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.kafka.controller.QuorumController.ControllerOperationFlag.DOES_NOT_UPDATE_QUEUE_TIME;
 
 
@@ -1603,7 +1604,7 @@ public final class QuorumController implements Controller {
         }
         registerElectUnclean(TimeUnit.MILLISECONDS.toNanos(uncleanLeaderElectionCheckIntervalMs));
         registerExpireDelegationTokens(MILLISECONDS.toNanos(delegationTokenExpiryCheckIntervalMs));
-        registerUpdateSlowEventLogger(MILLISECONDS.toNanos(30000));
+        registerUpdateSlowEventLogger(SECONDS.toNanos(30));
         // OffsetControlManager must be initialized last, because its constructor will take the
         // initial in-memory snapshot of all extant timeline data structures.
         this.offsetControl = new OffsetControlManager.Builder().

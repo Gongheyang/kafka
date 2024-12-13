@@ -62,20 +62,18 @@ public class SlowEventsLogger {
     }
 
     /**
-     * Produce an INFO log if the given event ran for longer than the current p99 event processing time.
+     * Produce an INFO log if the given event ran for at least as long as the current p99 event processing time.
      *
      * @return true if a slow event was logged, false otherwise.
      */
     public boolean maybeLogEvent(String name, long durationNs) {
         if (durationNs >= minSlowEventTimeNs && durationNs >= thresholdNs) {
-            log.info("Slow controller event {} processed in {} us which is greater than p99 of {} us",
+            log.info("Slow controller event {} processed in {} us which is larger or equal to the p99 of {} us",
                 name,
                 NANOSECONDS.toMicros(durationNs),
                 NANOSECONDS.toMicros(thresholdNs)
             );
             return true;
-        } else if (durationNs >= thresholdNs) {
-            return false;
         }
         return false;
     }

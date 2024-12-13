@@ -544,7 +544,7 @@ public class ConnectorConfig extends AbstractConfig {
     }
 
     private static <T> String fetchPluginVersion(Plugins plugins, String connectorClass, String connectorVersion, String pluginName) {
-        if (pluginName == null) {
+        if (pluginName == null || connectorClass == null) {
             return null;
         }
         try {

@@ -93,7 +93,9 @@ class AuthorizerIntegrationTest extends AbstractAuthorizerIntegrationTest {
     ApiKeys.METADATA -> ((resp: requests.MetadataResponse) => resp.errors.asScala.find(_._1 == topic).getOrElse(("test", Errors.NONE))._2),
     ApiKeys.PRODUCE -> ((resp: requests.ProduceResponse) => {
 
-      val topicId = topicNames.find { case (topicId, topicName) => topicName == topic}.map(_._1).getOrElse(Uuid.ZERO_UUID)
+      val topicId = topicNames.find { case (_, topicName) => topicName == topic}
+        .map { case (topicId, _) => topicId }
+        .getOrElse(Uuid.ZERO_UUID)
       val topicName = if (version >= 12) "" else topic
       Errors.forCode(
         resp.data

@@ -3145,7 +3145,7 @@ class ReplicaManagerTest {
       requiredAcks = requiredAcks,
       internalTopicsAllowed = false,
       transactionalId = transactionalId,
-      entriesPerPartition = entriesToAppend.map(e => replicaManager.topicIdPartition(e._1) -> e._2),
+      entriesPerPartition = entriesToAppend.map { case(tp, memoryRecords) => replicaManager.topicIdPartition(tp) -> memoryRecords },
       responseCallback = appendCallback,
       transactionSupportedOperation = transactionSupportedOperation
     )

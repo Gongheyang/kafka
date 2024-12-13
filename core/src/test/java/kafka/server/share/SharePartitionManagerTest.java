@@ -164,7 +164,7 @@ public class SharePartitionManagerTest {
             new SystemTimer("sharePartitionManagerTestTimer"));
         mockReplicaManager = mock(ReplicaManager.class);
         Partition partition = mockPartition();
-        when(mockReplicaManager.getPartitionOrException(Mockito.any(TopicPartition.class))).thenReturn(partition);
+        when(mockReplicaManager.getPartitionOrException((TopicPartition) any())).thenReturn(partition);
     }
 
     @AfterEach
@@ -2516,7 +2516,7 @@ public class SharePartitionManagerTest {
 
         ReplicaManager mockReplicaManager = mock(ReplicaManager.class);
         Partition partition = mockPartition();
-        when(mockReplicaManager.getPartitionOrException(Mockito.any())).thenReturn(partition);
+        when(mockReplicaManager.getPartitionOrException((TopicPartition) Mockito.any())).thenReturn(partition);
 
         SharePartitionManager sharePartitionManager = SharePartitionManagerBuilder.builder()
             .withReplicaManager(mockReplicaManager)

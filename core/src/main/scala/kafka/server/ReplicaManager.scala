@@ -815,8 +815,8 @@ class ReplicaManager(val config: KafkaConfig,
    * @param internalTopicsAllowed         boolean indicating whether internal topics can be appended to
    * @param origin                        source of the append request (ie, client, replication, coordinator)
    * @param entriesPerPartition           the records per topic partition to be appended.
-   *                                      If topic partition contains Uuid.ZERO_UUID or null as topicId the method
-   *                                      will fall back to the old behaviour and relay on topic name.
+   *                                      If topic partition contains Uuid.ZERO_UUID as topicId the method
+   *                                      will fall back to the old behaviour and rely on topic name.
    * @param responseCallback              callback for sending the response
    * @param delayedProduceLock            lock for the delayed actions
    * @param recordValidationStatsCallback callback for updating stats on record conversions
@@ -982,8 +982,8 @@ class ReplicaManager(val config: KafkaConfig,
   private def buildProducePartitionStatus(
     results: Map[TopicIdPartition, LogAppendResult]
   ): Map[TopicIdPartition, ProducePartitionStatus] = {
-    results.map { case (topicPartition, result) =>
-      topicPartition -> ProducePartitionStatus(
+    results.map { case (topicIdPartition, result) =>
+      topicIdPartition -> ProducePartitionStatus(
         result.info.lastOffset + 1, // required offset
         new PartitionResponse(
           result.error,
@@ -1481,7 +1481,6 @@ class ReplicaManager(val config: KafkaConfig,
       brokerTopicStats.allTopicsStats.totalProduceRequestRate.mark()
 
       // reject appending to internal topics if it is not allowed
-
       if (Topic.isInternal(topicIdPartition.topic) && !internalTopicsAllowed) {
         (topicIdPartition, LogAppendResult(
           LogAppendInfo.UNKNOWN_LOG_APPEND_INFO,

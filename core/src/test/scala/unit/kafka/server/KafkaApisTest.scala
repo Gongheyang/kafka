@@ -2651,15 +2651,21 @@ class KafkaApisTest extends Logging {
 
       val responseCallback: ArgumentCaptor[Map[TopicIdPartition, PartitionResponse] => Unit] = ArgumentCaptor.forClass(classOf[Map[TopicIdPartition, PartitionResponse] => Unit])
 
+      val produceData = new ProduceRequestData.TopicProduceData()
+        .setPartitionData(Collections.singletonList(
+          new ProduceRequestData.PartitionProduceData()
+            .setIndex(tp.partition)
+            .setRecords(MemoryRecords.withRecords(Compression.NONE, new SimpleRecord("test".getBytes)))))
+
+      if (version >= 13 ) {
+        produceData.setTopicId(topicId)
+      } else {
+        produceData.setName(tp.topic)
+      }
+
       val produceRequest = ProduceRequest.forCurrentMagic(new ProduceRequestData()
         .setTopicData(new ProduceRequestData.TopicProduceDataCollection(
-          Collections.singletonList(new ProduceRequestData.TopicProduceData()
-            .setName(tp.topic)
-            .setTopicId(topicId)
-            .setPartitionData(Collections.singletonList(
-            new ProduceRequestData.PartitionProduceData()
-              .setIndex(tp.partition)
-              .setRecords(MemoryRecords.withRecords(Compression.NONE, new SimpleRecord("test".getBytes))))))
+          Collections.singletonList(produceData)
             .iterator))
         .setAcks(1.toShort)
         .setTimeoutMs(5000))
@@ -2716,16 +2722,20 @@ class KafkaApisTest extends Logging {
       val newLeaderId = 2
       val newLeaderEpoch = 5
 
+      val produceData = new ProduceRequestData.TopicProduceData()
+        .setPartitionData(Collections.singletonList(
+          new ProduceRequestData.PartitionProduceData()
+            .setIndex(tp.partition)
+            .setRecords(MemoryRecords.withRecords(Compression.NONE, new SimpleRecord("test".getBytes)))))
+
+      if (version >= 13 ) {
+        produceData.setTopicId(topicId)
+      } else {
+        produceData.setName(tp.topic)
+      }
       val produceRequest = ProduceRequest.forCurrentMagic(new ProduceRequestData()
         .setTopicData(new ProduceRequestData.TopicProduceDataCollection(
-          Collections.singletonList(new ProduceRequestData.TopicProduceData()
-            .setName(tp.topic)
-            .setTopicId(topicId)
-            .setPartitionData(Collections.singletonList(
-            new ProduceRequestData.PartitionProduceData()
-              .setIndex(tp.partition)
-              .setRecords(MemoryRecords.withRecords(Compression.NONE, new SimpleRecord("test".getBytes))))))
-            .iterator))
+          Collections.singletonList(produceData).iterator))
         .setAcks(1.toShort)
         .setTimeoutMs(5000))
         .build(version.toShort)
@@ -2784,16 +2794,20 @@ class KafkaApisTest extends Logging {
 
       val tp = new TopicIdPartition(topicId, 0, topic)
 
+      val produceData = new ProduceRequestData.TopicProduceData()
+        .setPartitionData(Collections.singletonList(
+          new ProduceRequestData.PartitionProduceData()
+            .setIndex(tp.partition)
+            .setRecords(MemoryRecords.withRecords(Compression.NONE, new SimpleRecord("test".getBytes)))))
+
+      if (version >= 13 ) {
+        produceData.setTopicId(topicId)
+      } else {
+        produceData.setName(tp.topic)
+      }
       val produceRequest = ProduceRequest.forCurrentMagic(new ProduceRequestData()
         .setTopicData(new ProduceRequestData.TopicProduceDataCollection(
-          Collections.singletonList(new ProduceRequestData.TopicProduceData()
-            .setName(tp.topic)
-            .setTopicId(topicId)
-            .setPartitionData(Collections.singletonList(
-            new ProduceRequestData.PartitionProduceData()
-              .setIndex(tp.partition)
-              .setRecords(MemoryRecords.withRecords(Compression.NONE, new SimpleRecord("test".getBytes))))))
-            .iterator))
+          Collections.singletonList(produceData).iterator))
         .setAcks(1.toShort)
         .setTimeoutMs(5000))
         .build(version.toShort)
@@ -2853,7 +2867,7 @@ class KafkaApisTest extends Logging {
 
       val topicProduceData = new ProduceRequestData.TopicProduceData()
 
-      if (version >= 12 ) {
+      if (version >= 13 ) {
         topicProduceData.setTopicId(topicId)
       } else {
         topicProduceData.setName(tp.topic)
@@ -2927,15 +2941,20 @@ class KafkaApisTest extends Logging {
 
       reset(replicaManager, clientQuotaManager, clientRequestQuotaManager, requestChannel, txnCoordinator)
 
+      val produceData = new ProduceRequestData.TopicProduceData()
+        .setPartitionData(Collections.singletonList(
+          new ProduceRequestData.PartitionProduceData()
+            .setIndex(tp.partition)
+            .setRecords(MemoryRecords.withTransactionalRecords(Compression.NONE, 0, 0, 0, new SimpleRecord("test".getBytes)))))
+
+      if (version >= 13 ) {
+        produceData.setTopicId(topicId)
+      } else {
+        produceData.setName(tp.topic)
+      }
       val produceRequest = ProduceRequest.forCurrentMagic(new ProduceRequestData()
         .setTopicData(new ProduceRequestData.TopicProduceDataCollection(
-          Collections.singletonList(new ProduceRequestData.TopicProduceData()
-            .setName(tp.topic)
-            .setTopicId(tp.topicId())
-            .setPartitionData(Collections.singletonList(
-            new ProduceRequestData.PartitionProduceData()
-              .setIndex(tp.partition)
-              .setRecords(MemoryRecords.withTransactionalRecords(Compression.NONE, 0, 0, 0, new SimpleRecord("test".getBytes))))))
+          Collections.singletonList(produceData)
             .iterator))
         .setAcks(1.toShort)
         .setTransactionalId(transactionalId)

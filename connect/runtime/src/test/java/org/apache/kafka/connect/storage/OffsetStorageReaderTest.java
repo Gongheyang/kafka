@@ -16,27 +16,29 @@
  */
 package org.apache.kafka.connect.storage;
 
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.invocation.InvocationOnMock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
+import org.mockito.stubbing.Answer;
+
+import java.util.Collections;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-import java.nio.ByteBuffer;
-import java.util.Collections;
-import java.util.Map;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-
-import org.easymock.Mock;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.mockito.invocation.InvocationOnMock;
-import org.mockito.junit.MockitoJUnitRunner;
-import org.mockito.stubbing.Answer;
-
-@RunWith(MockitoJUnitRunner.StrictStubs.class)
+@ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.STRICT_STUBS)
 public class OffsetStorageReaderTest {
 
     @Mock
@@ -45,11 +47,13 @@ public class OffsetStorageReaderTest {
     @Mock
     private Converter taskValueConverter;
 
-    @Test(timeout = 60 * 1000)
+    @Mock
+    private OffsetBackingStore offsetBackingStore;
+
+    @Test
+    @Timeout(60)
     public void testClosingOffsetReaderWhenOffsetStoreHangs() throws Exception {
         ExecutorService executor = Executors.newSingleThreadExecutor();
-        OffsetBackingStore offsetBackingStore = mock(OffsetBackingStore.class);
-
         OffsetStorageReaderImpl offsetStorageReaderImpl = new OffsetStorageReaderImpl(
                 offsetBackingStore, "namespace", taskKeyConverter, taskValueConverter);
 
@@ -73,13 +77,13 @@ public class OffsetStorageReaderTest {
         offsetStorageReaderImpl.close();
     }
 
-    @Test(timeout = 60 * 1000)
+    @Test
+    @Timeout(60)
     public void testClosingOffsetReaderWhenOffsetStoreHangsAndHasIncompleteFutures() throws Exception {
         // Test similar to `testClosingOffsetReaderWhenOffsetStoreHangs` above, but in this case
         // `OffsetStorageReaderImpl.offsetReadFutures` contains a future when `offsetStorageReaderImpl.close()` is called.
 
         ExecutorService executor = Executors.newFixedThreadPool(2);
-        OffsetBackingStore offsetBackingStore = mock(OffsetBackingStore.class);
         CompletableFuture<?> hangingFuture = mock(CompletableFuture.class);
 
         OffsetStorageReaderImpl offsetStorageReaderImpl = new OffsetStorageReaderImpl(

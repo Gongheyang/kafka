@@ -220,7 +220,7 @@ public interface GroupCoordinator {
      *
      * @return A future yielding the results or an exception.
      */
-    CompletableFuture<ReadShareGroupStateSummaryResponseData> listShareGroupOffsets(
+    CompletableFuture<List<ReadShareGroupStateSummaryResponseData.ReadStateSummaryResult>> listShareGroupOffsets(
         RequestContext context,
         ReadShareGroupStateSummaryRequestData request
     );

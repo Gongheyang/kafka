@@ -89,7 +89,7 @@ private[group] class GroupCoordinatorAdapter(
   override def listShareGroupOffsets(
     context: RequestContext,
     request: ReadShareGroupStateSummaryRequestData
-  ): CompletableFuture[ReadShareGroupStateSummaryResponseData] = {
+  ): CompletableFuture[util.List[ReadShareGroupStateSummaryResponseData.ReadStateSummaryResult]] = {
     FutureUtils.failedFuture(Errors.UNSUPPORTED_VERSION.exception(
       s"The old group coordinator does not support ${ApiKeys.READ_SHARE_GROUP_STATE_SUMMARY.name} API."
     ))

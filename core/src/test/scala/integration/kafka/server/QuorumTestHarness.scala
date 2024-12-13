@@ -242,15 +242,13 @@ abstract class QuorumTestHarness extends Logging {
 
   def zkClient: KafkaZkClient = asZk().zkClient
 
-  def zkClientOrNull: KafkaZkClient = if (isKRaftTest()) null else asZk().zkClient
+  def zkClientOrNull: KafkaZkClient = null 
 
   def adminZkClient: AdminZkClient = asZk().adminZkClient
 
   def zkPort: Int = asZk().zookeeper.port
 
   def zkConnect: String = s"127.0.0.1:$zkPort"
-
-  def zkConnectOrNull: String = if (isKRaftTest()) null else zkConnect
 
   def controllerServer: ControllerServer = asKRaft().controllerServer
 

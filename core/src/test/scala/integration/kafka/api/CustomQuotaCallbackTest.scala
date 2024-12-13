@@ -19,7 +19,6 @@ import kafka.api.GroupedUserQuotaCallback._
 import kafka.security.{JaasModule, JaasTestUtils}
 import kafka.server._
 import kafka.utils.{Logging, TestInfoUtils, TestUtils}
-import kafka.zk.ConfigEntityChangeNotificationZNode
 import org.apache.kafka.clients.admin.{Admin, AdminClientConfig}
 import org.apache.kafka.clients.consumer.{Consumer, ConsumerConfig}
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerConfig, ProducerRecord}
@@ -86,8 +85,7 @@ class CustomQuotaCallbackTest extends IntegrationTestHarness with SaslSetup {
 
   override def configureSecurityBeforeServersStart(testInfo: TestInfo): Unit = {
     super.configureSecurityBeforeServersStart(testInfo)
-    zkClient.makeSurePersistentPathExists(ConfigEntityChangeNotificationZNode.path)
-    createScramCredentials(zkConnect, JaasTestUtils.KAFKA_SCRAM_ADMIN, JaasTestUtils.KAFKA_SCRAM_ADMIN_PASSWORD)
+    createScramCredentials("", JaasTestUtils.KAFKA_SCRAM_ADMIN, JaasTestUtils.KAFKA_SCRAM_ADMIN_PASSWORD)
   }
 
   @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
@@ -148,7 +146,7 @@ class CustomQuotaCallbackTest extends IntegrationTestHarness with SaslSetup {
     user.produceConsume(expectProduceThrottle = true, expectConsumeThrottle = true)
 
     // Remove the second topic with large number of partitions, verify no longer throttled
-    adminZkClient.deleteTopic(largeTopic)
+    deleteTopic(largeTopic)
     user = addUser("group1_user3", brokerId)
     user.waitForQuotaUpdate(8000 * 100, 2500 * 100, defaultRequestQuota)
     user.removeThrottleMetrics() // since group was throttled before
@@ -180,7 +178,7 @@ class CustomQuotaCallbackTest extends IntegrationTestHarness with SaslSetup {
 
   private def createTopic(topic: String, numPartitions: Int, leader: Int): Unit = {
     val assignment = (0 until numPartitions).map { i => i -> Seq(leader) }.toMap
-    TestUtils.createTopic(zkClient, topic, assignment, servers)
+    TestUtils.createTopic(null, topic, assignment, servers)
   }
 
   private def createAdminClient(): Admin = {

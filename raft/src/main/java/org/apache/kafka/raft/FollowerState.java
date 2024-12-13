@@ -37,10 +37,10 @@ public class FollowerState implements EpochState {
     private final Set<Integer> voters;
     // Used for tracking the expiration of both the Fetch and FetchSnapshot requests
     private final Timer fetchTimer;
-    /* Used to track if we have fetched from the leader at least once since the transition to follower in this epoch.
-     * If we have not yet fetched from the leader, we may grant PreVotes.
+    /* Used to track if we have fetched successfully from the leader at least once since the transition to
+     * follower in this epoch. If we have not yet fetched from the leader, we may grant PreVotes.
      */
-    private boolean hasFetchedSuccessfullyFromLeader;
+    private boolean hasFetchedFromLeader;
     private Optional<LogOffsetMetadata> highWatermark;
     /* Used to track the currently fetching snapshot. When fetching snapshot regular
      * Fetch request are paused
@@ -70,7 +70,7 @@ public class FollowerState implements EpochState {
         this.updateVoterPeriodTimer = time.timer(updateVoterPeriodMs());
         this.highWatermark = highWatermark;
         this.log = logContext.logger(FollowerState.class);
-        this.hasFetchedSuccessfullyFromLeader = false;
+        this.hasFetchedFromLeader = false;
     }
 
     @Override
@@ -126,7 +126,7 @@ public class FollowerState implements EpochState {
     public void resetFetchTimeoutForSuccessfulFetch(long currentTimeMs) {
         fetchTimer.update(currentTimeMs);
         fetchTimer.reset(fetchTimeoutMs);
-        hasFetchedSuccessfullyFromLeader = true;
+        hasFetchedFromLeader = true;
     }
 
     public void overrideFetchTimeout(long currentTimeMs, long timeoutMs) {
@@ -220,7 +220,7 @@ public class FollowerState implements EpochState {
 
     @Override
     public boolean canGrantPreVote(ReplicaKey replicaKey, boolean isLogUpToDate) {
-        boolean granting = !hasFetchedSuccessfullyFromLeader && isLogUpToDate;
+        boolean granting = !hasFetchedFromLeader && isLogUpToDate;
         if (!granting) {
             log.debug(
                 "Rejecting PreVote request from replica ({}) either because we have already fetched from leader {} " +
@@ -229,7 +229,7 @@ public class FollowerState implements EpochState {
                 replicaKey,
                 leaderId,
                 epoch,
-                hasFetchedSuccessfullyFromLeader,
+                hasFetchedFromLeader,
                 isLogUpToDate
             );
         }

@@ -331,8 +331,7 @@ public class KTableImpl<K, S, V> extends AbstractStream<K, V> implements KTable<
         );
         final GraphNode tableNode = new TableProcessorNode<>(
             name,
-            processorParameters,
-            null
+            processorParameters
         );
         maybeSetOutputVersioned(tableNode, materializedInternal);
 
@@ -1358,16 +1357,12 @@ public class KTableImpl<K, S, V> extends AbstractStream<K, V> implements KTable<
 
         final KTableSource<K, VR> resultProcessorSupplier = new KTableSource<>(materializedInternal);
 
-        final StoreFactory resultStore =
-            new KeyValueStoreMaterializer<>(materializedInternal);
-
         final TableProcessorNode<K, VR> resultNode = new TableProcessorNode<>(
             resultProcessorName,
             new ProcessorParameters<>(
                 resultProcessorSupplier,
                 resultProcessorName
-            ),
-            resultStore
+            )
         );
         resultNode.setOutputVersioned(materializedInternal.storeSupplier() instanceof VersionedBytesStoreSupplier);
         builder.addGraphNode(responseJoinNode, resultNode);

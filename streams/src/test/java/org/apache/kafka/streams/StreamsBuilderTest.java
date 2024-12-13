@@ -1707,19 +1707,44 @@ public class StreamsBuilderTest {
             .selectKey((k, v) -> k, Named.as("selectKey")) // wrapped 3
             .peek((k, v) -> { }, Named.as("peek")) // wrapped 4
             .flatMapValues(e -> new ArrayList<>(), Named.as("flatMap")) // wrapped 5
-            .toTable(Named.as("toTable")) // should be wrapped when we do StreamToTableNode
-            .filter((k, v) -> true, Named.as("filter-table")) // wrapped 7
-            .toStream(Named.as("toStream")) // wrapped 8
             .to("output", Produced.as("sink"));
 
         builder.build();
-        assertThat(counter.numWrappedProcessors(), CoreMatchers.is(8));
+        assertThat(counter.numWrappedProcessors(), CoreMatchers.is(5));
         assertThat(counter.wrappedProcessorNames(), Matchers.containsInAnyOrder(
-            "filter-stream", "map", "selectKey", "peek", "flatMap",
-            "toTable-repartition-filter", "filter-table", "toStream"
+            "filter-stream", "map", "selectKey", "peek", "flatMap"
         ));
         assertThat(counter.numUniqueStateStores(), CoreMatchers.is(0));
         assertThat(counter.numConnectedStateStores(), CoreMatchers.is(0));
+    }
+
+    @Test
+    public void shouldWrapProcessorsWhenMultipleTableOperators() {
+        final Map<Object, Object> props = dummyStreamsConfigMap();
+        props.put(PROCESSOR_WRAPPER_CLASS_CONFIG, RecordingProcessorWrapper.class);
+
+        final WrapperRecorder counter = new WrapperRecorder();
+        props.put(PROCESSOR_WRAPPER_COUNTER_CONFIG, counter);
+
+        final StreamsBuilder builder = new StreamsBuilder(new TopologyConfig(new StreamsConfig(props)));
+
+        builder.stream("input", Consumed.as("source"))
+            .toTable(Named.as("to-table"))
+            .mapValues(v -> v, Named.as("map-values"))
+            .mapValues(v -> v, Named.as("map-values-stateful"), Materialized.as("map-values-stateful"))
+            .filter((k, v) -> true, Named.as("filter-table"))
+            .filter((k, v) -> true, Named.as("filter-table-stateful"), Materialized.as("filter-table-stateful"))
+            .toStream(Named.as("to-stream"))
+            .to("output", Produced.as("sink"));
+
+        builder.build();
+        assertThat(counter.numWrappedProcessors(), CoreMatchers.is(5));
+        assertThat(counter.wrappedProcessorNames(), Matchers.containsInAnyOrder(
+            "map-values", "map-values-stateful",
+            "filter-table", "filter-table-stateful", "to-stream"
+        ));
+        assertThat(counter.numUniqueStateStores(), CoreMatchers.is(1));
+        assertThat(counter.numConnectedStateStores(), CoreMatchers.is(1));
     }
 
     @Test

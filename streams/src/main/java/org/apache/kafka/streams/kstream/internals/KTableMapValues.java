@@ -58,7 +58,7 @@ class KTableMapValues<KIn, VIn, VOut> implements KTableProcessorSupplier<KIn, VI
     @Override
     public Set<StoreBuilder<?>> stores() {
         if (storeFactory == null) {
-            return Collections.emptySet();
+            return null;
         }
         return Collections.singleton(new StoreFactory.FactoryWrappingStoreBuilder<>(storeFactory));
     }

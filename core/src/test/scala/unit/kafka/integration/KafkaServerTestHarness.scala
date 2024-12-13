@@ -154,15 +154,10 @@ abstract class KafkaServerTestHarness extends QuorumTestHarness {
   def createOffsetsTopic(
     listenerName: ListenerName = listenerName,
     adminClientConfig: Properties = new Properties
-  ): Unit = {
-    if (isKRaftTest()) {
-      Using.resource(createAdminClient(brokers, listenerName, adminClientConfig)) { admin =>
-        TestUtils.createOffsetsTopicWithAdmin(admin, brokers, controllerServers)
-      }
-    } else {
-      createOffsetsTopic(zkClient, servers)
+  ): Unit = 
+    Using.resource(createAdminClient(brokers, listenerName, adminClientConfig)) { admin =>
+      TestUtils.createOffsetsTopicWithAdmin(admin, brokers, controllerServers)
     }
-  }
 
   /**
    * Create a topic.

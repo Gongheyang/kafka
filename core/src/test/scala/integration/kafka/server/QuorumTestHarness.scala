@@ -193,10 +193,6 @@ abstract class QuorumTestHarness extends Logging {
   private var testInfo: TestInfo = _
   protected var implementation: QuorumImplementation = _
 
-  def isKRaftTest(): Boolean = {
-    TestInfoUtils.isKRaft(testInfo)
-  }
-
   def isShareGroupTest(): Boolean = {
     TestInfoUtils.isShareGroupTest(testInfo)
   }
@@ -214,31 +210,15 @@ abstract class QuorumTestHarness extends Logging {
     gp.get
   }
 
-  def checkIsZKTest(): Unit = {
-    if (isKRaftTest()) {
+  private def asZk(): ZooKeeperQuorumImplementation = {
+    if (TestInfoUtils.isKRaft(testInfo)) {
       throw new RuntimeException("This function can't be accessed when running the test " +
         "in KRaft mode. ZooKeeper mode is required.")
     }
-  }
-
-  def checkIsKRaftTest(): Unit = {
-    if (!isKRaftTest()) {
-      throw new RuntimeException("This function can't be accessed when running the test " +
-        "in ZooKeeper mode. KRaft mode is required.")
-    }
-  }
-
-  private def asZk(): ZooKeeperQuorumImplementation = {
-    checkIsZKTest()
     implementation.asInstanceOf[ZooKeeperQuorumImplementation]
   }
 
-  private def asKRaft(): KRaftQuorumImplementation = {
-    checkIsKRaftTest()
-    implementation.asInstanceOf[KRaftQuorumImplementation]
-  }
-
-  def zookeeper: EmbeddedZookeeper = asZk().zookeeper
+  private def asKRaft(): KRaftQuorumImplementation = implementation.asInstanceOf[KRaftQuorumImplementation]
 
   def zkClient: KafkaZkClient = asZk().zkClient
 

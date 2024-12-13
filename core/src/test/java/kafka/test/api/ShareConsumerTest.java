@@ -1042,7 +1042,6 @@ public class ShareConsumerTest {
         AtomicInteger totalMessagesConsumedGroup3 = new AtomicInteger(0);
 
         int producerCount = 4;
-        int consumerCount = 2;
         int messagesPerProducer = 2000;
         final int totalMessagesSent = producerCount * messagesPerProducer;
 
@@ -1068,7 +1067,7 @@ public class ShareConsumerTest {
         List<CompletableFuture<Integer>> consumeMessagesFutures3 = new ArrayList<>();
 
         int maxBytes = 100000;
-        for (int i = 0; i < consumerCount; i++) {
+        for (int i = 0; i < 2; i++) {
             final int consumerNumber = i + 1;
             consumeMessagesFutures1.add(CompletableFuture.supplyAsync(() ->
                     consumeMessages(totalMessagesConsumedGroup1, totalMessagesSent,

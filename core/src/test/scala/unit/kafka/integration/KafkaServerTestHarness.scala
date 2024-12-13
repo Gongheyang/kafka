@@ -211,22 +211,13 @@ abstract class KafkaServerTestHarness extends QuorumTestHarness {
     partitionReplicaAssignment: collection.Map[Int, Seq[Int]],
     listenerName: ListenerName = listenerName
   ): scala.collection.immutable.Map[Int, Int] =
-    if (isKRaftTest()) {
-      Using.resource(createAdminClient(brokers, listenerName)) { admin =>
-        TestUtils.createTopicWithAdmin(
-          admin = admin,
-          topic = topic,
-          replicaAssignment = partitionReplicaAssignment,
-          brokers = brokers,
-          controllers = controllerServers
-        )
-      }
-    } else {
-      TestUtils.createTopic(
-        zkClient,
-        topic,
-        partitionReplicaAssignment,
-        servers
+    Using.resource(createAdminClient(brokers, listenerName)) { admin =>
+      TestUtils.createTopicWithAdmin(
+        admin = admin,
+        topic = topic,
+        replicaAssignment = partitionReplicaAssignment,
+        brokers = brokers,
+        controllers = controllerServers
       )
     }
 

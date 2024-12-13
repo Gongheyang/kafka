@@ -1409,11 +1409,7 @@ public class StreamThread extends Thread implements ProcessingThread {
                         }
                     }
                 } catch (final TimeoutException timeoutException) {
-                    for (final TopicPartition partition : seekByDuration.keySet()) {
-                        final Task task = taskManager.getActiveTask(partition);
-                        task.maybeInitTaskTimeoutOrThrow(now, timeoutException);
-                        stateUpdater.add(task);
-                    }
+                    taskManager.maybeInitTaskTimeoutsOrThrow(seekByDuration.keySet(), timeoutException, now);
                     log.debug(
                         String.format(
                             "Could not reset offset for %s due to the following exception; will retry.",

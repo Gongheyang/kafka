@@ -201,17 +201,17 @@ public class ScramSaslServer implements SaslServer {
     }
 
     @Override
-    public byte[] unwrap(byte[] incoming, int offset, int len) throws SaslException {
+    public byte[] unwrap(byte[] incoming, int offset, int len) {
         if (!isComplete())
             throw new IllegalStateException("Authentication exchange has not completed");
-        throw new SaslException("SCRAM supports neither integrity nor privacy");
+        throw new IllegalStateException("SCRAM supports neither integrity nor privacy");
     }
 
     @Override
-    public byte[] wrap(byte[] outgoing, int offset, int len) throws SaslException {
+    public byte[] wrap(byte[] outgoing, int offset, int len) {
         if (!isComplete())
             throw new IllegalStateException("Authentication exchange has not completed");
-        throw new SaslException("SCRAM supports neither integrity nor privacy");
+        throw new IllegalStateException("SCRAM supports neither integrity nor privacy");
     }
 
     @Override

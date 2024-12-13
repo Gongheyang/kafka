@@ -158,17 +158,17 @@ public class PlainSaslServer implements SaslServer {
     }
 
     @Override
-    public byte[] unwrap(byte[] incoming, int offset, int len) throws SaslException {
+    public byte[] unwrap(byte[] incoming, int offset, int len) {
         if (!complete)
             throw new IllegalStateException("Authentication exchange has not completed");
-        throw new SaslException("PLAIN supports neither integrity nor privacy");
+        throw new IllegalStateException("PLAIN supports neither integrity nor privacy");
     }
 
     @Override
-    public byte[] wrap(byte[] outgoing, int offset, int len) throws SaslException {
+    public byte[] wrap(byte[] outgoing, int offset, int len) {
         if (!complete)
             throw new IllegalStateException("Authentication exchange has not completed");
-        throw new SaslException("PLAIN supports neither integrity nor privacy");
+        throw new IllegalStateException("PLAIN supports neither integrity nor privacy");
     }
 
     @Override

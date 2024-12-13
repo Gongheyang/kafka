@@ -42,7 +42,6 @@ import org.apache.kafka.server.util.FutureUtils;
 import org.apache.kafka.server.util.MockTime;
 import org.apache.kafka.server.util.timer.MockTimer;
 import org.apache.kafka.server.util.timer.Timer;
-
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
@@ -732,11 +731,13 @@ class ShareCoordinatorServiceTest {
             CompletableFuture.completedFuture(Optional.of(11L))
         );
 
+        Metrics metrics = new Metrics();
+
         ShareCoordinatorService service = spy(new ShareCoordinatorService(
             new LogContext(),
             ShareCoordinatorTestConfig.createConfig(ShareCoordinatorTestConfig.testConfigMap()),
             runtime,
-            new ShareCoordinatorMetrics(),
+            new ShareCoordinatorMetrics(metrics),
             time,
             timer,
             writer
@@ -768,6 +769,9 @@ class ShareCoordinatorServiceTest {
 
         verify(writer, times(2))
             .deleteRecords(any(), anyLong());
+
+        checkMetrics(metrics);
+
         service.shutdown();
     }
 
@@ -819,11 +823,13 @@ class ShareCoordinatorServiceTest {
             CompletableFuture.completedFuture(Optional.of(21L))
         );
 
+        Metrics metrics = new Metrics();
+
         ShareCoordinatorService service = spy(new ShareCoordinatorService(
             new LogContext(),
             ShareCoordinatorTestConfig.createConfig(ShareCoordinatorTestConfig.testConfigMap()),
             runtime,
-            new ShareCoordinatorMetrics(),
+            new ShareCoordinatorMetrics(metrics),
             time,
             timer,
             writer
@@ -855,6 +861,9 @@ class ShareCoordinatorServiceTest {
 
         verify(writer, times(4))
             .deleteRecords(any(), anyLong());
+
+        checkMetrics(metrics);
+
         service.shutdown();
     }
 
@@ -872,11 +881,13 @@ class ShareCoordinatorServiceTest {
             any()
         )).thenReturn(CompletableFuture.failedFuture(Errors.UNKNOWN_SERVER_ERROR.exception()));
 
+        Metrics metrics = new Metrics();
+
         ShareCoordinatorService service = spy(new ShareCoordinatorService(
             new LogContext(),
             ShareCoordinatorTestConfig.createConfig(ShareCoordinatorTestConfig.testConfigMap()),
             runtime,
-            new ShareCoordinatorMetrics(),
+            new ShareCoordinatorMetrics(metrics),
             time,
             timer,
             writer
@@ -900,6 +911,9 @@ class ShareCoordinatorServiceTest {
 
         verify(writer, times(0))
             .deleteRecords(any(), anyLong());
+
+        checkMetrics(metrics);
+
         service.shutdown();
     }
 
@@ -917,11 +931,13 @@ class ShareCoordinatorServiceTest {
             any()
         )).thenReturn(CompletableFuture.completedFuture(Optional.of(20L)));
 
+        Metrics metrics = new Metrics();
+
         ShareCoordinatorService service = spy(new ShareCoordinatorService(
             new LogContext(),
             ShareCoordinatorTestConfig.createConfig(ShareCoordinatorTestConfig.testConfigMap()),
             runtime,
-            new ShareCoordinatorMetrics(),
+            new ShareCoordinatorMetrics(metrics),
             time,
             timer,
             writer
@@ -945,6 +961,9 @@ class ShareCoordinatorServiceTest {
 
         verify(writer, times(1))
             .deleteRecords(any(), eq(20L));
+
+        checkMetrics(metrics);
+
         service.shutdown();
     }
 
@@ -962,11 +981,12 @@ class ShareCoordinatorServiceTest {
             any()
         )).thenReturn(CompletableFuture.completedFuture(Optional.empty()));
 
+        Metrics metrics = new Metrics();
         ShareCoordinatorService service = spy(new ShareCoordinatorService(
             new LogContext(),
             ShareCoordinatorTestConfig.createConfig(ShareCoordinatorTestConfig.testConfigMap()),
             runtime,
-            new ShareCoordinatorMetrics(),
+            new ShareCoordinatorMetrics(metrics),
             time,
             timer,
             writer
@@ -990,6 +1010,9 @@ class ShareCoordinatorServiceTest {
 
         verify(writer, times(0))
             .deleteRecords(any(), anyLong());
+
+        checkMetrics(metrics);
+
         service.shutdown();
     }
 
@@ -1018,11 +1041,12 @@ class ShareCoordinatorServiceTest {
             CompletableFuture.completedFuture(Optional.of(10L))
         );
 
+        Metrics metrics = new Metrics();
         ShareCoordinatorService service = spy(new ShareCoordinatorService(
             new LogContext(),
             ShareCoordinatorTestConfig.createConfig(ShareCoordinatorTestConfig.testConfigMap()),
             runtime,
-            new ShareCoordinatorMetrics(),
+            new ShareCoordinatorMetrics(metrics),
             time,
             timer,
             writer
@@ -1054,6 +1078,9 @@ class ShareCoordinatorServiceTest {
 
         verify(writer, times(1))
             .deleteRecords(any(), anyLong());
+
+        checkMetrics(metrics);
+
         service.shutdown();
     }
 
@@ -1086,11 +1113,13 @@ class ShareCoordinatorServiceTest {
             CompletableFuture.completedFuture(Optional.of(10L))
         );
 
+        Metrics metrics = new Metrics();
+
         ShareCoordinatorService service = spy(new ShareCoordinatorService(
             new LogContext(),
             ShareCoordinatorTestConfig.createConfig(ShareCoordinatorTestConfig.testConfigMap()),
             runtime,
-            new ShareCoordinatorMetrics(),
+            new ShareCoordinatorMetrics(metrics),
             time,
             timer,
             writer
@@ -1122,6 +1151,22 @@ class ShareCoordinatorServiceTest {
 
         verify(writer, times(2))
             .deleteRecords(any(), anyLong());
+
+        checkMetrics(metrics);
+
         service.shutdown();
+    }
+
+    private void checkMetrics(Metrics metrics) {
+        Set<MetricName> usualMetrics = new HashSet<>(Arrays.asList(
+            metrics.metricName("write-latency-avg", ShareCoordinatorMetrics.METRICS_GROUP),
+            metrics.metricName("write-latency-max", ShareCoordinatorMetrics.METRICS_GROUP),
+            metrics.metricName("write-rate", ShareCoordinatorMetrics.METRICS_GROUP),
+            metrics.metricName("write-total", ShareCoordinatorMetrics.METRICS_GROUP),
+            metrics.metricName("share-group-state-topic-prune-rate", ShareCoordinatorMetrics.METRICS_GROUP),
+            metrics.metricName("share-group-state-topic-prune-count", ShareCoordinatorMetrics.METRICS_GROUP)
+        ));
+
+        usualMetrics.forEach(metric -> assertTrue(metrics.metrics().containsKey(metric)));
     }
 }

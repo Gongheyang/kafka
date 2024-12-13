@@ -28,6 +28,7 @@ import org.junit.jupiter.api.Test;
 import java.util.Arrays;
 import java.util.HashSet;
 
+import static org.apache.kafka.coordinator.share.metrics.ShareCoordinatorMetrics.SHARE_COORDINATOR_SHARE_GROUP_STATE_TOPIC_PRUNE_SENSOR_NAME;
 import static org.apache.kafka.coordinator.share.metrics.ShareCoordinatorMetrics.SHARE_COORDINATOR_WRITE_LATENCY_SENSOR_NAME;
 import static org.apache.kafka.coordinator.share.metrics.ShareCoordinatorMetrics.SHARE_COORDINATOR_WRITE_SENSOR_NAME;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -43,7 +44,9 @@ public class ShareCoordinatorMetricsTest {
             metrics.metricName("write-rate", ShareCoordinatorMetrics.METRICS_GROUP),
             metrics.metricName("write-total", ShareCoordinatorMetrics.METRICS_GROUP),
             metrics.metricName("write-latency-avg", ShareCoordinatorMetrics.METRICS_GROUP),
-            metrics.metricName("write-latency-max", ShareCoordinatorMetrics.METRICS_GROUP)
+            metrics.metricName("write-latency-max", ShareCoordinatorMetrics.METRICS_GROUP),
+            metrics.metricName("share-group-state-topic-prune-rate", ShareCoordinatorMetrics.METRICS_GROUP),
+            metrics.metricName("share-group-state-topic-prune-count", ShareCoordinatorMetrics.METRICS_GROUP)
         ));
 
         ShareCoordinatorMetrics ignored = new ShareCoordinatorMetrics(metrics);
@@ -69,6 +72,11 @@ public class ShareCoordinatorMetricsTest {
         shard.record(SHARE_COORDINATOR_WRITE_LATENCY_SENSOR_NAME, 30);
         assertMetricValue(metrics, metrics.metricName("write-latency-avg", ShareCoordinatorMetrics.METRICS_GROUP), 50.0 / 2);
         assertMetricValue(metrics, metrics.metricName("write-latency-max", ShareCoordinatorMetrics.METRICS_GROUP), 30.0);
+
+        shard.record(SHARE_COORDINATOR_SHARE_GROUP_STATE_TOPIC_PRUNE_SENSOR_NAME, 10);
+        shard.record(SHARE_COORDINATOR_SHARE_GROUP_STATE_TOPIC_PRUNE_SENSOR_NAME, 20);
+        assertMetricValue(metrics, metrics.metricName("share-group-state-topic-prune-rate", ShareCoordinatorMetrics.METRICS_GROUP), 30.0 / 30);
+        assertMetricValue(metrics, metrics.metricName("share-group-state-topic-prune-count", ShareCoordinatorMetrics.METRICS_GROUP), 30.0);
     }
 
     private void assertMetricValue(Metrics metrics, MetricName metricName, double val) {

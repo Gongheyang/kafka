@@ -689,11 +689,16 @@ public class ConnectorConfig extends AbstractConfig {
             if (pluginClass == null) {
                 throw new ConfigException(key, null, "Not a " + baseClass.getSimpleName());
             }
+
             String connectorClass = props.get(CONNECTOR_CLASS_CONFIG);
             if (connectorClass == null) {
-                throw new ConfigException(key, pluginClass, "Cannot reference the connector class itself.");
+                throw new ConfigException(key, pluginClass, "Missing required configuration \"" + CONNECTOR_CLASS_CONFIG + "\"");
             }
             String connectorVersion = props.get(CONNECTOR_VERSION);
+
+            final Class<?> cls = (Class<?>) ConfigDef.parseType(key, props.get(key), Type.CLASS);
+            Utils.ensureConcreteSubclass(baseClass, cls);
+
             T plugin;
             try {
                 VersionRange connectorVersionRange = PluginUtils.connectorVersionRequirement(connectorVersion);

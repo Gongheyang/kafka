@@ -19,13 +19,12 @@ package kafka.cluster
 import java.util.concurrent.locks.ReentrantReadWriteLock
 import java.util.Optional
 import java.util.concurrent.{CompletableFuture, CopyOnWriteArrayList}
-import kafka.common.UnexpectedAppendOffsetException
 import kafka.controller.{KafkaController, StateChangeLogger}
 import kafka.log._
 import kafka.log.remote.RemoteLogManager
 import kafka.server._
 import kafka.server.metadata.{KRaftMetadataCache, ZkMetadataCache}
-import kafka.server.share.{DelayedShareFetch, DelayedShareFetchPartitionKey}
+import kafka.server.share.DelayedShareFetch
 import kafka.utils.CoreUtils.{inReadLock, inWriteLock}
 import kafka.utils._
 import kafka.zookeeper.ZooKeeperClientException
@@ -45,7 +44,9 @@ import org.apache.kafka.metadata.{LeaderAndIsr, LeaderRecoveryState}
 import org.apache.kafka.server.common.{MetadataVersion, RequestLocal}
 import org.apache.kafka.storage.internals.log.{AppendOrigin, FetchDataInfo, LeaderHwChange, LogAppendInfo, LogOffsetMetadata, LogOffsetSnapshot, LogOffsetsListener, LogReadInfo, LogStartOffsetIncrementReason, VerificationGuard}
 import org.apache.kafka.server.metrics.KafkaMetricsGroup
-import org.apache.kafka.server.storage.log.{FetchIsolation, FetchParams}
+import org.apache.kafka.server.purgatory.{DelayedOperationPurgatory, TopicPartitionOperationKey}
+import org.apache.kafka.server.share.fetch.DelayedShareFetchPartitionKey
+import org.apache.kafka.server.storage.log.{FetchIsolation, FetchParams, UnexpectedAppendOffsetException}
 import org.apache.kafka.storage.internals.checkpoint.OffsetCheckpoints
 import org.slf4j.event.Level
 
@@ -80,6 +81,11 @@ trait PartitionListener {
    * that the partition was deleted but only that this broker does not host a replica of it any more.
    */
   def onDeleted(partition: TopicPartition): Unit = {}
+
+  /**
+   * Called when the Partition on this broker is transitioned to follower.
+   */
+  def onBecomingFollower(partition: TopicPartition): Unit = {}
 }
 
 trait AlterPartitionListener {
@@ -93,18 +99,18 @@ class DelayedOperations(topicId: Option[Uuid],
                         produce: DelayedOperationPurgatory[DelayedProduce],
                         fetch: DelayedOperationPurgatory[DelayedFetch],
                         deleteRecords: DelayedOperationPurgatory[DelayedDeleteRecords],
-                        shareFetch: DelayedOperationPurgatory[DelayedShareFetch]) {
+                        shareFetch: DelayedOperationPurgatory[DelayedShareFetch]) extends Logging {
 
   def checkAndCompleteAll(): Unit = {
-    val requestKey = TopicPartitionOperationKey(topicPartition)
-    CoreUtils.swallow(() -> fetch.checkAndComplete(requestKey), fetch, Level.ERROR)
-    CoreUtils.swallow(() -> produce.checkAndComplete(requestKey), produce, Level.ERROR)
-    CoreUtils.swallow(() -> deleteRecords.checkAndComplete(requestKey), deleteRecords, Level.ERROR)
+    val requestKey = new TopicPartitionOperationKey(topicPartition)
+    CoreUtils.swallow(() -> fetch.checkAndComplete(requestKey), this, Level.ERROR)
+    CoreUtils.swallow(() -> produce.checkAndComplete(requestKey), this, Level.ERROR)
+    CoreUtils.swallow(() -> deleteRecords.checkAndComplete(requestKey), this, Level.ERROR)
     if (topicId.isDefined) CoreUtils.swallow(() -> shareFetch.checkAndComplete(new DelayedShareFetchPartitionKey(
-      topicId.get, topicPartition.partition())), shareFetch, Level.ERROR)
+      topicId.get, topicPartition.partition())), this, Level.ERROR)
   }
 
-  def numDelayedDelete: Int = deleteRecords.numDelayed
+  def numDelayedDelete: Int = deleteRecords.numDelayed()
 }
 
 object Partition {
@@ -696,6 +702,15 @@ class Partition(val topicPartition: TopicPartition,
         listener.onFailed(topicPartition)
       }
       listeners.clear()
+    }
+  }
+
+  /**
+   * Invoke the partition listeners when the partition has been transitioned to follower.
+   */
+  def invokeOnBecomingFollowerListeners(): Unit = {
+    listeners.forEach { listener =>
+      listener.onBecomingFollower(topicPartition)
     }
   }
 

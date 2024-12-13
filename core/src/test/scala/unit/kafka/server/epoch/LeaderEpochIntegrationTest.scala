@@ -16,7 +16,6 @@
   */
 package kafka.server.epoch
 
-import kafka.cluster.BrokerEndPoint
 import kafka.server.KafkaConfig._
 import kafka.server._
 import kafka.utils.TestUtils._
@@ -34,6 +33,7 @@ import org.apache.kafka.common.requests.{OffsetsForLeaderEpochRequest, OffsetsFo
 import org.apache.kafka.common.security.auth.SecurityProtocol
 import org.apache.kafka.common.serialization.StringSerializer
 import org.apache.kafka.common.utils.{LogContext, Time}
+import org.apache.kafka.server.network.BrokerEndPoint
 import org.apache.kafka.test.{TestUtils => JTestUtils}
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions._
@@ -66,7 +66,7 @@ class LeaderEpochIntegrationTest extends QuorumTestHarness with Logging {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = Array("zk", "kraft"))
+  @ValueSource(strings = Array("kraft"))
   def shouldAddCurrentLeaderEpochToMessagesAsTheyAreWrittenToLeader(quorum: String): Unit = {
     brokers ++= (0 to 1).map { id => createBroker(fromProps(createBrokerConfig(id, zkConnectOrNull))) }
 
@@ -99,7 +99,7 @@ class LeaderEpochIntegrationTest extends QuorumTestHarness with Logging {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = Array("zk", "kraft"))
+  @ValueSource(strings = Array("kraft"))
   def shouldSendLeaderEpochRequestAndGetAResponse(quorum: String): Unit = {
 
     //3 brokers, put partition on 100/101 and then pretend to be 102
@@ -147,15 +147,11 @@ class LeaderEpochIntegrationTest extends QuorumTestHarness with Logging {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = Array("zk", "kraft"))
+  @ValueSource(strings = Array("kraft"))
   def shouldIncreaseLeaderEpochBetweenLeaderRestarts(quorum: String): Unit = {
     //Setup: we are only interested in the single partition on broker 101
     brokers += createBroker(fromProps(createBrokerConfig(100, zkConnectOrNull)))
-    if (isKRaftTest()) {
-      assertEquals(controllerServer.config.nodeId, waitUntilQuorumLeaderElected(controllerServer))
-    } else {
-      assertEquals(100, TestUtils.waitUntilControllerElected(zkClient))
-    }
+    assertEquals(controllerServer.config.nodeId, waitUntilQuorumLeaderElected(controllerServer))
 
     brokers += createBroker(fromProps(createBrokerConfig(101, zkConnectOrNull)))
 
@@ -287,14 +283,18 @@ class LeaderEpochIntegrationTest extends QuorumTestHarness with Logging {
   }
 
   private def createTopic(topic: String, partitionReplicaAssignment: collection.Map[Int, Seq[Int]]): Unit = {
-    Using(createAdminClient(brokers, ListenerName.forSecurityProtocol(SecurityProtocol.PLAINTEXT))) { admin =>
-      TestUtils.createTopicWithAdmin(
-        admin = admin,
-        topic = topic,
-        replicaAssignment = partitionReplicaAssignment,
-        brokers = brokers,
-        controllers = controllerServers
-      )
+    Using.resource(createAdminClient(brokers, ListenerName.forSecurityProtocol(SecurityProtocol.PLAINTEXT))) { admin =>
+      try {
+        TestUtils.createTopicWithAdmin(
+          admin = admin,
+          topic = topic,
+          replicaAssignment = partitionReplicaAssignment,
+          brokers = brokers,
+          controllers = controllerServers
+        )
+      } finally {
+        admin.close()
+      }
     }
   }
 

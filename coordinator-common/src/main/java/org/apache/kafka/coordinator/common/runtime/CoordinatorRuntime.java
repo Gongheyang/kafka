@@ -52,6 +52,7 @@ import org.slf4j.Logger;
 import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -60,6 +61,7 @@ import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -118,6 +120,7 @@ public class CoordinatorRuntime<S extends CoordinatorShard<U>, U> implements Aut
         private Serializer<U> serializer;
         private Compression compression;
         private int appendLingerMs;
+        private ExecutorService executorService;
 
         public Builder<S, U> withLogPrefix(String logPrefix) {
             this.logPrefix = logPrefix;
@@ -189,6 +192,11 @@ public class CoordinatorRuntime<S extends CoordinatorShard<U>, U> implements Aut
             return this;
         }
 
+        public Builder<S, U> withExecutorService(ExecutorService executorService) {
+            this.executorService = executorService;
+            return this;
+        }
+
         public CoordinatorRuntime<S, U> build() {
             if (logPrefix == null)
                 logPrefix = "";
@@ -216,6 +224,8 @@ public class CoordinatorRuntime<S extends CoordinatorShard<U>, U> implements Aut
                 compression = Compression.NONE;
             if (appendLingerMs < 0)
                 throw new IllegalArgumentException("AppendLinger must be >= 0");
+            if (executorService == null)
+                throw new IllegalArgumentException("ExecutorService must be set.");
 
             return new CoordinatorRuntime<>(
                 logPrefix,
@@ -231,7 +241,8 @@ public class CoordinatorRuntime<S extends CoordinatorShard<U>, U> implements Aut
                 coordinatorMetrics,
                 serializer,
                 compression,
-                appendLingerMs
+                appendLingerMs,
+                executorService
             );
         }
     }
@@ -552,6 +563,11 @@ public class CoordinatorRuntime<S extends CoordinatorShard<U>, U> implements Aut
         final EventBasedCoordinatorTimer timer;
 
         /**
+         * The coordinator executor.
+         */
+        final CoordinatorExecutorImpl<S, U> executor;
+
+        /**
          * The current state.
          */
         CoordinatorState state;
@@ -603,6 +619,13 @@ public class CoordinatorRuntime<S extends CoordinatorShard<U>, U> implements Aut
             this.epoch = -1;
             this.deferredEventQueue = new DeferredEventQueue(logContext);
             this.timer = new EventBasedCoordinatorTimer(tp, logContext);
+            this.executor = new CoordinatorExecutorImpl<>(
+                logContext,
+                tp,
+                CoordinatorRuntime.this,
+                executorService,
+                defaultWriteTimeout
+            );
             this.bufferSupplier = new BufferSupplier.GrowableBufferSupplier();
         }
 
@@ -633,6 +656,7 @@ public class CoordinatorRuntime<S extends CoordinatorShard<U>, U> implements Aut
                             .withSnapshotRegistry(snapshotRegistry)
                             .withTime(time)
                             .withTimer(timer)
+                            .withExecutor(executor)
                             .withCoordinatorMetrics(coordinatorMetrics)
                             .withTopicPartition(tp)
                             .build(),
@@ -714,6 +738,7 @@ public class CoordinatorRuntime<S extends CoordinatorShard<U>, U> implements Aut
                 highWatermarklistener = null;
             }
             timer.cancelAll();
+            executor.cancelAll();
             deferredEventQueue.failAll(Errors.NOT_COORDINATOR.exception());
             failCurrentBatch(Errors.NOT_COORDINATOR.exception());
             if (coordinator != null) {
@@ -1336,6 +1361,10 @@ public class CoordinatorRuntime<S extends CoordinatorShard<U>, U> implements Aut
          */
         @Override
         public void complete(Throwable exception) {
+            if (future.isDone()) {
+                return;
+            }
+
             final long purgatoryTimeMs = time.milliseconds() - deferredEventQueuedTimestamp;
             CompletableFuture<Void> appendFuture = result != null ? result.appendFuture() : null;
 
@@ -1629,6 +1658,10 @@ public class CoordinatorRuntime<S extends CoordinatorShard<U>, U> implements Aut
          */
         @Override
         public void complete(Throwable exception) {
+            if (future.isDone()) {
+                return;
+            }
+
             final long purgatoryTimeMs = time.milliseconds() - deferredEventQueuedTimestamp;
             if (exception == null) {
                 future.complete(null);
@@ -1900,6 +1933,12 @@ public class CoordinatorRuntime<S extends CoordinatorShard<U>, U> implements Aut
     private final int appendLingerMs;
 
     /**
+     * The executor service used by the coordinator runtime to schedule
+     * asynchronous tasks.
+     */
+    private final ExecutorService executorService;
+
+    /**
      * Atomic boolean indicating whether the runtime is running.
      */
     private final AtomicBoolean isRunning = new AtomicBoolean(true);
@@ -1926,6 +1965,7 @@ public class CoordinatorRuntime<S extends CoordinatorShard<U>, U> implements Aut
      * @param serializer                        The serializer.
      * @param compression                       The compression codec.
      * @param appendLingerMs                    The append linger time in ms.
+     * @param executorService                   The executor service.
      */
     @SuppressWarnings("checkstyle:ParameterNumber")
     private CoordinatorRuntime(
@@ -1942,7 +1982,8 @@ public class CoordinatorRuntime<S extends CoordinatorShard<U>, U> implements Aut
         CoordinatorMetrics coordinatorMetrics,
         Serializer<U> serializer,
         Compression compression,
-        int appendLingerMs
+        int appendLingerMs,
+        ExecutorService executorService
     ) {
         this.logPrefix = logPrefix;
         this.logContext = logContext;
@@ -1960,6 +2001,7 @@ public class CoordinatorRuntime<S extends CoordinatorShard<U>, U> implements Aut
         this.serializer = serializer;
         this.compression = compression;
         this.appendLingerMs = appendLingerMs;
+        this.executorService = executorService;
     }
 
     /**
@@ -2333,7 +2375,7 @@ public class CoordinatorRuntime<S extends CoordinatorShard<U>, U> implements Aut
             if (context != null) {
                 context.lock.lock();
                 try {
-                    if (!partitionEpoch.isPresent() || context.epoch < partitionEpoch.getAsInt()) {
+                    if (partitionEpoch.isEmpty() || context.epoch < partitionEpoch.getAsInt()) {
                         log.info("Started unloading metadata for {} with epoch {}.", tp, partitionEpoch);
                         context.transitionTo(CoordinatorState.CLOSED);
                         coordinators.remove(tp, context);
@@ -2423,7 +2465,27 @@ public class CoordinatorRuntime<S extends CoordinatorShard<U>, U> implements Aut
             }
         });
         coordinators.clear();
+        executorService.shutdown();
         Utils.closeQuietly(runtimeMetrics, "runtime metrics");
         log.info("Coordinator runtime closed.");
+    }
+
+    /**
+     * Util method which returns all the topic partitions for which
+     * the state machine is in active state.
+     * <p>
+     * This could be useful if the caller does not have a specific
+     * target internal topic partition.
+     * @return List of {@link TopicPartition} whose coordinators are active
+     */
+    public List<TopicPartition> activeTopicPartitions() {
+        if (coordinators == null || coordinators.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        return coordinators.entrySet().stream()
+            .filter(entry -> entry.getValue().state.equals(CoordinatorState.ACTIVE))
+            .map(Map.Entry::getKey)
+            .toList();
     }
 }

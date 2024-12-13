@@ -328,21 +328,14 @@ class KafkaConfig private(doLog: Boolean, val props: util.Map[_, _])
   /** ********* General Configuration ***********/
   val brokerIdGenerationEnable: Boolean = getBoolean(ServerConfigs.BROKER_ID_GENERATION_ENABLE_CONFIG)
   val maxReservedBrokerId: Int = getInt(ServerConfigs.RESERVED_BROKER_MAX_ID_CONFIG)
-  private[server] var _brokerId: Int = getInt(ServerConfigs.BROKER_ID_CONFIG)
-  def brokerId: Int = _brokerId
-  private[server] var _nodeId: Int = getInt(KRaftConfigs.NODE_ID_CONFIG)
-  def nodeId: Int = _nodeId
+  var brokerId: Int = getInt(ServerConfigs.BROKER_ID_CONFIG)
+  val nodeId: Int = getInt(KRaftConfigs.NODE_ID_CONFIG)
   val initialRegistrationTimeoutMs: Int = getInt(KRaftConfigs.INITIAL_BROKER_REGISTRATION_TIMEOUT_MS_CONFIG)
   val brokerHeartbeatIntervalMs: Int = getInt(KRaftConfigs.BROKER_HEARTBEAT_INTERVAL_MS_CONFIG)
   val brokerSessionTimeoutMs: Int = getInt(KRaftConfigs.BROKER_SESSION_TIMEOUT_MS_CONFIG)
 
   def requiresZookeeper: Boolean = processRoles.isEmpty
   def usesSelfManagedQuorum: Boolean = processRoles.nonEmpty
-
-  val migrationEnabled: Boolean = getBoolean(KRaftConfigs.MIGRATION_ENABLED_CONFIG)
-  val migrationMetadataMinBatchSize: Int = getInt(KRaftConfigs.MIGRATION_METADATA_MIN_BATCH_SIZE_CONFIG)
-
-  val elrEnabled: Boolean = getBoolean(KRaftConfigs.ELR_ENABLED_CONFIG)
 
   private def parseProcessRoles(): Set[ProcessRole] = {
     val roles = getList(KRaftConfigs.PROCESS_ROLES_CONFIG).asScala.map {
@@ -496,35 +489,9 @@ class KafkaConfig private(doLog: Boolean, val props: util.Map[_, _])
 
   def logMessageTimestampType = TimestampType.forName(getString(ServerLogConfigs.LOG_MESSAGE_TIMESTAMP_TYPE_CONFIG))
 
-  /* See `TopicConfig.MESSAGE_TIMESTAMP_DIFFERENCE_MAX_MS_CONFIG` for details */
-  @deprecated("3.6")
-  def logMessageTimestampDifferenceMaxMs: Long = getLong(ServerLogConfigs.LOG_MESSAGE_TIMESTAMP_DIFFERENCE_MAX_MS_CONFIG)
+  def logMessageTimestampBeforeMaxMs: Long = getLong(ServerLogConfigs.LOG_MESSAGE_TIMESTAMP_BEFORE_MAX_MS_CONFIG)
 
-  // In the transition period before logMessageTimestampDifferenceMaxMs is removed, to maintain backward compatibility,
-  // we are using its value if logMessageTimestampBeforeMaxMs default value hasn't changed.
-  // See `TopicConfig.MESSAGE_FORMAT_VERSION_CONFIG` for deprecation details
-  @nowarn("cat=deprecation")
-  def logMessageTimestampBeforeMaxMs: Long = {
-    val messageTimestampBeforeMaxMs: Long = getLong(ServerLogConfigs.LOG_MESSAGE_TIMESTAMP_BEFORE_MAX_MS_CONFIG)
-    if (messageTimestampBeforeMaxMs != ServerLogConfigs.LOG_MESSAGE_TIMESTAMP_DIFFERENCE_MAX_MS_DEFAULT) {
-      messageTimestampBeforeMaxMs
-    } else {
-      logMessageTimestampDifferenceMaxMs
-    }
-  }
-
-  // In the transition period before logMessageTimestampDifferenceMaxMs is removed, to maintain backward compatibility,
-  // we are using its value if logMessageTimestampAfterMaxMs default value hasn't changed.
-  // See `TopicConfig.MESSAGE_FORMAT_VERSION_CONFIG` for deprecation details
-  @nowarn("cat=deprecation")
-  def logMessageTimestampAfterMaxMs: Long = {
-    val messageTimestampAfterMaxMs: Long = getLong(ServerLogConfigs.LOG_MESSAGE_TIMESTAMP_AFTER_MAX_MS_CONFIG)
-    if (messageTimestampAfterMaxMs != Long.MaxValue) {
-      messageTimestampAfterMaxMs
-    } else {
-      logMessageTimestampDifferenceMaxMs
-    }
-  }
+  def logMessageTimestampAfterMaxMs: Long = getLong(ServerLogConfigs.LOG_MESSAGE_TIMESTAMP_AFTER_MAX_MS_CONFIG)
 
   def logMessageDownConversionEnable: Boolean = getBoolean(ServerLogConfigs.LOG_MESSAGE_DOWNCONVERSION_ENABLE_CONFIG)
 
@@ -834,9 +801,6 @@ class KafkaConfig private(doLog: Boolean, val props: util.Map[_, _])
         throw new ConfigException(s"Missing required configuration `${ZkConfigs.ZK_CONNECT_CONFIG}` which has no default value.")
       }
       if (brokerIdGenerationEnable) {
-        if (migrationEnabled) {
-          require(brokerId >= 0, "broker.id generation is incompatible with ZooKeeper migration. Please stop using it before enabling migration (set broker.id to a value greater or equal to 0).")
-        }
         require(brokerId >= -1 && brokerId <= maxReservedBrokerId, "broker.id must be greater than or equal to -1 and not greater than reserved.broker.max.id")
       } else {
         require(brokerId >= 0, "broker.id must be greater than or equal to 0")
@@ -846,11 +810,6 @@ class KafkaConfig private(doLog: Boolean, val props: util.Map[_, _])
       if (nodeId < 0) {
         throw new ConfigException(s"Missing configuration `${KRaftConfigs.NODE_ID_CONFIG}` which is required " +
           s"when `process.roles` is defined (i.e. when running in KRaft mode).")
-      }
-      if (migrationEnabled) {
-        if (zkConnect == null) {
-          throw new ConfigException(s"If using `${KRaftConfigs.MIGRATION_ENABLED_CONFIG}` in KRaft mode, `${ZkConfigs.ZK_CONNECT_CONFIG}` must also be set.")
-        }
       }
     }
     require(logRollTimeMillis >= 1, "log.roll.ms must be greater than or equal to 1")
@@ -876,15 +835,7 @@ class KafkaConfig private(doLog: Boolean, val props: util.Map[_, _])
         )
       }
     }
-    def validateQuorumVotersAndQuorumBootstrapServerForMigration(): Unit = {
-      if (voterIds.isEmpty && quorumConfig.bootstrapServers.isEmpty) {
-        throw new ConfigException(
-          s"""If using ${KRaftConfigs.MIGRATION_ENABLED_CONFIG}, either ${QuorumConfig.QUORUM_BOOTSTRAP_SERVERS_CONFIG} must
-          |contain the set of bootstrap controllers or ${QuorumConfig.QUORUM_VOTERS_CONFIG} must contain a parseable
-          |set of controllers.""".stripMargin.replace("\n", " ")
-        )
-      }
-    }
+
     def validateControlPlaneListenerEmptyForKRaft(): Unit = {
       require(controlPlaneListenerName.isEmpty,
         s"${SocketServerConfigs.CONTROL_PLANE_LISTENER_NAME_CONFIG} is not supported in KRaft mode.")
@@ -952,25 +903,9 @@ class KafkaConfig private(doLog: Boolean, val props: util.Map[_, _])
       validateAdvertisedControllerListenersNonEmptyForKRaftController()
       validateControllerListenerNamesMustAppearInListenersForKRaftController()
     } else {
-      // ZK-based
-      if (migrationEnabled) {
-        require(brokerId >= 0,
-          "broker.id generation is incompatible with ZooKeeper migration. Please stop using it before enabling migration (set broker.id to a value greater or equal to 0).")
-        validateQuorumVotersAndQuorumBootstrapServerForMigration()
-        require(controllerListenerNames.nonEmpty,
-          s"${KRaftConfigs.CONTROLLER_LISTENER_NAMES_CONFIG} must not be empty when running in ZooKeeper migration mode: ${controllerListenerNames.asJava}")
-        require(interBrokerProtocolVersion.isMigrationSupported, s"Cannot enable ZooKeeper migration without setting " +
-          s"'${ReplicationConfigs.INTER_BROKER_PROTOCOL_VERSION_CONFIG}' to 3.4 or higher")
-        if (logDirs.size > 1) {
-          require(interBrokerProtocolVersion.isDirectoryAssignmentSupported,
-            s"Cannot enable ZooKeeper migration with multiple log directories (aka JBOD) without setting " +
-            s"'${ReplicationConfigs.INTER_BROKER_PROTOCOL_VERSION_CONFIG}' to ${MetadataVersion.IBP_3_7_IV2} or higher")
-        }
-      } else {
-        // controller listener names must be empty when not in KRaft mode
-        require(controllerListenerNames.isEmpty,
-          s"${KRaftConfigs.CONTROLLER_LISTENER_NAMES_CONFIG} must be empty when not running in KRaft mode: ${controllerListenerNames.asJava}")
-      }
+      // controller listener names must be empty when not in KRaft mode
+      require(controllerListenerNames.isEmpty,
+        s"${KRaftConfigs.CONTROLLER_LISTENER_NAMES_CONFIG} must be empty when not running in KRaft mode: ${controllerListenerNames.asJava}")
     }
 
     val listenerNames = listeners.map(_.listenerName).toSet
@@ -1092,7 +1027,6 @@ class KafkaConfig private(doLog: Boolean, val props: util.Map[_, _])
     logProps.put(TopicConfig.PREALLOCATE_CONFIG, logPreAllocateEnable)
     logProps.put(TopicConfig.MESSAGE_FORMAT_VERSION_CONFIG, logMessageFormatVersion.version)
     logProps.put(TopicConfig.MESSAGE_TIMESTAMP_TYPE_CONFIG, logMessageTimestampType.name)
-    logProps.put(TopicConfig.MESSAGE_TIMESTAMP_DIFFERENCE_MAX_MS_CONFIG, logMessageTimestampDifferenceMaxMs: java.lang.Long)
     logProps.put(TopicConfig.MESSAGE_TIMESTAMP_BEFORE_MAX_MS_CONFIG, logMessageTimestampBeforeMaxMs: java.lang.Long)
     logProps.put(TopicConfig.MESSAGE_TIMESTAMP_AFTER_MAX_MS_CONFIG, logMessageTimestampAfterMaxMs: java.lang.Long)
     logProps.put(TopicConfig.MESSAGE_DOWNCONVERSION_ENABLE_CONFIG, logMessageDownConversionEnable: java.lang.Boolean)

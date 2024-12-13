@@ -53,7 +53,7 @@ import java.util.Set;
  * Instances returned from the {@code create} methods of this interface are guaranteed to be thread safe.
  * However, the {@link KafkaFuture KafkaFutures} returned from request methods are executed
  * by a single thread so it is important that any code which executes on that thread when they complete
- * (using {@link KafkaFuture#thenApply(KafkaFuture.Function)}, for example) doesn't block
+ * (using {@link KafkaFuture#thenApply(KafkaFuture.BaseFunction)}, for example) doesn't block
  * for too long. If necessary, processing of results should be passed to another thread.
  * <p>
  * The operations exposed by Admin follow a consistent pattern:
@@ -485,41 +485,6 @@ public interface Admin extends AutoCloseable {
      * @return The DescribeConfigsResult
      */
     DescribeConfigsResult describeConfigs(Collection<ConfigResource> resources, DescribeConfigsOptions options);
-
-    /**
-     * Update the configuration for the specified resources with the default options.
-     * <p>
-     * This is a convenience method for {@link #alterConfigs(Map, AlterConfigsOptions)} with default options.
-     * See the overload for more details.
-     * <p>
-     * This operation is supported by brokers with version 0.11.0.0 or higher.
-     *
-     * @param configs The resources with their configs (topic is the only resource type with configs that can
-     *                be updated currently)
-     * @return The AlterConfigsResult
-     * @deprecated Since 2.3. Use {@link #incrementalAlterConfigs(Map)}.
-     */
-    @Deprecated
-    default AlterConfigsResult alterConfigs(Map<ConfigResource, Config> configs) {
-        return alterConfigs(configs, new AlterConfigsOptions());
-    }
-
-    /**
-     * Update the configuration for the specified resources with the default options.
-     * <p>
-     * Updates are not transactional so they may succeed for some resources while fail for others. The configs for
-     * a particular resource are updated atomically.
-     * <p>
-     * This operation is supported by brokers with version 0.11.0.0 or higher.
-     *
-     * @param configs The resources with their configs (topic is the only resource type with configs that can
-     *                be updated currently)
-     * @param options The options to use when describing configs
-     * @return The AlterConfigsResult
-     * @deprecated Since 2.3. Use {@link #incrementalAlterConfigs(Map, AlterConfigsOptions)}.
-     */
-    @Deprecated
-    AlterConfigsResult alterConfigs(Map<ConfigResource, Config> configs, AlterConfigsOptions options);
 
     /**
      * Incrementally updates the configuration for the specified resources with default options.
@@ -1021,6 +986,26 @@ public interface Admin extends AutoCloseable {
     default DeleteConsumerGroupOffsetsResult deleteConsumerGroupOffsets(String groupId, Set<TopicPartition> partitions) {
         return deleteConsumerGroupOffsets(groupId, partitions, new DeleteConsumerGroupOffsetsOptions());
     }
+
+    /**
+     * List the groups available in the cluster with the default options.
+     *
+     * <p>This is a convenience method for {@link #listGroups(ListGroupsOptions)} with default options.
+     * See the overload for more details.
+     *
+     * @return The ListGroupsResult.
+     */
+    default ListGroupsResult listGroups() {
+        return listGroups(new ListGroupsOptions());
+    }
+
+    /**
+     * List the groups available in the cluster.
+     *
+     * @param options The options to use when listing the groups.
+     * @return The ListGroupsResult.
+     */
+    ListGroupsResult listGroups(ListGroupsOptions options);
 
     /**
      * Elect a replica as leader for topic partitions.
@@ -1805,25 +1790,27 @@ public interface Admin extends AutoCloseable {
     }
 
     /**
-     * List the share groups available in the cluster.
+     * Describe some classic groups in the cluster.
      *
-     * @param options The options to use when listing the share groups.
-     * @return The ListShareGroupsResult.
+     * @param groupIds The IDs of the groups to describe.
+     * @param options  The options to use when describing the groups.
+     * @return The DescribeClassicGroupsResult.
      */
-    ListShareGroupsResult listShareGroups(ListShareGroupsOptions options);
+    DescribeClassicGroupsResult describeClassicGroups(Collection<String> groupIds,
+                                                      DescribeClassicGroupsOptions options);
 
     /**
-     * List the share groups available in the cluster with the default options.
+     * Describe some classic groups in the cluster, with the default options.
      * <p>
-     * This is a convenience method for {@link #listShareGroups(ListShareGroupsOptions)} with default options.
-     * See the overload for more details.
+     * This is a convenience method for {@link #describeClassicGroups(Collection, DescribeClassicGroupsOptions)}
+     * with default options. See the overload for more details.
      *
-     * @return The ListShareGroupsResult.
+     * @param groupIds The IDs of the groups to describe.
+     * @return The DescribeClassicGroupsResult.
      */
-    default ListShareGroupsResult listShareGroups() {
-        return listShareGroups(new ListShareGroupsOptions());
+    default DescribeClassicGroupsResult describeClassicGroups(Collection<String> groupIds) {
+        return describeClassicGroups(groupIds, new DescribeClassicGroupsOptions());
     }
-
 
     /**
      * Add the provided application metric for subscription.

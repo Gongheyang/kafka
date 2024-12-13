@@ -3167,6 +3167,23 @@ public class KafkaAdminClientTest {
     }
 
     @Test
+    public void testDescribeClusterHandleUnsupportedVersionForIncludingFencedBrokers() {
+        ApiVersion describeClusterV1 = new ApiVersion()
+            .setApiKey(ApiKeys.DESCRIBE_CLUSTER.id)
+            .setMinVersion((short) 0)
+            .setMaxVersion((short) 1);
+        try (AdminClientUnitTestEnv env = new AdminClientUnitTestEnv(mockCluster(1, 0))) {
+            env.kafkaClient().setNodeApiVersions(NodeApiVersions.create(Collections.singletonList(describeClusterV1)));
+
+            env.kafkaClient().prepareUnsupportedVersionResponse(
+                    request -> request instanceof DescribeClusterRequest);
+
+            final DescribeClusterResult result = env.adminClient().describeCluster(new DescribeClusterOptions().includeFencedBrokers(true));
+            TestUtils.assertFutureThrows(result.nodes(), UnsupportedVersionException.class);
+        }
+    }
+
+    @Test
     public void testListConsumerGroups() throws Exception {
         try (AdminClientUnitTestEnv env = new AdminClientUnitTestEnv(mockCluster(4, 0),
                 AdminClientConfig.RETRIES_CONFIG, "2")) {
@@ -4057,6 +4074,7 @@ public class KafkaAdminClientTest {
                                                 .setTopicName("foo")
                                                 .setPartitions(singletonList(1))
                                         )))
+                                    .setMemberType((byte) 1)
                             )),
                         new ConsumerGroupDescribeResponseData.DescribedGroup()
                             .setGroupId("grp2")
@@ -4110,14 +4128,18 @@ public class KafkaAdminClientTest {
                         ),
                         Optional.of(new MemberAssignment(
                             Collections.singleton(new TopicPartition("foo", 1))
-                        ))
+                        )),
+                        Optional.of(10),
+                        Optional.of(true)
                     )
                 ),
                 "range",
                 GroupType.CONSUMER,
                 GroupState.STABLE,
                 env.cluster().controller(),
-                Collections.emptySet()
+                Collections.emptySet(),
+                Optional.of(10),
+                Optional.of(10)
             ));
             expectedResult.put("grp2", new ConsumerGroupDescription(
                 "grp2",
@@ -4130,14 +4152,19 @@ public class KafkaAdminClientTest {
                         "clientHost",
                         new MemberAssignment(
                             Collections.singleton(new TopicPartition("bar", 0))
-                        )
+                        ),
+                        Optional.empty(),
+                        Optional.empty(),
+                        Optional.empty()
                     )
                 ),
                 "range",
                 GroupType.CLASSIC,
                 GroupState.STABLE,
                 env.cluster().controller(),
-                Collections.emptySet()
+                Collections.emptySet(),
+                Optional.empty(),
+                Optional.empty()
             ));
 
             assertEquals(expectedResult, result.all().get());
@@ -8674,7 +8701,10 @@ public class KafkaAdminClientTest {
                                      Optional.ofNullable(member.groupInstanceId()),
                                      member.clientId(),
                                      member.clientHost(),
-                                     assignment);
+                                     assignment,
+                                     Optional.empty(),
+                                     Optional.empty(),
+                                     Optional.empty());
     }
 
     private static ShareMemberDescription convertToShareMemberDescriptions(ShareGroupDescribeResponseData.Member member,

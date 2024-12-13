@@ -61,7 +61,6 @@ import org.apache.kafka.common.metadata.RegisterBrokerRecord.BrokerEndpointColle
 import org.apache.kafka.common.metadata.RegisterControllerRecord;
 import org.apache.kafka.common.metadata.TopicRecord;
 import org.apache.kafka.common.metadata.UnfenceBrokerRecord;
-import org.apache.kafka.common.metadata.ZkMigrationStateRecord;
 import org.apache.kafka.common.protocol.ApiKeys;
 import org.apache.kafka.common.protocol.Errors;
 import org.apache.kafka.common.requests.AlterPartitionRequest;
@@ -100,7 +99,6 @@ import org.apache.kafka.metadata.RecordTestUtils.ImageDeltaPair;
 import org.apache.kafka.metadata.RecordTestUtils.TestThroughAllIntermediateImagesLeadingToFinalImageHelper;
 import org.apache.kafka.metadata.authorizer.StandardAuthorizer;
 import org.apache.kafka.metadata.bootstrap.BootstrapMetadata;
-import org.apache.kafka.metadata.migration.ZkMigrationState;
 import org.apache.kafka.metadata.util.BatchFileWriter;
 import org.apache.kafka.metalog.LocalLogManager;
 import org.apache.kafka.metalog.LocalLogManagerTestEnv;
@@ -841,7 +839,7 @@ public class QuorumControllerTest {
                 BrokerRegistrationReply reply = active.registerBroker(
                     ANONYMOUS_CONTEXT,
                     request).get();
-                assertTrue(reply.epoch() >= 5, "Unexpected broker epoch " + reply.epoch());
+                assertTrue(reply.epoch() >= 4, "Unexpected broker epoch " + reply.epoch());
             }
         }
     }
@@ -868,7 +866,7 @@ public class QuorumControllerTest {
                         Map.of(EligibleLeaderReplicasVersion.FEATURE_NAME, EligibleLeaderReplicasVersion.ELRV_1.featureLevel()))).
                     setLogDirs(Collections.singletonList(Uuid.fromString("vBpaRsZVSaGsQT53wtYGtg"))).
                     setListeners(listeners));
-            assertEquals(5L, reply.get().epoch());
+            assertEquals(4L, reply.get().epoch());
             CreateTopicsRequestData createTopicsRequestData =
                 new CreateTopicsRequestData().setTopics(
                     new CreatableTopicCollection(Collections.singleton(
@@ -884,7 +882,7 @@ public class QuorumControllerTest {
                         get().topics().find("foo").errorMessage());
             assertEquals(new BrokerHeartbeatReply(true, false, false, false),
                 active.processBrokerHeartbeat(ANONYMOUS_CONTEXT, new BrokerHeartbeatRequestData().
-                        setWantFence(false).setBrokerEpoch(5L).setBrokerId(0).
+                        setWantFence(false).setBrokerEpoch(4L).setBrokerId(0).
                         setCurrentMetadataOffset(100000L)).get());
             assertEquals(Errors.NONE.code(), active.createTopics(ANONYMOUS_CONTEXT,
                 createTopicsRequestData, Collections.singleton("foo")).
@@ -1010,8 +1008,6 @@ public class QuorumControllerTest {
             new ApiMessageAndVersion(new FeatureLevelRecord().
                 setName(MetadataVersion.FEATURE_NAME).
                 setFeatureLevel(MetadataVersion.IBP_3_7_IV0.featureLevel()), (short) 0),
-            new ApiMessageAndVersion(new ZkMigrationStateRecord().
-                setZkMigrationState((byte) 0), (short) 0),
             new ApiMessageAndVersion(new EndTransactionRecord(), (short) 0),
             new ApiMessageAndVersion(new RegisterControllerRecord().
                 setControllerId(0).
@@ -1504,10 +1500,7 @@ public class QuorumControllerTest {
                         appender)).getMessage());
     }
 
-    FeatureControlManager getActivationRecords(
-        MetadataVersion metadataVersion,
-        Optional<ZkMigrationState> stateInLog
-    ) {
+    FeatureControlManager getActivationRecords(MetadataVersion metadataVersion) {
         SnapshotRegistry snapshotRegistry = new SnapshotRegistry(new LogContext());
         FeatureControlManager featureControlManager = new FeatureControlManager.Builder()
                 .setSnapshotRegistry(snapshotRegistry)
@@ -1516,10 +1509,9 @@ public class QuorumControllerTest {
 
         ControllerResult<Void> result = ActivationRecordsGenerator.generate(
             msg -> { },
-            stateInLog.isEmpty(),
+            true,
             -1L,
             BootstrapMetadata.fromVersion(metadataVersion, "test"),
-            stateInLog.orElse(ZkMigrationState.NONE),
             metadataVersion,
             Mockito.mock(ConfigurationControlManager.class)
         );
@@ -1531,34 +1523,23 @@ public class QuorumControllerTest {
     public void testActivationRecords33() {
         FeatureControlManager featureControl;
 
-        featureControl = getActivationRecords(MetadataVersion.IBP_3_3_IV0, Optional.empty());
+        featureControl = getActivationRecords(MetadataVersion.IBP_3_3_IV0);
         assertEquals(MetadataVersion.IBP_3_3_IV0, featureControl.metadataVersion());
-        assertEquals(ZkMigrationState.NONE, featureControl.zkMigrationState());
-
-        featureControl = getActivationRecords(MetadataVersion.IBP_3_3_IV0, Optional.of(ZkMigrationState.NONE));
-        assertEquals(MetadataVersion.IBP_3_3_IV0, featureControl.metadataVersion());
-        assertEquals(ZkMigrationState.NONE, featureControl.zkMigrationState());
     }
 
     @Test
     public void testActivationRecords34() {
         FeatureControlManager featureControl;
 
-        featureControl = getActivationRecords(MetadataVersion.IBP_3_4_IV0, Optional.empty());
+        featureControl = getActivationRecords(MetadataVersion.IBP_3_4_IV0);
         assertEquals(MetadataVersion.IBP_3_4_IV0, featureControl.metadataVersion());
-        assertEquals(ZkMigrationState.NONE, featureControl.zkMigrationState());
-
-        featureControl = getActivationRecords(MetadataVersion.IBP_3_4_IV0, Optional.of(ZkMigrationState.NONE));
-        assertEquals(MetadataVersion.IBP_3_4_IV0, featureControl.metadataVersion());
-        assertEquals(ZkMigrationState.NONE, featureControl.zkMigrationState());
     }
 
     @Test
     public void testActivationRecordsNonEmptyLog() {
         FeatureControlManager featureControl = getActivationRecords(
-            MetadataVersion.IBP_3_9_IV0, Optional.empty());
+            MetadataVersion.IBP_3_9_IV0);
         assertEquals(MetadataVersion.IBP_3_9_IV0, featureControl.metadataVersion());
-        assertEquals(ZkMigrationState.NONE, featureControl.zkMigrationState());
     }
 
     @Test
@@ -1568,7 +1549,6 @@ public class QuorumControllerTest {
             true,
             0L,
             BootstrapMetadata.fromVersion(MetadataVersion.IBP_3_6_IV1, "test"),
-            ZkMigrationState.NONE,
             MetadataVersion.IBP_3_6_IV1,
             Mockito.mock(ConfigurationControlManager.class));
         assertFalse(result.isAtomic());
@@ -1618,7 +1598,6 @@ public class QuorumControllerTest {
             false,
             offsetControlManager.transactionStartOffset(),
             BootstrapMetadata.fromVersion(MetadataVersion.IBP_3_6_IV1, "test"),
-            ZkMigrationState.NONE,
             MetadataVersion.IBP_3_6_IV1,
             Mockito.mock(ConfigurationControlManager.class));
 
@@ -1643,7 +1622,6 @@ public class QuorumControllerTest {
                 false,
                 offsetControlManager.transactionStartOffset(),
                 BootstrapMetadata.fromVersion(MetadataVersion.IBP_3_6_IV0, "test"),
-                ZkMigrationState.NONE,
                 MetadataVersion.IBP_3_6_IV0,
                 Mockito.mock(ConfigurationControlManager.class))
         );

@@ -400,21 +400,15 @@ abstract class KafkaServerTestHarness extends QuorumTestHarness {
     }
   }
 
-  def changeClientIdConfig(sanitizedClientId: String, configs: Properties): Unit = {
-    if (isKRaftTest()) {
-      Using.resource(createAdminClient(brokers, listenerName)) {
-        admin => {
-          admin.alterClientQuotas(Collections.singleton(
-            new ClientQuotaAlteration(
-              new ClientQuotaEntity(Map(ClientQuotaEntity.CLIENT_ID -> (if (sanitizedClientId == "<default>") null else sanitizedClientId)).asJava),
-              configs.asScala.map { case (key, value) => new ClientQuotaAlteration.Op(key, value.toDouble) }.toList.asJava))).all().get()
-        }
+  def changeClientIdConfig(sanitizedClientId: String, configs: Properties): Unit = 
+    Using.resource(createAdminClient(brokers, listenerName)) {
+      admin => {
+        admin.alterClientQuotas(Collections.singleton(
+          new ClientQuotaAlteration(
+            new ClientQuotaEntity(Map(ClientQuotaEntity.CLIENT_ID -> (if (sanitizedClientId == "<default>") null else sanitizedClientId)).asJava),
+            configs.asScala.map { case (key, value) => new ClientQuotaAlteration.Op(key, value.toDouble) }.toList.asJava))).all().get()
       }
     }
-    else {
-      adminZkClient.changeClientIdConfig(sanitizedClientId, configs)
-    }
-  }
 
   /**
    * Ensures that the consumer offsets/group metadata topic exists. If it does not, the topic is created and the method waits

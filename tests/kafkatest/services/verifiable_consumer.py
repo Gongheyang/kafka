@@ -21,7 +21,7 @@ from ducktape.services.background_thread import BackgroundThreadService
 from kafkatest.directory_layout.kafka_path import KafkaPathResolverMixin
 from kafkatest.services.kafka import TopicPartition, consumer_group
 from kafkatest.services.verifiable_client import VerifiableClientMixin
-from kafkatest.version import DEV_BRANCH, V_2_3_0, V_2_3_1, V_3_7_1, V_4_0_0
+from kafkatest.version import DEV_BRANCH, V_2_3_0, V_2_3_1, V_3_7_0, V_4_0_0
 
 
 class ConsumerState:
@@ -396,9 +396,8 @@ class VerifiableConsumer(KafkaPathResolverMixin, VerifiableClientMixin, Backgrou
         # The two implementations use slightly different configuration, hence these arguments are conditional.
         #
         # See the Java class/method VerifiableConsumer.createFromArgs() for how the command line arguments are
-        # parsed and used as configuration in the runner. Note: even though support for the two group protocols was
-        # introduced in 3.7.0, support for the --group-protocol option was not added until later.
-        if node.version > V_3_7_1 and self.group_protocol:
+        # parsed and used as configuration in the runner.
+        if node.version >= V_3_7_0 and self.is_consumer_group_protocol_enabled():
             cmd += " --group-protocol %s" % self.group_protocol
 
             if self.group_remote_assignor:
@@ -523,4 +522,4 @@ class VerifiableConsumer(KafkaPathResolverMixin, VerifiableClientMixin, Backgrou
                     if handler.state != ConsumerState.Dead]
 
     def is_consumer_group_protocol_enabled(self):
-        return consumer_group.is_consumer_group_protocol_enabled(self.group_protocol)
+        return self.group_protocol and self.group_protocol.lower() == consumer_group.consumer_group_protocol

@@ -322,10 +322,12 @@ class ShareCoordinatorServiceTest {
         CoordinatorRuntime<ShareCoordinatorShard, CoordinatorRecord> runtime = mockRuntime();
         ShareCoordinatorService service = new ShareCoordinatorService(
             new LogContext(),
-            ShareCoordinatorConfigTest.createConfig(ShareCoordinatorConfigTest.testConfigMap()),
+            ShareCoordinatorTestConfig.createConfig(ShareCoordinatorTestConfig.testConfigMap()),
             runtime,
             new ShareCoordinatorMetrics(),
-            Time.SYSTEM
+            Time.SYSTEM,
+            mock(Timer.class),
+            mock(PartitionWriter.class)
         );
 
         service.startup(() -> 1);
@@ -497,10 +499,12 @@ class ShareCoordinatorServiceTest {
         CoordinatorRuntime<ShareCoordinatorShard, CoordinatorRecord> runtime = mockRuntime();
         ShareCoordinatorService service = new ShareCoordinatorService(
             new LogContext(),
-            ShareCoordinatorConfigTest.createConfig(ShareCoordinatorConfigTest.testConfigMap()),
+            ShareCoordinatorTestConfig.createConfig(ShareCoordinatorTestConfig.testConfigMap()),
             runtime,
             new ShareCoordinatorMetrics(),
-            Time.SYSTEM
+            Time.SYSTEM,
+            mock(Timer.class),
+            mock(PartitionWriter.class)
         );
 
         service.startup(() -> 1);
@@ -684,10 +688,12 @@ class ShareCoordinatorServiceTest {
         CoordinatorRuntime<ShareCoordinatorShard, CoordinatorRecord> runtime = mockRuntime();
         ShareCoordinatorService service = new ShareCoordinatorService(
             new LogContext(),
-            ShareCoordinatorConfigTest.createConfig(ShareCoordinatorConfigTest.testConfigMap()),
+            ShareCoordinatorTestConfig.createConfig(ShareCoordinatorTestConfig.testConfigMap()),
             runtime,
             new ShareCoordinatorMetrics(),
-            Time.SYSTEM
+            Time.SYSTEM,
+            mock(Timer.class),
+            mock(PartitionWriter.class)
         );
 
         String groupId = "group1";
@@ -838,10 +844,12 @@ class ShareCoordinatorServiceTest {
         CoordinatorRuntime<ShareCoordinatorShard, CoordinatorRecord> runtime = mockRuntime();
         ShareCoordinatorService service = new ShareCoordinatorService(
             new LogContext(),
-            ShareCoordinatorConfigTest.createConfig(ShareCoordinatorConfigTest.testConfigMap()),
+            ShareCoordinatorTestConfig.createConfig(ShareCoordinatorTestConfig.testConfigMap()),
             runtime,
             new ShareCoordinatorMetrics(),
-            Time.SYSTEM
+            Time.SYSTEM,
+            mock(Timer.class),
+            mock(PartitionWriter.class)
         );
 
         service.startup(() -> 1);

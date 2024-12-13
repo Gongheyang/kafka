@@ -121,6 +121,7 @@ Streams has multiple sub-projects, but you can run all the tests:
     ./gradlew tasks
 
 ### Building IDE project ####
+*Note Pleasure ensure that JDK17 is used when developing Kafka.*
 *Note that this is not strictly necessary (IntelliJ IDEA has good built-in support for Gradle projects, for example).*
 
     ./gradlew eclipse
@@ -130,15 +131,10 @@ The `eclipse` task has been configured to use `${project_dir}/build_eclipse` as 
 build directory (`${project_dir}/bin`) clashes with Kafka's scripts directory and we don't use Gradle's build directory
 to avoid known issues with this configuration.
 
-When developing Kafka in IntelliJ, **it is recommended to set the project SDK to Java 17**. While some modules, such as client
-and streams, support Java 11 as the minimum version, most modules require Java 17. Setting the SDK to Java 17 provides
-the best compromise for code navigation and overall development experience.
+IntelliJ Language Level awareness:
 
-Expected IntelliJ Behavior
-Due to Kafka's use of Gradle and varying module-level Java version requirements:
-- IntelliJ will automatically check Java syntax and compatibility for each module based on the Java version specified in the
-  module's `build.gradle` file.
-- IntelliJ does not automatically configure the correct Java version for each module in Structure > Project Settings > Modules.
+IntelliJ will automatically check Java syntax and compatibility for each module, even if the Java version is not 
+explicitly set in the Structure > Project Settings > Modules.
 
 ### Publishing the streams quickstart archetype artifact to maven ###
 For the Streams archetype project, one cannot use gradle to upload to maven; instead the `mvn deploy` command needs to be called at the quickstart folder:

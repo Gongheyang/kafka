@@ -254,13 +254,7 @@ abstract class QuorumTestHarness extends Logging {
 
   def controllerServer: ControllerServer = asKRaft().controllerServer
 
-  def controllerServers: Seq[ControllerServer] = {
-    if (isKRaftTest()) {
-      Seq(asKRaft().controllerServer)
-    } else {
-      Seq()
-    }
-  }
+  def controllerServers: Seq[ControllerServer] = Seq(asKRaft().controllerServer)
 
   val faultHandlerFactory = new QuorumTestHarnessFaultHandlerFactory(new MockFaultHandler("quorumTestHarnessFaultHandler"))
 

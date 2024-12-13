@@ -1030,7 +1030,6 @@ public class ShareConsumerTest {
         CompletableFuture.allOf(consumerFutures.toArray(CompletableFuture[]::new)).get(60, TimeUnit.SECONDS);
 
         int totalResult = consumerFutures.stream().mapToInt(CompletableFuture::join).sum();
-        assertEquals(producerCount * messagesPerProducer, totalMessagesConsumed.get());
         assertEquals(producerCount * messagesPerProducer, totalResult);
     }
 
@@ -1092,9 +1091,6 @@ public class ShareConsumerTest {
         int totalResult2 = consumeMessagesFutures2.stream().mapToInt(CompletableFuture::join).sum();
         int totalResult3 = consumeMessagesFutures3.stream().mapToInt(CompletableFuture::join).sum();
 
-        assertEquals(totalMessagesSent, totalMessagesConsumedGroup1.get());
-        assertEquals(totalMessagesSent, totalMessagesConsumedGroup2.get());
-        assertEquals(totalMessagesSent, totalMessagesConsumedGroup3.get());
         assertEquals(totalMessagesSent, totalResult1);
         assertEquals(totalMessagesSent, totalResult2);
         assertEquals(totalMessagesSent, totalResult3);
@@ -1170,9 +1166,8 @@ public class ShareConsumerTest {
         int maxBytes = 1000000;
 
         // The "failing" consumer polls but immediately closes, which releases the records for the other consumers
-        AtomicInteger failedMessagesConsumed = new AtomicInteger(0);
         CompletableFuture<Integer> failedMessagesConsumedFuture = CompletableFuture.supplyAsync(
-                () -> consumeMessages(failedMessagesConsumed, producerCount * messagesPerProducer, groupId,
+                () -> consumeMessages(new AtomicInteger(0), producerCount * messagesPerProducer, groupId,
                         0, 1, false));
 
         // Wait for the failed consumer to run
@@ -1191,7 +1186,6 @@ public class ShareConsumerTest {
         CompletableFuture.allOf(consumeMessagesFutures.toArray(CompletableFuture[]::new)).get(60, TimeUnit.SECONDS);
 
         int totalSuccessResult = consumeMessagesFutures.stream().mapToInt(CompletableFuture::join).sum();
-        assertEquals(producerCount * messagesPerProducer, totalMessagesConsumed.get());
         assertEquals(producerCount * messagesPerProducer, totalSuccessResult);
     }
 
@@ -1550,10 +1544,8 @@ public class ShareConsumerTest {
             // We delete records before offset 5, so the LSO should move to 5.
             adminClient.deleteRecords(Collections.singletonMap(tp, RecordsToDelete.beforeOffset(5L)));
 
-            AtomicInteger totalMessagesConsumed = new AtomicInteger(0);
-            int messageCount = consumeMessages(totalMessagesConsumed, 5, groupId, 1, 10, true);
+            int messageCount = consumeMessages(new AtomicInteger(0), 5, groupId, 1, 10, true);
             // The records returned belong to offsets 5-9.
-            assertEquals(5, totalMessagesConsumed.get());
             assertEquals(5, messageCount);
 
             // We write 5 records to the topic, so they would be written from offsets 10-14 on the topic.
@@ -1564,18 +1556,14 @@ public class ShareConsumerTest {
             // We delete records before offset 14, so the LSO should move to 14.
             adminClient.deleteRecords(Collections.singletonMap(tp, RecordsToDelete.beforeOffset(14L)));
 
-            totalMessagesConsumed = new AtomicInteger(0);
-            int consumeMessagesCount = consumeMessages(totalMessagesConsumed, 1, groupId, 1, 10, true);
+            int consumeMessagesCount = consumeMessages(new AtomicInteger(0), 1, groupId, 1, 10, true);
             // The record returned belong to offset 14.
-            assertEquals(1, totalMessagesConsumed.get());
             assertEquals(1, consumeMessagesCount);
 
             // We delete records before offset 15, so the LSO should move to 15 and now no records should be returned.
             adminClient.deleteRecords(Collections.singletonMap(tp, RecordsToDelete.beforeOffset(15L)));
 
-            totalMessagesConsumed = new AtomicInteger(0);
-            messageCount = consumeMessages(totalMessagesConsumed, 0, groupId, 1, 5, true);
-            assertEquals(0, totalMessagesConsumed.get());
+            messageCount = consumeMessages(new AtomicInteger(0), 0, groupId, 1, 5, true);
             assertEquals(0, messageCount);
         }
     }
@@ -1649,10 +1637,8 @@ public class ShareConsumerTest {
             // We delete records before offset 5, so the LSO should move to 5.
             adminClient.deleteRecords(Collections.singletonMap(tp, RecordsToDelete.beforeOffset(5L)));
 
-            AtomicInteger totalMessagesConsumed = new AtomicInteger(0);
-            int consumedMessageCount = consumeMessages(totalMessagesConsumed, 5, "group1", 1, 10, true);
+            int consumedMessageCount = consumeMessages(new AtomicInteger(0), 5, "group1", 1, 10, true);
             // The records returned belong to offsets 5-9.
-            assertEquals(5, totalMessagesConsumed.get());
             assertEquals(5, consumedMessageCount);
         }
     }

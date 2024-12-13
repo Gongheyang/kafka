@@ -414,7 +414,11 @@ public class StickyTaskAssignorTest {
             mkEntry("member1", memberSpec1), mkEntry("member2", memberSpec2));
 
         GroupAssignment result = assignor.assign(
-            new GroupSpecImpl(members, Collections.singletonList("test-subtopology"), mkMap(mkEntry("numStandbyReplicas", "1"))),
+            new GroupSpecImpl(
+                members,
+                Collections.singletonList("test-subtopology"),
+                mkMap(mkEntry(GroupCoordinatorConfig.STREAMS_GROUP_NUM_STANDBY_REPLICAS_CONFIG, "1"))
+            ),
             new TopologyDescriberImpl(2, true)
         );
 

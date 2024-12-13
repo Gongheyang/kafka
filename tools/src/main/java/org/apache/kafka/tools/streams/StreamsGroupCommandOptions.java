@@ -21,26 +21,19 @@ import org.apache.kafka.server.util.CommandLineUtils;
 
 import joptsimple.OptionSpec;
 
-
 public class StreamsGroupCommandOptions extends CommandDefaultOptions {
     public static final String BOOTSTRAP_SERVER_DOC = "REQUIRED: The server(s) to connect to.";
-    public static final String LIST_DOC = "List all share groups.";
-    public static final String NL = System.lineSeparator();
+    public static final String LIST_DOC = "List all streams groups.";
     public static final String TIMEOUT_MS_DOC = "The timeout that can be set for some use cases. For example, it can be used when describing the group " +
         "to specify the maximum amount of time in milliseconds to wait before the group stabilizes.";
     public static final String COMMAND_CONFIG_DOC = "Property file containing configs to be passed to Admin Client.";
-    public static final String DRY_RUN_DOC = "Only show results without executing changes on share groups. Supported operations: reset-offsets.";
-    public static final String EXECUTE_DOC = "Execute operation. Supported operations: reset-offsets.";
-    public static final String STATE_DOC = "When specified with '--describe', includes the state of the group." + NL +
-        "When specified with '--list', it displays the state of all groups. It can also be used to list groups with specific states. " +
-        "Valid values are Empty, Stable and Dead.";
+    public static final String STATE_DOC = "When specified with '--list', it displays the state of all groups. It can also be used to list groups with specific states. " +
+        "Valid values are Empty, NotReady, Stable, Assigning, Reconciling, and Dead.";
 
     public final OptionSpec<String> bootstrapServerOpt;
     public final OptionSpec<Void> listOpt;
     public final OptionSpec<Long> timeoutMsOpt;
     public final OptionSpec<String> commandConfigOpt;
-    public final OptionSpec<Void> dryRunOpt;
-    public final OptionSpec<Void> executeOpt;
     public final OptionSpec<String> stateOpt;
 
 
@@ -61,8 +54,6 @@ public class StreamsGroupCommandOptions extends CommandDefaultOptions {
             .withRequiredArg()
             .describedAs("command config property file")
             .ofType(String.class);
-        dryRunOpt = parser.accepts("dry-run", DRY_RUN_DOC);
-        executeOpt = parser.accepts("execute", EXECUTE_DOC);
         stateOpt = parser.accepts("state", STATE_DOC)
             .availableIf(listOpt)
             .withOptionalArg()
@@ -72,7 +63,7 @@ public class StreamsGroupCommandOptions extends CommandDefaultOptions {
     }
 
     public void checkArgs() {
-        CommandLineUtils.maybePrintHelpOrVersion(this, "This tool helps to list, describe, reset and delete share groups.");
+        CommandLineUtils.maybePrintHelpOrVersion(this, "This tool helps to list streams groups.");
 
         CommandLineUtils.checkRequiredArgs(parser, options, bootstrapServerOpt);
     }

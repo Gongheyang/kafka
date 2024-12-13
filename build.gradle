@@ -3533,14 +3533,13 @@ project(':connect:runtime') {
     implementation libs.classgraph
     implementation libs.mavenArtifact
     implementation libs.swaggerAnnotations
-    implementation libs.javaxWsRs
 
     compileOnly libs.bndlib
     compileOnly libs.spotbugs
 
     // We use this library to generate OpenAPI docs for the REST API, but we don't want or need it at compile
     // or run time. So, we add it to a separate configuration, which we use later on during docs generation
-    swagger libs.swaggerJaxrs2
+    swagger group: 'javax.ws.rs', name: 'javax.ws.rs-api', version: '2.1.1'
 
     testImplementation project(':clients').sourceSets.test.output
     testImplementation project(':core')

@@ -134,7 +134,6 @@ versions += [
   zstd: "1.5.6-6",
   junitPlatform: "1.10.2",
   hdrHistogram: "2.2.2",
-  javaxWsRs: "2.1.1"
 ]
 
 libs += [
@@ -239,5 +238,4 @@ libs += [
   zstd: "com.github.luben:zstd-jni:$versions.zstd",
   httpclient: "org.apache.httpcomponents:httpclient:$versions.httpclient",
   hdrHistogram: "org.hdrhistogram:HdrHistogram:$versions.hdrHistogram",
-  javaxWsRs: "javax.ws.rs:javax.ws.rs-api:$versions.javaxWsRs"
 ]

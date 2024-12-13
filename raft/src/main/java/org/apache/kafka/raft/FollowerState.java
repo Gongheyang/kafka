@@ -37,8 +37,8 @@ public class FollowerState implements EpochState {
     private final Set<Integer> voters;
     // Used for tracking the expiration of both the Fetch and FetchSnapshot requests
     private final Timer fetchTimer;
-    /* Used to track if we have fetched successfully from the leader at least once since the transition to
-     * follower in this epoch. If we have not yet fetched from the leader, we may grant PreVotes.
+    /* Used to track if the replica has fetched successfully from the leader at least once since the transition to
+     * follower in this epoch. If the replica has not yet fetched successfully, it may be able to grant PreVotes.
      */
     private boolean hasFetchedFromLeader;
     private Optional<LogOffsetMetadata> highWatermark;

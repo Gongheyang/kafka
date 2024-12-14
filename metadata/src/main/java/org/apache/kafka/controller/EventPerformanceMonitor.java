@@ -30,7 +30,7 @@ import static java.util.concurrent.TimeUnit.NANOSECONDS;
  * Track the p99 for controller event queue processing time. If we encounter an event that takes longer
  * than this cached p99 time, we will log it at INFO level on the controller logger.
  */
-public class SlowEventsLogger {
+public class EventPerformanceMonitor {
     /**
      * Don't report any p99 events below this threshold. This prevents the controller from reporting p99 event
      * times in the idle case where p99 event times are essentially the average as well.
@@ -50,7 +50,11 @@ public class SlowEventsLogger {
      */
     private long thresholdNs;
 
-    public SlowEventsLogger(
+    private String slowestEvent;
+    private long slowestDurationNs;
+
+
+    public EventPerformanceMonitor(
         int minSlowEventTimeMs,
         Supplier<Double> thresholdMsSupplier,
         LogContext logContext
@@ -58,7 +62,9 @@ public class SlowEventsLogger {
         this.minSlowEventTimeNs = MILLISECONDS.toNanos(minSlowEventTimeMs);
         this.thresholdMsSupplier = thresholdMsSupplier;
         this.thresholdNs = minSlowEventTimeMs;
-        this.log = logContext.logger(SlowEventsLogger.class);
+        this.log = logContext.logger(EventPerformanceMonitor.class);
+        this.slowestEvent = null;
+        this.slowestDurationNs = 0;
     }
 
     /**
@@ -66,8 +72,17 @@ public class SlowEventsLogger {
      *
      * @return true if a slow event was logged, false otherwise.
      */
-    public boolean maybeLogEvent(String name, long durationNs) {
-        if (durationNs >= minSlowEventTimeNs && durationNs >= thresholdNs) {
+    public boolean observeEvent(String name, long durationNs) {
+        if (durationNs < minSlowEventTimeNs) {
+            return false;
+        }
+
+        if (slowestEvent == null || slowestDurationNs < durationNs) {
+            slowestEvent = name;
+            slowestDurationNs = durationNs;
+        }
+
+        if (durationNs >= thresholdNs) {
             log.info("Slow controller event {} processed in {} us which is larger or equal to the p99 of {} us",
                 name,
                 NANOSECONDS.toMicros(durationNs),
@@ -79,6 +94,12 @@ public class SlowEventsLogger {
     }
 
     public void refreshPercentile() {
+        if (slowestEvent != null) {
+            log.info("Slowest event since last refresh was {} which processed in {} us",
+                slowestEvent, NANOSECONDS.toMicros(slowestDurationNs));
+            slowestEvent = null;
+            slowestDurationNs = 0;
+        }
         thresholdNs = (long) (thresholdMsSupplier.get() * 1000000);
         log.trace("Update slow controller event threshold (p99) to {} us.", NANOSECONDS.toMicros(thresholdNs));
     }

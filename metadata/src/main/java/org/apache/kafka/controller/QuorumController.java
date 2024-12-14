@@ -537,7 +537,7 @@ public final class QuorumController implements Controller {
         long deltaNs = endProcessingTime - startProcessingTimeNs;
         log.debug("Processed {} in {} us", name,
             MICROSECONDS.convert(deltaNs, NANOSECONDS));
-        slowEventsLogger.maybeLogEvent(name, deltaNs);
+        eventPerformanceMonitor.observeEvent(name, deltaNs);
         controllerMetrics.updateEventQueueProcessingTime(NANOSECONDS.toMillis(deltaNs));
     }
 
@@ -1460,7 +1460,7 @@ public final class QuorumController implements Controller {
      */
     private final RecordRedactor recordRedactor;
 
-    private final SlowEventsLogger slowEventsLogger;
+    private final EventPerformanceMonitor eventPerformanceMonitor;
 
     private QuorumController(
         FaultHandler nonFatalFaultHandler,
@@ -1616,7 +1616,7 @@ public final class QuorumController implements Controller {
         log.info("Creating new QuorumController with clusterId {}", clusterId);
 
         this.raftClient.register(metaLogListener);
-        this.slowEventsLogger = new SlowEventsLogger(minSlowEventTimeMs,
+        this.eventPerformanceMonitor = new EventPerformanceMonitor(minSlowEventTimeMs,
             controllerMetrics::getEventQueueProcessingTime99, logContext);
     }
 
@@ -1644,7 +1644,7 @@ public final class QuorumController implements Controller {
     private void registerUpdateSlowEventLogger(long maxSlowEventWindowNs) {
         periodicControl.registerTask(new PeriodicTask("updateSlowEventLoggerP99",
             () -> {
-                slowEventsLogger.refreshPercentile();
+                eventPerformanceMonitor.refreshPercentile();
                 return ControllerResult.of(Collections.emptyList(), false);
             },
             maxSlowEventWindowNs,

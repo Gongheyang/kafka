@@ -1,8 +1,9 @@
 Apache Kafka
 =================
 
-![CI](https://github.com/apache/kafka/actions/workflows/ci.yml/badge.svg)
-![Flaky Test Report](https://github.com/apache/kafka/actions/workflows/generate-reports.yml/badge.svg)
+![CI](https://github.com/apache/kafka/actions/workflows/ci.yml/badge.svg?branch=trunk)
+
+![Flaky Test Report](https://github.com/apache/kafka/actions/workflows/generate-reports.yml/badge.svg?branch=trunk)
 
 See our [web site](https://kafka.apache.org) for details on the project.
 

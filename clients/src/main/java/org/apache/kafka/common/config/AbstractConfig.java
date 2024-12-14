@@ -117,9 +117,8 @@ public class AbstractConfig {
         this.values.putAll(configUpdates);
         definition.parse(this.values);
         this.definition = definition;
-        if (doLog) 
+        if (doLog)
             logAll();
-        
     }
 
     /**

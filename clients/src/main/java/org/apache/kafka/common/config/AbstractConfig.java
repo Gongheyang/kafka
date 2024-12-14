@@ -117,10 +117,9 @@ public class AbstractConfig {
         this.values.putAll(configUpdates);
         definition.parse(this.values);
         this.definition = definition;
-        if (doLog) {
-            Map<String, Object> loggingConfig = clearUnsupportedConfigsForLogging(this.values);
-            logAll(loggingConfig);
-        }
+        if (doLog) 
+            logAll();
+        
     }
 
     /**
@@ -364,13 +363,14 @@ public class AbstractConfig {
         return new TreeMap<>(values);
     }
 
-    private void logAll(Map<String, Object> values) {
+    private void logAll() {
+        Map<String, Object> valuesToLog = clearUnsupportedConfigsForLogging(this.values);
         StringBuilder b = new StringBuilder();
         b.append(getClass().getSimpleName());
         b.append(" values: ");
         b.append(Utils.NL);
 
-        for (Map.Entry<String, Object> entry : values.entrySet()) {
+        for (Map.Entry<String, Object> entry : valuesToLog.entrySet()) {
             b.append('\t');
             b.append(entry.getKey());
             b.append(" = ");

@@ -1,5 +1,9 @@
 Apache Kafka
 =================
+
+![CI](https://github.com/apache/kafka/actions/workflows/ci.yml/badge.svg)
+![Flaky Test Report](https://github.com/apache/kafka/actions/workflows/generate-reports.yml/badge.svg)
+
 See our [web site](https://kafka.apache.org) for details on the project.
 
 You need to have [Java](http://www.oracle.com/technetwork/java/javase/downloads/index.html) installed.

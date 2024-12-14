@@ -12,11 +12,32 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-log4j.rootLogger=TRACE, stdout
 
-log4j.appender.stdout=org.apache.log4j.ConsoleAppender
-log4j.appender.stdout.layout=org.apache.log4j.PatternLayout
-log4j.appender.stdout.layout.ConversionPattern=[%d] %p %m (%c:%L)%n
+name: Generate Reports
+on:
+  workflow_dispatch:      # Let us run manually
 
-log4j.logger.org.apache.kafka=INFO
-log4j.logger.org.eclipse.jetty=INFO
+  schedule:
+    - cron: '0 6 * * *'   # Run daily at 6am UTC
+
+
+jobs:
+  flaky-test-report:
+    name: Flaky Test Report
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    steps:
+      - name: Env
+        run: printenv
+        env:
+          GITHUB_CONTEXT: ${{ toJson(github) }}
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: ./.github/actions/setup-python
+      - name: Run Report
+        env:
+          GE_ACCESS_TOKEN: ${{ secrets.GE_ACCESS_TOKEN }}
+        run: |
+          python ./.github/scripts/develocity_reports.py >> $GITHUB_STEP_SUMMARY

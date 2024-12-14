@@ -1184,8 +1184,7 @@ public abstract class AbstractMembershipManager<R extends AbstractResponse> impl
                 // returning no records, as no topic partitions are marked as fetchable. In contrast, with the classic consumer,
                 // if the first callback fails but the next one succeeds, polling can still retrieve data. To align with
                 // this behavior, we rely on assignedPartitions to avoid such scenarios.
-                subscriptions.enablePartitionsAwaitingCallback(
-                        assignedPartitions.stream().map(TopicIdPartition::topicPartition).collect(Collectors.toSet()));
+                subscriptions.enablePartitionsAwaitingCallback(toTopicPartitionSet(assignedPartitions));
             } else {
                 // Keeping newly added partitions as non-fetchable after the callback failure.
                 // They will be retried on the next reconciliation loop, until it succeeds or the

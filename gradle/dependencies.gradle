@@ -133,7 +133,9 @@ versions += [
   // Also make sure the compression levels in org.apache.kafka.common.record.CompressionType are still valid
   zstd: "1.5.6-6",
   junitPlatform: "1.10.2",
-  hdrHistogram: "2.2.2"
+  hdrHistogram: "2.2.2",
+  jakartaServletApi: "6.1.0",
+  jaxrs2Jakarta: "2.2.25"
 ]
 
 libs += [
@@ -236,5 +238,7 @@ libs += [
   mavenArtifact: "org.apache.maven:maven-artifact:$versions.mavenArtifact",
   zstd: "com.github.luben:zstd-jni:$versions.zstd",
   httpclient: "org.apache.httpcomponents:httpclient:$versions.httpclient",
-  hdrHistogram: "org.hdrhistogram:HdrHistogram:$versions.hdrHistogram"
+  hdrHistogram: "org.hdrhistogram:HdrHistogram:$versions.hdrHistogram",
+  jakartaServletApi: "jakarta.servlet:jakarta.servlet-api:$versions.jakartaServletApi",
+  jaxrs2Jakarta: "io.swagger.core.v3:swagger-jaxrs2-jakarta:$versions.jaxrs2Jakarta"
 ]

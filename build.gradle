@@ -3539,7 +3539,6 @@ project(':connect:runtime') {
 
     // We use this library to generate OpenAPI docs for the REST API, but we don't want or need it at compile
     // or run time. So, we add it to a separate configuration, which we use later on during docs generation
-    swagger libs.swaggerJaxrs2
     swagger 'jakarta.servlet:jakarta.servlet-api:6.1.0'
     swagger 'io.swagger.core.v3:swagger-jaxrs2-jakarta:2.2.25'
 

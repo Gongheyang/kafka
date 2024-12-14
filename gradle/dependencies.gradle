@@ -231,7 +231,6 @@ libs += [
   snappy: "org.xerial.snappy:snappy-java:$versions.snappy",
   spotbugs: "com.github.spotbugs:spotbugs-annotations:$versions.spotbugs",
   swaggerAnnotations: "io.swagger.core.v3:swagger-annotations:$swaggerVersion",
-  swaggerJaxrs2: "io.swagger.core.v3:swagger-jaxrs2:$swaggerVersion",
   zookeeper: "org.apache.zookeeper:zookeeper:$versions.zookeeper",
   jfreechart: "jfreechart:jfreechart:$versions.jfreechart",
   mavenArtifact: "org.apache.maven:maven-artifact:$versions.mavenArtifact",

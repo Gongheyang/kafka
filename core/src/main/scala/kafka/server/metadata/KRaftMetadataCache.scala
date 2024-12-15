@@ -444,9 +444,6 @@ class KRaftMetadataCache(
   }
 
   override def getClusterMetadata(clusterId: String, listenerName: ListenerName): Cluster = {
-    // MetadataImage -> Cluster
-    // helper method
-    // toCluster(MetadataImage, clusterId) // expensive
     val image = _currentImage
     val nodes = new util.HashMap[Integer, Node]
     image.cluster().brokers().values().forEach { broker =>
@@ -537,41 +534,59 @@ class KRaftMetadataCache(
 object KRaftMetadataCache {
 
   def toCluster(clusterId: String, image: MetadataImage): Cluster = {
-    val brokerToNodes = new util.HashMap[Integer, List[Node]]
+    val brokerToNodes = new util.HashMap[Integer, java.util.List[Node]]
     image.cluster().brokers()
       .values().stream()
       .filter(broker => !broker.fenced())
       .forEach { broker => brokerToNodes.put(broker.id(), broker.nodes()) }
 
-    def nodes(id: Int): List[Node] = brokerToNodes.get(id)
+    def nodes(id: Int): java.util.List[Node] = brokerToNodes.get(id)
 
     val partitionInfos = new util.ArrayList[PartitionInfo]
     val internalTopics = new util.HashSet[String]
+    
+    def toArray(replicas: Array[Int]): Array[Node] = {
+      util.Arrays.stream(replicas)
+        .mapToObj(replica => nodes(replica))
+        .flatMap(replica => replica.stream()).toArray(size => new Array[Node](size))
+    }
 
-    image.topics().topicsByName().values().forEach { topic =>
-      topic.partitions().forEach { (key, value) =>
-        val partitionId = key
-        val partition = value
-        nodes(partition.leader).foreach(node => {
-          partitionInfos.add(new PartitionInfo(topic.name(),
-            partitionId,
-            node,
-            partition.replicas.flatMap(replica => nodes(replica)),
-            partition.isr.flatMap(replica => nodes(replica)),
-            getOfflineReplicas(image, partition).asScala
-              .flatMap(replica => nodes(replica)).toArray))
-        })
-        if (Topic.isInternal(topic.name())) {
-          internalTopics.add(topic.name())
+
+    val topicImages = image.topics().topicsByName().values()
+    if (topicImages != null) {
+      topicImages.forEach { topic =>
+        topic.partitions().forEach { (key, value) =>
+          val partitionId = key
+          val partition = value
+          val nodes1 = nodes(partition.leader)
+          if (nodes1 != null) {
+            nodes1.forEach(node => {
+              partitionInfos.add(new PartitionInfo(topic.name(),
+                partitionId,
+                node,
+                toArray(partition.replicas),
+                toArray(partition.isr),
+                getOfflineReplicas(image, partition).stream()
+                  .map(replica => nodes(replica))
+                  .flatMap(replica => replica.stream()).toArray(size => new Array[Node](size))))
+            })
+            if (Topic.isInternal(topic.name())) {
+              internalTopics.add(topic.name())
+            }
+          }
         }
       }
     }
-    val controllerNode = nodes(getRandomAliveBroker(image).getOrElse(-1)).head
+
+    val controllerNode = nodes(getRandomAliveBroker(image).getOrElse(-1)) match {
+      case null => Node.noNode()
+      case nodes => nodes.get(0)
+    }
     // Note: the constructor of Cluster does not allow us to reference unregistered nodes.
     // So, for example, if partition foo-0 has replicas [1, 2] but broker 2 is not
     // registered, we pass its replicas as [1, -1]. This doesn't make a lot of sense, but
     // we are duplicating the behavior of ZkMetadataCache, for now.
-    new Cluster(clusterId, brokerToNodes.values().stream().flatMap(n => n.asJava.stream()).collect(util.stream.Collectors.toList()),
+    new Cluster(clusterId, brokerToNodes.values().stream().flatMap(n => n.stream()).collect(util.stream.Collectors.toList()),
       partitionInfos, Collections.emptySet(), internalTopics, controllerNode)
   }
 

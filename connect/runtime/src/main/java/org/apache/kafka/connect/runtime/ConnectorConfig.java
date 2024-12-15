@@ -523,7 +523,7 @@ public class ConnectorConfig extends AbstractConfig {
 
         String version = null;
         if (connectorConverter != null) {
-            version = fetchPluginVersion(plugins, connectorConverter, connectorVersion, connectorConverter, converterType);
+            version = fetchPluginVersion(plugins, connectorClass, connectorVersion, connectorConverter, converterType);
         } else {
             version = workerConfig.originalsStrings().get(workerConverterVersionConfig);
             if (version == null) {

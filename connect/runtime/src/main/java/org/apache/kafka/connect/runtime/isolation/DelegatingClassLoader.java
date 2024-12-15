@@ -28,6 +28,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
@@ -127,7 +128,7 @@ public class DelegatingClassLoader extends URLClassLoader {
         return aliases.getOrDefault(classOrAlias, classOrAlias);
     }
 
-    PluginDesc<?> pluginDesc(String classOrAlias, String location) {
+    PluginDesc<?> pluginDesc(String classOrAlias, String preferredLocation, Set<PluginType> allowedTypes) {
         if (classOrAlias == null) {
             return null;
         }
@@ -136,15 +137,17 @@ public class DelegatingClassLoader extends URLClassLoader {
         if (inner == null) {
             return null;
         }
-        if (location == null) {
-            return inner.lastKey();
-        }
+        PluginDesc<?> result = null;
         for (Map.Entry<PluginDesc<?>, ClassLoader> entry : inner.entrySet()) {
-            if (entry.getKey().location().equals(location)) {
-                return entry.getKey();
+            if (!allowedTypes.contains(entry.getKey().type())) {
+                continue;
+            }
+            result = entry.getKey();
+            if (result.location().equals(preferredLocation)) {
+                return result;
             }
         }
-        return null;
+        return result;
     }
 
     private ClassLoader findPluginLoader(
@@ -161,7 +164,6 @@ public class DelegatingClassLoader extends URLClassLoader {
                         + "Provided soft version: %s ", range));
             }
 
-            ArtifactVersion version = null;
             ClassLoader loader = null;
             for (Map.Entry<PluginDesc<?>, ClassLoader> entry : loaders.entrySet()) {
                 // the entries should be in sorted order of versions so this should end up picking the latest version which matches the range

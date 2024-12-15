@@ -23,7 +23,7 @@ public class ForeignTableJoinNode<K, V> extends StatefulProcessorNode<K, V> impl
 
     public ForeignTableJoinNode(final ProcessorParameters<K, V, ?, ?> processorParameters,
                                 final String[] storeNames) {
-        super(processorParameters.processorName(), processorParameters, storeNames);
+        super(processorParameters.processorName(), processorParameters, (String[]) null);
     }
 
     @SuppressWarnings("unchecked")

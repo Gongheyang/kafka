@@ -25,13 +25,13 @@ notifications:
 # Read more here: https://github.com/apache/infrastructure-asfyaml
 github:
   collaborators:
-    - FrankYang0529
-    - kirktrue
-    - brandboat
     - AndrewJSchofield
-    - OmniaGM
-    - nizhikov
-    - dongnuo123
-    - gaurav-narula
-    - apourchet
     - apoorvmittal10
+    - brandboat
+    - frankvicky
+    - FrankYang0529
+    - m1a2st
+    - mingyen066
+    - TaiJuWu
+    - xijiu
+    - Yunyung

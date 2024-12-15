@@ -79,7 +79,7 @@ def get_top_contributors(repo: Repository, committers: List[str]) -> List[str]:
     Get top contributors for the given repository excluding committers.
     """
     logging.info(f"Fetching contributors from the repository {REPO_KAFKA}")
-    one_year_ago: datetime = datetime.now() - timedelta(days=365)
+    one_year_ago: datetime = datetime.now() - timedelta(days=90)
     contributors: Dict[str, int] = {}
 
     last_year_commits: PaginatedList[Commit] = repo.get_commits(since=one_year_ago)

@@ -265,16 +265,22 @@ public class Plugins {
         };
     }
 
-    public String latestVersion(String classOrAlias) {
-        return delegatingLoader.latestVersion(classOrAlias);
+    public String latestVersion(String classOrAlias, PluginType... allowedTypes) {
+        return pluginVersion(classOrAlias, null, allowedTypes);
     }
 
-    public String pluginVersion(String classOrAlias, ClassLoader sourceLoader) {
-        String version = null;
-        if (sourceLoader instanceof PluginClassLoader) {
-            version = delegatingLoader.versionInLocation(classOrAlias, ((PluginClassLoader) sourceLoader).location());
+    public String pluginVersion(String classOrAlias, ClassLoader sourceLoader, PluginType... allowedTypes) {
+        String location = (sourceLoader instanceof PluginClassLoader) ? ((PluginClassLoader) sourceLoader).location() : null;
+        PluginDesc<?> desc = delegatingLoader.pluginDesc(classOrAlias, location);
+        if (desc == null) {
+            return null;
         }
-        return version != null ? version : latestVersion(classOrAlias);
+        for (PluginType type : allowedTypes) {
+            if (type.superClass().equals(desc.type().superClass())) {
+                return desc.version();
+            }
+        }
+        return null;
     }
 
     public DelegatingClassLoader delegatingLoader() {

@@ -127,7 +127,7 @@ public class DelegatingClassLoader extends URLClassLoader {
         return aliases.getOrDefault(classOrAlias, classOrAlias);
     }
 
-    String latestVersion(String classOrAlias) {
+    PluginDesc<?> pluginDesc(String classOrAlias, String location) {
         if (classOrAlias == null) {
             return null;
         }
@@ -136,21 +136,12 @@ public class DelegatingClassLoader extends URLClassLoader {
         if (inner == null) {
             return null;
         }
-        return inner.lastKey().version();
-    }
-
-    String versionInLocation(String classOrAlias, String location) {
-        if (classOrAlias == null) {
-            return null;
-        }
-        String fullName = aliases.getOrDefault(classOrAlias, classOrAlias);
-        SortedMap<PluginDesc<?>, ClassLoader> inner = pluginLoaders.get(fullName);
-        if (inner == null) {
-            return null;
+        if (location == null) {
+            return inner.lastKey();
         }
         for (Map.Entry<PluginDesc<?>, ClassLoader> entry : inner.entrySet()) {
             if (entry.getKey().location().equals(location)) {
-                return entry.getKey().version();
+                return entry.getKey();
             }
         }
         return null;

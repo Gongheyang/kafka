@@ -23,6 +23,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock
 import kafka.server.{MetadataCache, ReplicaManager}
 import kafka.utils.CoreUtils.{inReadLock, inWriteLock}
 import kafka.utils.{Logging, Pool}
+import org.apache.kafka.common.compress.Compression
 import org.apache.kafka.common.config.TopicConfig
 import org.apache.kafka.common.internals.Topic
 import org.apache.kafka.common.message.ListTransactionsResponseData
@@ -45,6 +46,15 @@ import org.apache.kafka.storage.internals.log.AppendOrigin
 import scala.jdk.CollectionConverters._
 import scala.collection.mutable
 
+object TransactionStateManager {
+  // enforce always using
+  //  1. cleanup policy = compact
+  //  2. compression = none
+  //  3. unclean leader election = disabled
+  //  4. required acks = -1 when writing
+  val EnforcedCompression: Compression = Compression.NONE
+  private val EnforcedRequiredAcks: Short = (-1).toShort
+}
 
 /**
  * Transaction state manager is part of the transaction coordinator, it manages:
@@ -173,7 +183,7 @@ class TransactionStateManager(brokerId: Int,
                 if (recordsBuilder == null) {
                   recordsBuilder = MemoryRecords.builder(
                     ByteBuffer.allocate(math.min(16384, maxBatchSize)),
-                    TransactionLog.EnforcedCompression,
+                    TransactionStateManager.EnforcedCompression,
                     TimestampType.CREATE_TIME,
                     0L,
                     maxBatchSize
@@ -280,7 +290,7 @@ class TransactionStateManager(brokerId: Int,
     inReadLock(stateLock) {
       replicaManager.appendRecords(
         timeout = config.requestTimeoutMs,
-        requiredAcks = TransactionLog.EnforcedRequiredAcks,
+        requiredAcks = TransactionStateManager.EnforcedRequiredAcks,
         internalTopicsAllowed = true,
         origin = AppendOrigin.COORDINATOR,
         entriesPerPartition = Map(transactionPartition -> tombstoneRecords),
@@ -640,7 +650,7 @@ class TransactionStateManager(brokerId: Int,
     val valueBytes = TransactionLog.valueToBytes(newMetadata, transactionVersionLevel())
     val timestamp = time.milliseconds()
 
-    val records = MemoryRecords.withRecords(TransactionLog.EnforcedCompression, new SimpleRecord(timestamp, keyBytes, valueBytes))
+    val records = MemoryRecords.withRecords(TransactionStateManager.EnforcedCompression, new SimpleRecord(timestamp, keyBytes, valueBytes))
     val topicPartition = new TopicPartition(Topic.TRANSACTION_STATE_TOPIC_NAME, partitionFor(transactionalId))
     val recordsPerPartition = Map(topicPartition -> records)
 
@@ -782,7 +792,7 @@ class TransactionStateManager(brokerId: Int,
           if (append) {
             replicaManager.appendRecords(
               timeout = newMetadata.txnTimeoutMs.toLong,
-              requiredAcks = TransactionLog.EnforcedRequiredAcks,
+              requiredAcks = TransactionStateManager.EnforcedRequiredAcks,
               internalTopicsAllowed = true,
               origin = AppendOrigin.COORDINATOR,
               entriesPerPartition = recordsPerPartition,

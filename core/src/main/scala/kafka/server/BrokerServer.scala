@@ -509,6 +509,7 @@ class BrokerServer(
           dynamicConfigHandlers.toMap,
         "broker"),
         new DynamicClientQuotaPublisher(
+          clusterId,
           config,
           sharedServer.metadataPublishingFaultHandler,
           "broker",

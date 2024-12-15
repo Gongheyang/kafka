@@ -321,6 +321,7 @@ class ControllerServer(
       // Set up the client quotas publisher. This will enable controller mutation quotas and any
       // other quotas which are applicable.
       metadataPublishers.add(new DynamicClientQuotaPublisher(
+        clusterId,
         config,
         sharedServer.metadataPublishingFaultHandler,
         "controller",

@@ -27,6 +27,7 @@ import org.apache.kafka.server.quota.ClientQuotaCallback
 
 
 class DynamicClientQuotaPublisher(
+  clusterId: String,
   conf: KafkaConfig,
   faultHandler: FaultHandler,
   nodeType: String,
@@ -52,7 +53,7 @@ class DynamicClientQuotaPublisher(
     try {
         val clientQuotaCallback = conf.getConfiguredInstance(QuotaConfig.CLIENT_QUOTA_CALLBACK_CLASS_CONFIG, classOf[ClientQuotaCallback])
         if (clientQuotaCallback != null) {
-          val cluster = KRaftMetadataCache.toCluster("", newImage)
+          val cluster = KRaftMetadataCache.toCluster(clusterId, newImage)
           clientQuotaCallback.updateClusterMetadata(cluster)
         }
         Option(delta.clientQuotasDelta()).foreach { clientQuotasDelta =>

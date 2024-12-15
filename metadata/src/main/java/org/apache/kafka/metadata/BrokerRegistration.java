@@ -235,6 +235,13 @@ public class BrokerRegistration {
         }
         return Optional.of(new Node(id, endpoint.host(), endpoint.port(), rack.orElse(null), fenced));
     }
+    
+    public List<Node> nodes() {
+        List<Node> nodes = new ArrayList<>();
+        listeners.values()
+                .forEach(endpoint -> nodes.add(new Node(id, endpoint.host(), endpoint.port(), rack.orElse(null), fenced)));
+        return nodes;
+    }
 
     public Map<String, VersionRange> supportedFeatures() {
         return supportedFeatures;

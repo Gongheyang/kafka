@@ -21,7 +21,9 @@ import kafka.server.KafkaConfig
 import kafka.utils.Logging
 import org.apache.kafka.image.loader.LoaderManifest
 import org.apache.kafka.image.{MetadataDelta, MetadataImage}
+import org.apache.kafka.server.config.QuotaConfig
 import org.apache.kafka.server.fault.FaultHandler
+import org.apache.kafka.server.quota.ClientQuotaCallback
 
 
 class DynamicClientQuotaPublisher(
@@ -48,6 +50,11 @@ class DynamicClientQuotaPublisher(
   ): Unit = {
     val deltaName = s"MetadataDelta up to ${newImage.highestOffsetAndEpoch().offset}"
     try {
+        val clientQuotaCallback = conf.getConfiguredInstance(QuotaConfig.CLIENT_QUOTA_CALLBACK_CLASS_CONFIG, classOf[ClientQuotaCallback])
+        if (clientQuotaCallback != null) {
+          val cluster = KRaftMetadataCache.toCluster("", newImage)
+          clientQuotaCallback.updateClusterMetadata(cluster)
+        }
         Option(delta.clientQuotasDelta()).foreach { clientQuotasDelta =>
           clientQuotaMetadataManager.update(clientQuotasDelta)
         }

@@ -16,7 +16,6 @@
  */
 package org.apache.kafka.connect.runtime.isolation;
 
-import org.apache.maven.artifact.versioning.ArtifactVersion;
 import org.apache.maven.artifact.versioning.DefaultArtifactVersion;
 import org.apache.maven.artifact.versioning.VersionRange;
 import org.slf4j.Logger;

@@ -1278,12 +1278,11 @@ public class KTableImpl<K, S, V> extends AbstractStream<K, V> implements KTable<
 
         final String foreignTableJoinName = renamed
             .suffixWithOrElseGet("-foreign-join-subscription", builder, SUBSCRIPTION_PROCESSOR);
-        final StatefulProcessorNode<KO, Change<VO>> foreignTableJoinNode = new ForeignTableJoinNode<>(
+        final ProcessorGraphNode<KO, Change<VO>> foreignTableJoinNode = new ForeignTableJoinNode<>(
             new ProcessorParameters<>(
                 new ForeignTableJoinProcessorSupplier<>(subscriptionStoreFactory, combinedKeySchema),
                 foreignTableJoinName
-            ),
-            new String[]{subscriptionStoreName}
+            )
         );
         builder.addGraphNode(((KTableImpl<KO, VO, ?>) foreignKeyTable).graphNode, foreignTableJoinNode);
 

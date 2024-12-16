@@ -266,6 +266,7 @@ if (repo != null) {
         '**/.git/**',
         '**/build/**',
         'CONTRIBUTING.md',
+        'TEST.md',
         'PULL_REQUEST_TEMPLATE.md',
         'gradlew',
         'gradlew.bat',

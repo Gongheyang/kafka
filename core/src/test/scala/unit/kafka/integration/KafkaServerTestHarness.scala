@@ -148,10 +148,11 @@ abstract class KafkaServerTestHarness extends QuorumTestHarness {
   def createOffsetsTopic(
     listenerName: ListenerName = listenerName,
     adminClientConfig: Properties = new Properties
-  ): Unit = 
+  ): Unit = {
     Using.resource(createAdminClient(brokers, listenerName, adminClientConfig)) { admin =>
       TestUtils.createOffsetsTopicWithAdmin(admin, brokers, controllerServers)
     }
+  }
 
   /**
    * Create a topic.
@@ -188,7 +189,7 @@ abstract class KafkaServerTestHarness extends QuorumTestHarness {
     topic: String,
     partitionReplicaAssignment: collection.Map[Int, Seq[Int]],
     listenerName: ListenerName = listenerName
-  ): scala.collection.immutable.Map[Int, Int] =
+  ): scala.collection.immutable.Map[Int, Int] = {
     Using.resource(createAdminClient(brokers, listenerName)) { admin =>
       TestUtils.createTopicWithAdmin(
         admin = admin,
@@ -198,6 +199,7 @@ abstract class KafkaServerTestHarness extends QuorumTestHarness {
         controllers = controllerServers
       )
     }
+  }
 
   def deleteTopic(
     topic: String,
@@ -344,7 +346,9 @@ abstract class KafkaServerTestHarness extends QuorumTestHarness {
     }
   }
 
-  private def createBrokerFromConfig(config: KafkaConfig): KafkaBroker = createBroker(config, brokerTime(config.brokerId), startup = false)
+  private def createBrokerFromConfig(config: KafkaConfig): KafkaBroker = {
+    createBroker(config, brokerTime(config.brokerId), startup = false)
+  }
 
   def aliveBrokers: Seq[KafkaBroker] = {
     _brokers.filter(broker => alive(broker.config.brokerId)).toSeq

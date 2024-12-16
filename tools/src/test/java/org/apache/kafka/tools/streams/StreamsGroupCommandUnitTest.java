@@ -152,16 +152,9 @@ public class StreamsGroupCommandUnitTest {
         result = StreamsGroupCommand.groupStatesFromString("dead");
         assertEquals(new HashSet<>(Collections.singletonList(GroupState.DEAD)), result);
 
+        assertThrows(IllegalArgumentException.class, () -> StreamsGroupCommand.groupStatesFromString("preparingRebalance"));
 
-        result = StreamsGroupCommand.groupStatesFromString("PREPARINGREBALANCE");
-        assertEquals(new HashSet<>(Collections.singletonList(GroupState.PREPARING_REBALANCE)), result);
-        result = StreamsGroupCommand.groupStatesFromString("preparingRebalance");
-        assertEquals(new HashSet<>(Collections.singletonList(GroupState.PREPARING_REBALANCE)), result);
-
-        result = StreamsGroupCommand.groupStatesFromString("COMPLETINGREBALANCE");
-        assertEquals(new HashSet<>(Collections.singletonList(GroupState.COMPLETING_REBALANCE)), result);
-        result = StreamsGroupCommand.groupStatesFromString("completingrebalance");
-        assertEquals(new HashSet<>(Collections.singletonList(GroupState.COMPLETING_REBALANCE)), result);
+        assertThrows(IllegalArgumentException.class, () -> StreamsGroupCommand.groupStatesFromString("completingRebalance"));
 
         assertThrows(IllegalArgumentException.class, () -> StreamsGroupCommand.groupStatesFromString("bad, wrong"));
 

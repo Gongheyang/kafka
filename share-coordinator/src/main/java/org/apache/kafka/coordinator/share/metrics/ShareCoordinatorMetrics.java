@@ -48,8 +48,8 @@ public class ShareCoordinatorMetrics extends CoordinatorMetrics implements AutoC
 
     public static final String SHARE_COORDINATOR_WRITE_SENSOR_NAME = "ShareCoordinatorWrite";
     public static final String SHARE_COORDINATOR_WRITE_LATENCY_SENSOR_NAME = "ShareCoordinatorWriteLatency";
-    public static final String SHARE_COORDINATOR_SHARE_GROUP_STATE_TOPIC_PRUNE_SENSOR_NAME = "ShareCoordinatorShareGroupStateTopicPrune";
-    private Map<TopicPartition, Map<String, String>> topicPartitionTags = new HashMap<>();
+    public static final String SHARE_COORDINATOR_STATE_TOPIC_PRUNE_SENSOR_NAME = "ShareCoordinatorStateTopicPruneSensorName";
+    private Map<TopicPartition, ShareGroupPruneMetrics> pruneMetrics = new HashMap<>();
 
     /**
      * Global sensors. These are shared across all metrics shards.
@@ -84,12 +84,9 @@ public class ShareCoordinatorMetrics extends CoordinatorMetrics implements AutoC
                 "The maximum time taken for a share-group state write call, including the time to write to the share-group state topic."),
             new Max());
 
-        Sensor shareCoordinatorStateTopicPruneSensor = metrics.sensor(SHARE_COORDINATOR_SHARE_GROUP_STATE_TOPIC_PRUNE_SENSOR_NAME);
-
         this.globalSensors = Collections.unmodifiableMap(Utils.mkMap(
             Utils.mkEntry(SHARE_COORDINATOR_WRITE_SENSOR_NAME, shareCoordinatorWriteSensor),
-            Utils.mkEntry(SHARE_COORDINATOR_WRITE_LATENCY_SENSOR_NAME, shareCoordinatorWriteLatencySensor),
-            Utils.mkEntry(SHARE_COORDINATOR_SHARE_GROUP_STATE_TOPIC_PRUNE_SENSOR_NAME, shareCoordinatorStateTopicPruneSensor)
+            Utils.mkEntry(SHARE_COORDINATOR_WRITE_LATENCY_SENSOR_NAME, shareCoordinatorWriteLatencySensor)
         ));
     }
 
@@ -97,9 +94,9 @@ public class ShareCoordinatorMetrics extends CoordinatorMetrics implements AutoC
     public void close() throws Exception {
         Arrays.asList(
             SHARE_COORDINATOR_WRITE_SENSOR_NAME,
-            SHARE_COORDINATOR_WRITE_LATENCY_SENSOR_NAME,
-            SHARE_COORDINATOR_SHARE_GROUP_STATE_TOPIC_PRUNE_SENSOR_NAME
+            SHARE_COORDINATOR_WRITE_LATENCY_SENSOR_NAME
         ).forEach(metrics::removeSensor);
+        pruneMetrics.values().forEach(v -> metrics.removeSensor(v.pruneSensor.name()));
     }
 
     @Override
@@ -163,31 +160,29 @@ public class ShareCoordinatorMetrics extends CoordinatorMetrics implements AutoC
     }
 
     public void recordPrune(double value, TopicPartition tp) {
-        String sensorName = SHARE_COORDINATOR_SHARE_GROUP_STATE_TOPIC_PRUNE_SENSOR_NAME;
-        if (globalSensors.containsKey(sensorName)) {
-            if (tp == null || tp.topic() == null) {
-                return;
-            }
-            topicPartitionTags.computeIfAbsent(tp, k -> {
-                    Map<String, String> tags = Map.of(
-                        "topic", k.topic(),
-                        "partition", Integer.toString(k.partition())
-                    );
-                    addMetricToPruneSensor(sensorName, tags);
-                    return tags;
-                }
-            );
-
-            globalSensors.get(sensorName).record(value);
-        }
+        pruneMetrics.computeIfAbsent(tp, k -> new ShareGroupPruneMetrics(tp))
+            .pruneSensor.record(value);
     }
 
-    private void addMetricToPruneSensor(String sensorName, Map<String, String> tags) {
-        globalSensors.get(sensorName).add(
-            metrics.metricName("last-pruned-offset",
-                METRICS_GROUP,
-                "The offset at which the share-group state topic was last pruned.",
-                tags),
-            new Value());
+    private class ShareGroupPruneMetrics {
+        private final Sensor pruneSensor;
+
+        ShareGroupPruneMetrics(TopicPartition tp) {
+            String sensorNameSuffix = tp.toString();
+            Map<String, String> tags = Map.of(
+                "topic", tp.topic(),
+                "partition", Integer.toString(tp.partition())
+            );
+
+            pruneSensor = metrics.sensor(SHARE_COORDINATOR_STATE_TOPIC_PRUNE_SENSOR_NAME + sensorNameSuffix);
+
+            pruneSensor.add(
+                metrics.metricName("last-pruned-offset",
+                    METRICS_GROUP,
+                    "The offset at which the share-group state topic was last pruned.",
+                    tags),
+                new Value()
+            );
+        }
     }
 }

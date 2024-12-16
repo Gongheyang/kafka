@@ -775,9 +775,9 @@ public class QuorumState {
         throw new IllegalStateException("Expected to be Candidate, but current state is " + state);
     }
 
-    public VotingState votingStateOrThrow() {
+    public NomineeState votingStateOrThrow() {
         if (isVotingState())
-            return (VotingState) state;
+            return (NomineeState) state;
         throw new IllegalStateException("Expected to be a VotingState (Prospective or Candidate), " +
             "but current state is " + state);
     }
@@ -820,6 +820,6 @@ public class QuorumState {
     }
 
     public boolean isVotingState() {
-        return state instanceof VotingState;
+        return state instanceof NomineeState;
     }
 }

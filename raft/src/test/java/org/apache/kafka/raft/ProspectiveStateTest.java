@@ -248,13 +248,13 @@ public class ProspectiveStateTest {
             voterSetWithLocal(Stream.of(node1, node2), withDirectoryId)
         );
 
-        assertEquals(isLogUpToDate, state.canGrantPreVote(node0, isLogUpToDate));
-        assertEquals(isLogUpToDate, state.canGrantPreVote(node1, isLogUpToDate));
-        assertEquals(isLogUpToDate, state.canGrantPreVote(node2, isLogUpToDate));
+        assertEquals(isLogUpToDate, state.canGrantVote(node0, isLogUpToDate, true));
+        assertEquals(isLogUpToDate, state.canGrantVote(node1, isLogUpToDate, true));
+        assertEquals(isLogUpToDate, state.canGrantVote(node2, isLogUpToDate, true));
 
-        assertEquals(isLogUpToDate, state.canGrantVote(node0, isLogUpToDate));
-        assertEquals(isLogUpToDate, state.canGrantVote(node1, isLogUpToDate));
-        assertEquals(isLogUpToDate, state.canGrantVote(node2, isLogUpToDate));
+        assertEquals(isLogUpToDate, state.canGrantVote(node0, isLogUpToDate, false));
+        assertEquals(isLogUpToDate, state.canGrantVote(node1, isLogUpToDate, false));
+        assertEquals(isLogUpToDate, state.canGrantVote(node2, isLogUpToDate, false));
     }
 
     @ParameterizedTest
@@ -270,13 +270,13 @@ public class ProspectiveStateTest {
             Optional.of(node1)
         );
 
-        assertEquals(isLogUpToDate, state.canGrantPreVote(node0, isLogUpToDate));
-        assertEquals(isLogUpToDate, state.canGrantPreVote(node1, isLogUpToDate));
-        assertEquals(isLogUpToDate, state.canGrantPreVote(node2, isLogUpToDate));
+        assertEquals(isLogUpToDate, state.canGrantVote(node0, isLogUpToDate, true));
+        assertEquals(isLogUpToDate, state.canGrantVote(node1, isLogUpToDate, true));
+        assertEquals(isLogUpToDate, state.canGrantVote(node2, isLogUpToDate, true));
 
-        assertFalse(state.canGrantVote(node0, isLogUpToDate));
-        assertTrue(state.canGrantVote(node1, isLogUpToDate));
-        assertFalse(state.canGrantVote(node2, isLogUpToDate));
+        assertFalse(state.canGrantVote(node0, isLogUpToDate, false));
+        assertTrue(state.canGrantVote(node1, isLogUpToDate, false));
+        assertFalse(state.canGrantVote(node2, isLogUpToDate, false));
     }
 
     @ParameterizedTest
@@ -292,13 +292,13 @@ public class ProspectiveStateTest {
             Optional.empty()
         );
 
-        assertEquals(isLogUpToDate, state.canGrantPreVote(node0, isLogUpToDate));
-        assertEquals(isLogUpToDate, state.canGrantPreVote(node1, isLogUpToDate));
-        assertEquals(isLogUpToDate, state.canGrantPreVote(node2, isLogUpToDate));
+        assertEquals(isLogUpToDate, state.canGrantVote(node0, isLogUpToDate, true));
+        assertEquals(isLogUpToDate, state.canGrantVote(node1, isLogUpToDate, true));
+        assertEquals(isLogUpToDate, state.canGrantVote(node2, isLogUpToDate, true));
 
-        assertEquals(isLogUpToDate, state.canGrantVote(node0, isLogUpToDate));
-        assertEquals(isLogUpToDate, state.canGrantVote(node1, isLogUpToDate));
-        assertEquals(isLogUpToDate, state.canGrantVote(node2, isLogUpToDate));
+        assertEquals(isLogUpToDate, state.canGrantVote(node0, isLogUpToDate, false));
+        assertEquals(isLogUpToDate, state.canGrantVote(node1, isLogUpToDate, false));
+        assertEquals(isLogUpToDate, state.canGrantVote(node2, isLogUpToDate, false));
     }
 
     @ParameterizedTest
@@ -374,22 +374,22 @@ public class ProspectiveStateTest {
 
         assertEquals(
             isLogUpToDate,
-            state.canGrantPreVote(ReplicaKey.of(votedId, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate)
+            state.canGrantVote(ReplicaKey.of(votedId, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate, true)
         );
-        assertTrue(state.canGrantVote(ReplicaKey.of(votedId, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate));
+        assertTrue(state.canGrantVote(ReplicaKey.of(votedId, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate, false));
 
         assertEquals(
             isLogUpToDate,
-            state.canGrantPreVote(ReplicaKey.of(votedId, Uuid.randomUuid()), isLogUpToDate)
+            state.canGrantVote(ReplicaKey.of(votedId, Uuid.randomUuid()), isLogUpToDate, true)
         );
-        assertTrue(state.canGrantVote(ReplicaKey.of(votedId, Uuid.randomUuid()), isLogUpToDate));
+        assertTrue(state.canGrantVote(ReplicaKey.of(votedId, Uuid.randomUuid()), isLogUpToDate, false));
 
         // Can grant PreVote to other replicas even if we have granted a standard vote to another replica
         assertEquals(
             isLogUpToDate,
-            state.canGrantPreVote(ReplicaKey.of(votedId + 1, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate)
+            state.canGrantVote(ReplicaKey.of(votedId + 1, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate, true)
         );
-        assertFalse(state.canGrantVote(ReplicaKey.of(votedId + 1, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate));
+        assertFalse(state.canGrantVote(ReplicaKey.of(votedId + 1, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate, false));
     }
 
     @ParameterizedTest
@@ -404,37 +404,37 @@ public class ProspectiveStateTest {
         // We will not grant PreVote for a replica we have already granted a standard vote to if their log is behind
         assertEquals(
             isLogUpToDate,
-            state.canGrantPreVote(votedKeyWithDirectoryId, isLogUpToDate)
+            state.canGrantVote(votedKeyWithDirectoryId, isLogUpToDate, true)
         );
-        assertTrue(state.canGrantVote(votedKeyWithDirectoryId, isLogUpToDate));
+        assertTrue(state.canGrantVote(votedKeyWithDirectoryId, isLogUpToDate, false));
 
         // Different directoryId
         // We can grant PreVote for a replica we have already granted a standard vote to if their log is up-to-date,
         // even if the directoryId is different
         assertEquals(
             isLogUpToDate,
-            state.canGrantPreVote(ReplicaKey.of(votedId, Uuid.randomUuid()), isLogUpToDate)
+            state.canGrantVote(ReplicaKey.of(votedId, Uuid.randomUuid()), isLogUpToDate, true)
         );
-        assertFalse(state.canGrantVote(ReplicaKey.of(votedId, Uuid.randomUuid()), isLogUpToDate));
+        assertFalse(state.canGrantVote(ReplicaKey.of(votedId, Uuid.randomUuid()), isLogUpToDate, false));
 
         // Missing directoryId
         assertEquals(
             isLogUpToDate,
-            state.canGrantPreVote(ReplicaKey.of(votedId, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate)
+            state.canGrantVote(ReplicaKey.of(votedId, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate, true)
         );
-        assertFalse(state.canGrantVote(ReplicaKey.of(votedId, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate));
+        assertFalse(state.canGrantVote(ReplicaKey.of(votedId, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate, false));
 
         // Different voterId
         assertEquals(
             isLogUpToDate,
-            state.canGrantPreVote(ReplicaKey.of(votedId + 1, votedDirectoryId), isLogUpToDate)
+            state.canGrantVote(ReplicaKey.of(votedId + 1, votedDirectoryId), isLogUpToDate, true)
         );
         assertEquals(
             isLogUpToDate,
-            state.canGrantPreVote(ReplicaKey.of(votedId + 1, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate)
+            state.canGrantVote(ReplicaKey.of(votedId + 1, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate, true)
         );
-        assertFalse(state.canGrantVote(ReplicaKey.of(votedId + 1, votedDirectoryId), true));
-        assertFalse(state.canGrantVote(ReplicaKey.of(votedId + 1, ReplicaKey.NO_DIRECTORY_ID), true));
+        assertFalse(state.canGrantVote(ReplicaKey.of(votedId + 1, votedDirectoryId), true, false));
+        assertFalse(state.canGrantVote(ReplicaKey.of(votedId + 1, ReplicaKey.NO_DIRECTORY_ID), true, false));
     }
 
     @Test

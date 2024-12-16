@@ -680,7 +680,7 @@ public final class KafkaRaftClient<T> implements RaftClient<T> {
      * or from Candidate to Leader.
      * @return true if the state transitioned forward, false otherwise
      */
-    private boolean maybeTransitionForward(VotingState state, long currentTimeMs) {
+    private boolean maybeTransitionForward(NomineeState state, long currentTimeMs) {
         if (quorum.isProspective()) {
             return maybeTransitionToCandidate(quorum.prospectiveStateOrThrow(), currentTimeMs);
         } else if (quorum.isCandidate()) {
@@ -984,7 +984,7 @@ public final class KafkaRaftClient<T> implements RaftClient<T> {
                 logger.debug("Ignoring vote response {} since we already became leader for epoch {}",
                     partitionResponse, quorum.epoch());
             } else if (quorum.isVotingState()) {
-                VotingState state = quorum.votingStateOrThrow();
+                NomineeState state = quorum.votingStateOrThrow();
                 handleVoteResponse(
                     state,
                     partitionResponse,
@@ -1001,7 +1001,7 @@ public final class KafkaRaftClient<T> implements RaftClient<T> {
         }
     }
 
-    private void handleVoteResponse(VotingState state,
+    private void handleVoteResponse(NomineeState state,
                                     VoteResponseData.PartitionData partitionResponse,
                                     int remoteNodeId,
                                     long currentTimeMs) {
@@ -3084,7 +3084,7 @@ public final class KafkaRaftClient<T> implements RaftClient<T> {
 //    }
 
     private long maybeSendVoteRequests(
-        VotingState state,
+        NomineeState state,
         long currentTimeMs
     ) {
         // Continue sending Vote requests as long as we still have a chance to win the election

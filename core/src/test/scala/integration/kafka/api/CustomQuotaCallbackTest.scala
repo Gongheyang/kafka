@@ -41,7 +41,7 @@ import java.{lang, util}
 import scala.collection.mutable.ArrayBuffer
 import scala.jdk.CollectionConverters._
 
-@Disabled
+@Disabled("KAFKA-18213")
 class CustomQuotaCallbackTest extends IntegrationTestHarness with SaslSetup {
 
   override protected def securityProtocol = SecurityProtocol.SASL_SSL

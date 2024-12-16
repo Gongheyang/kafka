@@ -368,7 +368,6 @@ abstract class QuorumTestHarness extends Logging {
 }
 
 object QuorumTestHarness {
-  val ZkClientEventThreadSuffix = "-EventThread"
 
   /**
    * Verify that a previous test that doesn't use QuorumTestHarness hasn't left behind an unexpected thread.
@@ -398,7 +397,6 @@ object QuorumTestHarness {
       KafkaProducer.NETWORK_THREAD_PREFIX,
       AdminClientUnitTestEnv.kafkaAdminClientNetworkThreadPrefix(),
       AbstractCoordinator.HEARTBEAT_THREAD_PREFIX,
-      QuorumTestHarness.ZkClientEventThreadSuffix,
       KafkaEventQueue.EVENT_HANDLER_THREAD_SUFFIX,
       ClientMetricsManager.CLIENT_METRICS_REAPER_THREAD_NAME,
       SystemTimer.SYSTEM_TIMER_THREAD_PREFIX,

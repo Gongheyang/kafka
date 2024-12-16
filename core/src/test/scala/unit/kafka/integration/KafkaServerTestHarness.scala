@@ -165,7 +165,7 @@ abstract class KafkaServerTestHarness extends QuorumTestHarness {
     topicConfig: Properties = new Properties,
     listenerName: ListenerName = listenerName,
     adminClientConfig: Properties = new Properties
-  ): scala.collection.immutable.Map[Int, Int] = 
+  ): scala.collection.immutable.Map[Int, Int] = {
     Using.resource(createAdminClient(brokers, listenerName, adminClientConfig)) { admin =>
       TestUtils.createTopicWithAdmin(
         admin = admin,
@@ -177,6 +177,7 @@ abstract class KafkaServerTestHarness extends QuorumTestHarness {
         topicConfig = topicConfig
       )
     }
+  }
 
   /**
    * Create a topic in ZooKeeper using a customized replica assignment.
@@ -201,7 +202,7 @@ abstract class KafkaServerTestHarness extends QuorumTestHarness {
   def deleteTopic(
     topic: String,
     listenerName: ListenerName = listenerName
-  ): Unit = 
+  ): Unit = {
     Using.resource(createAdminClient(brokers, listenerName)) { admin =>
       TestUtils.deleteTopicWithAdmin(
         admin = admin,
@@ -209,6 +210,7 @@ abstract class KafkaServerTestHarness extends QuorumTestHarness {
         brokers = aliveBrokers,
         controllers = controllerServers)
     }
+  }
 
   def addAndVerifyAcls(acls: Set[AccessControlEntry], resource: ResourcePattern): Unit = {
     val authorizerForWrite = pickAuthorizerForWrite(brokers, controllerServers)
@@ -348,13 +350,14 @@ abstract class KafkaServerTestHarness extends QuorumTestHarness {
     _brokers.filter(broker => alive(broker.config.brokerId)).toSeq
   }
 
-  def ensureConsistentKRaftMetadata(): Unit = 
+  def ensureConsistentKRaftMetadata(): Unit = {
     TestUtils.ensureConsistentKRaftMetadata(
       aliveBrokers,
       controllerServer
     )
+  }
 
-  def changeClientIdConfig(sanitizedClientId: String, configs: Properties): Unit = 
+  def changeClientIdConfig(sanitizedClientId: String, configs: Properties): Unit = {
     Using.resource(createAdminClient(brokers, listenerName)) {
       admin => {
         admin.alterClientQuotas(Collections.singleton(
@@ -363,4 +366,5 @@ abstract class KafkaServerTestHarness extends QuorumTestHarness {
             configs.asScala.map { case (key, value) => new ClientQuotaAlteration.Op(key, value.toDouble) }.toList.asJava))).all().get()
       }
     }
+  }
 }

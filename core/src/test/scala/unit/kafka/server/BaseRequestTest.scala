@@ -69,8 +69,7 @@ abstract class BaseRequestTest extends IntegrationTestHarness {
   /**
    * Return the socket server where admin request to be sent.
    *
-   * For KRaft clusters that is any broker as the broker will forward the request to the active
-   * controller. For Legacy clusters that is the controller broker.
+   * KRaft clusters that is any broker as the broker will forward the request to the active controller.
    */
   def adminSocketServer: SocketServer = anySocketServer
 

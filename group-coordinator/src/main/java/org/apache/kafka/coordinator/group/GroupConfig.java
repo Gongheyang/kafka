@@ -52,10 +52,10 @@ public final class GroupConfig extends AbstractConfig {
     public static final String SHARE_AUTO_OFFSET_RESET_CONFIG = "share.auto.offset.reset";
     public static final String SHARE_AUTO_OFFSET_RESET_DEFAULT = ShareGroupAutoOffsetResetStrategy.LATEST.name();
     public static final String SHARE_AUTO_OFFSET_RESET_DOC = "The strategy to initialize the share-partition start offset. " +
-        "<ul><li>earliest: automatically reset the offset to the earliest offset" +
+        "<ul><li>earliest: automatically reset the offset to the earliest offset</li>" +
         "<li>latest: automatically reset the offset to the latest offset</li>" +
-        "<li>by_duration:<duration>: automatically reset the offset to a configured <duration> from the current timestamp. " +
-        "<duration> must be specified in ISO8601 format (PnDTnHnMn.nS). " +
+        "<li>by_duration:&lt;duration&gt;: automatically reset the offset to a configured duration from the current timestamp. " +
+        "&lt;duration&gt; must be specified in ISO8601 format (PnDTnHnMn.nS). " +
         "Negative duration is not allowed.</li>" +
         "<li>anything else: throw exception to the share consumer.</li></ul>";
 

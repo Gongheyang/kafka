@@ -151,5 +151,9 @@ public class ShareGroupAutoOffsetResetStrategy {
                         name + ". The value must be either 'earliest', 'latest' or of the format 'by_duration:<PnDTnHnMn.nS.>'.");
             }
         }
+
+        public String toString() {
+            return "[earliest, latest, by_duration:PnDTnHnMn.nS]";  
+        }
     }
 }

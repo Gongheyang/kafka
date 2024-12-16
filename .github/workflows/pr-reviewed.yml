@@ -35,8 +35,15 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             github.paginate("GET /search/issues{?q}", {
-              q: "repo:apache/kafka label:triage"
+              q: "repo:apache/kafka label:triage is:pull-request"
             })
-            .then((issues) => {
-               console.log(issues);
+            .then((pulls) => {
+              pulls.forEach(pull => {
+                val reviews = octokit.rest.pulls.listReviews({
+                  'apache',
+                  'kafka',
+                  pull.number,
+                });
+                console.log("Pull " + pull.number + ": " + reviews);
+               });
             });

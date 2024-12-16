@@ -18,7 +18,6 @@ package org.apache.kafka.clients.producer;
 
 import org.apache.kafka.common.Cluster;
 import org.apache.kafka.common.PartitionInfo;
-import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.utils.Utils;
 
 import java.util.List;
@@ -29,16 +28,17 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * The "Round-Robin" partitioner
- * 
- * This partitioning strategy can be used when user wants 
+ *
+ * This partitioning strategy can be used when user wants
  * to distribute the writes to all partitions equally. This
- * is the behaviour regardless of record key hash. 
+ * is the behaviour regardless of record key hash.
  *
  */
 public class RoundRobinPartitioner implements Partitioner {
     private final ConcurrentMap<String, AtomicInteger> topicCounterMap = new ConcurrentHashMap<>();
-    private final ThreadLocal<TopicPartition> previousPartition = new ThreadLocal<>();
+    private final ConcurrentMap<String, Integer> topicLastPartitionMap = new ConcurrentHashMap<>();
 
+    @Override
     public void configure(Map<String, ?> configs) {}
 
     /**
@@ -53,35 +53,40 @@ public class RoundRobinPartitioner implements Partitioner {
      */
     @Override
     public int partition(String topic, Object key, byte[] keyBytes, Object value, byte[] valueBytes, Cluster cluster) {
-        TopicPartition prevPartition = previousPartition.get();
-        if (prevPartition != null) {
-            previousPartition.remove();
-            if (topic.equals(prevPartition.topic())) {
-                return prevPartition.partition();
-            }
+        Integer lastPartition = topicLastPartitionMap.get(topic);
+        List<PartitionInfo> availablePartitions = cluster.availablePartitionsForTopic(topic);
+
+        if (lastPartition != null && !availablePartitions.isEmpty()) {
+            return availablePartitions.get(lastPartition).partition();
         }
 
-        int nextValue = nextValue(topic);
-        List<PartitionInfo> availablePartitions = cluster.availablePartitionsForTopic(topic);
-        if (!availablePartitions.isEmpty()) {
-            int part = Utils.toPositive(nextValue) % availablePartitions.size();
-            return availablePartitions.get(part).partition();
-        } else {
-            // no partitions are available, give a non-available partition
-            int numPartitions = cluster.partitionsForTopic(topic).size();
-            return Utils.toPositive(nextValue) % numPartitions;
-        }
+        int nextPartition = roundRobinPartition(topic, availablePartitions);
+        topicLastPartitionMap.put(topic, nextPartition);
+        return availablePartitions.get(nextPartition).partition();
     }
 
-    private int nextValue(String topic) {
+    /**
+     * Computes the next partition index based on round-robin logic.
+     *
+     * @param topic The topic name
+     * @param availablePartitions The available partitions for the topic
+     * @return The partition index to use
+     */
+    private int roundRobinPartition(String topic, List<PartitionInfo> availablePartitions) {
         AtomicInteger counter = topicCounterMap.computeIfAbsent(topic, k -> new AtomicInteger(0));
-        return counter.getAndIncrement();
+        int nextValue = counter.getAndIncrement();
+        return Utils.toPositive(nextValue) % availablePartitions.size();
     }
 
     @SuppressWarnings("deprecation")
     @Override
     public void onNewBatch(String topic, Cluster cluster, int prevPartition) {
-        previousPartition.set(new TopicPartition(topic, prevPartition));
+        topicLastPartitionMap.put(topic, prevPartition);
+
+        AtomicInteger counter = topicCounterMap.get(topic);
+        if (counter != null) {
+            counter.decrementAndGet();
+        }
     }
 
     public void close() {}

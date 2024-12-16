@@ -160,10 +160,7 @@ public class ActivationRecordsGenerator {
         if (isEmpty) {
             return recordsForEmptyLog(activationMessageConsumer, transactionStartOffset,
                     bootstrapMetadata, bootstrapMetadata.metadataVersion(),
-                    FeatureControlManager.isElrFeatureEnabled(
-                        bootstrapMetadata.metadataVersion(),
-                        bootstrapMetadata.featureLevel(EligibleLeaderReplicasVersion.FEATURE_NAME)
-                    ),
+                    bootstrapMetadata.isElrEnabled(),
                     configurationControl);
         } else {
             return recordsForNonEmptyLog(activationMessageConsumer, transactionStartOffset, curMetadataVersion);

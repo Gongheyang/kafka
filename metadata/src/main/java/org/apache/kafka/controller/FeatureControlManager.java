@@ -42,8 +42,10 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 import static org.apache.kafka.common.metadata.MetadataRecordType.FEATURE_LEVEL_RECORD;
 import static org.apache.kafka.controller.QuorumController.MAX_RECORDS_PER_USER_OP;
@@ -162,40 +164,66 @@ public class FeatureControlManager {
         this.clusterSupportDescriber = clusterSupportDescriber;
     }
 
-    interface HandleConfigUpdatesWhenEnableElr {
-        void execute(List<ApiMessageAndVersion> records);
+    public static class FeatureUpdateResult {
+        final List<ApiMessageAndVersion> records;
+        final boolean isElrEnabled;
+        final ApiError error;
+        FeatureUpdateResult(
+            List<ApiMessageAndVersion> records,
+            boolean isElrEnabled,
+            ApiError error
+        ) {
+            this.records = records;
+            this.isElrEnabled = isElrEnabled;
+            this.error = error;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (o == null || (!o.getClass().equals(getClass()))) {
+                return false;
+            }
+            FeatureUpdateResult other = (FeatureUpdateResult) o;
+            return records.equals(other.records) &&
+                Objects.equals(error, other.error);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(records, error);
+        }
+
+        @Override
+        public String toString() {
+            return String.format(
+                "FeatureUpdateResult(records=%s, error=%s)",
+                records.stream().map(ApiMessageAndVersion::toString).collect(Collectors.joining(",")),
+                error);
+        }
     }
 
-    ControllerResult<ApiError> updateFeatures(
+    FeatureUpdateResult updateFeatures(
         Map<String, Short> updates,
-        Map<String, FeatureUpdate.UpgradeType> upgradeTypes,
-        boolean validateOnly,
-        HandleConfigUpdatesWhenEnableElr elrConfigHandler
+        Map<String, FeatureUpdate.UpgradeType> upgradeTypes
     ) {
         List<ApiMessageAndVersion> records =
-                BoundedList.newArrayBacked(MAX_RECORDS_PER_USER_OP);
-
+            BoundedList.newArrayBacked(MAX_RECORDS_PER_USER_OP);
         Map<String, Short> proposedUpdatedVersions = new HashMap<>(finalizedVersions);
         proposedUpdatedVersions.put(MetadataVersion.FEATURE_NAME, metadataVersion.get().featureLevel());
         proposedUpdatedVersions.putAll(updates);
+        boolean isElrEnabled = false;
 
         for (Entry<String, Short> entry : updates.entrySet()) {
             ApiError error = updateFeature(entry.getKey(), entry.getValue(),
                 upgradeTypes.getOrDefault(entry.getKey(), FeatureUpdate.UpgradeType.UPGRADE), records, proposedUpdatedVersions);
             if (!error.error().equals(Errors.NONE)) {
-                return ControllerResult.of(Collections.emptyList(), error);
+                return new FeatureUpdateResult(Collections.emptyList(), false, error);
             }
-            if (entry.getKey().equals(EligibleLeaderReplicasVersion.FEATURE_NAME) &&
-                isElrFeatureEnabled(metadataVersion() ,entry.getValue())) {
-                elrConfigHandler.execute(records);
+            if (entry.getKey().equals(EligibleLeaderReplicasVersion.FEATURE_NAME) && isElrFeatureEnabled(entry.getValue())) {
+                isElrEnabled = true;
             }
         }
-
-        if (validateOnly) {
-            return ControllerResult.of(Collections.emptyList(), ApiError.NONE);
-        } else {
-            return ControllerResult.atomicOf(records, ApiError.NONE);
-        }
+        return new FeatureUpdateResult(records, isElrEnabled, ApiError.NONE);
     }
 
     MetadataVersion metadataVersion() {
@@ -423,11 +451,10 @@ public class FeatureControlManager {
     }
 
     boolean isElrFeatureEnabled() {
-        return isElrFeatureEnabled(metadataVersion(), latestFinalizedFeatures().versionOrDefault(EligibleLeaderReplicasVersion.FEATURE_NAME, (short) 0));
+        return isElrFeatureEnabled(latestFinalizedFeatures().versionOrDefault(EligibleLeaderReplicasVersion.FEATURE_NAME, (short) 0));
     }
 
-    static boolean isElrFeatureEnabled(MetadataVersion metadataVersion, short elrFeatureLevel) {
-        return metadataVersion.isElrSupported() &&
-            elrFeatureLevel >= EligibleLeaderReplicasVersion.ELRV_1.featureLevel();
+    public static boolean isElrFeatureEnabled(short elrFeatureLevel) {
+        return elrFeatureLevel >= EligibleLeaderReplicasVersion.ELRV_1.featureLevel();
     }
 }

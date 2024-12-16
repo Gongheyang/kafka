@@ -42,6 +42,7 @@ import org.apache.kafka.server.config.ConfigSynonym;
 import org.apache.kafka.server.policy.AlterConfigPolicy;
 import org.apache.kafka.server.policy.AlterConfigPolicy.RequestMetadata;
 
+import org.apache.kafka.test.TestUtils;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.mockito.Mockito;
@@ -484,16 +485,6 @@ public class ConfigurationControlManagerTest {
 
         RecordTestUtils.replayAll(manager, result.records());
 
-        BrokerRegistration registration = new BrokerRegistration.Builder().
-            setId(0).
-            setEpoch(1000).
-            setIncarnationId(Uuid.fromString("vZKYST0pSA2HO5x_6hoO2Q")).
-            setListeners(Collections.singletonList(new Endpoint("PLAINTEXT", SecurityProtocol.PLAINTEXT, "localhost", 9092))).
-            setSupportedFeatures(Collections.emptyMap()).
-            setRack(Optional.empty()).
-            setFenced(true).
-            setInControlledShutdown(false).build();
-
         List<ApiMessageAndVersion> records = new ArrayList<>();
         manager.maybeResetMinIsrConfig(records);
 
@@ -548,6 +539,27 @@ public class ConfigurationControlManagerTest {
     }
 
     @Test
+    public void testBrokerConfigTracking() {
+        FeatureControlManager featureControl = Mockito.mock(FeatureControlManager.class);
+        ConfigurationControlManager manager = new ConfigurationControlManager.Builder().
+            setFeatureControl(featureControl).
+            setKafkaConfigSchema(SCHEMA).
+            build();
+        Map<String, Entry<AlterConfigOp.OpType, String>> keyToOps = toMap(entry(TopicConfig.MIN_IN_SYNC_REPLICAS_CONFIG, entry(SET, "3")));
+        ConfigResource brokerConfigResource = new ConfigResource(ConfigResource.Type.BROKER, "1");
+        ControllerResult<ApiError> result = manager.incrementalAlterConfig(brokerConfigResource, keyToOps, true);
+        RecordTestUtils.replayAll(manager, result.records());
+        assertTrue(result.response().isSuccess());
+        assertTrue(manager.brokersWithConfigs().contains(1), result.records().toString());
+
+        keyToOps = toMap(entry(TopicConfig.MIN_IN_SYNC_REPLICAS_CONFIG, entry(DELETE, "")));
+        result = manager.incrementalAlterConfig(brokerConfigResource, keyToOps, true);
+        assertTrue(result.response().isSuccess());
+        RecordTestUtils.replayAll(manager, result.records());
+        assertTrue(manager.brokersWithConfigs().isEmpty());
+    }
+
+    @Test
     public void testUpgradeElrFeatureLevel() {
         Map<String, VersionRange> localSupportedFeatures = new HashMap<>();
         localSupportedFeatures.put(MetadataVersion.FEATURE_NAME, VersionRange.of(
@@ -569,14 +581,14 @@ public class ConfigurationControlManagerTest {
             Collections.singletonMap(Feature.ELIGIBLE_LEADER_REPLICAS_VERSION.featureName(), (short) 1),
             Collections.singletonMap(Feature.ELIGIBLE_LEADER_REPLICAS_VERSION.featureName(), FeatureUpdate.UpgradeType.UPGRADE),
             false);
-        assertEquals(ControllerResult.atomicOf(Arrays.asList(new ApiMessageAndVersion(
-                new FeatureLevelRecord().setName(Feature.ELIGIBLE_LEADER_REPLICAS_VERSION.featureName()).setFeatureLevel((short) 1), (short) 0),
-                new ApiMessageAndVersion(new ConfigRecord().setResourceType(ConfigResource.Type.BROKER.id()).setResourceName("").setName("min.insync.replicas").setValue("2"), (short) 0)),
+        assertEquals(ControllerResult.atomicOf(Arrays.asList(
+                new ApiMessageAndVersion(new ConfigRecord().setResourceType(ConfigResource.Type.BROKER.id()).setResourceName("").setName("min.insync.replicas").setValue("2"), (short) 0),
+                new ApiMessageAndVersion(new FeatureLevelRecord().setName(Feature.ELIGIBLE_LEADER_REPLICAS_VERSION.featureName()).setFeatureLevel((short) 1), (short) 0)),
             ApiError.NONE), result);
         assertEquals(2, result.records().size());
-        RecordTestUtils.replayAll(featureControl, Collections.singletonList(result.records().get(0)));
+        RecordTestUtils.replayAll(featureControl, Collections.singletonList(result.records().get(1)));
         assertEquals(Optional.of((short) 1), featureControl.finalizedFeatures(Long.MAX_VALUE).get(Feature.ELIGIBLE_LEADER_REPLICAS_VERSION.featureName()));
-        RecordTestUtils.replayAll(configurationControl, Collections.singletonList(result.records().get(1)));
+        RecordTestUtils.replayAll(configurationControl, Collections.singletonList(result.records().get(0)));
         assertTrue(configurationControl.clusterConfig().containsKey(TopicConfig.MIN_IN_SYNC_REPLICAS_CONFIG));
     }
 }

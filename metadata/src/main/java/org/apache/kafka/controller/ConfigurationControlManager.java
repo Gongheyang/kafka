@@ -37,6 +37,7 @@ import org.apache.kafka.server.policy.AlterConfigPolicy.RequestMetadata;
 import org.apache.kafka.timeline.SnapshotRegistry;
 import org.apache.kafka.timeline.TimelineHashMap;
 
+import org.apache.kafka.timeline.TimelineHashSet;
 import org.slf4j.Logger;
 
 import java.util.AbstractMap;
@@ -74,6 +75,7 @@ public class ConfigurationControlManager {
     private final Optional<AlterConfigPolicy> alterConfigPolicy;
     private final ConfigurationValidator validator;
     private final TimelineHashMap<ConfigResource, TimelineHashMap<String, String>> configData;
+    private final TimelineHashSet<Integer> brokersWithConfigs;
     private final Map<String, Object> staticConfig;
     private final ConfigResource currentController;
     private final FeatureControlManager featureControl;
@@ -172,6 +174,7 @@ public class ConfigurationControlManager {
         this.alterConfigPolicy = alterConfigPolicy;
         this.validator = validator;
         this.configData = new TimelineHashMap<>(snapshotRegistry, 0);
+        this.brokersWithConfigs = new TimelineHashSet<>(snapshotRegistry, 0);
         this.staticConfig = Collections.unmodifiableMap(new HashMap<>(staticConfig));
         this.currentController = new ConfigResource(Type.BROKER, Integer.toString(nodeId));
         this.featureControl = featureControl;
@@ -449,6 +452,9 @@ public class ConfigurationControlManager {
         if (configs == null) {
             configs = new TimelineHashMap<>(snapshotRegistry, 0);
             configData.put(configResource, configs);
+            if (configResource.type().equals(BROKER) && !configResource.name().isEmpty()) {
+                brokersWithConfigs.add(Integer.parseInt(configResource.name()));
+            }
         }
         if (record.value() == null) {
             configs.remove(record.name());
@@ -457,6 +463,9 @@ public class ConfigurationControlManager {
         }
         if (configs.isEmpty()) {
             configData.remove(configResource);
+            if (configResource.type().equals(BROKER) && !configResource.name().isEmpty()) {
+                brokersWithConfigs.remove(Integer.parseInt(configResource.name()));
+            }
         }
         if (configSchema.isSensitive(record)) {
             log.info("Replayed ConfigRecord for {} which set configuration {} to {}",
@@ -545,17 +554,16 @@ public class ConfigurationControlManager {
                 CONFIG_RECORD.highestSupportedVersion()));
         }
 
-        configData.entrySet().forEach(configEntry -> {
-            ConfigResource configResource = configEntry.getKey();
-            if (configResource.type() == BROKER && !configResource.name().isEmpty()) {
-                Map<String, String> configs = configEntry.getValue();
+        brokersWithConfigs.forEach(broker -> {
+            ConfigResource configResource = new ConfigResource(BROKER, broker.toString());
+                Map<String, String> configs = configData.get(configResource);
                 if (configs != null && configs.containsKey(MIN_IN_SYNC_REPLICAS_CONFIG)) {
                     outputRecords.add(new ApiMessageAndVersion(
                         new ConfigRecord().setResourceType(BROKER.id()).setResourceName(configResource.name()).
                             setName(TopicConfig.MIN_IN_SYNC_REPLICAS_CONFIG).setValue(null),
                         CONFIG_RECORD.highestSupportedVersion()));
                 }
-            }
+
         });
     }
 
@@ -566,16 +574,28 @@ public class ConfigurationControlManager {
     // Due to the component dependency, we don't want the feature control to be depended on the configuration
     // control manager, letting the configuration control manager handle the feature updates.
     ControllerResult<ApiError> updateFeatures(
-            Map<String, Short> updates,
-            Map<String, FeatureUpdate.UpgradeType> upgradeTypes,
-            boolean validateOnly
+        Map<String, Short> updates,
+        Map<String, FeatureUpdate.UpgradeType> upgradeTypes,
+        boolean validateOnly
     ) {
-        return featureControl.updateFeatures(
-            updates,
-            upgradeTypes,
-            validateOnly,
-            records -> maybeResetMinIsrConfig(records)
-        );
+        FeatureControlManager.FeatureUpdateResult result = featureControl.updateFeatures(updates, upgradeTypes);
+        if (!result.error.isSuccess()) {
+            return ControllerResult.atomicOf(Collections.emptyList(), result.error);
+        }
+
+        List<ApiMessageAndVersion> records;
+        if (result.isElrEnabled) {
+            records = BoundedList.newArrayBacked(MAX_RECORDS_PER_USER_OP);
+            maybeResetMinIsrConfig(records);
+            records.addAll(result.records);
+        } else {
+            records = result.records;
+        }
+
+        if (validateOnly) {
+            return ControllerResult.atomicOf(Collections.emptyList(), result.error);
+        }
+        return ControllerResult.atomicOf(records, result.error);
     }
 
     /**
@@ -611,5 +631,10 @@ public class ConfigurationControlManager {
     Map<String, String> currentTopicConfig(String topicName) {
         Map<String, String> result = configData.get(new ConfigResource(Type.TOPIC, topicName));
         return (result == null) ? Collections.emptyMap() : result;
+    }
+
+    // Visible to test
+    TimelineHashSet<Integer> brokersWithConfigs() {
+        return brokersWithConfigs;
     }
 }

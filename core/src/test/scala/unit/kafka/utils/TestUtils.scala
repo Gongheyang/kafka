@@ -56,7 +56,7 @@ import org.apache.kafka.network.metrics.RequestChannelMetrics
 import org.apache.kafka.raft.QuorumConfig
 import org.apache.kafka.server.authorizer.{AuthorizableRequestContext, Authorizer => JAuthorizer}
 import org.apache.kafka.server.common.{ControllerRequestCompletionHandler, MetadataVersion}
-import org.apache.kafka.server.config.{DelegationTokenManagerConfigs, KRaftConfigs, ReplicationConfigs, ServerConfigs, ServerLogConfigs, ZkConfigs}
+import org.apache.kafka.server.config.{DelegationTokenManagerConfigs, KRaftConfigs, ReplicationConfigs, ServerConfigs, ServerLogConfigs}
 import org.apache.kafka.server.metrics.KafkaYammerMetrics
 import org.apache.kafka.server.util.MockTime
 import org.apache.kafka.storage.internals.checkpoint.OffsetCheckpointFile
@@ -194,7 +194,7 @@ object TestUtils extends Logging {
     enableFetchFromFollower: Boolean = false): Seq[Properties] = {
     val endingIdNumber = startingIdNumber + numConfigs - 1
     (startingIdNumber to endingIdNumber).map { node =>
-      createBrokerConfig(node, zkConnect, enableControlledShutdown, enableDeleteTopic, RandomPort,
+      createBrokerConfig(node, enableControlledShutdown, enableDeleteTopic, RandomPort,
         interBrokerSecurityProtocol, trustStoreFile, saslProperties, enablePlaintext = enablePlaintext, enableSsl = enableSsl,
         enableSaslPlaintext = enableSaslPlaintext, enableSaslSsl = enableSaslSsl, rack = rackInfo.get(node), logDirCount = logDirCount, enableToken = enableToken,
         numPartitions = numPartitions, defaultReplicationFactor = defaultReplicationFactor, enableFetchFromFollower = enableFetchFromFollower)
@@ -233,7 +233,7 @@ object TestUtils extends Logging {
   }
 
   def createDummyBrokerConfig(): Properties = {
-    createBrokerConfig(0, "")
+    createBrokerConfig(0)
   }
 
   /**
@@ -242,7 +242,6 @@ object TestUtils extends Logging {
     * Note that if `interBrokerSecurityProtocol` is defined, the listener for the `SecurityProtocol` will be enabled.
     */
   def createBrokerConfig(nodeId: Int,
-                         zkConnect: String,
                          enableControlledShutdown: Boolean = true,
                          enableDeleteTopic: Boolean = true,
                          port: Int = RandomPort,
@@ -281,19 +280,15 @@ object TestUtils extends Logging {
     val props = new Properties
     props.put(ServerConfigs.UNSTABLE_FEATURE_VERSIONS_ENABLE_CONFIG, "true")
     props.put(ServerConfigs.UNSTABLE_API_VERSIONS_ENABLE_CONFIG, "true")
-    if (zkConnect == null) {
-      props.setProperty(KRaftConfigs.SERVER_MAX_STARTUP_TIME_MS_CONFIG, TimeUnit.MINUTES.toMillis(10).toString)
-      props.put(KRaftConfigs.NODE_ID_CONFIG, nodeId.toString)
-      props.put(ServerConfigs.BROKER_ID_CONFIG, nodeId.toString)
-      props.put(SocketServerConfigs.ADVERTISED_LISTENERS_CONFIG, listeners)
-      props.put(SocketServerConfigs.LISTENERS_CONFIG, listeners)
-      props.put(KRaftConfigs.CONTROLLER_LISTENER_NAMES_CONFIG, "CONTROLLER")
-      props.put(SocketServerConfigs.LISTENER_SECURITY_PROTOCOL_MAP_CONFIG, protocolAndPorts.
-        map(p => "%s:%s".format(p._1, p._1)).mkString(",") + ",CONTROLLER:PLAINTEXT")
-    } else {
-      if (nodeId >= 0) props.put(ServerConfigs.BROKER_ID_CONFIG, nodeId.toString)
-      props.put(SocketServerConfigs.LISTENERS_CONFIG, listeners)
-    }
+    props.setProperty(KRaftConfigs.SERVER_MAX_STARTUP_TIME_MS_CONFIG, TimeUnit.MINUTES.toMillis(10).toString)
+    props.put(KRaftConfigs.NODE_ID_CONFIG, nodeId.toString)
+    props.put(ServerConfigs.BROKER_ID_CONFIG, nodeId.toString)
+    props.put(SocketServerConfigs.ADVERTISED_LISTENERS_CONFIG, listeners)
+    props.put(SocketServerConfigs.LISTENERS_CONFIG, listeners)
+    props.put(KRaftConfigs.CONTROLLER_LISTENER_NAMES_CONFIG, "CONTROLLER")
+    props.put(SocketServerConfigs.LISTENER_SECURITY_PROTOCOL_MAP_CONFIG, protocolAndPorts.
+      map(p => "%s:%s".format(p._1, p._1)).mkString(",") + ",CONTROLLER:PLAINTEXT")
+
     if (logDirCount > 1) {
       val logDirs = (1 to logDirCount).toList.map(i =>
         // We would like to allow user to specify both relative path and absolute path as log directory for backward-compatibility reason
@@ -304,17 +299,13 @@ object TestUtils extends Logging {
     } else {
       props.put(ServerLogConfigs.LOG_DIR_CONFIG, tempDir().getAbsolutePath)
     }
-    if (zkConnect == null) {
-      props.put(KRaftConfigs.PROCESS_ROLES_CONFIG, "broker")
-      // Note: this is just a placeholder value for controller.quorum.voters. JUnit
-      // tests use random port assignment, so the controller ports are not known ahead of
-      // time. Therefore, we ignore controller.quorum.voters and use
-      // controllerQuorumVotersFuture instead.
-      props.put(QuorumConfig.QUORUM_VOTERS_CONFIG, "1000@localhost:0")
-    } else {
-      props.put(ZkConfigs.ZK_CONNECT_CONFIG, zkConnect)
-      props.put(ZkConfigs.ZK_CONNECTION_TIMEOUT_MS_CONFIG, "10000")
-    }
+    props.put(KRaftConfigs.PROCESS_ROLES_CONFIG, "broker")
+    // Note: this is just a placeholder value for controller.quorum.voters. JUnit
+    // tests use random port assignment, so the controller ports are not known ahead of
+    // time. Therefore, we ignore controller.quorum.voters and use
+    // controllerQuorumVotersFuture instead.
+    props.put(QuorumConfig.QUORUM_VOTERS_CONFIG, "1000@localhost:0")
+
     props.put(ReplicationConfigs.REPLICA_SOCKET_TIMEOUT_MS_CONFIG, "1500")
     props.put(ReplicationConfigs.CONTROLLER_SOCKET_TIMEOUT_MS_CONFIG, "1500")
     props.put(ServerConfigs.CONTROLLED_SHUTDOWN_ENABLE_CONFIG, enableControlledShutdown.toString)

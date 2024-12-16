@@ -103,13 +103,10 @@ object TestUtils extends Logging {
   val IncorrectBrokerPort = 225
 
   /** Port to use for unit tests that mock/don't require a real ZK server. */
-  val MockZkPort = 1
-  /** ZooKeeper connection string to use for unit tests that mock/don't require a real ZK server. */
-  val MockZkConnect = "127.0.0.1:" + MockZkPort
-
   val MockKraftPort = 1
-
+  /** ZooKeeper connection string to use for unit tests that mock/don't require a real ZK server. */
   val MockKraftConnect = "127.0.0.1:" + MockKraftPort
+  
   // CN in SSL certificates - this is used for endpoint validation when enabled
   val SslCertificateCn = "localhost"
 
@@ -175,7 +172,6 @@ object TestUtils extends Logging {
    */
   def createBrokerConfigs(
     numConfigs: Int,
-    zkConnect: String,
     enableControlledShutdown: Boolean = true,
     enableDeleteTopic: Boolean = true,
     interBrokerSecurityProtocol: Option[SecurityProtocol] = None,

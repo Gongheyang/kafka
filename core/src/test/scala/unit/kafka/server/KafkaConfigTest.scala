@@ -1530,7 +1530,7 @@ class KafkaConfigTest {
     // so pick a broker ID greater than reserved.broker.max.id, which defaults to 1000,
     // and make sure it is not allowed with broker.id.generation.enable=true (true is the default)
     val largeBrokerId = 2000
-    val props = TestUtils.createBrokerConfig(largeBrokerId, port = TestUtils.MockZkPort)
+    val props = TestUtils.createBrokerConfig(largeBrokerId, port = TestUtils.MockKraftPort)
     val listeners = "PLAINTEXT://A:9092,SSL://B:9093,SASL_SSL://C:9094"
     props.setProperty(SocketServerConfigs.LISTENERS_CONFIG, listeners)
     props.setProperty(SocketServerConfigs.ADVERTISED_LISTENERS_CONFIG, listeners)
@@ -1540,7 +1540,7 @@ class KafkaConfigTest {
   @Test
   def testAcceptsNegativeOneNodeIdForZkBasedCaseWithAutoGenEnabled(): Unit = {
     // -1 is the default for both node.id and broker.id; it implies "auto-generate" and should succeed
-    val props = TestUtils.createBrokerConfig(-1, port = TestUtils.MockZkPort)
+    val props = TestUtils.createBrokerConfig(-1, port = TestUtils.MockKraftPort)
     val listeners = "PLAINTEXT://A:9092,SSL://B:9093,SASL_SSL://C:9094"
     props.setProperty(SocketServerConfigs.LISTENERS_CONFIG, listeners)
     props.setProperty(SocketServerConfigs.ADVERTISED_LISTENERS_CONFIG, listeners)
@@ -1551,7 +1551,7 @@ class KafkaConfigTest {
   def testRejectsNegativeTwoNodeIdForZkBasedCaseWithAutoGenEnabled(): Unit = {
     // -1 implies "auto-generate" and should succeed, but -2 does not and should fail
     val negativeTwoNodeId = -2
-    val props = TestUtils.createBrokerConfig(negativeTwoNodeId, port = TestUtils.MockZkPort)
+    val props = TestUtils.createBrokerConfig(negativeTwoNodeId, port = TestUtils.MockKraftPort)
     val listeners = "PLAINTEXT://A:9092,SSL://B:9093,SASL_SSL://C:9094"
     props.setProperty(SocketServerConfigs.LISTENERS_CONFIG, listeners)
     props.setProperty(SocketServerConfigs.ADVERTISED_LISTENERS_CONFIG, listeners)
@@ -1565,7 +1565,7 @@ class KafkaConfigTest {
     // Ensure a broker ID greater than reserved.broker.max.id, which defaults to 1000,
     // is allowed with broker.id.generation.enable=false
     val largeBrokerId = 2000
-    val props = TestUtils.createBrokerConfig(largeBrokerId, port = TestUtils.MockZkPort)
+    val props = TestUtils.createBrokerConfig(largeBrokerId, port = TestUtils.MockKraftPort)
     val listeners = "PLAINTEXT://A:9092,SSL://B:9093,SASL_SSL://C:9094"
     props.setProperty(SocketServerConfigs.LISTENERS_CONFIG, listeners)
     props.setProperty(SocketServerConfigs.ADVERTISED_LISTENERS_CONFIG, listeners)
@@ -1576,7 +1576,7 @@ class KafkaConfigTest {
   @Test
   def testRejectsNegativeNodeIdForZkBasedCaseWithAutoGenDisabled(): Unit = {
     // -1 is the default for both node.id and broker.id
-    val props = TestUtils.createBrokerConfig(-1, port = TestUtils.MockZkPort)
+    val props = TestUtils.createBrokerConfig(-1, port = TestUtils.MockKraftPort)
     val listeners = "PLAINTEXT://A:9092,SSL://B:9093,SASL_SSL://C:9094"
     props.setProperty(SocketServerConfigs.LISTENERS_CONFIG, listeners)
     props.setProperty(ServerConfigs.BROKER_ID_GENERATION_ENABLE_CONFIG, "false")

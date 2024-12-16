@@ -1591,6 +1591,8 @@ public final class QuorumController implements Controller {
         this.metaLogListener = new QuorumMetaLogListener();
         this.curClaimEpoch = -1;
         this.recordRedactor = new RecordRedactor(configSchema);
+        this.eventPerformanceMonitor = new EventPerformanceMonitor(minSlowEventTimeMs,
+            controllerMetrics::getEventQueueProcessingTime99, logContext);
         if (maxIdleIntervalNs.isPresent()) {
             registerWriteNoOpRecord(maxIdleIntervalNs.getAsLong());
         }
@@ -1614,10 +1616,7 @@ public final class QuorumController implements Controller {
             setTime(time).
             build();
         log.info("Creating new QuorumController with clusterId {}", clusterId);
-
         this.raftClient.register(metaLogListener);
-        this.eventPerformanceMonitor = new EventPerformanceMonitor(minSlowEventTimeMs,
-            controllerMetrics::getEventQueueProcessingTime99, logContext);
     }
 
     /**

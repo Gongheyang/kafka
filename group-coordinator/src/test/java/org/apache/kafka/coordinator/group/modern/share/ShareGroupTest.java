@@ -29,6 +29,7 @@ import org.apache.kafka.coordinator.group.Group;
 import org.apache.kafka.coordinator.group.MetadataImageBuilder;
 import org.apache.kafka.coordinator.group.modern.Assignment;
 import org.apache.kafka.coordinator.group.modern.MemberState;
+import org.apache.kafka.coordinator.group.modern.ModernGroup;
 import org.apache.kafka.coordinator.group.modern.TopicMetadata;
 import org.apache.kafka.coordinator.group.modern.share.ShareGroup.ShareGroupState;
 import org.apache.kafka.image.MetadataImage;
@@ -39,7 +40,9 @@ import org.junit.jupiter.params.ParameterizedTest;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 
 import static org.apache.kafka.common.utils.Utils.mkEntry;
 import static org.apache.kafka.common.utils.Utils.mkMap;
@@ -167,26 +170,37 @@ public class ShareGroupTest {
 
         ShareGroup shareGroup = createShareGroup("group-foo");
 
+        Map<String, Long> topicHashCache = new HashMap<>();
+        long fooTopicHash = ModernGroup.computeTopicHash(image.topics().getTopic(fooTopicId), image.cluster());
+        long barTopicHash = ModernGroup.computeTopicHash(image.topics().getTopic(barTopicId), image.cluster());
+        long zarTopicHash = ModernGroup.computeTopicHash(image.topics().getTopic(zarTopicId), image.cluster());
+
         // It should be empty by default.
         assertEquals(
             Collections.emptyMap(),
             shareGroup.computeSubscriptionMetadata(
                 shareGroup.computeSubscribedTopicNames(null, null),
-                image.topics(),
-                image.cluster()
+                image,
+                topicHashCache
             )
         );
 
         // Compute while taking into account member 1.
         assertEquals(
             mkMap(
-                mkEntry("foo", new TopicMetadata(fooTopicId, "foo", 1))
+                mkEntry("foo", new TopicMetadata(fooTopicId, "foo", fooTopicHash))
             ),
             shareGroup.computeSubscriptionMetadata(
                 shareGroup.computeSubscribedTopicNames(null, member1),
-                image.topics(),
-                image.cluster()
+                image,
+                topicHashCache
             )
+        );
+        assertEquals(
+            Map.of(
+                "foo", fooTopicHash
+            ),
+            topicHashCache
         );
 
         // Updating the group with member1.
@@ -195,12 +209,12 @@ public class ShareGroupTest {
         // It should return foo now.
         assertEquals(
             mkMap(
-                mkEntry("foo", new TopicMetadata(fooTopicId, "foo", 1))
+                mkEntry("foo", new TopicMetadata(fooTopicId, "foo", fooTopicHash))
             ),
             shareGroup.computeSubscriptionMetadata(
                 shareGroup.computeSubscribedTopicNames(null, null),
-                image.topics(),
-                image.cluster()
+                image,
+                topicHashCache
             )
         );
 
@@ -209,22 +223,29 @@ public class ShareGroupTest {
             Collections.emptyMap(),
             shareGroup.computeSubscriptionMetadata(
                 shareGroup.computeSubscribedTopicNames(member1, null),
-                image.topics(),
-                image.cluster()
+                image,
+                topicHashCache
             )
         );
 
         // Compute while taking into account member 2.
         assertEquals(
             mkMap(
-                mkEntry("foo", new TopicMetadata(fooTopicId, "foo", 1)),
-                mkEntry("bar", new TopicMetadata(barTopicId, "bar", 2))
+                mkEntry("foo", new TopicMetadata(fooTopicId, "foo", fooTopicHash)),
+                mkEntry("bar", new TopicMetadata(barTopicId, "bar", barTopicHash))
             ),
             shareGroup.computeSubscriptionMetadata(
                 shareGroup.computeSubscribedTopicNames(null, member2),
-                image.topics(),
-                image.cluster()
+                image,
+                topicHashCache
             )
+        );
+        assertEquals(
+            Map.of(
+                "foo", fooTopicHash,
+                "bar", barTopicHash
+            ),
+            topicHashCache
         );
 
         // Updating the group with member2.
@@ -233,52 +254,60 @@ public class ShareGroupTest {
         // It should return foo and bar.
         assertEquals(
             mkMap(
-                mkEntry("foo", new TopicMetadata(fooTopicId, "foo", 1)),
-                mkEntry("bar", new TopicMetadata(barTopicId, "bar", 2))
+                mkEntry("foo", new TopicMetadata(fooTopicId, "foo", fooTopicHash)),
+                mkEntry("bar", new TopicMetadata(barTopicId, "bar", barTopicHash))
             ),
             shareGroup.computeSubscriptionMetadata(
                 shareGroup.computeSubscribedTopicNames(null, null),
-                image.topics(),
-                image.cluster()
+                image,
+                topicHashCache
             )
         );
 
         // Compute while taking into account removal of member 2.
         assertEquals(
             mkMap(
-                mkEntry("foo", new TopicMetadata(fooTopicId, "foo", 1))
+                mkEntry("foo", new TopicMetadata(fooTopicId, "foo", fooTopicHash))
             ),
             shareGroup.computeSubscriptionMetadata(
                 shareGroup.computeSubscribedTopicNames(member2, null),
-                image.topics(),
-                image.cluster()
+                image,
+                topicHashCache
             )
         );
 
         // Removing member1 results in returning bar.
         assertEquals(
             mkMap(
-                mkEntry("bar", new TopicMetadata(barTopicId, "bar", 2))
+                mkEntry("bar", new TopicMetadata(barTopicId, "bar", barTopicHash))
             ),
             shareGroup.computeSubscriptionMetadata(
                 shareGroup.computeSubscribedTopicNames(member1, null),
-                image.topics(),
-                image.cluster()
+                image,
+                topicHashCache
             )
         );
 
         // Compute while taking into account member 3.
         assertEquals(
             mkMap(
-                mkEntry("foo", new TopicMetadata(fooTopicId, "foo", 1)),
-                mkEntry("bar", new TopicMetadata(barTopicId, "bar", 2)),
-                mkEntry("zar", new TopicMetadata(zarTopicId, "zar", 3))
+                mkEntry("foo", new TopicMetadata(fooTopicId, "foo", fooTopicHash)),
+                mkEntry("bar", new TopicMetadata(barTopicId, "bar", barTopicHash)),
+                mkEntry("zar", new TopicMetadata(zarTopicId, "zar", zarTopicHash))
             ),
             shareGroup.computeSubscriptionMetadata(
                 shareGroup.computeSubscribedTopicNames(null, member3),
-                image.topics(),
-                image.cluster()
+                image,
+                topicHashCache
             )
+        );
+        assertEquals(
+            Map.of(
+                "foo", fooTopicHash,
+                "bar", barTopicHash,
+                "zar", zarTopicHash
+            ),
+            topicHashCache
         );
 
         // Updating group with member3.
@@ -287,14 +316,14 @@ public class ShareGroupTest {
         // It should return foo, bar and zar.
         assertEquals(
             mkMap(
-                mkEntry("foo", new TopicMetadata(fooTopicId, "foo", 1)),
-                mkEntry("bar", new TopicMetadata(barTopicId, "bar", 2)),
-                mkEntry("zar", new TopicMetadata(zarTopicId, "zar", 3))
+                mkEntry("foo", new TopicMetadata(fooTopicId, "foo", fooTopicHash)),
+                mkEntry("bar", new TopicMetadata(barTopicId, "bar", barTopicHash)),
+                mkEntry("zar", new TopicMetadata(zarTopicId, "zar", zarTopicHash))
             ),
             shareGroup.computeSubscriptionMetadata(
                 shareGroup.computeSubscribedTopicNames(null, null),
-                image.topics(),
-                image.cluster()
+                image,
+                topicHashCache
             )
         );
 
@@ -303,47 +332,47 @@ public class ShareGroupTest {
             Collections.emptyMap(),
             shareGroup.computeSubscriptionMetadata(
                 shareGroup.computeSubscribedTopicNames(new HashSet<>(Arrays.asList(member1, member2, member3))),
-                image.topics(),
-                image.cluster()
+                image,
+                topicHashCache
             )
         );
 
         // Compute while taking into account removal of member 2 and member 3.
         assertEquals(
             mkMap(
-                mkEntry("foo", new TopicMetadata(fooTopicId, "foo", 1))
+                mkEntry("foo", new TopicMetadata(fooTopicId, "foo", fooTopicHash))
             ),
             shareGroup.computeSubscriptionMetadata(
                 shareGroup.computeSubscribedTopicNames(new HashSet<>(Arrays.asList(member2, member3))),
-                image.topics(),
-                image.cluster()
+                image,
+                topicHashCache
             )
         );
 
         // Compute while taking into account removal of member 1.
         assertEquals(
             mkMap(
-                mkEntry("bar", new TopicMetadata(barTopicId, "bar", 2)),
-                mkEntry("zar", new TopicMetadata(zarTopicId, "zar", 3))
+                mkEntry("bar", new TopicMetadata(barTopicId, "bar", barTopicHash)),
+                mkEntry("zar", new TopicMetadata(zarTopicId, "zar", zarTopicHash))
             ),
             shareGroup.computeSubscriptionMetadata(
                 shareGroup.computeSubscribedTopicNames(Collections.singleton(member1)),
-                image.topics(),
-                image.cluster()
+                image,
+                topicHashCache
             )
         );
 
         // It should return foo, bar and zar.
         assertEquals(
             mkMap(
-                mkEntry("foo", new TopicMetadata(fooTopicId, "foo", 1)),
-                mkEntry("bar", new TopicMetadata(barTopicId, "bar", 2)),
-                mkEntry("zar", new TopicMetadata(zarTopicId, "zar", 3))
+                mkEntry("foo", new TopicMetadata(fooTopicId, "foo", fooTopicHash)),
+                mkEntry("bar", new TopicMetadata(barTopicId, "bar", barTopicHash)),
+                mkEntry("zar", new TopicMetadata(zarTopicId, "zar", zarTopicHash))
             ),
             shareGroup.computeSubscriptionMetadata(
                 shareGroup.computeSubscribedTopicNames(Collections.emptySet()),
-                image.topics(),
-                image.cluster()
+                image,
+                topicHashCache
             )
         );
     }
@@ -628,6 +657,8 @@ public class ShareGroupTest {
             .addTopic(barTopicId, "bar", 2)
             .addRacks()
             .build();
+        long fooTopicHash = ModernGroup.computeTopicHash(image.topics().getTopic(fooTopicId), image.cluster());
+        long barTopicHash = ModernGroup.computeTopicHash(image.topics().getTopic(barTopicId), image.cluster());
 
         ShareGroupMember member1 = new ShareGroupMember.Builder("member1")
             .setSubscribedTopicNames(Collections.singletonList("foo"))
@@ -643,13 +674,13 @@ public class ShareGroupTest {
 
         assertEquals(
             mkMap(
-                mkEntry("foo", new TopicMetadata(fooTopicId, "foo", 1)),
-                mkEntry("bar", new TopicMetadata(barTopicId, "bar", 2))
+                mkEntry("foo", new TopicMetadata(fooTopicId, "foo", fooTopicHash)),
+                mkEntry("bar", new TopicMetadata(barTopicId, "bar", barTopicHash))
             ),
             shareGroup.computeSubscriptionMetadata(
                 shareGroup.computeSubscribedTopicNames(null, null),
-                image.topics(),
-                image.cluster()
+                image,
+                new HashMap<>()
             )
         );
 

@@ -19,10 +19,14 @@ package org.apache.kafka.coordinator.group.modern;
 import org.apache.kafka.common.Uuid;
 import org.apache.kafka.coordinator.group.api.assignor.PartitionAssignor;
 import org.apache.kafka.coordinator.group.api.assignor.SubscribedTopicDescriber;
+import org.apache.kafka.image.MetadataImage;
+import org.apache.kafka.image.TopicImage;
+import org.apache.kafka.metadata.PartitionRegistration;
 
-import java.util.Collections;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -36,8 +40,14 @@ public class SubscribedTopicDescriberImpl implements SubscribedTopicDescriber {
      */
     private final Map<Uuid, TopicMetadata> topicMetadata;
 
-    public SubscribedTopicDescriberImpl(Map<Uuid, TopicMetadata> topicMetadata) {
+    /**
+     * The metadata image that contains the latest metadata information.
+     */
+    private final MetadataImage metadataImage;
+
+    public SubscribedTopicDescriberImpl(Map<Uuid, TopicMetadata> topicMetadata, MetadataImage metadataImage) {
         this.topicMetadata = Objects.requireNonNull(topicMetadata);
+        this.metadataImage = Objects.requireNonNull(metadataImage);
     }
 
     /**
@@ -50,6 +60,15 @@ public class SubscribedTopicDescriberImpl implements SubscribedTopicDescriber {
     }
 
     /**
+     * The metadata image that contains the latest metadata information.
+     *
+     * @return The metadata image that contains the latest metadata information.
+     */
+    public MetadataImage metadataImage() {
+        return this.metadataImage;
+    }
+
+    /**
      * The number of partitions for the given topic Id.
      *
      * @param topicId   Uuid corresponding to the topic.
@@ -58,8 +77,11 @@ public class SubscribedTopicDescriberImpl implements SubscribedTopicDescriber {
      */
     @Override
     public int numPartitions(Uuid topicId) {
-        TopicMetadata topic = this.topicMetadata.get(topicId);
-        return topic == null ? -1 : topic.numPartitions();
+        if (!topicMetadata.containsKey(topicId)) {
+            return -1;
+        }
+        TopicImage topicImage = this.metadataImage.topics().getTopic(topicId);
+        return topicImage == null ? -1 : topicImage.partitions().size();
     }
 
     /**
@@ -72,7 +94,20 @@ public class SubscribedTopicDescriberImpl implements SubscribedTopicDescriber {
      */
     @Override
     public Set<String> racksForPartition(Uuid topicId, int partition) {
-        return Collections.emptySet();
+        TopicImage topic = metadataImage.topics().getTopic(topicId);
+        if (topic != null) {
+            PartitionRegistration partitionRegistration = topic.partitions().get(partition);
+            if (partitionRegistration != null) {
+                Set<String> racks = new HashSet<>();
+                for (int replica : partitionRegistration.replicas) {
+                    Optional<String> rackOptional = metadataImage.cluster().broker(replica).rack();
+                    // Only add the rack if it is available for the broker/replica.
+                    rackOptional.ifPresent(racks::add);
+                }
+                return racks;
+            }
+        }
+        return Set.of();
     }
 
     @Override

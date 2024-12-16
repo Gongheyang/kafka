@@ -74,6 +74,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
@@ -2393,8 +2394,8 @@ public class OffsetMetadataManagerTest {
             .build();
         group.computeSubscriptionMetadata(
             group.computeSubscribedTopicNames(null, member1),
-            image.topics(),
-            image.cluster()
+            image,
+            new HashMap<>()
         );
         group.updateMember(member1);
         context.commitOffset("foo", "bar", 0, 100L, 0);

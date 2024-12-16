@@ -33,7 +33,7 @@ import org.apache.kafka.coordinator.group.modern.SubscribedTopicDescriberImpl;
 import org.apache.kafka.coordinator.group.modern.TopicIds;
 import org.apache.kafka.coordinator.group.modern.TopicMetadata;
 import org.apache.kafka.coordinator.group.modern.consumer.ConsumerGroupMember;
-import org.apache.kafka.image.TopicsImage;
+import org.apache.kafka.image.MetadataImage;
 
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -127,7 +127,7 @@ public class ServerSideAssignorBenchmark {
 
     private Map<String, TopicMetadata> subscriptionMetadata = Collections.emptyMap();
 
-    private TopicsImage topicsImage = TopicsImage.EMPTY;
+    private MetadataImage metadataImage = MetadataImage.EMPTY;
 
     private TopicIds.TopicResolver topicResolver;
 
@@ -152,15 +152,14 @@ public class ServerSideAssignorBenchmark {
 
         int partitionsPerTopic = (memberCount * partitionsToMemberRatio) / topicCount;
         subscriptionMetadata = AssignorBenchmarkUtils.createSubscriptionMetadata(
-            allTopicNames,
-            partitionsPerTopic
+            allTopicNames
         );
 
-        topicsImage = AssignorBenchmarkUtils.createTopicsImage(subscriptionMetadata);
-        topicResolver = new TopicIds.CachedTopicResolver(topicsImage);
+        metadataImage = AssignorBenchmarkUtils.createMetadataImage(subscriptionMetadata, partitionsPerTopic);
+        topicResolver = new TopicIds.CachedTopicResolver(metadataImage.topics());
 
         Map<Uuid, TopicMetadata> topicMetadata = AssignorBenchmarkUtils.createTopicMetadata(subscriptionMetadata);
-        subscribedTopicDescriber = new SubscribedTopicDescriberImpl(topicMetadata);
+        subscribedTopicDescriber = new SubscribedTopicDescriberImpl(topicMetadata, metadataImage);
     }
 
     private Map<String, ConsumerGroupMember> createMembers() {

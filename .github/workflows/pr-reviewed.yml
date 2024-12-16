@@ -39,6 +39,7 @@ jobs:
             })
             .then((pulls) => {
               pulls.forEach(pull => {
+                console.log(pull);
                 github.request("GET /repos/{owner}/{repo}/pulls/{pull_number}/reviews", {
                   owner: "apache",
                   repo: "kafka",
@@ -47,9 +48,10 @@ jobs:
                     "X-GitHub-Api-Version": "2022-11-28"
                   }
                 }).then((resp) => {
-                  console.log("Found ${resp.data.length} reviews.");
+                  console.log(resp);
+                  console.log("Found " + resp.data.length + " reviews.");
                   if (resp.data.length > 0) {
-                    console.log("Removing 'triage' label from PR ${pull.number}");
+                    console.log("Removing 'triage' label from PR " + pull.number);
                     github.rest.issues.removeLabel({
                       owner: "apache",
                       repo: "kafka",

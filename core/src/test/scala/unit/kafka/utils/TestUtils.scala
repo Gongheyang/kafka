@@ -1240,18 +1240,10 @@ object TestUtils extends Logging {
   }
 
   def verifyTopicDeletion[B <: KafkaBroker](
-      zkClient: KafkaZkClient,
       topic: String,
       numPartitions: Int,
       brokers: Seq[B]): Unit = {
     val topicPartitions = (0 until numPartitions).map(new TopicPartition(topic, _))
-    if (zkClient != null) {
-      // wait until admin path for delete topic is deleted, signaling completion of topic deletion
-      waitUntilTrue(() => !zkClient.isTopicMarkedForDeletion(topic),
-        "Admin path /admin/delete_topics/%s path not deleted even after a replica is restarted".format(topic))
-      waitUntilTrue(() => !zkClient.topicExists(topic),
-        "Topic path /brokers/topics/%s not deleted after /admin/delete_topics/%s path is deleted".format(topic, topic))
-    }
     // ensure that the topic-partition has been deleted from all brokers' replica managers
     waitUntilTrue(() =>
       brokers.forall(broker => topicPartitions.forall(tp => broker.replicaManager.onlinePartition(tp).isEmpty)),

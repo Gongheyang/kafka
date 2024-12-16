@@ -29,6 +29,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.ServerSocket;
 import java.nio.file.Files;
 import java.util.Collections;
 import java.util.Optional;
@@ -199,5 +200,11 @@ public class TestUtils {
         Optional<Integer> finalLeader = electedLeader;
         return electedLeader.orElseThrow(() -> new AssertionError("Timing out after " + timeoutMs
             + " ms since a leader was not elected for partition " + topicPartition + ", leader is " + finalLeader));
+    }
+
+    public static int choosePort() throws IOException {
+        try (ServerSocket socket = new ServerSocket(0)) {
+            return socket.getLocalPort();
+        }
     }
 }

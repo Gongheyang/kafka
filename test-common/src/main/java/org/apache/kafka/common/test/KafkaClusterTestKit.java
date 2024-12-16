@@ -107,6 +107,7 @@ public class KafkaClusterTestKit implements AutoCloseable {
         private final SimpleFaultHandlerFactory faultHandlerFactory = new SimpleFaultHandlerFactory();
         private final PreboundSocketFactoryManager socketFactoryManager = new PreboundSocketFactoryManager();
         private final String brokerListenerName;
+        private final boolean fixedBrokerPorts;
         private final String controllerListenerName;
         private final String brokerSecurityProtocol;
         private final String controllerSecurityProtocol;
@@ -116,6 +117,7 @@ public class KafkaClusterTestKit implements AutoCloseable {
             this.brokerListenerName = nodes.brokerListenerName().value();
             this.controllerListenerName = nodes.controllerListenerName().value();
             this.brokerSecurityProtocol = nodes.brokerListenerProtocol().name;
+            this.fixedBrokerPorts = nodes.fixedBrokerPorts();
             this.controllerSecurityProtocol = nodes.controllerListenerProtocol().name;
         }
 
@@ -275,14 +277,18 @@ public class KafkaClusterTestKit implements AutoCloseable {
                     socketFactoryManager);
         }
 
-        private String listeners(int node) {
+        private String listeners(int node) throws IOException {
+            int brokerPort = 0;
+            if (fixedBrokerPorts) {
+                brokerPort = TestUtils.choosePort();
+            }
             if (nodes.isCombined(node)) {
-                return String.format("%s://localhost:0,%s://localhost:0", brokerListenerName, controllerListenerName);
+                return String.format("%s://localhost:%s,%s://localhost:0", brokerListenerName, brokerPort, controllerListenerName);
             }
             if (nodes.controllerNodes().containsKey(node)) {
                 return String.format("%s://localhost:0", controllerListenerName);
             }
-            return String.format("%s://localhost:0", brokerListenerName);
+            return String.format("%s://localhost:%s", brokerListenerName, brokerPort);
         }
 
         private String roles(int node) {

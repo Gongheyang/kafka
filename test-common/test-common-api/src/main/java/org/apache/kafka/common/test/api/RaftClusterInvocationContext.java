@@ -283,6 +283,7 @@ public class RaftClusterInvocationContext implements TestTemplateInvocationConte
                         .setPerServerProperties(clusterConfig.perServerOverrideProperties())
                         .setNumControllerNodes(clusterConfig.numControllers())
                         .setBrokerListenerName(listenerName)
+                        .setFixedBrokerPorts(clusterConfig.fixedBrokerPorts())
                         .setBrokerSecurityProtocol(clusterConfig.brokerSecurityProtocol())
                         .setControllerListenerName(clusterConfig.controllerListenerName())
                         .setControllerSecurityProtocol(clusterConfig.controllerSecurityProtocol())

@@ -16,7 +16,7 @@ package kafka.api
 import java.{time, util}
 import java.util.concurrent._
 import java.util.{Collections, Properties}
-import kafka.server.KafkaConfig
+import kafka.server.{KafkaConfig, KafkaServer}
 import kafka.utils.{Logging, TestInfoUtils, TestUtils}
 import org.apache.kafka.clients.consumer._
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord}
@@ -25,6 +25,7 @@ import org.apache.kafka.common.errors.GroupMaxSizeReachedException
 import org.apache.kafka.common.message.FindCoordinatorRequestData
 import org.apache.kafka.common.protocol.Errors
 import org.apache.kafka.common.requests.{FindCoordinatorRequest, FindCoordinatorResponse}
+import org.apache.kafka.common.utils.Time
 import org.apache.kafka.coordinator.group.GroupCoordinatorConfig
 import org.apache.kafka.server.config.{KRaftConfigs, ReplicationConfigs, ServerLogConfigs}
 import org.apache.kafka.server.util.ShutdownableThread
@@ -341,7 +342,7 @@ class ConsumerBounceTest extends AbstractConsumerTest with Logging {
     for (serverIdx <- brokerServers.indices) {
       killBroker(serverIdx)
       val config = newConfigs(serverIdx)
-      servers(serverIdx) = TestUtils.createServer(config, time = brokerTime(config.brokerId))
+      servers(serverIdx) = createServer(config, time = brokerTime(config.brokerId))
       restartDeadBrokers()
     }
 
@@ -564,4 +565,15 @@ class ConsumerBounceTest extends AbstractConsumerTest with Logging {
     futures.map(_.get)
   }
 
+  /**
+   * Create a kafka server instance with appropriate test settings
+   * USING THIS IS A SIGN YOU ARE NOT WRITING A REAL UNIT TEST
+   *
+   * @param config The configuration of the server
+   */
+  def createServer(config: KafkaConfig, time: Time = Time.SYSTEM): KafkaServer = {
+    val server = new KafkaServer(config, time, None)
+    server.startup()
+    server
+  }
 }

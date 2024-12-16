@@ -150,22 +150,6 @@ object TestUtils extends Logging {
   }
 
   /**
-   * Create a kafka server instance with appropriate test settings
-   * USING THIS IS A SIGN YOU ARE NOT WRITING A REAL UNIT TEST
-   *
-   * @param config The configuration of the server
-   */
-  def createServer(config: KafkaConfig, time: Time = Time.SYSTEM): KafkaServer = {
-    createServer(config, time, None, startup = true)
-  }
-
-  def createServer(config: KafkaConfig, time: Time, threadNamePrefix: Option[String], startup: Boolean): KafkaServer = {
-    val server = new KafkaServer(config, time, threadNamePrefix)
-    if (startup) server.startup()
-    server
-  }
-
-  /**
    * Create a test config for the provided parameters.
    *
    * Note that if `interBrokerSecurityProtocol` is defined, the listener for the `SecurityProtocol` will be enabled.

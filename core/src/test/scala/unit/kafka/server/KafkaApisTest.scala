@@ -2651,7 +2651,7 @@ class KafkaApisTest extends Logging {
 
       val tp = new TopicPartition("topic", 0)
 
-      val produceRequest = ProduceRequest.forCurrentMagic(new ProduceRequestData()
+      val produceRequest = ProduceRequest.builder(new ProduceRequestData()
         .setTopicData(new ProduceRequestData.TopicProduceDataCollection(
           Collections.singletonList(new ProduceRequestData.TopicProduceData()
             .setName(tp.topic).setPartitionData(Collections.singletonList(
@@ -2713,7 +2713,7 @@ class KafkaApisTest extends Logging {
       val newLeaderId = 2
       val newLeaderEpoch = 5
 
-      val produceRequest = ProduceRequest.forCurrentMagic(new ProduceRequestData()
+      val produceRequest = ProduceRequest.builder(new ProduceRequestData()
         .setTopicData(new ProduceRequestData.TopicProduceDataCollection(
           Collections.singletonList(new ProduceRequestData.TopicProduceData()
             .setName(tp.topic).setPartitionData(Collections.singletonList(
@@ -2778,7 +2778,7 @@ class KafkaApisTest extends Logging {
 
       val tp = new TopicPartition(topic, 0)
 
-      val produceRequest = ProduceRequest.forCurrentMagic(new ProduceRequestData()
+      val produceRequest = ProduceRequest.builder(new ProduceRequestData()
         .setTopicData(new ProduceRequestData.TopicProduceDataCollection(
           Collections.singletonList(new ProduceRequestData.TopicProduceData()
             .setName(tp.topic).setPartitionData(Collections.singletonList(
@@ -2842,7 +2842,7 @@ class KafkaApisTest extends Logging {
 
       val tp = new TopicPartition(topic, 0)
 
-      val produceRequest = ProduceRequest.forCurrentMagic(new ProduceRequestData()
+      val produceRequest = ProduceRequest.builder(new ProduceRequestData()
         .setTopicData(new ProduceRequestData.TopicProduceDataCollection(
           Collections.singletonList(new ProduceRequestData.TopicProduceData()
             .setName(tp.topic).setPartitionData(Collections.singletonList(
@@ -2905,7 +2905,7 @@ class KafkaApisTest extends Logging {
 
       val tp = new TopicPartition("topic", 0)
 
-      val produceRequest = ProduceRequest.forCurrentMagic(new ProduceRequestData()
+      val produceRequest = ProduceRequest.builder(new ProduceRequestData()
         .setTopicData(new ProduceRequestData.TopicProduceDataCollection(
           Collections.singletonList(new ProduceRequestData.TopicProduceData()
             .setName(tp.topic).setPartitionData(Collections.singletonList(

@@ -236,7 +236,7 @@ class SocketServerTest {
     val clientId = ""
     val ackTimeoutMs = 10000
 
-    val emptyRequest = requests.ProduceRequest.forCurrentMagic(new ProduceRequestData()
+    val emptyRequest = requests.ProduceRequest.builder(new ProduceRequestData()
       .setTopicData(new ProduceRequestData.TopicProduceDataCollection())
       .setAcks(ack)
       .setTimeoutMs(ackTimeoutMs)
@@ -1063,7 +1063,7 @@ class SocketServerTest {
       val clientId = ""
       val ackTimeoutMs = 10000
       val ack = 0: Short
-      val emptyRequest = requests.ProduceRequest.forCurrentMagic(new ProduceRequestData()
+      val emptyRequest = requests.ProduceRequest.builder(new ProduceRequestData()
         .setTopicData(new ProduceRequestData.TopicProduceDataCollection())
         .setAcks(ack)
         .setTimeoutMs(ackTimeoutMs)
@@ -1145,7 +1145,7 @@ class SocketServerTest {
       // ...and now send something to trigger the disconnection
       val ackTimeoutMs = 10000
       val ack = 0: Short
-      val emptyRequest = requests.ProduceRequest.forCurrentMagic(new ProduceRequestData()
+      val emptyRequest = requests.ProduceRequest.builder(new ProduceRequestData()
         .setTopicData(new ProduceRequestData.TopicProduceDataCollection())
         .setAcks(ack)
         .setTimeoutMs(ackTimeoutMs)

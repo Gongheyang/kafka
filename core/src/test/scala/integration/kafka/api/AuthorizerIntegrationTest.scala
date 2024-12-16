@@ -264,7 +264,7 @@ class AuthorizerIntegrationTest extends AbstractAuthorizerIntegrationTest {
   }
 
   private def createProduceRequest =
-    requests.ProduceRequest.forCurrentMagic(new ProduceRequestData()
+    requests.ProduceRequest.builder(new ProduceRequestData()
       .setTopicData(new ProduceRequestData.TopicProduceDataCollection(
         Collections.singletonList(new ProduceRequestData.TopicProduceData()
           .setName(tp.topic).setPartitionData(Collections.singletonList(

@@ -141,12 +141,6 @@ public class RaftUtilTest {
 
     private static Stream<Arguments> singletonFetchResponseTestCases() {
         return Stream.of(
-                Arguments.of(new FetchResponseTestCase((short) 0, -1,
-                        "{\"responses\":[{\"topic\":\"topic\",\"partitions\":[{\"partitionIndex\":1," +
-                            "\"errorCode\":0,\"highWatermark\":1000,\"records\":\"\"}]}]}")),
-                Arguments.of(new FetchResponseTestCase((short) 1, -1,
-                        "{\"throttleTimeMs\":0,\"responses\":[{\"topic\":\"topic\",\"partitions\":" +
-                            "[{\"partitionIndex\":1,\"errorCode\":0,\"highWatermark\":1000,\"records\":\"\"}]}]}")),
                 Arguments.of(new FetchResponseTestCase((short) 4, -1,
                         "{\"throttleTimeMs\":0,\"responses\":[{\"topic\":\"topic\",\"partitions\":" +
                             "[{\"partitionIndex\":1,\"errorCode\":0,\"highWatermark\":1000,\"lastStableOffset\":900," +

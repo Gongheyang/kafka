@@ -44,6 +44,6 @@ jobs:
                   'kafka',
                   pull.number,
                 });
-                console.log("Pull " + pull.number + ": " + reviews);
+                console.log(reviews);
                });
             });

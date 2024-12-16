@@ -291,7 +291,7 @@ public class UnifiedLog {
         } else {
             LeaderEpochCheckpointFile checkpointFile = new LeaderEpochCheckpointFile(leaderEpochFile, logDirFailureChannel);
             return Optional.of(currentCache.map(cache -> cache.withCheckpoint(checkpointFile))
-                    .orElse(new LeaderEpochFileCache(topicPartition, checkpointFile, scheduler)));
+                    .orElseGet(() -> new LeaderEpochFileCache(topicPartition, checkpointFile, scheduler)));
         }
     }
 

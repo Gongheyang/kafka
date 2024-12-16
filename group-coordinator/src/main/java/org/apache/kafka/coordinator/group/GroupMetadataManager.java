@@ -34,6 +34,7 @@ import org.apache.kafka.common.errors.UnknownMemberIdException;
 import org.apache.kafka.common.errors.UnknownServerException;
 import org.apache.kafka.common.errors.UnreleasedInstanceIdException;
 import org.apache.kafka.common.errors.UnsupportedAssignorException;
+import org.apache.kafka.common.errors.UnsupportedVersionException;
 import org.apache.kafka.common.message.ConsumerGroupDescribeResponseData;
 import org.apache.kafka.common.message.ConsumerGroupHeartbeatRequestData;
 import org.apache.kafka.common.message.ConsumerGroupHeartbeatResponseData;
@@ -186,6 +187,7 @@ import static org.apache.kafka.coordinator.group.classic.ClassicGroupState.PREPA
 import static org.apache.kafka.coordinator.group.classic.ClassicGroupState.STABLE;
 import static org.apache.kafka.coordinator.group.metrics.GroupCoordinatorMetrics.CLASSIC_GROUP_COMPLETED_REBALANCES_SENSOR_NAME;
 import static org.apache.kafka.coordinator.group.metrics.GroupCoordinatorMetrics.CONSUMER_GROUP_REBALANCES_SENSOR_NAME;
+import static org.apache.kafka.coordinator.group.modern.ModernGroupMember.hasAssignedPartitionsChanged;
 import static org.apache.kafka.coordinator.group.modern.consumer.ConsumerGroupMember.hasAssignedPartitionsChanged;
 
 /**
@@ -674,7 +676,8 @@ public class GroupMetadataManager {
         } else {
             if (group.type() == CONSUMER) {
                 return (ConsumerGroup) group;
-            } else if (createIfNotExists && group.type() == CLASSIC && validateOnlineUpgrade((ClassicGroup) group)) {
+            } else if (createIfNotExists && group.type() == CLASSIC) {
+                validateOnlineUpgrade((ClassicGroup) group);
                 return convertToConsumerGroup((ClassicGroup) group, records);
             } else {
                 throw new GroupIdNotFoundException(String.format("Group %s is not a consumer group.", groupId));
@@ -1033,23 +1036,28 @@ public class GroupMetadataManager {
      * Validates the online upgrade if the Classic Group receives a ConsumerGroupHeartbeat request.
      *
      * @param classicGroup A ClassicGroup.
-     * @return A boolean indicating whether it's valid to online upgrade the classic group.
+     * @throws GroupIdNotFoundException if the group cannot be upgraded.
      */
-    private boolean validateOnlineUpgrade(ClassicGroup classicGroup) {
+    private void validateOnlineUpgrade(ClassicGroup classicGroup) {
         if (!config.consumerGroupMigrationPolicy().isUpgradeEnabled()) {
-            log.info("Cannot upgrade classic group {} to consumer group because the online upgrade is disabled.",
+            log.info("Cannot upgrade classic group {} to consumer group because online upgrade is disabled.",
                 classicGroup.groupId());
-            return false;
+            throw new GroupIdNotFoundException(
+                String.format("Cannot upgrade classic group %s to consumer group because online upgrade is disabled.", classicGroup.groupId())
+            );
         } else if (!classicGroup.usesConsumerGroupProtocol()) {
             log.info("Cannot upgrade classic group {} to consumer group because the group does not use the consumer embedded protocol.",
                 classicGroup.groupId());
-            return false;
+            throw new GroupIdNotFoundException(
+                String.format("Cannot upgrade classic group %s to consumer group because the group does not use the consumer embedded protocol.", classicGroup.groupId())
+            );
         } else if (classicGroup.numMembers() > config.consumerGroupMaxSize()) {
             log.info("Cannot upgrade classic group {} to consumer group because the group size exceeds the consumer group maximum size.",
                 classicGroup.groupId());
-            return false;
+            throw new GroupIdNotFoundException(
+                String.format("Cannot upgrade classic group %s to consumer group because the group size exceeds the consumer group maximum size.", classicGroup.groupId())
+            );
         }
-        return true;
     }
 
     /**
@@ -1078,12 +1086,21 @@ public class GroupMetadataManager {
                 metadataImage.topics()
             );
         } catch (SchemaException e) {
-            log.warn("Cannot upgrade the classic group " + classicGroup.groupId() +
+            log.warn("Cannot upgrade classic group " + classicGroup.groupId() +
                 " to consumer group because the embedded consumer protocol is malformed: "
                 + e.getMessage() + ".", e);
 
-            throw new GroupIdNotFoundException("Cannot upgrade the classic group " + classicGroup.groupId() +
-                " to consumer group because the embedded consumer protocol is malformed.");
+            throw new GroupIdNotFoundException(
+                String.format("Cannot upgrade classic group %s to consumer group because the embedded consumer protocol is malformed.", classicGroup.groupId())
+            );
+        } catch (UnsupportedVersionException e) {
+            log.warn("Cannot upgrade classic group " + classicGroup.groupId() +
+                " to consumer group: " + e.getMessage() + ".", e);
+
+            throw new GroupIdNotFoundException(
+                String.format("Cannot upgrade classic group %s to consumer group because an unsupported custom assignor is in use. " +
+                    "Please refer to the documentation or switch to a default assignor before re-attempting the upgrade.", classicGroup.groupId())
+            );
         }
         consumerGroup.createConsumerGroupRecords(records);
 
@@ -6003,7 +6020,7 @@ public class GroupMetadataManager {
         }
 
         if (group.type() == CLASSIC) {
-            return classicGroupLeaveToClassicGroup((ClassicGroup) group, context, request);
+            return classicGroupLeaveToClassicGroup((ClassicGroup) group, request);
         } else if (group.type() == CONSUMER) {
             return classicGroupLeaveToConsumerGroup((ConsumerGroup) group, request);
         } else {
@@ -6029,48 +6046,46 @@ public class GroupMetadataManager {
         List<CoordinatorRecord> records = new ArrayList<>();
 
         for (MemberIdentity memberIdentity : request.members()) {
-            String memberId = memberIdentity.memberId();
-            String instanceId = memberIdentity.groupInstanceId();
             String reason = memberIdentity.reason() != null ? memberIdentity.reason() : "not provided";
 
-            ConsumerGroupMember member;
             try {
-                if (instanceId == null) {
-                    member = group.getOrMaybeCreateMember(memberId, false);
-                    throwIfMemberDoesNotUseClassicProtocol(member);
+                ConsumerGroupMember member;
+
+                if (memberIdentity.groupInstanceId() == null) {
+                    member = group.getOrMaybeCreateMember(memberIdentity.memberId(), false);
 
                     log.info("[GroupId {}] Dynamic member {} has left group " +
                             "through explicit `LeaveGroup` request; client reason: {}",
-                        groupId, memberId, reason);
+                        groupId, memberIdentity.memberId(), reason);
                 } else {
-                    member = group.staticMember(instanceId);
-                    throwIfStaticMemberIsUnknown(member, instanceId);
+                    member = group.staticMember(memberIdentity.groupInstanceId());
+                    throwIfStaticMemberIsUnknown(member, memberIdentity.groupInstanceId());
                     // The LeaveGroup API allows administrative removal of members by GroupInstanceId
                     // in which case we expect the MemberId to be undefined.
-                    if (!UNKNOWN_MEMBER_ID.equals(memberId)) {
-                        throwIfInstanceIdIsFenced(member, groupId, memberId, instanceId);
-                        throwIfMemberDoesNotUseClassicProtocol(member);
+                    if (!UNKNOWN_MEMBER_ID.equals(memberIdentity.memberId())) {
+                        throwIfInstanceIdIsFenced(member, groupId, memberIdentity.memberId(), memberIdentity.groupInstanceId());
                     }
 
-                    memberId = member.memberId();
                     log.info("[GroupId {}] Static member {} with instance id {} has left group " +
                             "through explicit `LeaveGroup` request; client reason: {}",
-                        groupId, memberId, instanceId, reason);
+                        groupId, memberIdentity.memberId(), memberIdentity.groupInstanceId(), reason);
                 }
 
-                removeMember(records, groupId, memberId);
-                cancelTimers(groupId, memberId);
+                removeMember(records, groupId, member.memberId());
+                cancelTimers(groupId, member.memberId());
+
                 memberResponses.add(
                     new MemberResponse()
-                        .setMemberId(memberId)
-                        .setGroupInstanceId(instanceId)
+                        .setMemberId(memberIdentity.memberId())
+                        .setGroupInstanceId(memberIdentity.groupInstanceId())
                 );
+
                 validLeaveGroupMembers.add(member);
             } catch (KafkaException e) {
                 memberResponses.add(
                     new MemberResponse()
-                        .setMemberId(memberId)
-                        .setGroupInstanceId(instanceId)
+                        .setMemberId(memberIdentity.memberId())
+                        .setGroupInstanceId(memberIdentity.groupInstanceId())
                         .setErrorCode(Errors.forException(e).code())
                 );
             }
@@ -6109,7 +6124,6 @@ public class GroupMetadataManager {
      * Handle a classic LeaveGroupRequest to a ClassicGroup.
      *
      * @param group          The ClassicGroup.
-     * @param context        The request context.
      * @param request        The actual LeaveGroup request.
      *
      * @return The LeaveGroup response and the GroupMetadata record to append if the group
@@ -6117,7 +6131,6 @@ public class GroupMetadataManager {
      */
     private CoordinatorResult<LeaveGroupResponseData, CoordinatorRecord> classicGroupLeaveToClassicGroup(
         ClassicGroup group,
-        RequestContext context,
         LeaveGroupRequestData request
     ) throws UnknownMemberIdException {
         if (group.isInState(DEAD)) {

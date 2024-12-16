@@ -306,6 +306,7 @@ import java.util.stream.Collectors;
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
+import static org.apache.kafka.common.message.ProduceResponseData.PartitionProduceResponse;
 import static org.apache.kafka.common.protocol.ApiKeys.API_VERSIONS;
 import static org.apache.kafka.common.protocol.ApiKeys.CONTROLLED_SHUTDOWN;
 import static org.apache.kafka.common.protocol.ApiKeys.CREATE_PARTITIONS;
@@ -2512,20 +2513,29 @@ public class RequestResponseTest {
                 .build(version);
     }
 
-    @SuppressWarnings("deprecation")
     private ProduceResponse createProduceResponse() {
-        Map<TopicPartition, ProduceResponse.PartitionResponse> responseData = new HashMap<>();
-        responseData.put(new TopicPartition("test", 0), new ProduceResponse.PartitionResponse(Errors.NONE,
-                10000, RecordBatch.NO_TIMESTAMP, 100));
+        Map<TopicPartition, PartitionProduceResponse> responseData = new HashMap<>();
+        responseData.put(new TopicPartition("test", 0), new PartitionProduceResponse()
+            .setIndex(0)
+            .setErrorCode(Errors.NONE.code())
+            .setBaseOffset(10000)
+            .setLogStartOffset(100)
+            .setLogAppendTimeMs(RecordBatch.NO_TIMESTAMP));
         return new ProduceResponse(responseData, 0);
     }
 
-    @SuppressWarnings("deprecation")
     private ProduceResponse createProduceResponseWithErrorMessage() {
-        Map<TopicPartition, ProduceResponse.PartitionResponse> responseData = new HashMap<>();
-        responseData.put(new TopicPartition("test", 0), new ProduceResponse.PartitionResponse(Errors.NONE,
-                10000, RecordBatch.NO_TIMESTAMP, 100, singletonList(new ProduceResponse.RecordError(0, "error message")),
-                "global error message"));
+        Map<TopicPartition, PartitionProduceResponse> responseData = new HashMap<>();
+        responseData.put(new TopicPartition("test", 0), new PartitionProduceResponse()
+            .setIndex(0)
+            .setErrorCode(Errors.NONE.code())
+            .setErrorMessage("global error message")
+            .setBaseOffset(10000)
+            .setLogStartOffset(100)
+            .setLogAppendTimeMs(RecordBatch.NO_TIMESTAMP)
+            .setRecordErrors(List.of(
+                new ProduceResponseData.BatchIndexAndErrorMessage().setBatchIndex(0).setBatchIndexErrorMessage("error message")
+            )));
         return new ProduceResponse(responseData, 0);
     }
 

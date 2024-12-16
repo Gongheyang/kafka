@@ -19,15 +19,17 @@ package kafka.coordinator.group
 import kafka.cluster.PartitionListener
 import kafka.server.{AddPartitionsToTxnManager, ReplicaManager}
 import org.apache.kafka.common.TopicPartition
+import org.apache.kafka.common.message.ProduceResponseData.PartitionProduceResponse
 import org.apache.kafka.common.protocol.Errors
 import org.apache.kafka.common.record.{MemoryRecords, RecordBatch}
-import org.apache.kafka.common.requests.ProduceResponse.PartitionResponse
 import org.apache.kafka.coordinator.common.runtime.PartitionWriter
 import org.apache.kafka.server.ActionQueue
 import org.apache.kafka.server.common.RequestLocal
 import org.apache.kafka.storage.internals.log.{AppendOrigin, LogConfig, VerificationGuard}
 
+import java.util.Map.Entry
 import java.util.concurrent.CompletableFuture
+
 import scala.collection.Map
 
 /**
@@ -139,7 +141,7 @@ class CoordinatorPartitionWriter(
     verificationGuard: VerificationGuard,
     records: MemoryRecords
   ): Long = {
-    var appendResults: Map[TopicPartition, PartitionResponse] = Map.empty
+    var appendResults: Map[TopicPartition, Entry[PartitionProduceResponse, Long]] = Map.empty
     replicaManager.appendRecords(
       timeout = 0L,
       requiredAcks = 1,
@@ -158,12 +160,12 @@ class CoordinatorPartitionWriter(
     val partitionResult = appendResults.getOrElse(tp,
       throw new IllegalStateException(s"Append status $appendResults should have partition $tp."))
 
-    if (partitionResult.error != Errors.NONE) {
-      throw partitionResult.error.exception()
+    if (partitionResult.getKey.errorCode != Errors.NONE.code) {
+      throw Errors.forCode(partitionResult.getKey.errorCode).exception()
     }
 
     // Required offset.
-    partitionResult.lastOffset + 1
+    partitionResult.getValue + 1
   }
 
   override def deleteRecords(tp: TopicPartition, deleteBeforeOffset: Long): CompletableFuture[Void] = {

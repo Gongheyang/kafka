@@ -34,13 +34,13 @@ import org.apache.kafka.clients.consumer.internals.ConsumerProtocol
 import org.apache.kafka.common.compress.Compression
 import org.apache.kafka.common.{TopicIdPartition, TopicPartition, Uuid}
 import org.apache.kafka.common.internals.Topic
+import org.apache.kafka.common.message.ProduceResponseData.PartitionProduceResponse
 import org.apache.kafka.common.metrics.{JmxReporter, KafkaMetricsContext, Metrics => kMetrics}
 import org.apache.kafka.common.protocol.types.Field.TaggedFieldsSection
 import org.apache.kafka.common.protocol.types.{CompactArrayOf, Field, Schema, Struct, Type}
 import org.apache.kafka.common.protocol.{ByteBufferAccessor, Errors, MessageUtil}
 import org.apache.kafka.common.record._
 import org.apache.kafka.common.requests.OffsetFetchResponse
-import org.apache.kafka.common.requests.ProduceResponse.PartitionResponse
 import org.apache.kafka.common.utils.Utils
 import org.apache.kafka.coordinator.group.{GroupCoordinatorConfig, OffsetAndMetadata, OffsetConfig}
 import org.apache.kafka.coordinator.group.generated.{CoordinatorRecordType, GroupMetadataValue, OffsetCommitKey, OffsetCommitValue, GroupMetadataKey => GroupMetadataKeyData}
@@ -56,6 +56,7 @@ import org.mockito.{ArgumentCaptor, ArgumentMatchers}
 import org.mockito.ArgumentMatchers.{any, anyInt, anyLong, anyShort}
 import org.mockito.Mockito.{mock, reset, times, verify, when}
 
+import java.util.Map.Entry
 import scala.jdk.CollectionConverters._
 import scala.collection.{immutable, _}
 
@@ -1324,8 +1325,7 @@ class GroupMetadataManagerTest {
     val offsetTopicPartition = new TopicPartition(Topic.GROUP_METADATA_TOPIC_NAME, groupMetadataManager.partitionFor(group.groupId))
     val offsetAndMetadata = new OffsetAndMetadata(offset, noLeader, "", time.milliseconds(), noExpiration)
     val offsets = immutable.Map(topicIdPartition -> offsetAndMetadata)
-
-    val capturedResponseCallback: ArgumentCaptor[Map[TopicPartition, PartitionResponse] => Unit] = ArgumentCaptor.forClass(classOf[Map[TopicPartition, PartitionResponse] => Unit])
+    val capturedResponseCallback: ArgumentCaptor[Map[TopicPartition, Entry[PartitionProduceResponse, Long]] => Unit] = ArgumentCaptor.forClass(classOf[Map[TopicPartition, Entry[PartitionProduceResponse, Long]] => Unit])
     when(replicaManager.onlinePartition(any())).thenReturn(Some(mock(classOf[Partition])))
     var commitErrors: Option[immutable.Map[TopicIdPartition, Errors]] = None
     def callback(errors: immutable.Map[TopicIdPartition, Errors]): Unit = {
@@ -1350,7 +1350,16 @@ class GroupMetadataManagerTest {
       ArgumentMatchers.eq(Map(offsetTopicPartition -> verificationGuard)))
     verify(replicaManager).onlinePartition(any())
     capturedResponseCallback.getValue.apply(Map(groupTopicPartition ->
-      new PartitionResponse(Errors.NONE, 0L, RecordBatch.NO_TIMESTAMP, 0L)))
+      java.util.Map.entry(
+        new PartitionProduceResponse()
+          .setIndex(groupTopicPartition.partition)
+          .setErrorCode(Errors.NONE.code)
+          .setBaseOffset(0L)
+          .setLogStartOffset(0L)
+          .setLogAppendTimeMs(RecordBatch.NO_TIMESTAMP),
+        -1L
+      )
+    ))
 
     assertTrue(group.hasOffsets)
     assertTrue(group.allOffsets.isEmpty)
@@ -1390,7 +1399,16 @@ class GroupMetadataManagerTest {
     assertTrue(group.allOffsets.isEmpty)
     val capturedResponseCallback = verifyAppendAndCaptureCallback()
     capturedResponseCallback.getValue.apply(Map(groupTopicPartition ->
-      new PartitionResponse(Errors.NOT_ENOUGH_REPLICAS, 0L, RecordBatch.NO_TIMESTAMP, 0L)))
+      java.util.Map.entry(
+        new PartitionProduceResponse()
+          .setIndex(groupTopicPartition.partition)
+          .setErrorCode(Errors.NOT_ENOUGH_REPLICAS.code)
+          .setBaseOffset(0L)
+          .setLogStartOffset(0L)
+          .setLogAppendTimeMs(RecordBatch.NO_TIMESTAMP),
+        -1L
+      ))
+    )
 
     assertFalse(group.hasOffsets)
     assertTrue(group.allOffsets.isEmpty)
@@ -1442,7 +1460,16 @@ class GroupMetadataManagerTest {
     assertTrue(group.allOffsets.isEmpty)
     val capturedResponseCallback = verifyAppendAndCaptureCallback()
     capturedResponseCallback.getValue.apply(Map(groupTopicPartition ->
-      new PartitionResponse(Errors.NONE, 0L, RecordBatch.NO_TIMESTAMP, 0L)))
+      java.util.Map.entry(
+        new PartitionProduceResponse()
+          .setIndex(groupTopicPartition.partition)
+          .setErrorCode(Errors.NONE.code)
+          .setBaseOffset(0L)
+          .setLogStartOffset(0L)
+          .setLogAppendTimeMs(RecordBatch.NO_TIMESTAMP),
+        -1L
+      )
+    ))
 
     assertTrue(group.hasOffsets)
     assertTrue(group.allOffsets.isEmpty)
@@ -1532,7 +1559,16 @@ class GroupMetadataManagerTest {
     assertTrue(group.hasOffsets)
     val capturedResponseCallback = verifyAppendAndCaptureCallback()
     capturedResponseCallback.getValue.apply(Map(groupTopicPartition ->
-      new PartitionResponse(appendError, 0L, RecordBatch.NO_TIMESTAMP, 0L)))
+      java.util.Map.entry(
+        new PartitionProduceResponse()
+          .setIndex(groupTopicPartition.partition)
+          .setErrorCode(appendError.code)
+          .setBaseOffset(0L)
+          .setLogStartOffset(0L)
+          .setLogAppendTimeMs(RecordBatch.NO_TIMESTAMP),
+        -1L
+      )
+    ))
 
     assertFalse(commitErrors.isEmpty)
     val maybeError = commitErrors.get.get(topicIdPartition)
@@ -1585,7 +1621,16 @@ class GroupMetadataManagerTest {
     assertTrue(group.hasOffsets)
     val capturedResponseCallback = verifyAppendAndCaptureCallback()
     capturedResponseCallback.getValue.apply(Map(groupTopicPartition ->
-      new PartitionResponse(Errors.NONE, 0L, RecordBatch.NO_TIMESTAMP, 0L)))
+      java.util.Map.entry(
+        new PartitionProduceResponse()
+          .setIndex(groupTopicPartition.partition)
+          .setErrorCode(Errors.NONE.code)
+          .setBaseOffset(0L)
+          .setLogStartOffset(0L)
+          .setLogAppendTimeMs(RecordBatch.NO_TIMESTAMP),
+        -1L
+      )
+    ))
 
     assertFalse(commitErrors.isEmpty)
     assertEquals(Some(Errors.NONE), commitErrors.get.get(topicIdPartition))
@@ -1738,8 +1783,8 @@ class GroupMetadataManagerTest {
       foo1 -> new OffsetAndMetadata(38, noLeader, "s" * (offsetConfig.maxMetadataSize + 1), time.milliseconds(), noExpiration)
     )
 
-    val capturedResponseCallback: ArgumentCaptor[Map[TopicPartition, PartitionResponse] => Unit] =
-      ArgumentCaptor.forClass(classOf[Map[TopicPartition, PartitionResponse] => Unit])
+    val capturedResponseCallback: ArgumentCaptor[Map[TopicPartition, Entry[PartitionProduceResponse, Long]] => Unit] =
+      ArgumentCaptor.forClass(classOf[Map[TopicPartition, Entry[PartitionProduceResponse, Long]] => Unit])
     when(replicaManager.onlinePartition(any())).thenReturn(Some(mock(classOf[Partition])))
     var commitErrors: Option[immutable.Map[TopicIdPartition, Errors]] = None
 
@@ -1775,7 +1820,16 @@ class GroupMetadataManagerTest {
       ArgumentMatchers.eq(Map(offsetTopicPartition -> verificationGuard)))
     verify(replicaManager).onlinePartition(any())
     capturedResponseCallback.getValue.apply(Map(groupTopicPartition ->
-      new PartitionResponse(Errors.NONE, 0L, RecordBatch.NO_TIMESTAMP, 0L)))
+      java.util.Map.entry(
+        new PartitionProduceResponse()
+          .setIndex(groupTopicPartition.partition)
+          .setErrorCode(Errors.NONE.code)
+          .setBaseOffset(0L)
+          .setLogStartOffset(0L)
+          .setLogAppendTimeMs(RecordBatch.NO_TIMESTAMP),
+        -1L
+      )
+    ))
 
     assertEquals(Some(Map(
       foo0 -> Errors.NONE,
@@ -2897,8 +2951,9 @@ class GroupMetadataManagerTest {
     }
   }
 
-  private def verifyAppendAndCaptureCallback(): ArgumentCaptor[Map[TopicPartition, PartitionResponse] => Unit] = {
-    val capturedArgument: ArgumentCaptor[Map[TopicPartition, PartitionResponse] => Unit] = ArgumentCaptor.forClass(classOf[Map[TopicPartition, PartitionResponse] => Unit])
+  private def verifyAppendAndCaptureCallback(): ArgumentCaptor[Map[TopicPartition, Entry[PartitionProduceResponse, Long]] => Unit] = {
+    val capturedArgument: ArgumentCaptor[Map[TopicPartition, Entry[PartitionProduceResponse, Long]] => Unit] = ArgumentCaptor.forClass(
+      classOf[Map[TopicPartition, Entry[PartitionProduceResponse, Long]] => Unit])
     verify(replicaManager).appendRecords(anyLong(),
       anyShort(),
       any(),
@@ -2914,7 +2969,8 @@ class GroupMetadataManagerTest {
   }
 
   private def expectAppendMessage(error: Errors): ArgumentCaptor[Map[TopicPartition, MemoryRecords]] = {
-    val capturedCallback: ArgumentCaptor[Map[TopicPartition, PartitionResponse] => Unit] = ArgumentCaptor.forClass(classOf[Map[TopicPartition, PartitionResponse] => Unit])
+    val capturedCallback: ArgumentCaptor[Map[TopicPartition, Entry[PartitionProduceResponse, Long]] => Unit] = ArgumentCaptor.forClass(
+      classOf[Map[TopicPartition, Entry[PartitionProduceResponse, Long]] => Unit])
     val capturedRecords: ArgumentCaptor[Map[TopicPartition, MemoryRecords]] = ArgumentCaptor.forClass(classOf[Map[TopicPartition, MemoryRecords]])
     when(replicaManager.appendRecords(anyLong(),
       anyShort(),
@@ -2930,7 +2986,15 @@ class GroupMetadataManagerTest {
     )).thenAnswer(_ => {
       capturedCallback.getValue.apply(
         Map(groupTopicPartition ->
-          new PartitionResponse(error, 0L, RecordBatch.NO_TIMESTAMP, 0L)
+          java.util.Map.entry(
+            new PartitionProduceResponse()
+              .setIndex(groupTopicPartition.partition)
+              .setErrorCode(error.code)
+              .setBaseOffset(0L)
+              .setLogStartOffset(0L)
+              .setLogAppendTimeMs(RecordBatch.NO_TIMESTAMP),
+            -1L
+          )
         )
       )})
     when(replicaManager.onlinePartition(any())).thenReturn(Some(mock(classOf[Partition])))

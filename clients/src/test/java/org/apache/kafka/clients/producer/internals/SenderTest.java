@@ -53,7 +53,6 @@ import org.apache.kafka.common.message.EndTxnResponseData;
 import org.apache.kafka.common.message.InitProducerIdResponseData;
 import org.apache.kafka.common.message.ProduceRequestData;
 import org.apache.kafka.common.message.ProduceResponseData;
-import org.apache.kafka.common.message.ProduceResponseData.BatchIndexAndErrorMessage;
 import org.apache.kafka.common.metrics.KafkaMetric;
 import org.apache.kafka.common.metrics.MetricConfig;
 import org.apache.kafka.common.metrics.Metrics;
@@ -117,6 +116,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.apache.kafka.clients.producer.internals.ProducerTestUtils.runUntil;
+import static org.apache.kafka.common.message.ProduceResponseData.BatchIndexAndErrorMessage;
+import static org.apache.kafka.common.message.ProduceResponseData.PartitionProduceResponse;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -2325,7 +2326,6 @@ public class SenderTest {
         testSplitBatchAndSend(txnManager, producerIdAndEpoch, tp);
     }
 
-    @SuppressWarnings("deprecation")
     private void testSplitBatchAndSend(TransactionManager txnManager,
                                        ProducerIdAndEpoch producerIdAndEpoch,
                                        TopicPartition tp) throws Exception {
@@ -2363,8 +2363,13 @@ public class SenderTest {
             assertEquals(1, client.inFlightRequestCount());
             assertTrue(client.isReady(node, time.milliseconds()), "Client ready status should be true");
 
-            Map<TopicPartition, ProduceResponse.PartitionResponse> responseMap = new HashMap<>();
-            responseMap.put(tp, new ProduceResponse.PartitionResponse(Errors.MESSAGE_TOO_LARGE));
+            Map<TopicPartition, PartitionProduceResponse> responseMap = new HashMap<>();
+            responseMap.put(tp, new PartitionProduceResponse()
+                    .setIndex(tp.partition())
+                    .setErrorCode(Errors.MESSAGE_TOO_LARGE.code())
+                    .setBaseOffset(-1L)
+                    .setLogStartOffset(-1L)
+                    .setLogAppendTimeMs(RecordBatch.NO_TIMESTAMP));
             client.respond(new ProduceResponse(responseMap));
             sender.runOnce(); // split and reenqueue
             assertEquals(2, txnManager.sequenceNumber(tp), "The next sequence should be 2");
@@ -2381,7 +2386,12 @@ public class SenderTest {
             assertEquals(1, client.inFlightRequestCount());
             assertTrue(client.isReady(node, time.milliseconds()), "Client ready status should be true");
 
-            responseMap.put(tp, new ProduceResponse.PartitionResponse(Errors.NONE, 0L, 0L, 0L));
+            responseMap.put(tp, new PartitionProduceResponse()
+                    .setIndex(tp.partition())
+                    .setErrorCode(Errors.NONE.code())
+                    .setBaseOffset(0L)
+                    .setLogStartOffset(0L)
+                    .setLogAppendTimeMs(RecordBatch.NO_TIMESTAMP));
             client.respond(produceRequestMatcher(tp, producerIdAndEpoch, 0, txnManager.isTransactional()),
                     new ProduceResponse(responseMap));
 
@@ -2398,7 +2408,12 @@ public class SenderTest {
             assertEquals(1, client.inFlightRequestCount());
             assertTrue(client.isReady(node, time.milliseconds()), "Client ready status should be true");
 
-            responseMap.put(tp, new ProduceResponse.PartitionResponse(Errors.NONE, 1L, 0L, 0L));
+            responseMap.put(tp, new PartitionProduceResponse()
+                .setIndex(tp.partition())
+                .setErrorCode(Errors.NONE.code())
+                .setBaseOffset(1L)
+                .setLogStartOffset(1L)
+                .setLogAppendTimeMs(0L));
             client.respond(produceRequestMatcher(tp, producerIdAndEpoch, 1, txnManager.isTransactional()),
                     new ProduceResponse(responseMap));
 
@@ -2439,7 +2454,6 @@ public class SenderTest {
         assertEquals(0, sender.inFlightBatches(tp0).size());
     }
 
-    @SuppressWarnings("deprecation")
     @Test
     public void testInflightBatchesExpireOnDeliveryTimeout() throws InterruptedException {
         long deliveryTimeoutMs = 1500L;
@@ -2451,8 +2465,13 @@ public class SenderTest {
         assertEquals(1, client.inFlightRequestCount());
         assertEquals(1, sender.inFlightBatches(tp0).size(), "Expect one in-flight batch in accumulator");
 
-        Map<TopicPartition, ProduceResponse.PartitionResponse> responseMap = new HashMap<>();
-        responseMap.put(tp0, new ProduceResponse.PartitionResponse(Errors.NONE, 0L, 0L, 0L));
+        Map<TopicPartition, PartitionProduceResponse> responseMap = new HashMap<>();
+        responseMap.put(tp0, new PartitionProduceResponse()
+            .setIndex(tp0.partition())
+            .setErrorCode(Errors.NONE.code())
+            .setBaseOffset(0L)
+            .setLogStartOffset(0L)
+            .setLogAppendTimeMs(0L));
         client.respond(new ProduceResponse(responseMap));
 
         time.sleep(deliveryTimeoutMs);
@@ -2614,7 +2633,6 @@ public class SenderTest {
 
     }
 
-    @SuppressWarnings("deprecation")
     @Test
     public void testExpiredBatchesInMultiplePartitions() throws Exception {
         long deliveryTimeoutMs = 1500L;
@@ -2629,8 +2647,13 @@ public class SenderTest {
         assertEquals(1, client.inFlightRequestCount());
         assertEquals(1, sender.inFlightBatches(tp0).size(), "Expect one in-flight batch in accumulator");
 
-        Map<TopicPartition, ProduceResponse.PartitionResponse> responseMap = new HashMap<>();
-        responseMap.put(tp0, new ProduceResponse.PartitionResponse(Errors.NONE, 0L, 0L, 0L));
+        Map<TopicPartition, PartitionProduceResponse> responseMap = new HashMap<>();
+        responseMap.put(tp0, new PartitionProduceResponse()
+            .setIndex(tp0.partition())
+            .setErrorCode(Errors.NONE.code())
+            .setBaseOffset(0L)
+            .setLogStartOffset(0L)
+            .setLogAppendTimeMs(0L));
         client.respond(new ProduceResponse(responseMap));
 
         // Successfully expire both batches.
@@ -3518,11 +3541,17 @@ public class SenderTest {
                 null, MAX_BLOCK_TIMEOUT, false, time.milliseconds(), TestUtils.singletonCluster()).future;
     }
 
-    @SuppressWarnings("deprecation")
     private ProduceResponse produceResponse(TopicPartition tp, long offset, Errors error, int throttleTimeMs, long logStartOffset, String errorMessage) {
-        ProduceResponse.PartitionResponse resp = new ProduceResponse.PartitionResponse(error, offset,
-                RecordBatch.NO_TIMESTAMP, logStartOffset, Collections.emptyList(), errorMessage);
-        Map<TopicPartition, ProduceResponse.PartitionResponse> partResp = Collections.singletonMap(tp, resp);
+        Map<TopicPartition, PartitionProduceResponse> partResp = Collections.singletonMap(
+            tp,
+            new PartitionProduceResponse()
+                .setIndex(tp.partition())
+                .setErrorCode(error.code())
+                .setErrorMessage(errorMessage)
+                .setBaseOffset(offset)
+                .setLogStartOffset(logStartOffset)
+                .setLogAppendTimeMs(RecordBatch.NO_TIMESTAMP)
+        );
         return new ProduceResponse(partResp, throttleTimeMs);
     }
 
@@ -3545,8 +3574,8 @@ public class SenderTest {
             }
 
             OffsetAndError offsetAndError = entry.getValue();
-            ProduceResponseData.PartitionProduceResponse partitionData =
-                new ProduceResponseData.PartitionProduceResponse()
+            PartitionProduceResponse partitionData =
+                new PartitionProduceResponse()
                     .setIndex(topicPartition.partition())
                     .setBaseOffset(offsetAndError.offset)
                     .setErrorCode(offsetAndError.error.code())

@@ -24,11 +24,11 @@ import org.apache.kafka.common.{Node, TopicPartition, Uuid}
 import org.apache.kafka.common.message.LeaderAndIsrRequestData.LeaderAndIsrPartitionState
 import org.apache.kafka.common.message.OffsetForLeaderEpochRequestData.OffsetForLeaderPartition
 import org.apache.kafka.common.message.OffsetForLeaderEpochResponseData.EpochEndOffset
+import org.apache.kafka.common.message.ProduceResponseData.PartitionProduceResponse
 import org.apache.kafka.common.metrics.Metrics
 import org.apache.kafka.common.protocol.{ApiKeys, Errors}
 import org.apache.kafka.common.record.{MemoryRecords, SimpleRecord}
 import org.apache.kafka.common.requests.LeaderAndIsrRequest
-import org.apache.kafka.common.requests.ProduceResponse.PartitionResponse
 import org.apache.kafka.server.common.OffsetAndEpoch
 import org.apache.kafka.server.network.BrokerEndPoint
 import org.apache.kafka.server.util.{MockScheduler, MockTime}
@@ -40,7 +40,8 @@ import org.mockito.Mockito.mock
 
 import java.io.File
 import java.util.Collections
-import scala.collection.{Map, Seq}
+import java.util.Map.Entry
+import scala.collection.Map
 import scala.jdk.CollectionConverters._
 
 class LocalLeaderEndPointTest extends Logging {
@@ -92,25 +93,25 @@ class LocalLeaderEndPointTest extends Logging {
   @Test
   def testFetchLatestOffset(): Unit = {
     appendRecords(replicaManager, topicPartition, records)
-      .onFire(response => assertEquals(Errors.NONE, response.error))
+      .onFire(response => assertEquals(Errors.NONE.code, response.errorCode))
     assertEquals(new OffsetAndEpoch(3L, 0), endPoint.fetchLatestOffset(topicPartition, currentLeaderEpoch = 0))
     val leaderAndIsrRequest =  buildLeaderAndIsrRequest(leaderEpoch = 4)
     replicaManager.becomeLeaderOrFollower(0, leaderAndIsrRequest, (_, _) => ())
     appendRecords(replicaManager, topicPartition, records)
-      .onFire(response => assertEquals(Errors.NONE, response.error))
+      .onFire(response => assertEquals(Errors.NONE.code, response.errorCode))
     assertEquals(new OffsetAndEpoch(6L, 4), endPoint.fetchLatestOffset(topicPartition, currentLeaderEpoch = 7))
   }
 
   @Test
   def testFetchEarliestOffset(): Unit = {
     appendRecords(replicaManager, topicPartition, records)
-      .onFire(response => assertEquals(Errors.NONE, response.error))
+      .onFire(response => assertEquals(Errors.NONE.code, response.errorCode))
     assertEquals(new OffsetAndEpoch(0L, 0), endPoint.fetchEarliestOffset(topicPartition, currentLeaderEpoch = 0))
 
     val leaderAndIsrRequest = buildLeaderAndIsrRequest(leaderEpoch = 4)
     replicaManager.becomeLeaderOrFollower(0, leaderAndIsrRequest, (_, _) => ())
     appendRecords(replicaManager, topicPartition, records)
-      .onFire(response => assertEquals(Errors.NONE, response.error))
+      .onFire(response => assertEquals(Errors.NONE.code, response.errorCode))
     replicaManager.deleteRecords(timeout = 1000L, Map(topicPartition -> 3), _ => ())
     assertEquals(new OffsetAndEpoch(3L, 4), endPoint.fetchEarliestOffset(topicPartition, currentLeaderEpoch = 7))
   }
@@ -118,13 +119,13 @@ class LocalLeaderEndPointTest extends Logging {
   @Test
   def testFetchEarliestLocalOffset(): Unit = {
     appendRecords(replicaManager, topicPartition, records)
-      .onFire(response => assertEquals(Errors.NONE, response.error))
+      .onFire(response => assertEquals(Errors.NONE.code, response.errorCode))
     assertEquals(new OffsetAndEpoch(0L, 0), endPoint.fetchEarliestLocalOffset(topicPartition, currentLeaderEpoch = 0))
 
     val leaderAndIsrRequest = buildLeaderAndIsrRequest(leaderEpoch = 4)
     replicaManager.becomeLeaderOrFollower(0, leaderAndIsrRequest, (_, _) => ())
     appendRecords(replicaManager, topicPartition, records)
-      .onFire(response => assertEquals(Errors.NONE, response.error))
+      .onFire(response => assertEquals(Errors.NONE.code, response.errorCode))
     replicaManager.logManager.getLog(topicPartition).foreach(log => log._localLogStartOffset = 3)
     assertEquals(new OffsetAndEpoch(0L, 0), endPoint.fetchEarliestOffset(topicPartition, currentLeaderEpoch = 7))
     assertEquals(new OffsetAndEpoch(3L, 4), endPoint.fetchEarliestLocalOffset(topicPartition, currentLeaderEpoch = 7))
@@ -133,7 +134,7 @@ class LocalLeaderEndPointTest extends Logging {
   @Test
   def testFetchEpochEndOffsets(): Unit = {
     appendRecords(replicaManager, topicPartition, records)
-      .onFire(response => assertEquals(Errors.NONE, response.error))
+      .onFire(response => assertEquals(Errors.NONE.code, response.errorCode))
 
     var result = endPoint.fetchEpochEndOffsets(Map(
       topicPartition -> new OffsetForLeaderPartition()
@@ -153,7 +154,7 @@ class LocalLeaderEndPointTest extends Logging {
     val leaderAndIsrRequest = buildLeaderAndIsrRequest(leaderEpoch = 4)
     replicaManager.becomeLeaderOrFollower(0, leaderAndIsrRequest, (_, _) => ())
     appendRecords(replicaManager, topicPartition, records)
-      .onFire(response => assertEquals(Errors.NONE, response.error))
+      .onFire(response => assertEquals(Errors.NONE.code, response.errorCode))
 
     result = endPoint.fetchEpochEndOffsets(Map(
       topicPartition -> new OffsetForLeaderPartition()
@@ -242,12 +243,12 @@ class LocalLeaderEndPointTest extends Logging {
                             partition: TopicPartition,
                             records: MemoryRecords,
                             origin: AppendOrigin = AppendOrigin.CLIENT,
-                            requiredAcks: Short = -1): CallbackResult[PartitionResponse] = {
-    val result = new CallbackResult[PartitionResponse]()
-    def appendCallback(responses: Map[TopicPartition, PartitionResponse]): Unit = {
+                            requiredAcks: Short = -1): CallbackResult[PartitionProduceResponse] = {
+    val result = new CallbackResult[PartitionProduceResponse]()
+    def appendCallback(responses: Map[TopicPartition, Entry[PartitionProduceResponse, Long]]): Unit = {
       val response = responses.get(partition)
       assertTrue(response.isDefined)
-      result.fire(response.get)
+      result.fire(response.get.getKey)
     }
 
     replicaManager.appendRecords(

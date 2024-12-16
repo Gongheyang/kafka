@@ -26,11 +26,11 @@ import kafka.utils.{Logging, Pool}
 import org.apache.kafka.common.config.TopicConfig
 import org.apache.kafka.common.internals.Topic
 import org.apache.kafka.common.message.ListTransactionsResponseData
+import org.apache.kafka.common.message.ProduceResponseData.PartitionProduceResponse
 import org.apache.kafka.common.metrics.Metrics
 import org.apache.kafka.common.metrics.stats.{Avg, Max}
 import org.apache.kafka.common.protocol.Errors
 import org.apache.kafka.common.record.{FileRecords, MemoryRecords, MemoryRecordsBuilder, Record, SimpleRecord, TimestampType}
-import org.apache.kafka.common.requests.ProduceResponse.PartitionResponse
 import org.apache.kafka.common.requests.TransactionResult
 import org.apache.kafka.common.utils.{Time, Utils}
 import org.apache.kafka.common.{KafkaException, TopicPartition}
@@ -41,6 +41,8 @@ import org.apache.kafka.server.record.BrokerCompressionType
 import org.apache.kafka.server.storage.log.FetchIsolation
 import org.apache.kafka.server.util.Scheduler
 import org.apache.kafka.storage.internals.log.AppendOrigin
+
+import java.util.Map.Entry
 
 import scala.jdk.CollectionConverters._
 import scala.collection.mutable
@@ -248,7 +250,7 @@ class TransactionStateManager(brokerId: Int,
     expiredForPartition: Iterable[TransactionalIdCoordinatorEpochAndMetadata],
     tombstoneRecords: MemoryRecords
   ): Unit = {
-    def removeFromCacheCallback(responses: collection.Map[TopicPartition, PartitionResponse]): Unit = {
+    def removeFromCacheCallback(responses: collection.Map[TopicPartition, Entry[PartitionProduceResponse, Long]]): Unit = {
       responses.foreachEntry { (topicPartition, response) =>
         inReadLock(stateLock) {
           transactionMetadataCache.get(topicPartition.partition).foreach { txnMetadataCacheEntry =>
@@ -259,11 +261,11 @@ class TransactionStateManager(brokerId: Int,
                 if (txnMetadataCacheEntry.coordinatorEpoch == idCoordinatorEpochAndMetadata.coordinatorEpoch
                   && txnMetadata.pendingState.contains(Dead)
                   && txnMetadata.producerEpoch == idCoordinatorEpochAndMetadata.transitMetadata.producerEpoch
-                  && response.error == Errors.NONE) {
+                  && response.getKey.errorCode == Errors.NONE.code) {
                   txnMetadataCacheEntry.metadataPerTransactionalId.remove(transactionalId)
                 } else {
                   warn(s"Failed to remove expired transactionalId: $transactionalId" +
-                    s" from cache. Tombstone append error code: ${response.error}," +
+                    s" from cache. Tombstone append error code: ${response.getKey.errorCode}," +
                     s" pendingState: ${txnMetadata.pendingState}, producerEpoch: ${txnMetadata.producerEpoch}," +
                     s" expected producerEpoch: ${idCoordinatorEpochAndMetadata.transitMetadata.producerEpoch}," +
                     s" coordinatorEpoch: ${txnMetadataCacheEntry.coordinatorEpoch}, expected coordinatorEpoch: " +
@@ -645,7 +647,7 @@ class TransactionStateManager(brokerId: Int,
     val recordsPerPartition = Map(topicPartition -> records)
 
     // set the callback function to update transaction status in cache after log append completed
-    def updateCacheCallback(responseStatus: collection.Map[TopicPartition, PartitionResponse]): Unit = {
+    def updateCacheCallback(responseStatus: collection.Map[TopicPartition, Entry[PartitionProduceResponse, Long]]): Unit = {
       // the append response should only contain the topics partition
       if (responseStatus.size != 1 || !responseStatus.contains(topicPartition))
         throw new IllegalStateException("Append status %s should only have one partition %s"
@@ -653,13 +655,13 @@ class TransactionStateManager(brokerId: Int,
 
       val status = responseStatus(topicPartition)
 
-      var responseError = if (status.error == Errors.NONE) {
+      var responseError = if (status.getKey.errorCode == Errors.NONE.code) {
         Errors.NONE
       } else {
-        debug(s"Appending $transactionalId's new metadata $newMetadata failed due to ${status.error.exceptionName}")
+        debug(s"Appending $transactionalId's new metadata $newMetadata failed due to ${Errors.forCode(status.getKey.errorCode).exceptionName}")
 
         // transform the log append error code to the corresponding coordinator error code
-        status.error match {
+        Errors.forCode(status.getKey.errorCode) match {
           case Errors.UNKNOWN_TOPIC_OR_PARTITION
                | Errors.NOT_ENOUGH_REPLICAS
                | Errors.NOT_ENOUGH_REPLICAS_AFTER_APPEND

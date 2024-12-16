@@ -54,6 +54,7 @@ import org.apache.kafka.common.message.AddOffsetsToTxnResponseData;
 import org.apache.kafka.common.message.ApiVersionsResponseData;
 import org.apache.kafka.common.message.EndTxnResponseData;
 import org.apache.kafka.common.message.InitProducerIdResponseData;
+import org.apache.kafka.common.message.ProduceResponseData;
 import org.apache.kafka.common.message.TxnOffsetCommitRequestData;
 import org.apache.kafka.common.metrics.JmxReporter;
 import org.apache.kafka.common.metrics.KafkaMetric;
@@ -2670,8 +2671,15 @@ public class KafkaProducerTest {
 
     @SuppressWarnings("deprecation")
     private ProduceResponse produceResponse(TopicPartition tp, long offset, Errors error, int throttleTimeMs, int logStartOffset) {
-        ProduceResponse.PartitionResponse resp = new ProduceResponse.PartitionResponse(error, offset, RecordBatch.NO_TIMESTAMP, logStartOffset);
-        Map<TopicPartition, ProduceResponse.PartitionResponse> partResp = singletonMap(tp, resp);
+        Map<TopicPartition, ProduceResponseData.PartitionProduceResponse> partResp = singletonMap(
+            tp,
+            new ProduceResponseData.PartitionProduceResponse()
+                .setIndex(tp.partition())
+                .setErrorCode(error.code())
+                .setBaseOffset(offset)
+                .setLogStartOffset(logStartOffset)
+                .setLogAppendTimeMs(RecordBatch.NO_TIMESTAMP)
+        );
         return new ProduceResponse(partResp, throttleTimeMs);
     }
 

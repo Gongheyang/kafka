@@ -795,61 +795,6 @@ public final class KafkaRaftClientSnapshotTest {
     }
 
     @ParameterizedTest
-    @CsvSource({"1,0"})
-    public void testNewFetchSnapshotRequestToOldController(short fetchVersion, short controllerVersion) throws Exception {
-        int localId = randomReplicaId();
-        int otherNodeId = localId + 1;
-        ReplicaKey otherNodeKey = replicaKey(otherNodeId, fetchVersion >= 1);
-        Set<Integer> voters = Set.of(localId, localId + 1);
-        OffsetAndEpoch snapshotId = new OffsetAndEpoch(1, 1);
-        List<String> records = Arrays.asList("foo", "bar");
-
-        RaftClientTestContext context = new RaftClientTestContext.Builder(localId, voters)
-                .appendToLog(snapshotId.epoch(), Collections.singletonList("a"))
-                .withKip853Rpc(controllerVersion == 0)
-                .build();
-
-        context.becomeLeader();
-        int epoch = context.currentEpoch();
-
-        context.advanceLocalLeaderHighWatermarkToLogEndOffset();
-
-        try (SnapshotWriter<String> snapshot = context.client.createSnapshot(snapshotId, 0).get()) {
-            assertEquals(snapshotId, snapshot.snapshotId());
-            snapshot.append(records);
-            snapshot.freeze();
-        }
-
-        RawSnapshotReader snapshot = context.log.readSnapshot(snapshotId).get();
-        context.deliverRequest(
-                fetchSnapshotRequest(
-                        context.clusterId,
-                        otherNodeKey,
-                        context.metadataPartition,
-                        epoch,
-                        snapshotId,
-                        Integer.MAX_VALUE,
-                        0
-                )
-        );
-
-        context.client.poll();
-
-        FetchSnapshotResponseData.PartitionSnapshot response = context
-                .assertSentFetchSnapshotResponse(context.metadataPartition)
-                .get();
-
-        assertEquals(Errors.NONE, Errors.forCode(response.errorCode()));
-        assertEquals(snapshot.sizeInBytes(), response.size());
-        assertEquals(0, response.position());
-        assertEquals(snapshot.sizeInBytes(), response.unalignedRecords().sizeInBytes());
-
-        UnalignedMemoryRecords memoryRecords = (UnalignedMemoryRecords) snapshot.slice(0, Math.toIntExact(snapshot.sizeInBytes()));
-
-        assertEquals(memoryRecords.buffer(), ((UnalignedMemoryRecords) response.unalignedRecords()).buffer());
-    }
-
-    @ParameterizedTest
     @ValueSource(booleans = { false, true })
     public void testLeaderShouldResignLeadershipIfNotGetFetchSnapshotRequestFromMajorityVoters(
         boolean withKip853Rpc

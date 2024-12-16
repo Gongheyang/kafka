@@ -2116,11 +2116,11 @@ public class KafkaRaftClientTest {
     public void testLeaderStateUpdateWithDifferentFetchRequestVersions(short version) throws Exception {
         int localId = randomReplicaId();
         int otherNodeId = localId + 1;
-        ReplicaKey otherNodeKey = replicaKey(otherNodeId, version >= 17);
+        ReplicaKey otherNodeKey = replicaKey(otherNodeId, false);
         int epoch = 5;
         Set<Integer> voters = Set.of(localId, otherNodeKey.id());
 
-        RaftClientTestContext context = RaftClientTestContext.initializeAsLeader(localId, voters, epoch, version);
+        RaftClientTestContext context = RaftClientTestContext.initializeAsLeader(localId, voters, epoch);
 
         // First poll has no high watermark advance.
         context.client.poll();
@@ -2132,32 +2132,7 @@ public class KafkaRaftClientTest {
         FetchRequestData request = new FetchRequest.SimpleBuilder(fetchRequestData).build(version).data();
         assertEquals((version < 15) ? otherNodeId : -1, fetchRequestData.replicaId());
         assertEquals((version < 15) ? -1 : otherNodeId, fetchRequestData.replicaState().replicaId());
-        assertEquals(version >= 17, otherNodeKey.directoryId().isPresent());
-        assertEquals((version < 17) ? ReplicaKey.NO_DIRECTORY_ID : otherNodeKey.directoryId().orElse(ReplicaKey.NO_DIRECTORY_ID),
-                fetchRequestData.topics().get(0).partitions().get(0).replicaDirectoryId());
         context.deliverRequest(request, version);
-        context.pollUntilResponse();
-        context.assertSentFetchPartitionResponse(Errors.NONE, epoch, OptionalInt.of(localId));
-        assertEquals(OptionalLong.of(1L), context.client.highWatermark());
-    }
-
-    @ParameterizedTest
-    @CsvSource({"17,15", "17,16", "17, 14", "17,13",
-                "16,15", "16,14", "16,13",
-                "15,14", "15,13",
-                "14,13"})
-    public void testNewFetchRequestToOldController(short fetchVersion, short contextVersion) throws Exception {
-        int localId = randomReplicaId();
-        int otherNodeId = localId + 1;
-        ReplicaKey otherNodeKey = replicaKey(otherNodeId, fetchVersion >= 17);
-        int epoch = 5;
-        Set<Integer> voters = Set.of(localId, otherNodeKey.id());
-
-        RaftClientTestContext context = RaftClientTestContext.initializeAsLeader(localId, voters, epoch, contextVersion);
-
-        FetchRequestData fetchRequestData = context.fetchRequest(epoch, otherNodeKey, 1L, epoch, 0);
-        FetchRequestData request = new FetchRequest.SimpleBuilder(fetchRequestData).build(fetchVersion).data();
-        context.deliverRequest(request, fetchVersion);
         context.pollUntilResponse();
         context.assertSentFetchPartitionResponse(Errors.NONE, epoch, OptionalInt.of(localId));
         assertEquals(OptionalLong.of(1L), context.client.highWatermark());

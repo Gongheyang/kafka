@@ -39,14 +39,15 @@ jobs:
             })
             .then((pulls) => {
               pulls.forEach(pull => {
-                reviews = github.request('GET /repos/{owner}/{repo}/pulls/{pull_number}/reviews', {
-                  owner: 'apache',
-                  repo: 'kafka',
+                github.request("GET /repos/{owner}/{repo}/pulls/{pull_number}/reviews", {
+                  owner: "apache",
+                  repo: "kafka",
                   pull_number: pull.number,
                   headers: {
-                    'X-GitHub-Api-Version': '2022-11-28'
+                    "X-GitHub-Api-Version": "2022-11-28"
                   }
+                }).then((resp) => {
+                  console.log(resp);
                 });
-                console.log(reviews);
                });
             });

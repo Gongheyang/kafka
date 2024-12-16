@@ -23,6 +23,7 @@ import org.apache.kafka.common.metrics.Sensor;
 import org.apache.kafka.common.metrics.stats.Avg;
 import org.apache.kafka.common.metrics.stats.Max;
 import org.apache.kafka.common.metrics.stats.Meter;
+import org.apache.kafka.common.metrics.stats.Value;
 import org.apache.kafka.common.utils.Utils;
 import org.apache.kafka.coordinator.common.runtime.CoordinatorMetrics;
 import org.apache.kafka.coordinator.common.runtime.CoordinatorMetricsShard;
@@ -32,6 +33,7 @@ import com.yammer.metrics.core.MetricsRegistry;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
@@ -47,6 +49,7 @@ public class ShareCoordinatorMetrics extends CoordinatorMetrics implements AutoC
     public static final String SHARE_COORDINATOR_WRITE_SENSOR_NAME = "ShareCoordinatorWrite";
     public static final String SHARE_COORDINATOR_WRITE_LATENCY_SENSOR_NAME = "ShareCoordinatorWriteLatency";
     public static final String SHARE_COORDINATOR_SHARE_GROUP_STATE_TOPIC_PRUNE_SENSOR_NAME = "ShareCoordinatorShareGroupStateTopicPrune";
+    private Map<TopicPartition, Map<String, String>> topicPartitionTags = new HashMap<>();
 
     /**
      * Global sensors. These are shared across all metrics shards.
@@ -82,13 +85,6 @@ public class ShareCoordinatorMetrics extends CoordinatorMetrics implements AutoC
             new Max());
 
         Sensor shareCoordinatorStateTopicPruneSensor = metrics.sensor(SHARE_COORDINATOR_SHARE_GROUP_STATE_TOPIC_PRUNE_SENSOR_NAME);
-        shareCoordinatorStateTopicPruneSensor.add(new Meter(
-            metrics.metricName("share-group-state-topic-prune-rate",
-                METRICS_GROUP,
-                "The number of share-group state topic offsets pruned per second."),
-            metrics.metricName("share-group-state-topic-prune-count",
-                METRICS_GROUP,
-                "Total count of share-group state topic offsets pruned.")));
 
         this.globalSensors = Collections.unmodifiableMap(Utils.mkMap(
             Utils.mkEntry(SHARE_COORDINATOR_WRITE_SENSOR_NAME, shareCoordinatorWriteSensor),
@@ -164,5 +160,34 @@ public class ShareCoordinatorMetrics extends CoordinatorMetrics implements AutoC
         if (globalSensors.containsKey(sensorName)) {
             globalSensors.get(sensorName).record();
         }
+    }
+
+    public void recordPrune(double value, TopicPartition tp) {
+        String sensorName = SHARE_COORDINATOR_SHARE_GROUP_STATE_TOPIC_PRUNE_SENSOR_NAME;
+        if (globalSensors.containsKey(sensorName)) {
+            if (tp == null || tp.topic() == null) {
+                return;
+            }
+            topicPartitionTags.computeIfAbsent(tp, k -> {
+                    Map<String, String> tags = Map.of(
+                        "topic", k.topic(),
+                        "partition", Integer.toString(k.partition())
+                    );
+                    addMetricToPruneSensor(sensorName, tags);
+                    return tags;
+                }
+            );
+
+            globalSensors.get(sensorName).record(value);
+        }
+    }
+
+    private void addMetricToPruneSensor(String sensorName, Map<String, String> tags) {
+        globalSensors.get(sensorName).add(
+            metrics.metricName("last-pruned-offset",
+                METRICS_GROUP,
+                "The offset at which the share-group state topic was last pruned.",
+                tags),
+            new Value());
     }
 }

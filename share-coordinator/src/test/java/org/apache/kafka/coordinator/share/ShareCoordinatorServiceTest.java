@@ -50,6 +50,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -772,6 +773,7 @@ class ShareCoordinatorServiceTest {
             .deleteRecords(any(), anyLong());
 
         checkMetrics(metrics);
+        checkPruneMetric(metrics, Topic.SHARE_GROUP_STATE_TOPIC_NAME, 0, true);
 
         service.shutdown();
     }
@@ -864,6 +866,8 @@ class ShareCoordinatorServiceTest {
             .deleteRecords(any(), anyLong());
 
         checkMetrics(metrics);
+        checkPruneMetric(metrics, Topic.SHARE_GROUP_STATE_TOPIC_NAME, 0, true);
+        checkPruneMetric(metrics, Topic.SHARE_GROUP_STATE_TOPIC_NAME, 1, false);
 
         service.shutdown();
     }
@@ -914,6 +918,7 @@ class ShareCoordinatorServiceTest {
             .deleteRecords(any(), anyLong());
 
         checkMetrics(metrics);
+        checkPruneMetric(metrics, Topic.SHARE_GROUP_STATE_TOPIC_NAME, 0, false);
 
         service.shutdown();
     }
@@ -1013,6 +1018,7 @@ class ShareCoordinatorServiceTest {
             .deleteRecords(any(), anyLong());
 
         checkMetrics(metrics);
+        checkPruneMetric(metrics, Topic.SHARE_GROUP_STATE_TOPIC_NAME, 0, false);
 
         service.shutdown();
     }
@@ -1081,6 +1087,7 @@ class ShareCoordinatorServiceTest {
             .deleteRecords(any(), anyLong());
 
         checkMetrics(metrics);
+        checkPruneMetric(metrics, Topic.SHARE_GROUP_STATE_TOPIC_NAME, 0, true);
 
         service.shutdown();
     }
@@ -1154,6 +1161,7 @@ class ShareCoordinatorServiceTest {
             .deleteRecords(any(), anyLong());
 
         checkMetrics(metrics);
+        checkPruneMetric(metrics, Topic.SHARE_GROUP_STATE_TOPIC_NAME, 0, true);
 
         service.shutdown();
     }
@@ -1163,11 +1171,24 @@ class ShareCoordinatorServiceTest {
             metrics.metricName("write-latency-avg", ShareCoordinatorMetrics.METRICS_GROUP),
             metrics.metricName("write-latency-max", ShareCoordinatorMetrics.METRICS_GROUP),
             metrics.metricName("write-rate", ShareCoordinatorMetrics.METRICS_GROUP),
-            metrics.metricName("write-total", ShareCoordinatorMetrics.METRICS_GROUP),
-            metrics.metricName("share-group-state-topic-prune-rate", ShareCoordinatorMetrics.METRICS_GROUP),
-            metrics.metricName("share-group-state-topic-prune-count", ShareCoordinatorMetrics.METRICS_GROUP)
+            metrics.metricName("write-total", ShareCoordinatorMetrics.METRICS_GROUP)
         ));
 
         usualMetrics.forEach(metric -> assertTrue(metrics.metrics().containsKey(metric)));
+    }
+
+    private void checkPruneMetric(Metrics metrics, String topic, int partition, boolean checkPresence) {
+        boolean isPresent = metrics.metrics().containsKey(
+            metrics.metricName(
+                "last-pruned-offset",
+                ShareCoordinatorMetrics.METRICS_GROUP,
+                "The offset at which the share-group state topic was last pruned.",
+                Map.of(
+                    "topic", topic,
+                    "partition", Integer.toString(partition)
+                )
+            )
+        );
+        assertEquals(checkPresence, isPresent);
     }
 }

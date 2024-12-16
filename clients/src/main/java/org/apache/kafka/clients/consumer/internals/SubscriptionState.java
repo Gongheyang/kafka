@@ -585,6 +585,10 @@ public class SubscriptionState {
         assignedState(tp).completeValidation();
     }
 
+    public synchronized boolean awaitingUpdate(TopicPartition tp) {
+        return assignedState(tp).awaitingUpdate();
+    }
+
     public synchronized FetchPosition validPosition(TopicPartition tp) {
         return assignedState(tp).validPosition();
     }
@@ -759,6 +763,13 @@ public class SubscriptionState {
 
     public void requestOffsetReset(TopicPartition partition) {
         requestOffsetReset(partition, defaultResetStrategy);
+    }
+
+    public synchronized void awaitUpdate(TopicPartition partition) {
+        final TopicPartitionState state = assignedStateOrNull(partition);
+        if (state != null) {
+            state.awaitUpdate();
+        }
     }
 
     public synchronized void requestOffsetResetIfPartitionAssigned(TopicPartition partition) {
@@ -1015,6 +1026,12 @@ public class SubscriptionState {
             });
         }
 
+        private void awaitUpdate() {
+            transitionState(FetchStates.AWAIT_UPDATE, () -> {
+                this.nextRetryTimeMs = null;
+            });
+        }
+
         /**
          * Check if the position exists and needs to be validated. If so, enter the AWAIT_VALIDATION state. This method
          * also will update the position with the current leader and epoch.
@@ -1031,7 +1048,7 @@ public class SubscriptionState {
                 return false;
             }
 
-            if (position != null && !position.currentLeader.equals(currentLeaderAndEpoch)) {
+            if (position != null && (!position.currentLeader.equals(currentLeaderAndEpoch) || awaitingUpdate())) {
                 FetchPosition newPosition = new FetchPosition(position.offset, position.offsetEpoch, currentLeaderAndEpoch);
                 validatePosition(newPosition);
                 preferredReadReplica = null;
@@ -1077,6 +1094,10 @@ public class SubscriptionState {
 
         private boolean awaitingValidation() {
             return fetchState.equals(FetchStates.AWAIT_VALIDATION);
+        }
+
+        private boolean awaitingUpdate() {
+            return fetchState.equals(FetchStates.AWAIT_UPDATE);
         }
 
         private boolean awaitingRetryBackoff(long nowMs) {
@@ -1238,7 +1259,8 @@ public class SubscriptionState {
         FETCHING() {
             @Override
             public Collection<FetchState> validTransitions() {
-                return Arrays.asList(FetchStates.FETCHING, FetchStates.AWAIT_RESET, FetchStates.AWAIT_VALIDATION);
+                return Arrays.asList(FetchStates.FETCHING, FetchStates.AWAIT_RESET,
+                        FetchStates.AWAIT_VALIDATION, FetchStates.AWAIT_UPDATE);
             }
 
             @Override
@@ -1273,6 +1295,24 @@ public class SubscriptionState {
             @Override
             public Collection<FetchState> validTransitions() {
                 return Arrays.asList(FetchStates.FETCHING, FetchStates.AWAIT_RESET, FetchStates.AWAIT_VALIDATION);
+            }
+
+            @Override
+            public boolean requiresPosition() {
+                return true;
+            }
+
+            @Override
+            public boolean hasValidPosition() {
+                return false;
+            }
+        },
+
+        AWAIT_UPDATE() {
+            @Override
+            public Collection<FetchState> validTransitions() {
+                return Arrays.asList(FetchStates.FETCHING, FetchStates.AWAIT_RESET,
+                        FetchStates.AWAIT_VALIDATION, FetchStates.AWAIT_UPDATE);
             }
 
             @Override

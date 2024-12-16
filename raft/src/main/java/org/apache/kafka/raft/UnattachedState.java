@@ -146,7 +146,7 @@ public class UnattachedState implements EpochState {
             return false;
         } else if (!isLogUpToDate) {
             log.debug(
-                "Rejecting Vote request (preVote=false) from candidate ({}) since candidate epoch/offset is not up to date with us",
+                "Rejecting Vote request (preVote=false) from candidate ({}) since candidate's log is not up to date with us",
                 replicaKey
             );
         }
@@ -157,7 +157,7 @@ public class UnattachedState implements EpochState {
     private boolean canGrantPreVote(ReplicaKey replicaKey, boolean isLogUpToDate) {
         if (!isLogUpToDate) {
             log.debug(
-                "Rejecting Vote request (preVote=true) from replica ({}) since replica's log is not up to date with us",
+                "Rejecting Vote request (preVote=true) from replica ({}) since prospective's log is not up to date with us",
                 replicaKey
             );
         }

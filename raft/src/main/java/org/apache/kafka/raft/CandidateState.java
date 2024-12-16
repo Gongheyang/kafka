@@ -20,21 +20,19 @@ import org.apache.kafka.common.Uuid;
 import org.apache.kafka.common.utils.LogContext;
 import org.apache.kafka.common.utils.Time;
 import org.apache.kafka.common.utils.Timer;
-import org.apache.kafka.raft.VotingState.VoterState.State;
+import org.apache.kafka.raft.EpochElection.VoterState.State;
 
 import org.slf4j.Logger;
 
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Stream;
+import java.util.Set;
 
-public class CandidateState implements VotingState {
+public class CandidateState implements NomineeState {
     private final int localId;
     private final Uuid localDirectoryId;
     private final int epoch;
     private final int retries;
-    private final Map<Integer, VoterState> voteStates = new HashMap<>();
+    private final EpochElection epochElection;
     private final Optional<LogOffsetMetadata> highWatermark;
     private final int electionTimeoutMs;
     private final Timer electionTimer;
@@ -84,10 +82,8 @@ public class CandidateState implements VotingState {
         this.backoffTimer = time.timer(0);
         this.log = logContext.logger(CandidateState.class);
 
-        for (ReplicaKey voter : voters.voterKeys()) {
-            voteStates.put(voter.id(), new VoterState(voter));
-        }
-        voteStates.get(localId).setState(State.GRANTED);
+        this.epochElection = new EpochElection(localId, voters.voterKeys());
+        epochElection.voterStates().get(localId).setState(State.GRANTED);
     }
 
     public int localId() {
@@ -95,8 +91,8 @@ public class CandidateState implements VotingState {
     }
 
     @Override
-    public Map<Integer, VoterState> voteStates() {
-        return voteStates;
+    public EpochElection epochElection() {
+        return epochElection;
     }
 
     /**
@@ -111,85 +107,12 @@ public class CandidateState implements VotingState {
     }
 
     /**
-     * Check whether we have received enough votes to conclude the election and become leader.
-     *
-     * @return true if at least a majority of nodes have granted the vote
-     */
-    public boolean isVoteGranted() {
-        return numGranted() >= majoritySize();
-    }
-
-    /**
-     * Check if we have received enough rejections that it is no longer possible to reach a
-     * majority of grants.
-     *
-     * @return true if the vote is rejected, false if the vote is already or can still be granted
-     */
-    public boolean isVoteRejected() {
-        return numGranted() + numUnrecorded() < majoritySize();
-    }
-
-    /**
-     * Record a granted vote from one of the voters.
-     *
-     * @param remoteNodeId The id of the voter
-     * @return true if the voter had not been previously recorded
-     * @throws IllegalArgumentException if the remote node is not a voter or if the vote had already been
-     *         rejected by this node
-     */
-    public boolean recordGrantedVote(int remoteNodeId) {
-        VoterState voterState = voteStates.get(remoteNodeId);
-        if (voterState == null) {
-            throw new IllegalArgumentException("Attempt to grant vote to non-voter " + remoteNodeId);
-        } else if (voterState.state().equals(State.REJECTED)) {
-            throw new IllegalArgumentException("Attempt to grant vote from node " + remoteNodeId +
-                " which previously rejected our request");
-        }
-
-        boolean recorded = voterState.state().equals(State.UNRECORDED);
-        voterState.setState(State.GRANTED);
-
-        return recorded;
-    }
-
-    /**
-     * Record a rejected vote from one of the voters.
-     *
-     * @param remoteNodeId The id of the voter
-     * @return true if the rejected vote had not been previously recorded
-     * @throws IllegalArgumentException if the remote node is not a voter or if the vote had already been
-     *         granted by this node
-     */
-    public boolean recordRejectedVote(int remoteNodeId) {
-        VoterState voterState = voteStates.get(remoteNodeId);
-        if (voterState == null) {
-            throw new IllegalArgumentException("Attempt to reject vote to non-voter " + remoteNodeId);
-        } else if (voterState.state().equals(State.GRANTED)) {
-            throw new IllegalArgumentException("Attempt to reject vote from node " + remoteNodeId +
-                " which previously granted our request");
-        }
-
-        boolean recorded = voterState.state().equals(State.UNRECORDED);
-        voterState.setState(State.REJECTED);
-
-        return recorded;
-    }
-
-    /**
      * Record the current election has failed since we've either received sufficient rejecting voters or election timed out
      */
     public void startBackingOff(long currentTimeMs, long backoffDurationMs) {
         this.backoffTimer.update(currentTimeMs);
         this.backoffTimer.reset(backoffDurationMs);
         this.isBackingOff = true;
-    }
-
-    public Stream<ReplicaKey> votersInState(State state) {
-        return voteStates
-            .values()
-            .stream()
-            .filter(voterState -> voterState.state().equals(state))
-            .map(VoterState::replicaKey);
     }
 
     @Override
@@ -217,12 +140,16 @@ public class CandidateState implements VotingState {
         return backoffTimer.remainingMs();
     }
 
+    Set<Integer> grantingVoters() {
+        return epochElection().grantingVoters();
+    }
+
     @Override
     public ElectionState election() {
         return ElectionState.withVotedCandidate(
             epoch,
             ReplicaKey.of(localId, localDirectoryId),
-            voteStates.keySet()
+            epochElection.voterStates().keySet()
         );
     }
 
@@ -272,7 +199,7 @@ public class CandidateState implements VotingState {
             localDirectoryId,
             epoch,
             retries,
-            voteStates,
+            epochElection().voterStates(),
             highWatermark,
             electionTimeoutMs
         );

@@ -19,23 +19,20 @@ package org.apache.kafka.raft;
 import org.apache.kafka.common.utils.LogContext;
 import org.apache.kafka.common.utils.Time;
 import org.apache.kafka.common.utils.Timer;
+import org.apache.kafka.raft.EpochElection.VoterState.State;
 import org.slf4j.Logger;
 
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalInt;
 
-public class ProspectiveState implements VotingState {
+public class ProspectiveState implements NomineeState {
     private final int localId;
     private final int epoch;
     private final OptionalInt leaderId;
     private final Optional<Endpoints> leaderEndpoints;
     private final Optional<ReplicaKey> votedKey;
     private final VoterSet voters;
-//    private final long electionTimeoutMs;
-//    private final Timer electionTimer;
-    private final Map<Integer, VoterState> preVoteStates = new HashMap<>();
+    private final EpochElection epochElection;
     private final Optional<LogOffsetMetadata> highWatermark;
     private final int electionTimeoutMs;
     private final Timer electionTimer;
@@ -76,10 +73,8 @@ public class ProspectiveState implements VotingState {
         this.electionTimer = time.timer(electionTimeoutMs);
         this.log = logContext.logger(ProspectiveState.class);
 
-        for (ReplicaKey voter : voters.voterKeys()) {
-            preVoteStates.put(voter.id(), new VoterState(voter));
-        }
-        preVoteStates.get(localId).setState(VoterState.State.GRANTED);
+        this.epochElection = new EpochElection(localId, voters.voterKeys());
+        epochElection.voterStates().get(localId).setState(State.GRANTED);
     }
 
     public int localId() {
@@ -91,8 +86,8 @@ public class ProspectiveState implements VotingState {
     }
 
     @Override
-    public Map<Integer, VoterState> voteStates() {
-        return preVoteStates;
+    public EpochElection epochElection() {
+        return epochElection;
     }
 
     @Override
@@ -106,47 +101,6 @@ public class ProspectiveState implements VotingState {
     }
 
     /**
-     * Record a granted vote from one of the voters.
-     *
-     * @param remoteNodeId The id of the voter
-     * @return true if the voter had not been previously recorded
-     * @throws IllegalArgumentException if the remote node is not a voter
-     */
-    public boolean recordGrantedVote(int remoteNodeId) {
-        VoterState voterState = preVoteStates.get(remoteNodeId);
-        if (voterState == null) {
-            throw new IllegalArgumentException("Attempt to grant vote to non-voter " + remoteNodeId);
-        }
-
-        boolean recorded = voterState.state().equals(VoterState.State.UNRECORDED);
-        voterState.setState(VoterState.State.GRANTED);
-
-        return recorded;
-    }
-
-    /**
-     * Record a rejected vote from one of the voters.
-     *
-     * @param remoteNodeId The id of the voter
-     * @return true if the rejected vote had not been previously recorded
-     * @throws IllegalArgumentException if the remote node is not a voter
-     */
-    public boolean recordRejectedVote(int remoteNodeId) {
-        VoterState voterState = preVoteStates.get(remoteNodeId);
-        if (voterState == null) {
-            throw new IllegalArgumentException("Attempt to reject vote to non-voter " + remoteNodeId);
-        }
-        if (remoteNodeId == localId) {
-            throw new IllegalStateException("Attempted to reject vote from ourselves");
-        }
-
-        boolean recorded = voterState.state().equals(VoterState.State.UNRECORDED);
-        voterState.setState(VoterState.State.REJECTED);
-
-        return recorded;
-    }
-
-    /**
      * Record the current election has failed since we've either received sufficient rejecting voters or election timed out
      */
     public void startBackingOff(long currentTimeMs, long backoffDurationMs) {
@@ -154,14 +108,17 @@ public class ProspectiveState implements VotingState {
     }
 
     @Override
-    public boolean canGrantVote(ReplicaKey replicaKey, boolean isLogUpToDate) {
+    public boolean canGrantVote(ReplicaKey replicaKey, boolean isLogUpToDate, boolean isPreVote) {
+        if (isPreVote) {
+            return canGrantPreVote(replicaKey, isLogUpToDate);
+        }
         if (votedKey.isPresent()) {
             ReplicaKey votedReplicaKey = votedKey.get();
             if (votedReplicaKey.id() == replicaKey.id()) {
                 return votedReplicaKey.directoryId().isEmpty() || votedReplicaKey.directoryId().equals(replicaKey.directoryId());
             }
             log.debug(
-                "Rejecting Vote request from candidate ({}), already have voted for another " +
+                "Rejecting Vote request (preVote=false) from candidate ({}), already have voted for another " +
                     "candidate ({}) in epoch {}",
                 replicaKey,
                 votedKey,
@@ -170,7 +127,7 @@ public class ProspectiveState implements VotingState {
             return false;
         } else if (!isLogUpToDate) {
             log.debug(
-                "Rejecting Vote request from candidate ({}) since replica epoch/offset is not up to date with us",
+                "Rejecting Vote request (preVote=false) from candidate ({}) since candidate's log is not up to date with us",
                 replicaKey
             );
         }
@@ -178,11 +135,10 @@ public class ProspectiveState implements VotingState {
         return isLogUpToDate;
     }
 
-    @Override
-    public boolean canGrantPreVote(ReplicaKey replicaKey, boolean isLogUpToDate) {
+    private boolean canGrantPreVote(ReplicaKey replicaKey, boolean isLogUpToDate) {
         if (!isLogUpToDate) {
             log.debug(
-                "Rejecting PreVote request from prospective ({}) since prospective epoch/offset is not up to date with us",
+                "Rejecting Vote request (preVote=true) from prospective ({}) since prospective's log is not up to date with us",
                 replicaKey
             );
         }

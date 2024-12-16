@@ -34,9 +34,8 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            github.paginate("GET /search/issues{?repo,label}", {
-              repo: "apache/kafka",
-              label: "triage"
+            github.paginate("GET /search/issues{?q}", {
+              q: "repo:apache/kafka label:triage"
             })
             .then((issues) => {
                console.log(issues);

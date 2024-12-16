@@ -1131,7 +1131,7 @@ public final class QuorumController implements Controller {
                 appendWriteEvent("maybeResetMinIsrConfig", OptionalLong.empty(),
                     () -> {
                         List<ApiMessageAndVersion> outputRecords =
-                                BoundedList.newArrayBacked(MAX_RECORDS_PER_USER_OP);
+                            BoundedList.newArrayBacked(MAX_RECORDS_PER_USER_OP);
                         configurationControl.maybeResetMinIsrConfig(outputRecords);
                         return ControllerResult.atomicOf(outputRecords, ApiError.NONE);
                     }

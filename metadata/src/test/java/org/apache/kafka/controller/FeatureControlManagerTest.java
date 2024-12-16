@@ -18,9 +18,6 @@
 package org.apache.kafka.controller;
 
 import org.apache.kafka.clients.admin.FeatureUpdate;
-import org.apache.kafka.common.config.ConfigResource;
-import org.apache.kafka.common.config.TopicConfig;
-import org.apache.kafka.common.metadata.ConfigRecord;
 import org.apache.kafka.common.metadata.FeatureLevelRecord;
 import org.apache.kafka.common.protocol.Errors;
 import org.apache.kafka.common.requests.ApiError;
@@ -55,8 +52,6 @@ import java.util.Optional;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonMap;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.mockito.ArgumentMatchers.any;
-
 
 @Timeout(value = 40)
 public class FeatureControlManagerTest {
@@ -267,7 +262,7 @@ public class FeatureControlManagerTest {
     @Test
     public void testCannotDowngradeToHigherVersion() {
         FeatureControlManager manager = TEST_MANAGER_BUILDER1.build();
-        assertEquals(new FeatureUpdateResult(Collections.emptyList(), false,new ApiError(Errors.INVALID_UPDATE_VERSION,
+        assertEquals(new FeatureUpdateResult(Collections.emptyList(), false, new ApiError(Errors.INVALID_UPDATE_VERSION,
             "Invalid update version 7 for feature metadata.version. Can't downgrade to a " +
             "newer version.")),
             manager.updateFeatures(

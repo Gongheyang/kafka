@@ -557,7 +557,7 @@ public class ConfigurationControlManager {
         brokersWithConfigs.forEach(broker -> {
             ConfigResource configResource = new ConfigResource(BROKER, broker.toString());
                 Map<String, String> configs = configData.get(configResource);
-                if (configs != null && configs.containsKey(MIN_IN_SYNC_REPLICAS_CONFIG)) {
+                if (configs.containsKey(MIN_IN_SYNC_REPLICAS_CONFIG)) {
                     outputRecords.add(new ApiMessageAndVersion(
                         new ConfigRecord().setResourceType(BROKER.id()).setResourceName(configResource.name()).
                             setName(TopicConfig.MIN_IN_SYNC_REPLICAS_CONFIG).setValue(null),

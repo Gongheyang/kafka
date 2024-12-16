@@ -1034,7 +1034,7 @@ class LogManagerTest {
     val metricTag = s"topic=${tp.topic},partition=${tp.partition}"
 
     def verifyMetrics(): Unit = {
-      assertEquals(LogMetricNames.allMetricNames.size, logMetrics.size)
+      assertEquals(LogMetricNames.ALL_METRIC_NAMES.size, logMetrics.size)
       logMetrics.foreach { metric =>
         assertTrue(metric.getMBeanName.contains(metricTag))
       }
@@ -1074,7 +1074,7 @@ class LogManagerTest {
     val metricTag = s"topic=${tp.topic},partition=${tp.partition}"
 
     def verifyMetrics(logCount: Int): Unit = {
-      assertEquals(LogMetricNames.allMetricNames().size * logCount, logMetrics.size)
+      assertEquals(LogMetricNames.ALL_METRIC_NAMES.size * logCount, logMetrics.size)
       logMetrics.foreach { metric =>
         assertTrue(metric.getMBeanName.contains(metricTag))
       }

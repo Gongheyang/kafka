@@ -25,7 +25,5 @@ public class LogMetricNames {
     public static final String LOG_END_OFFSET = "LogEndOffset";
     public static final String SIZE = "Size";
 
-    public static List<String> allMetricNames() {
-        return List.of(NUM_LOG_SEGMENTS, LOG_START_OFFSET, LOG_END_OFFSET, SIZE);
-    }
+    public static final List<String> ALL_METRIC_NAMES = List.of(NUM_LOG_SEGMENTS, LOG_START_OFFSET, LOG_END_OFFSET, SIZE);
 }

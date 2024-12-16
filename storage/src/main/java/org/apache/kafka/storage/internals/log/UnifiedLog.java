@@ -151,8 +151,8 @@ public class UnifiedLog {
             }
             producerStateManager.updateMapEndOffset(lastOffset);
             producerStateManager.takeSnapshot();
-            LOG.info(logPrefix + "Producer state recovery took " + (segmentRecoveryStart - producerStateLoadStart) + "ms for snapshot load " +
-                    "and " + (time.milliseconds() - segmentRecoveryStart) + "ms for segment recovery from offset " + lastOffset);
+            LOG.info("{}Producer state recovery took {}ms for snapshot load and {}ms for segment recovery from offset {}",
+                    logPrefix, segmentRecoveryStart - producerStateLoadStart, time.milliseconds() - segmentRecoveryStart, lastOffset);
         }
     }
 
@@ -284,7 +284,7 @@ public class UnifiedLog {
 
         if (recordVersion.precedes(RecordVersion.V2)) {
             if (leaderEpochFile.exists()) {
-                LOG.warn(logPrefix + "Deleting non-empty leader epoch cache due to incompatible message format " + recordVersion);
+                LOG.warn("{}Deleting non-empty leader epoch cache due to incompatible message format {}", logPrefix, recordVersion);
             }
             Files.deleteIfExists(leaderEpochFile.toPath());
             return Optional.empty();

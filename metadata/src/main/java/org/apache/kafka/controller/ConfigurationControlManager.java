@@ -23,6 +23,7 @@ import org.apache.kafka.clients.admin.FeatureUpdate;
 import org.apache.kafka.common.config.ConfigException;
 import org.apache.kafka.common.config.ConfigResource;
 import org.apache.kafka.common.config.ConfigResource.Type;
+import org.apache.kafka.common.config.TopicConfig;
 import org.apache.kafka.common.config.types.Password;
 import org.apache.kafka.common.metadata.ConfigRecord;
 import org.apache.kafka.common.protocol.Errors;
@@ -55,8 +56,10 @@ import java.util.function.Consumer;
 import static org.apache.kafka.clients.admin.AlterConfigOp.OpType.APPEND;
 import static org.apache.kafka.clients.admin.AlterConfigOp.OpType.DELETE;
 import static org.apache.kafka.clients.admin.AlterConfigOp.OpType.SET;
+import static org.apache.kafka.common.config.ConfigResource.Type.BROKER;
 import static org.apache.kafka.common.config.TopicConfig.MIN_IN_SYNC_REPLICAS_CONFIG;
 import static org.apache.kafka.common.config.TopicConfig.UNCLEAN_LEADER_ELECTION_ENABLE_CONFIG;
+import static org.apache.kafka.common.metadata.MetadataRecordType.CONFIG_RECORD;
 import static org.apache.kafka.common.protocol.Errors.INVALID_CONFIG;
 import static org.apache.kafka.controller.QuorumController.MAX_RECORDS_PER_USER_OP;
 
@@ -73,7 +76,6 @@ public class ConfigurationControlManager {
     private final TimelineHashMap<ConfigResource, TimelineHashMap<String, String>> configData;
     private final Map<String, Object> staticConfig;
     private final ConfigResource currentController;
-    private final ClusterControlManager clusterControl;
     private final FeatureControlManager featureControl;
 
     static class Builder {
@@ -85,7 +87,6 @@ public class ConfigurationControlManager {
         private ConfigurationValidator validator = ConfigurationValidator.NO_OP;
         private Map<String, Object> staticConfig = Collections.emptyMap();
         private int nodeId = 0;
-        private ClusterControlManager clusterControl = null;
         private FeatureControlManager featureControl = null;
 
         Builder setLogContext(LogContext logContext) {
@@ -128,11 +129,6 @@ public class ConfigurationControlManager {
             return this;
         }
 
-        Builder setClusterControl(ClusterControlManager clusterControl) {
-            this.clusterControl = clusterControl;
-            return this;
-        }
-
         Builder setFeatureControl(FeatureControlManager featureControl) {
             this.featureControl = featureControl;
             return this;
@@ -143,9 +139,6 @@ public class ConfigurationControlManager {
             if (snapshotRegistry == null) snapshotRegistry = new SnapshotRegistry(logContext);
             if (configSchema == null) {
                 throw new RuntimeException("You must set the configSchema.");
-            }
-            if (clusterControl == null) {
-                throw new RuntimeException("You must set the cluster control manager.");
             }
             if (featureControl == null) {
                 throw new RuntimeException("You must set the feature control manager.");
@@ -159,7 +152,6 @@ public class ConfigurationControlManager {
                 validator,
                 staticConfig,
                 nodeId,
-                clusterControl,
                 featureControl);
         }
     }
@@ -172,7 +164,6 @@ public class ConfigurationControlManager {
             ConfigurationValidator validator,
             Map<String, Object> staticConfig,
             int nodeId,
-            ClusterControlManager clusterControl,
             FeatureControlManager featureControl) {
         this.log = logContext.logger(ConfigurationControlManager.class);
         this.snapshotRegistry = snapshotRegistry;
@@ -183,7 +174,6 @@ public class ConfigurationControlManager {
         this.configData = new TimelineHashMap<>(snapshotRegistry, 0);
         this.staticConfig = Collections.unmodifiableMap(new HashMap<>(staticConfig));
         this.currentController = new ConfigResource(Type.BROKER, Integer.toString(nodeId));
-        this.clusterControl = clusterControl;
         this.featureControl = featureControl;
     }
 
@@ -316,7 +306,7 @@ public class ConfigurationControlManager {
             ConfigRecord configRecord = (ConfigRecord) newRecord.message();
             if (configRecord.value() == null) {
                 if (featureControl.isElrFeatureEnabled() && configResource.equals(DEFAULT_NODE) &&
-                    configRecord.name() == MIN_IN_SYNC_REPLICAS_CONFIG) {
+                    configRecord.name().equals(MIN_IN_SYNC_REPLICAS_CONFIG)) {
                     return new ApiError(INVALID_CONFIG, "It is not allowed to delete cluster level min isr config when ELR is enabled.");
                 }
                 allConfigs.remove(configRecord.name());
@@ -341,8 +331,8 @@ public class ConfigurationControlManager {
             }
             if (featureControl.isElrFeatureEnabled()) {
                 if (configResource.type() == Type.BROKER && !configResource.name().isEmpty()) {
-                    for (Entry record : allConfigs.entrySet()) {
-                        if (record.getKey() == MIN_IN_SYNC_REPLICAS_CONFIG && record.getValue() != null)
+                    for (Entry<String, String> record : allConfigs.entrySet()) {
+                        if (record.getKey().equals(MIN_IN_SYNC_REPLICAS_CONFIG) && record.getValue() != null)
                             throw new ConfigException("It is not allowed to set broker level min isr config when ELR is enabled.");
                     }
                 }
@@ -549,31 +539,21 @@ public class ConfigurationControlManager {
                 MIN_IN_SYNC_REPLICAS_CONFIG,
                 staticConfig
             );
-            ApiError error = incrementalAlterConfigResource(
-                DEFAULT_NODE,
-                Map.of(MIN_IN_SYNC_REPLICAS_CONFIG, new AbstractMap.SimpleEntry<>(SET, minIsrDefaultConfigValue)),
-                true,
-                outputRecords
-            );
-            if (error.isFailure()) {
-                log.error("Fail to update cluster level min ISR config during the min ISR config reset: " + error);
-            }
+            outputRecords.add(new ApiMessageAndVersion(
+                new ConfigRecord().setResourceType(BROKER.id()).setResourceName("").
+                    setName(TopicConfig.MIN_IN_SYNC_REPLICAS_CONFIG).setValue(minIsrDefaultConfigValue),
+                CONFIG_RECORD.highestSupportedVersion()));
         }
 
-        Set<Integer> nodes = clusterControl.brokerRegistrations().keySet();
-        nodes.forEach(node -> {
-            ConfigResource resource = new ConfigResource(Type.BROKER, node.toString());
-            Map<String, String> result = configData.get(resource);
-            if (result != null && result.containsKey(MIN_IN_SYNC_REPLICAS_CONFIG)) {
-                ApiError error = incrementalAlterConfigResource(
-                    resource,
-                    Map.of(MIN_IN_SYNC_REPLICAS_CONFIG, new AbstractMap.SimpleEntry<>(DELETE, null)),
-                    true,
-                    outputRecords
-                );
-                if (error.isFailure()) {
-                    log.error("Fail to remove broker level min ISR config during the min ISR config reset for " +
-                        "node " + node + ": " + error);
+        configData.entrySet().forEach(configEntry -> {
+            ConfigResource configResource = configEntry.getKey();
+            if (configResource.type() == BROKER && !configResource.name().isEmpty()) {
+                Map<String, String> configs = configEntry.getValue();
+                if (configs != null && configs.containsKey(MIN_IN_SYNC_REPLICAS_CONFIG)) {
+                    outputRecords.add(new ApiMessageAndVersion(
+                        new ConfigRecord().setResourceType(BROKER.id()).setResourceName(configResource.name()).
+                            setName(TopicConfig.MIN_IN_SYNC_REPLICAS_CONFIG).setValue(null),
+                        CONFIG_RECORD.highestSupportedVersion()));
                 }
             }
         });

@@ -185,7 +185,7 @@ public class FeatureControlManager {
             if (!error.error().equals(Errors.NONE)) {
                 return ControllerResult.of(Collections.emptyList(), error);
             }
-            if (entry.getKey() == EligibleLeaderReplicasVersion.FEATURE_NAME &&
+            if (entry.getKey().equals(EligibleLeaderReplicasVersion.FEATURE_NAME) &&
                 isElrFeatureEnabled(metadataVersion() ,entry.getValue())) {
                 elrConfigHandler.execute(records);
             }

@@ -1547,7 +1547,6 @@ public final class QuorumController implements Controller {
             setValidator(configurationValidator).
             setStaticConfig(staticConfig).
             setNodeId(nodeId).
-            setClusterControl(clusterControl).
             setFeatureControl(featureControl).
             build();
         this.producerIdControlManager = new ProducerIdControlManager.Builder().

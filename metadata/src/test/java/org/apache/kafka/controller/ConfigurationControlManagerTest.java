@@ -133,11 +133,9 @@ public class ConfigurationControlManagerTest {
 
     @Test
     public void testReplay() throws Exception {
-        ClusterControlManager clusterControl = Mockito.mock(ClusterControlManager.class);
         FeatureControlManager featureControl = Mockito.mock(FeatureControlManager.class);
         ConfigurationControlManager manager = new ConfigurationControlManager.Builder().
             setKafkaConfigSchema(SCHEMA).
-            setClusterControl(clusterControl).
             setFeatureControl(featureControl).
             build();
         assertEquals(Collections.emptyMap(), manager.getConfigs(BROKER0));
@@ -163,11 +161,9 @@ public class ConfigurationControlManagerTest {
 
     @Test
     public void testIncrementalAlterConfigs() {
-        ClusterControlManager clusterControl = Mockito.mock(ClusterControlManager.class);
         FeatureControlManager featureControl = Mockito.mock(FeatureControlManager.class);
         ConfigurationControlManager manager = new ConfigurationControlManager.Builder().
             setKafkaConfigSchema(SCHEMA).
-            setClusterControl(clusterControl).
             setFeatureControl(featureControl).
             build();
 
@@ -198,11 +194,9 @@ public class ConfigurationControlManagerTest {
 
     @Test
     public void testIncrementalAlterConfig() {
-        ClusterControlManager clusterControl = Mockito.mock(ClusterControlManager.class);
         FeatureControlManager featureControl = Mockito.mock(FeatureControlManager.class);
         ConfigurationControlManager manager = new ConfigurationControlManager.Builder().
             setKafkaConfigSchema(SCHEMA).
-            setClusterControl(clusterControl).
             setFeatureControl(featureControl).
             build();
         Map<String, Entry<AlterConfigOp.OpType, String>> keyToOps = toMap(entry("abc", entry(APPEND, "123")));
@@ -226,11 +220,9 @@ public class ConfigurationControlManagerTest {
 
     @Test
     public void testIncrementalAlterMultipleConfigValues() {
-        ClusterControlManager clusterControl = Mockito.mock(ClusterControlManager.class);
         FeatureControlManager featureControl = Mockito.mock(FeatureControlManager.class);
         ConfigurationControlManager manager = new ConfigurationControlManager.Builder().
             setKafkaConfigSchema(SCHEMA).
-            setClusterControl(clusterControl).
             setFeatureControl(featureControl).
             build();
 
@@ -276,12 +268,10 @@ public class ConfigurationControlManagerTest {
 
     @Test
     public void testIncrementalAlterConfigsWithoutExistence() {
-        ClusterControlManager clusterControl = Mockito.mock(ClusterControlManager.class);
         FeatureControlManager featureControl = Mockito.mock(FeatureControlManager.class);
         ConfigurationControlManager manager = new ConfigurationControlManager.Builder().
             setKafkaConfigSchema(SCHEMA).
             setExistenceChecker(TestExistenceChecker.INSTANCE).
-            setClusterControl(clusterControl).
             setFeatureControl(featureControl).
             build();
         ConfigResource existingTopic = new ConfigResource(TOPIC, "ExistingTopic");
@@ -335,7 +325,6 @@ public class ConfigurationControlManagerTest {
 
     @Test
     public void testIncrementalAlterConfigsWithPolicy() {
-        ClusterControlManager clusterControl = Mockito.mock(ClusterControlManager.class);
         FeatureControlManager featureControl = Mockito.mock(FeatureControlManager.class);
         MockAlterConfigsPolicy policy = new MockAlterConfigsPolicy(asList(
             new RequestMetadata(MYTOPIC, Collections.emptyMap()),
@@ -346,7 +335,6 @@ public class ConfigurationControlManagerTest {
         ConfigurationControlManager manager = new ConfigurationControlManager.Builder().
             setKafkaConfigSchema(SCHEMA).
             setAlterConfigPolicy(Optional.of(policy)).
-            setClusterControl(clusterControl).
             setFeatureControl(featureControl).
             build();
         // Existing configs should not be passed to the policy
@@ -403,12 +391,10 @@ public class ConfigurationControlManagerTest {
 
     @Test
     public void testLegacyAlterConfigs() {
-        ClusterControlManager clusterControl = Mockito.mock(ClusterControlManager.class);
         FeatureControlManager featureControl = Mockito.mock(FeatureControlManager.class);
         ConfigurationControlManager manager = new ConfigurationControlManager.Builder().
             setKafkaConfigSchema(SCHEMA).
             setAlterConfigPolicy(Optional.of(new CheckForNullValuesPolicy())).
-            setClusterControl(clusterControl).
             setFeatureControl(featureControl).
             build();
         List<ApiMessageAndVersion> expectedRecords1 = asList(
@@ -441,10 +427,8 @@ public class ConfigurationControlManagerTest {
 
     @Test
     public void testResetMinIsrConfigsWithDefaultConfig() {
-        ClusterControlManager clusterControl = Mockito.mock(ClusterControlManager.class);
         FeatureControlManager featureControl = Mockito.mock(FeatureControlManager.class);
         ConfigurationControlManager manager = new ConfigurationControlManager.Builder().
-            setClusterControl(clusterControl).
             setFeatureControl(featureControl).
             setKafkaConfigSchema(SCHEMA).
             build();
@@ -468,7 +452,6 @@ public class ConfigurationControlManagerTest {
             setRack(Optional.empty()).
             setFenced(true).
             setInControlledShutdown(false).build();
-        when(clusterControl.brokerRegistrations()).thenReturn(Map.of(1, registration));
 
         List<ApiMessageAndVersion> records = new ArrayList<>();
         manager.maybeResetMinIsrConfig(records);
@@ -479,14 +462,13 @@ public class ConfigurationControlManagerTest {
             new ApiMessageAndVersion(new ConfigRecord().setResourceType(BROKER.id()).setResourceName("1").
                 setName(TopicConfig.MIN_IN_SYNC_REPLICAS_CONFIG).setValue(null), CONFIG_RECORD.highestSupportedVersion())),
             records);
+        RecordTestUtils.replayAll(manager, records);
     }
 
     @Test
     public void testResetMinIsrConfigsWithStaticConfig() {
-        ClusterControlManager clusterControl = Mockito.mock(ClusterControlManager.class);
         FeatureControlManager featureControl = Mockito.mock(FeatureControlManager.class);
         ConfigurationControlManager manager = new ConfigurationControlManager.Builder().
-            setClusterControl(clusterControl).
             setFeatureControl(featureControl).
             setStaticConfig(Map.of(TopicConfig.MIN_IN_SYNC_REPLICAS_CONFIG, "2")).
             setKafkaConfigSchema(SCHEMA).
@@ -511,7 +493,6 @@ public class ConfigurationControlManagerTest {
             setRack(Optional.empty()).
             setFenced(true).
             setInControlledShutdown(false).build();
-        when(clusterControl.brokerRegistrations()).thenReturn(Map.of(1, registration));
 
         List<ApiMessageAndVersion> records = new ArrayList<>();
         manager.maybeResetMinIsrConfig(records);
@@ -526,10 +507,8 @@ public class ConfigurationControlManagerTest {
 
     @Test
     public void testRejectMinIsrClusterLevelRemoveWhenElrEnabled() {
-        ClusterControlManager clusterControl = Mockito.mock(ClusterControlManager.class);
         FeatureControlManager featureControl = Mockito.mock(FeatureControlManager.class);
         ConfigurationControlManager manager = new ConfigurationControlManager.Builder().
-            setClusterControl(clusterControl).
             setFeatureControl(featureControl).
             setStaticConfig(Map.of(TopicConfig.MIN_IN_SYNC_REPLICAS_CONFIG, "2")).
             setKafkaConfigSchema(SCHEMA).
@@ -555,10 +534,8 @@ public class ConfigurationControlManagerTest {
 
     @Test
     public void testRejectMinIsrBrokerLevelUpdateWhenElrEnabled() {
-        ClusterControlManager clusterControl = Mockito.mock(ClusterControlManager.class);
         FeatureControlManager featureControl = Mockito.mock(FeatureControlManager.class);
         ConfigurationControlManager manager = new ConfigurationControlManager.Builder().
-            setClusterControl(clusterControl).
             setFeatureControl(featureControl).
             setStaticConfig(Map.of(TopicConfig.MIN_IN_SYNC_REPLICAS_CONFIG, "2")).
             setKafkaConfigSchema(SCHEMA).
@@ -572,7 +549,6 @@ public class ConfigurationControlManagerTest {
 
     @Test
     public void testUpgradeElrFeatureLevel() {
-        ClusterControlManager clusterControl = Mockito.mock(ClusterControlManager.class);
         Map<String, VersionRange> localSupportedFeatures = new HashMap<>();
         localSupportedFeatures.put(MetadataVersion.FEATURE_NAME, VersionRange.of(
             MetadataVersion.IBP_4_0_IV1.featureLevel(), MetadataVersion.latestTesting().featureLevel()));
@@ -585,7 +561,6 @@ public class ConfigurationControlManagerTest {
             setMetadataVersion(MetadataVersion.IBP_4_0_IV1).
             build();
         ConfigurationControlManager configurationControl = new ConfigurationControlManager.Builder().
-            setClusterControl(clusterControl).
             setFeatureControl(featureControl).
             setStaticConfig(Map.of(TopicConfig.MIN_IN_SYNC_REPLICAS_CONFIG, "2")).
             setKafkaConfigSchema(SCHEMA).

@@ -261,7 +261,6 @@ public class ReplicationControlManagerTest {
             this.configurationControl = new ConfigurationControlManager.Builder().
                 setSnapshotRegistry(snapshotRegistry).
                 setFeatureControl(featureControl).
-                setClusterControl(clusterControl).
                 setStaticConfig(staticConfig).
                 setKafkaConfigSchema(FakeKafkaConfigSchema.INSTANCE).
                 build();

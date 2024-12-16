@@ -50,7 +50,7 @@ jobs:
                   console.log("Found ${resp.data.length} reviews.");
                   if (resp.data.length > 0) {
                     console.log("Removing 'triage' label from PR ${pull.number}");
-                    await github.rest.issues.removeLabel({
+                    github.rest.issues.removeLabel({
                       owner: "apache",
                       repo: "kafka",
                       issue_number: pull.number,

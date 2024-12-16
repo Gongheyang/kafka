@@ -13,25 +13,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name: Workflow Requested
-# For pull_request and pull_request_review workflows, non-committers must have an explicit
-# ci-approved label on their PR before a workflow will run. This workflow is responsible for
-# automatically approving pending workflow requests.
+name: CI Requested
 
 on:
   workflow_run:
-    workflows: [CI, Pull Request Reviewed]
+    workflows: [CI]
     types:
       - requested
 
-run-name: Workflow requested for ${{ github.event.workflow_run.display_title}}
+run-name: CI Requested for ${{ github.event.workflow_run.display_title}}
 
 jobs:
   check-pr-labels:
     # Even though job conditionals are difficult to debug, this will reduce the number of unnecessary runs
     if: |
       github.event_name == 'workflow_run' && 
-      (github.event.workflow_run.event == 'pull_request' || github.event.workflow_run.event == 'pull_request_review') &&
+      github.event.workflow_run.event == 'pull_request' &&
       github.event.workflow_run.status == 'completed' && 
       github.event.workflow_run.conclusion == 'action_required'
     runs-on: ubuntu-latest
@@ -45,15 +42,7 @@ jobs:
         with:
           persist-credentials:
             false
-      - name: Auto-approve PR Review
-        if: github.event.workflow_run.event == 'pull_request_review'
-        env:
-          RUN_ID: ${{ github.event.workflow_run.id }}
-        run: |
-          echo "PR_NUMBER=" >> "$GITHUB_ENV"
-          echo "RUN_ID=$RUN_ID" >> "$GITHUB_ENV"
       - name: Check PR Labels
-        if: github.event.workflow_run.event == 'pull_request'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}

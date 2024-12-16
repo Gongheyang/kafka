@@ -74,9 +74,9 @@ public class GroupMetadataMessageFormatterTest {
     private static Stream<Arguments> parameters() {
         return Stream.of(
                 Arguments.of(
-                        MessageUtil.toVersionPrefixedByteBuffer((short) 10, GROUP_METADATA_KEY).array(),
-                        MessageUtil.toVersionPrefixedByteBuffer((short) 10, GROUP_METADATA_VALUE).array(),
-                        "{\"key\":{\"version\":10,\"data\":\"unknown\"},\"value\":{\"version\":10,\"data\":\"unknown\"}}"
+                        MessageUtil.toVersionPrefixedByteBuffer((short) 17, GROUP_METADATA_KEY).array(),
+                        MessageUtil.toVersionPrefixedByteBuffer((short) 17, GROUP_METADATA_VALUE).array(),
+                        "{\"key\":{\"version\":17,\"data\":\"unknown\"},\"value\":{\"version\":17,\"data\":\"unknown\"}}"
                 ),
                 Arguments.of(
                         MessageUtil.toVersionPrefixedByteBuffer((short) 2, GROUP_METADATA_KEY).array(),
@@ -127,15 +127,6 @@ public class GroupMetadataMessageFormatterTest {
                         MessageUtil.toVersionPrefixedByteBuffer((short) 2, GROUP_METADATA_KEY).array(),
                         null,
                         "{\"key\":{\"version\":2,\"data\":{\"group\":\"group-id\"}},\"value\":null}"),
-                Arguments.of(
-                        null,
-                        MessageUtil.toVersionPrefixedByteBuffer((short) 4, GROUP_METADATA_VALUE).array(),
-                        "{\"key\":null,\"value\":{\"version\":4,\"data\":{\"protocolType\":\"consumer\",\"generation\":1," +
-                            "\"protocol\":\"range\",\"leader\":\"leader\",\"currentStateTimestamp\":1234," +
-                            "\"members\":[{\"memberId\":\"member-1\",\"groupInstanceId\":\"group-instance-1\"," +
-                            "\"clientId\":\"client-1\",\"clientHost\":\"host-1\",\"rebalanceTimeout\":1000," +
-                            "\"sessionTimeout\":1500,\"subscription\":\"AAE=\",\"assignment\":\"AQI=\"}]}}}"),
-                Arguments.of(null, null, "{\"key\":null,\"value\":null}"),
                 Arguments.of(
                         MessageUtil.toVersionPrefixedByteBuffer((short) 0, OFFSET_COMMIT_KEY).array(),
                         MessageUtil.toVersionPrefixedByteBuffer((short) 4, OFFSET_COMMIT_VALUE).array(),

@@ -47,7 +47,6 @@ import org.apache.kafka.common.resource.ResourcePattern
 import org.apache.kafka.common.security.auth.{KafkaPrincipal, KafkaPrincipalSerde, SecurityProtocol}
 import org.apache.kafka.common.serialization._
 import org.apache.kafka.common.utils.Utils.formatAddress
-import org.apache.kafka.common.utils.Time
 import org.apache.kafka.coordinator.group.GroupCoordinatorConfig
 import org.apache.kafka.coordinator.transaction.TransactionLogConfig
 import org.apache.kafka.metadata.LeaderAndIsr
@@ -103,9 +102,8 @@ object TestUtils extends Logging {
   val IncorrectBrokerPort = 225
 
   /** Port to use for unit tests that mock/don't require a real ZK server. */
-  val MockKraftPort = 1
   /** ZooKeeper connection string to use for unit tests that mock/don't require a real ZK server. */
-  val MockKraftConnect = "127.0.0.1:" + MockKraftPort
+  val MockZkConnect = "127.0.0.1:1"
   
   // CN in SSL certificates - this is used for endpoint validation when enabled
   val SslCertificateCn = "localhost"

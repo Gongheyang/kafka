@@ -39,7 +39,7 @@ jobs:
             })
             .then((pulls) => {
               pulls.forEach(pull => {
-                github.request('GET /repos/{owner}/{repo}/pulls/{pull_number}/reviews', {
+                reviews = github.request('GET /repos/{owner}/{repo}/pulls/{pull_number}/reviews', {
                   owner: 'apache',
                   repo: 'kafka',
                   pull_number: pull.number,

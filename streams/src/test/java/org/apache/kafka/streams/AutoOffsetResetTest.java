@@ -32,19 +32,19 @@ class AutoOffsetResetTest {
     @Test
     void shouldThrowExceptionOnDurationForNoneReset() {
         final AutoOffsetResetInternal none = new AutoOffsetResetInternal(AutoOffsetReset.none());
-        assertThrows(NoSuchElementException.class, none::duration, "None should not have a duration.");
+        assertThrows(IllegalStateException.class, none::duration, "None should not have a duration.");
     }
 
     @Test
     void shouldThrowExceptionOnDurationForEarliestReset() {
         final AutoOffsetResetInternal earliest = new AutoOffsetResetInternal(AutoOffsetReset.earliest());
-        assertThrows(NoSuchElementException.class, earliest::duration, "Earliest should not have a duration.");
+        assertThrows(IllegalStateException.class, earliest::duration, "Earliest should not have a duration.");
     }
 
     @Test
     void shouldThrowExceptionOnDurationForLastetReset() {
         final AutoOffsetResetInternal latest = new AutoOffsetResetInternal(AutoOffsetReset.latest());
-        assertThrows(NoSuchElementException.class, latest::duration, "Latest should not have a duration.");
+        assertThrows(IllegalStateException.class, latest::duration, "Latest should not have a duration.");
     }
 
     @Test

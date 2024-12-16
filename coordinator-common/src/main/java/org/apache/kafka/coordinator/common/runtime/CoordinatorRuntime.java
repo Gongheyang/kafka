@@ -767,8 +767,7 @@ public class CoordinatorRuntime<S extends CoordinatorShard<U>, U> implements Aut
         private void flushCurrentBatch() {
             if (currentBatch != null) {
                 try {
-                    int numRecords = currentBatch.builder.numRecords();
-                    if (numRecords == 0) {
+                    if (currentBatch.builder.numRecords() == 0) {
                         // The only way we can get here is if append() has failed in an unexpected
                         // way and left an empty batch. Try to clean it up.
                         log.warn("Tried to flush an empty batch for {}.", tp);

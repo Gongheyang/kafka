@@ -39,7 +39,7 @@ jobs:
             })
             .then((pulls) => {
               pulls.forEach(pull => {
-                const reviews = await octokit.rest.pulls.listReviews({
+                const reviews = octokit.rest.pulls.listReviews({
                   'apache',
                   'kafka',
                   pull.number,

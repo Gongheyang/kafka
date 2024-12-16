@@ -17,6 +17,7 @@
 package org.apache.kafka.clients.producer;
 
 import org.apache.kafka.common.Configurable;
+import org.apache.kafka.common.header.Headers;
 
 /**
  * A plugin interface that allows you to intercept (and possibly mutate) the records received by the producer before
@@ -81,12 +82,40 @@ public interface ProducerInterceptor<K, V> extends Configurable, AutoCloseable {
      * @param metadata The metadata for the record that was sent (i.e. the partition and offset).
      *                 If an error occurred, metadata will contain only valid topic and maybe
      *                 partition. If partition is not given in ProducerRecord and an error occurs
-     *                 before partition gets assigned, then partition will be set to RecordMetadata.NO_PARTITION.
+     *                 before partition gets assigned, then partition will be set to RecordMetadata.UNKNOWN_PARTITION.
      *                 The metadata may be null if the client passed null record to
      *                 {@link org.apache.kafka.clients.producer.KafkaProducer#send(ProducerRecord)}.
      * @param exception The exception thrown during processing of this record. Null if no error occurred.
      */
-    void onAcknowledgement(RecordMetadata metadata, Exception exception);
+    default void onAcknowledgement(RecordMetadata metadata, Exception exception) {}
+
+    /**
+     * This method is called when the record sent to the server has been acknowledged, or when sending the record fails before
+     * it gets sent to the server.
+     * <p>
+     * This method is called just before the user callback is invoked, or in cases when
+     * <code>KafkaProducer.send()</code> throws an exception.
+     * throws an exception.
+     * <p>
+     * Note that any exception thrown by this method will be ignored by the caller.
+     * <p>
+     * The implementation of this method should be fast as it generally executes in a background
+     * I/O thread. A slow implementation could delay the sending of messages from other threads.
+
+     * Otherwise, sending of messages from other threads could be delayed.
+     *
+     * @param metadata The metadata for the record that was sent (i.e. the partition and offset).
+     *                 If an error occurred, metadata will contain only valid topic and maybe
+     *                 partition. If partition is not given in ProducerRecord and an error occurs
+     *                 before partition gets assigned, then partition will be set to RecordMetadata.UNKNOWN_PARTITION.
+     *                 The metadata may be null if the client passed null record to
+     *                 {@link org.apache.kafka.clients.producer.KafkaProducer#send(ProducerRecord)}.
+     * @param exception The exception thrown during processing of this record. Null if no error occurred.
+     * @param headers The headers for the record that was sent. This parameter may be null.
+     */
+    default void onAcknowledgement(RecordMetadata metadata, Exception exception, Headers headers) {
+        onAcknowledgement(metadata, exception);
+    }
 
     /**
      * This is called when interceptor is closed

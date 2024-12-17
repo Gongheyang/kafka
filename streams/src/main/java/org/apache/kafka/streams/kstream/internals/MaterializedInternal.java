@@ -21,6 +21,7 @@ import org.apache.kafka.streams.StreamsConfig;
 import org.apache.kafka.streams.TopologyConfig;
 import org.apache.kafka.streams.kstream.Materialized;
 import org.apache.kafka.streams.processor.StateStore;
+import org.apache.kafka.streams.processor.internals.InternalResourcesNaming;
 import org.apache.kafka.streams.state.DslStoreSuppliers;
 import org.apache.kafka.streams.state.StoreSupplier;
 
@@ -53,6 +54,13 @@ public final class MaterializedInternal<K, V, S extends StateStore> extends Mate
         queryable = forceQueryable || storeName() != null;
         if (storeName() == null && nameProvider != null) {
             storeName = nameProvider.newStoreName(generatedStorePrefix);
+            if (nameProvider instanceof InternalStreamsBuilder) {
+                final InternalResourcesNaming internalResourcesNaming = InternalResourcesNaming.build().withStateStore(storeName);
+                if (loggingEnabled()) {
+                    internalResourcesNaming.withChangelogTopic(storeName + "-changelog");
+                }
+                ((InternalStreamsBuilder) nameProvider).internalTopologyBuilder().addUnprovidedInternalTopics(internalResourcesNaming);
+            }
         }
 
         // if store type is not configured during creating Materialized, then try to get the topologyConfigs from nameProvider

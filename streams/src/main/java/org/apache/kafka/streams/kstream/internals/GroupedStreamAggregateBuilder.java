@@ -83,8 +83,7 @@ class GroupedStreamAggregateBuilder<K, V> {
         if (repartitionRequired) {
             final OptimizableRepartitionNodeBuilder<K, V> repartitionNodeBuilder = optimizableRepartitionNodeBuilder();
             final String repartitionTopicPrefix = userProvidedRepartitionTopicName != null ? userProvidedRepartitionTopicName : storeFactory.storeName();
-            sourceName = createRepartitionSource(repartitionTopicPrefix, repartitionNodeBuilder);
-
+            sourceName = createRepartitionSource(repartitionTopicPrefix, repartitionNodeBuilder, userProvidedRepartitionTopicName != null);
             // First time through we need to create a repartition node.
             // Any subsequent calls to GroupedStreamAggregateBuilder#build we check if
             // the user has provided a name for the repartition topic, is so we re-use
@@ -122,14 +121,16 @@ class GroupedStreamAggregateBuilder<K, V> {
      * @return the new sourceName of the repartitioned source
      */
     private String createRepartitionSource(final String repartitionTopicNamePrefix,
-                                           final OptimizableRepartitionNodeBuilder<K, V> optimizableRepartitionNodeBuilder) {
+                                           final OptimizableRepartitionNodeBuilder<K, V> optimizableRepartitionNodeBuilder,
+                                           final boolean isRepartitionTopicNameProvidedByUser) {
 
         return KStreamImpl.createRepartitionedSource(builder,
                                                      keySerde,
                                                      valueSerde,
                                                      repartitionTopicNamePrefix,
                                                      null,
-                                                     optimizableRepartitionNodeBuilder);
+                                                     optimizableRepartitionNodeBuilder,
+                                                     isRepartitionTopicNameProvidedByUser);
 
     }
 }

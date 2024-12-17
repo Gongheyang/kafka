@@ -212,8 +212,7 @@ class CogroupedStreamAggregateBuilder<K, VOut> {
                 final String repartitionNamePrefix = repartitionReqs.userProvidedRepartitionTopicName != null ?
                     repartitionReqs.userProvidedRepartitionTopicName : storeName;
 
-                createRepartitionSource(repartitionNamePrefix, repartitionNodeBuilder, repartitionReqs.keySerde, repartitionReqs.valueSerde);
-
+                createRepartitionSource(repartitionNamePrefix, repartitionNodeBuilder, repartitionReqs.keySerde, repartitionReqs.valueSerde, repartitionReqs.userProvidedRepartitionTopicName != null || storeName != null);
                 if (!parentNodes.containsKey(repartitionReqs)) {
                     final GraphNode repartitionNode = repartitionNodeBuilder.build();
                     builder.addGraphNode(repartitionReqs.graphNode, repartitionNode);
@@ -290,14 +289,16 @@ class CogroupedStreamAggregateBuilder<K, VOut> {
     private <VIn> void createRepartitionSource(final String repartitionTopicNamePrefix,
                                                final OptimizableRepartitionNodeBuilder<K, ?> optimizableRepartitionNodeBuilder,
                                                final Serde<K> keySerde,
-                                               final Serde<?> valueSerde) {
+                                               final Serde<?> valueSerde,
+                                               final boolean isRepartitionTopicNameProvidedByUser) {
 
         KStreamImpl.createRepartitionedSource(builder,
             keySerde,
             (Serde<VIn>) valueSerde,
             repartitionTopicNamePrefix,
             null,
-            (OptimizableRepartitionNodeBuilder<K, VIn>) optimizableRepartitionNodeBuilder);
+            (OptimizableRepartitionNodeBuilder<K, VIn>) optimizableRepartitionNodeBuilder,
+            isRepartitionTopicNameProvidedByUser);
 
     }
 }

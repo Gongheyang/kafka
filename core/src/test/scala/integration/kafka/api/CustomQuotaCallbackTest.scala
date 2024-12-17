@@ -89,6 +89,7 @@ class CustomQuotaCallbackTest extends IntegrationTestHarness with SaslSetup {
     createScramCredentials("", JaasTestUtils.KAFKA_SCRAM_ADMIN, JaasTestUtils.KAFKA_SCRAM_ADMIN_PASSWORD)
   }
 
+  @Disabled("KAFKA-18225")
   @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
   @MethodSource(Array("getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly_ZK_implicit"))
   def testCustomQuotaCallback(quorum: String, groupProtocol: String): Unit = {

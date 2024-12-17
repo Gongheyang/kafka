@@ -112,7 +112,7 @@ public class OffsetAndMetadataTest {
                 100L,
                 OptionalInt.of(10),
                 "hello",
-                1234L,
+                time.milliseconds(),
                 OptionalLong.empty()
             ), OffsetAndMetadata.fromRequest(
                 partition,
@@ -126,7 +126,7 @@ public class OffsetAndMetadataTest {
                 100L,
                 OptionalInt.of(10),
                 "hello",
-                1234L,
+                time.milliseconds(),
                 OptionalLong.of(5678L)
             ), OffsetAndMetadata.fromRequest(
                 partition,

@@ -503,7 +503,7 @@ class FetchRequestTest extends BaseFetchRequestTest {
 
     val res0 = sendFetchRequest(leaderId, req0)
     val data0 = res0.responseData(topicNames, 9).get(topicPartition)
-    assertEquals(Errors.UNSUPPORTED_COMPRESSION_TYPE.code, data0.errorCode)
+    assertEquals(Errors.NONE.code, data0.errorCode)
 
     // fetch request with version 10: works fine!
     val req1= new FetchRequest.Builder(0, 10, -1, -1, Int.MaxValue, 0,

@@ -16,8 +16,6 @@
  */
 package org.apache.kafka.coordinator.group.api.assignor;
 
-import org.apache.kafka.common.annotation.InterfaceStability;
-
 /**
  * The subscription type followed by a consumer group.
  */

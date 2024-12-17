@@ -211,7 +211,7 @@ public class TransactionManager {
                 case UNINITIALIZED:
                     return source == READY || source == ABORTABLE_ERROR;
                 case INITIALIZING:
-                    return source == UNINITIALIZED || source == ABORTING_TRANSACTION || source == COMMITTING_TRANSACTION;
+                    return source == UNINITIALIZED || source == COMMITTING_TRANSACTION || source == ABORTING_TRANSACTION;
                 case READY:
                     return source == INITIALIZING || source == COMMITTING_TRANSACTION || source == ABORTING_TRANSACTION;
                 case IN_TRANSACTION:
@@ -348,7 +348,9 @@ public class TransactionManager {
         );
 
         // Maybe update the transaction version here before we enqueue the EndTxn request so there are no races with
-        // completion of the EndTxn request.
+        // completion of the EndTxn request. Since this method may update clientSideEpochBumpRequired, we want to update
+        // before the check below, but we also want to call it after the EndTxnRequest.Builder so we complete the transaction
+        // with the same version as it started.
         maybeUpdateTransactionV2Enabled(false);
 
         EndTxnHandler handler = new EndTxnHandler(builder);
@@ -443,7 +445,10 @@ public class TransactionManager {
 
     /**
      *  Check all the finalized features from apiVersions to whether the transaction V2 is enabled.
-     *  Sets isUpgradingToV2 if the previous value was false and now it is true.
+     *  Sets clientSideEpochBumpRequired if upgrading to V2 since we need to bump the epoch.
+     *  This is because V2 no longer adds partitions explicitly and there are some edge cases on upgrade
+     *  that can be avoided by fencing the old V1 transaction epoch. For example, we won't consider
+     *  partitions from the previous transaction as already added to the new V2 transaction if the epoch is fenced.
      */
 
     public synchronized void maybeUpdateTransactionV2Enabled(boolean onInitiatialization) {

@@ -62,9 +62,6 @@
           "about": "The message offset to be committed." },
         { "name": "CommittedLeaderEpoch", "type": "int32", "versions": "6+", "default": "-1", "ignorable": true,
           "about": "The leader epoch of this partition." },
-        // CommitTimestamp has been removed from v2 and later.
-        { "name": "CommitTimestamp", "type": "int64", "versions": "1", "default": "-1",
-          "about": "The timestamp of the commit." },
         { "name": "CommittedMetadata", "type": "string", "versions": "0+", "nullableVersions": "0+",
           "about": "Any associated metadata the client wants to keep." }
       ]}

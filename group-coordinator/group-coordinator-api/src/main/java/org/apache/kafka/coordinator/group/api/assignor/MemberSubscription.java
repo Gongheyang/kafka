@@ -25,7 +25,6 @@ import java.util.Set;
 /**
  * Interface representing the subscription metadata for a group member.
  */
-@InterfaceStability.Unstable
 public interface MemberSubscription {
     /**
      * Gets the rack Id if present.

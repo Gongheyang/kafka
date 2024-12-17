@@ -24,7 +24,6 @@ import java.util.Collection;
 /**
  * The group metadata specifications required to compute the target assignment.
  */
-@InterfaceStability.Unstable
 public interface GroupSpec {
     /**
      * @return All the member Ids of the consumer group.

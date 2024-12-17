@@ -25,7 +25,6 @@ import java.util.Set;
 /**
  * The partition assignment for a consumer group member.
  */
-@InterfaceStability.Unstable
 public interface MemberAssignment {
     /**
      * @return The assigned partitions keyed by topic Ids.

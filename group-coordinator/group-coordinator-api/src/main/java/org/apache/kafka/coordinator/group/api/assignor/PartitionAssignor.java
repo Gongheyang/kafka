@@ -20,11 +20,7 @@ import org.apache.kafka.common.annotation.InterfaceStability;
 
 /**
  * Server-side partition assignor used by the GroupCoordinator.
- *
- * The new consumer group protocol is in preview so this interface is considered
- * unstable until Apache Kafka 4.0.
  */
-@InterfaceStability.Unstable
 public interface PartitionAssignor {
     /**
      * Unique name for this assignor.

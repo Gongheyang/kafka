@@ -176,7 +176,7 @@ public class CommitRequestManager implements RequestManager, MemberStateListener
      */
     @Override
     public NetworkClientDelegate.PollResult poll(final long currentTimeMs) {
-        // poll when the coordinator node is known and fatal errors are not present
+        // poll when the coordinator node is known and fatal error is not present
         if (coordinatorRequestManager.coordinator().isEmpty()) {
             maybeFailPendingRequestsOnCoordinatorFatalError();
             return EMPTY;

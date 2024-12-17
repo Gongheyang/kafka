@@ -1264,6 +1264,21 @@ public class ConsumerGroup extends ModernGroup<ConsumerGroupMember> {
     }
 
     /**
+     * Checks whether all the members use the classic protocol except the given members.
+     *
+     * @param memberIds The members to remove.
+     * @return A boolean indicating whether all the members use the classic protocol.
+     */
+    public boolean allMembersUseClassicProtocolExcept(Set<String> memberIds) {
+        for (ConsumerGroupMember member : members().values()) {
+            if (!memberIds.contains(member.memberId()) && !member.useClassicProtocol()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
      * Checks whether the member has any unreleased partition.
      *
      * @param member The member to check.

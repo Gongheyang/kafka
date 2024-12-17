@@ -1932,8 +1932,7 @@ public final class RaftClientTestContext {
     short voteRpcVersion() {
         if (raftProtocol.isPreVoteSupported()) {
             return 2;
-        }
-        if (raftProtocol.isReconfigSupported()) {
+        } else if (raftProtocol.isReconfigSupported()) {
             return 1;
         } else {
             return 0;

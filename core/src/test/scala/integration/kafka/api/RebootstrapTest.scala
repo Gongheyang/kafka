@@ -36,8 +36,7 @@ abstract class RebootstrapTest extends AbstractConsumerTest {
   override def setUp(testInfo: TestInfo): Unit = {
     super.doSetup(testInfo, createOffsetsTopic = true)
 
-    // We pass `unclean.leader.election.enable` as a server config,
-    // so we need to configure it on the controller node as well
+    // Enable unclean leader election on the controller node as well
     val topicProps = new Properties
     topicProps.put(TopicConfig.UNCLEAN_LEADER_ELECTION_ENABLE_CONFIG, "true")
 
@@ -48,7 +47,7 @@ abstract class RebootstrapTest extends AbstractConsumerTest {
   override def generateConfigs: Seq[KafkaConfig] = {
     val overridingProps = new Properties()
     overridingProps.put(GroupCoordinatorConfig.OFFSETS_TOPIC_REPLICATION_FACTOR_CONFIG, brokerCount.toString)
-    // Since DELIVERY_TIMEOUT_MS_CONFIG defaults to 120000,
+    // Since DELIVERY_TIMEOUT_MS_CONFIG defaults to 120000ms,
     // we need to set a smaller value for unclean.leader.election.interval.ms
     overridingProps.put(ReplicationConfigs.UNCLEAN_LEADER_ELECTION_INTERVAL_MS_CONFIG, TimeUnit.MILLISECONDS.toMillis(1))
     overridingProps.put(TopicConfig.UNCLEAN_LEADER_ELECTION_ENABLE_CONFIG, "true")

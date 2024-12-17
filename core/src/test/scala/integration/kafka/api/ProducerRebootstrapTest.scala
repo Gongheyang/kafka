@@ -25,6 +25,7 @@ class ProducerRebootstrapTest extends RebootstrapTest {
   @ParameterizedTest(name = "{displayName}.quorum=kraft.useRebootstrapTriggerMs={0}")
   @ValueSource(booleans = Array(false, true))
   def testRebootstrap(useRebootstrapTriggerMs: Boolean): Unit = {
+    // It's ok to shut the leader down, cause the reelection is small enough to the producer timeout.
     server1.shutdown()
     server1.awaitShutdown()
 

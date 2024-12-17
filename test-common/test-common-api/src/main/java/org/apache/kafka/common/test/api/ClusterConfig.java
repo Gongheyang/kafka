@@ -53,7 +53,6 @@ public class ClusterConfig {
     private final boolean autoStart;
     private final SecurityProtocol brokerSecurityProtocol;
     private final ListenerName brokerListenerName;
-    private final boolean fixedBrokerPorts;
     private final SecurityProtocol controllerSecurityProtocol;
     private final ListenerName controllerListenerName;
     private final File trustStoreFile;
@@ -71,7 +70,7 @@ public class ClusterConfig {
 
     @SuppressWarnings("checkstyle:ParameterNumber")
     private ClusterConfig(Set<Type> types, int brokers, int controllers, int disksPerBroker, boolean autoStart,
-                  SecurityProtocol brokerSecurityProtocol, ListenerName brokerListenerName, boolean fixedBrokerPorts,
+                  SecurityProtocol brokerSecurityProtocol, ListenerName brokerListenerName,
                   SecurityProtocol controllerSecurityProtocol, ListenerName controllerListenerName, File trustStoreFile,
                   MetadataVersion metadataVersion, Map<String, String> serverProperties, Map<String, String> producerProperties,
                   Map<String, String> consumerProperties, Map<String, String> adminClientProperties, Map<String, String> saslServerProperties,
@@ -89,7 +88,6 @@ public class ClusterConfig {
         this.autoStart = autoStart;
         this.brokerSecurityProtocol = Objects.requireNonNull(brokerSecurityProtocol);
         this.brokerListenerName = Objects.requireNonNull(brokerListenerName);
-        this.fixedBrokerPorts = fixedBrokerPorts;
         this.controllerSecurityProtocol = Objects.requireNonNull(controllerSecurityProtocol);
         this.controllerListenerName = Objects.requireNonNull(controllerListenerName);
         this.trustStoreFile = trustStoreFile;
@@ -165,10 +163,6 @@ public class ClusterConfig {
         return brokerListenerName;
     }
 
-    public boolean fixedBrokerPorts() {
-        return fixedBrokerPorts;
-    }
-
     public Optional<File> trustStoreFile() {
         return Optional.ofNullable(trustStoreFile);
     }
@@ -208,7 +202,6 @@ public class ClusterConfig {
                 .setAutoStart(true)
                 .setBrokerSecurityProtocol(DEFAULT_BROKER_SECURITY_PROTOCOL)
                 .setBrokerListenerName(ListenerName.normalised(DEFAULT_BROKER_LISTENER_NAME))
-                .setFixedBrokerPorts(false)
                 .setControllerSecurityProtocol(DEFAULT_CONTROLLER_SECURITY_PROTOCOL)
                 .setControllerListenerName(ListenerName.normalised(DEFAULT_CONTROLLER_LISTENER_NAME))
                 .setMetadataVersion(MetadataVersion.latestTesting());
@@ -227,7 +220,6 @@ public class ClusterConfig {
                 .setAutoStart(clusterConfig.autoStart)
                 .setBrokerSecurityProtocol(clusterConfig.brokerSecurityProtocol)
                 .setBrokerListenerName(clusterConfig.brokerListenerName)
-                .setFixedBrokerPorts(clusterConfig.fixedBrokerPorts)
                 .setControllerSecurityProtocol(clusterConfig.controllerSecurityProtocol)
                 .setControllerListenerName(clusterConfig.controllerListenerName)
                 .setTrustStoreFile(clusterConfig.trustStoreFile)
@@ -251,7 +243,6 @@ public class ClusterConfig {
         private boolean autoStart;
         private SecurityProtocol brokerSecurityProtocol;
         private ListenerName brokerListenerName;
-        private boolean fixedBrokerPorts;
         private SecurityProtocol controllerSecurityProtocol;
         private ListenerName controllerListenerName;
         private File trustStoreFile;
@@ -300,11 +291,6 @@ public class ClusterConfig {
 
         public Builder setBrokerListenerName(ListenerName listenerName) {
             this.brokerListenerName = listenerName;
-            return this;
-        }
-
-        public Builder setFixedBrokerPorts(boolean fixedBrokerPorts) {
-            this.fixedBrokerPorts = fixedBrokerPorts;
             return this;
         }
 
@@ -377,7 +363,7 @@ public class ClusterConfig {
 
         public ClusterConfig build() {
             return new ClusterConfig(types, brokers, controllers, disksPerBroker, autoStart,
-                    brokerSecurityProtocol, brokerListenerName, fixedBrokerPorts,controllerSecurityProtocol, controllerListenerName,
+                    brokerSecurityProtocol, brokerListenerName, controllerSecurityProtocol, controllerListenerName,
                     trustStoreFile, metadataVersion, serverProperties, producerProperties, consumerProperties,
                     adminClientProperties, saslServerProperties, saslClientProperties,
                     perServerProperties, tags, features);

@@ -251,7 +251,6 @@ public class ClusterTestExtensions implements TestTemplateInvocationContextProvi
             .setAutoStart(clusterTest.autoStart() == AutoStart.DEFAULT ? defaults.autoStart() : clusterTest.autoStart() == AutoStart.YES)
             .setBrokerListenerName(ListenerName.normalised(clusterTest.brokerListener()))
             .setBrokerSecurityProtocol(clusterTest.brokerSecurityProtocol())
-            .setFixedBrokerPorts(clusterTest.fixedBrokerPorts())
             .setControllerListenerName(ListenerName.normalised(clusterTest.controllerListener()))
             .setControllerSecurityProtocol(clusterTest.controllerSecurityProtocol())
             .setServerProperties(serverProperties)

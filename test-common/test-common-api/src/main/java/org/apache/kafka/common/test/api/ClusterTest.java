@@ -49,7 +49,6 @@ public @interface ClusterTest {
     // be kept in sync with the default values in TestKitNodes, as many tests
     // directly use TestKitNodes without relying on the ClusterTest annotation.
     SecurityProtocol brokerSecurityProtocol() default SecurityProtocol.PLAINTEXT;
-    boolean fixedBrokerPorts() default false;
     String brokerListener() default DEFAULT_BROKER_LISTENER_NAME;
     SecurityProtocol controllerSecurityProtocol() default SecurityProtocol.PLAINTEXT;
     String controllerListener() default DEFAULT_CONTROLLER_LISTENER_NAME;

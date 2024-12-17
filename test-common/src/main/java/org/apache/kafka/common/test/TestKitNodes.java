@@ -72,7 +72,6 @@ public class TestKitNodes {
         // be kept in sync with the default values in ClusterTest.
         private ListenerName brokerListenerName = ListenerName.normalised(DEFAULT_BROKER_LISTENER_NAME);
         private SecurityProtocol brokerSecurityProtocol = DEFAULT_BROKER_SECURITY_PROTOCOL;
-        private boolean fixedBrokerPorts = false;
         private ListenerName controllerListenerName = ListenerName.normalised(DEFAULT_CONTROLLER_LISTENER_NAME);
         private SecurityProtocol controllerSecurityProtocol = DEFAULT_CONTROLLER_SECURITY_PROTOCOL;
 
@@ -136,11 +135,6 @@ public class TestKitNodes {
 
         public Builder setBrokerSecurityProtocol(SecurityProtocol securityProtocol) {
             this.brokerSecurityProtocol = securityProtocol;
-            return this;
-        }
-
-        public Builder setFixedBrokerPorts(boolean fixedBrokerPorts) {
-            this.fixedBrokerPorts = fixedBrokerPorts;
             return this;
         }
 
@@ -223,7 +217,7 @@ public class TestKitNodes {
             }
 
             return new TestKitNodes(baseDirectory.toFile().getAbsolutePath(), clusterId, bootstrapMetadata, controllerNodes, brokerNodes,
-                brokerListenerName, brokerSecurityProtocol, fixedBrokerPorts,controllerListenerName, controllerSecurityProtocol);
+                brokerListenerName, brokerSecurityProtocol, controllerListenerName, controllerSecurityProtocol);
         }
     }
 
@@ -234,7 +228,6 @@ public class TestKitNodes {
     private final SortedMap<Integer, TestKitNode> brokerNodes;
     private final ListenerName brokerListenerName;
     private final ListenerName controllerListenerName;
-    private final boolean fixedBrokerPorts;
     private final SecurityProtocol brokerSecurityProtocol;
     private final SecurityProtocol controllerSecurityProtocol;
 
@@ -246,7 +239,6 @@ public class TestKitNodes {
         SortedMap<Integer, TestKitNode> brokerNodes,
         ListenerName brokerListenerName,
         SecurityProtocol brokerSecurityProtocol,
-        boolean fixedBrokerPorts,
         ListenerName controllerListenerName,
         SecurityProtocol controllerSecurityProtocol
     ) {
@@ -256,7 +248,6 @@ public class TestKitNodes {
         this.controllerNodes = Collections.unmodifiableSortedMap(new TreeMap<>(Objects.requireNonNull(controllerNodes)));
         this.brokerNodes = Collections.unmodifiableSortedMap(new TreeMap<>(Objects.requireNonNull(brokerNodes)));
         this.brokerListenerName = Objects.requireNonNull(brokerListenerName);
-        this.fixedBrokerPorts = fixedBrokerPorts;
         this.controllerListenerName = Objects.requireNonNull(controllerListenerName);
         this.brokerSecurityProtocol = Objects.requireNonNull(brokerSecurityProtocol);
         this.controllerSecurityProtocol = Objects.requireNonNull(controllerSecurityProtocol);
@@ -292,10 +283,6 @@ public class TestKitNodes {
 
     public SecurityProtocol brokerListenerProtocol() {
         return brokerSecurityProtocol;
-    }
-
-    public boolean fixedBrokerPorts() {
-        return fixedBrokerPorts;
     }
 
     public ListenerName controllerListenerName() {

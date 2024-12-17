@@ -178,14 +178,7 @@ public class CommitRequestManager implements RequestManager, MemberStateListener
     public NetworkClientDelegate.PollResult poll(final long currentTimeMs) {
         // poll when the coordinator node is known and fatal errors are not present
         if (coordinatorRequestManager.coordinator().isEmpty()) {
-            // The fatal error completeExceptionally all pending requests, but application thread may not get the
-            // fatal error When Consumer#poll, because it will need to check Error events without triggering an API event.
-            // So, we won't clear the fatal error here.
-            Optional<Throwable> fatalError = coordinatorRequestManager.fatalError();
-            if (fatalError.isPresent()) {
-                pendingRequests.unsentOffsetCommits.forEach(request -> request.future.completeExceptionally(fatalError.get()));
-                pendingRequests.unsentOffsetFetches.forEach(request -> request.future.completeExceptionally(fatalError.get()));
-            }
+            maybeFailPendingRequestsOnCoordinatorFatalError();
             return EMPTY;
         }
 
@@ -203,6 +196,14 @@ public class CommitRequestManager implements RequestManager, MemberStateListener
             findMinTime(unsentOffsetCommitRequests(), currentTimeMs),
             findMinTime(unsentOffsetFetchRequests(), currentTimeMs));
         return new NetworkClientDelegate.PollResult(timeUntilNextPoll, requests);
+    }
+
+    private void maybeFailPendingRequestsOnCoordinatorFatalError() {
+        Optional<Throwable> fatalError = coordinatorRequestManager.fatalError();
+        if (fatalError.isPresent()) {
+            pendingRequests.unsentOffsetCommits.forEach(request -> request.future.completeExceptionally(fatalError.get()));
+            pendingRequests.unsentOffsetFetches.forEach(request -> request.future.completeExceptionally(fatalError.get()));
+        }
     }
 
     @Override

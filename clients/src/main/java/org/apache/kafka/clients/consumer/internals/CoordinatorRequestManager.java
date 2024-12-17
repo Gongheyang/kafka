@@ -57,6 +57,11 @@ public class CoordinatorRequestManager implements RequestManager {
     private long timeMarkedUnknownMs = -1L; // starting logging a warning only after unable to connect for a while
     private long totalDisconnectedMin = 0;
     private Node coordinator;
+    // Hold the last fatal error received. It is exposed so that managers requiring a coordinator 
+    // Other managers can access it and take appropriate actions. 
+    // For example:
+    // - AbstractHeartbeatRequestManager propagates the error event to the application thread.
+    // - CommitRequestManager fail pending requests.
     private Optional<Throwable> fatalError = Optional.empty();
 
     public CoordinatorRequestManager(

@@ -281,14 +281,6 @@ class ProduceRequestTest extends BaseRequestTest {
     assertEquals(Errors.NONE, Errors.forCode(partitionProduceResponse1.errorCode))
     assertEquals(0, partitionProduceResponse1.baseOffset)
     assertEquals(-1, partitionProduceResponse1.logAppendTimeMs)
-
-    // produce request with v3: returns Errors.UNSUPPORTED_COMPRESSION_TYPE.
-    val produceResponse2 = sendProduceRequest(leader, new ProduceRequest.Builder(3, 3, partitionRecords).buildUnsafe(3))
-    val topicProduceResponse2 = produceResponse2.data.responses.asScala.head
-    val partitionProduceResponse2 = topicProduceResponse2.partitionResponses.asScala.head
-    val tp2 = new TopicPartition(topicProduceResponse2.name, partitionProduceResponse2.index)
-    assertEquals(topicPartition, tp2)
-    assertEquals(Errors.UNSUPPORTED_COMPRESSION_TYPE, Errors.forCode(partitionProduceResponse2.errorCode))
   }
 
   private def sendProduceRequest(leaderId: Int, request: ProduceRequest): ProduceResponse = {

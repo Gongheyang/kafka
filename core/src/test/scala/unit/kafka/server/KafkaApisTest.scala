@@ -2899,7 +2899,7 @@ class KafkaApisTest extends Logging {
 
     addTopicToMetadataCache(topic, numPartitions = 2)
 
-    for (version <- 3 to ApiKeys.PRODUCE.latestVersion) {
+    for (version <- ApiKeys.PRODUCE.oldestVersion to ApiKeys.PRODUCE.latestVersion) {
 
       reset(replicaManager, clientQuotaManager, clientRequestQuotaManager, requestChannel, txnCoordinator)
 
@@ -4374,11 +4374,6 @@ class KafkaApisTest extends Logging {
   @Test
   def testListOffsetLatestTieredTimestampWithUnsupportedVersion(): Unit = {
     testConsumerListOffsetWithUnsupportedVersion(ListOffsetsRequest.LATEST_TIERED_TIMESTAMP, 8)
-  }
-
-  @Test
-  def testListOffsetNegativeTimestampWithZeroVersion(): Unit = {
-    testConsumerListOffsetWithUnsupportedVersion(-3, 0)
   }
 
   @Test

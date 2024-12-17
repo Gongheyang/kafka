@@ -199,21 +199,17 @@ public final class MessageTest {
     public void testListOffsetsResponseVersions() throws Exception {
         ListOffsetsPartitionResponse partition = new ListOffsetsPartitionResponse()
                 .setErrorCode(Errors.NONE.code())
-                .setPartitionIndex(0)
-                .setOldStyleOffsets(Collections.singletonList(321L));
+                .setPartitionIndex(0);
         List<ListOffsetsTopicResponse> topics = Collections.singletonList(new ListOffsetsTopicResponse()
                 .setName("topic")
                 .setPartitions(Collections.singletonList(partition)));
         Supplier<ListOffsetsResponseData> response = () -> new ListOffsetsResponseData()
                 .setTopics(topics);
-        for (short version : ApiKeys.LIST_OFFSETS.allVersions()) {
+        for (short version = ApiKeys.LIST_OFFSETS.oldestVersion(); version <= ApiKeys.LIST_OFFSETS.latestVersion(); ++version) {
             ListOffsetsResponseData responseData = response.get();
-            if (version > 0) {
-                responseData.topics().get(0).partitions().get(0)
-                    .setOldStyleOffsets(Collections.emptyList())
-                    .setOffset(456L)
-                    .setTimestamp(123L);
-            }
+            responseData.topics().get(0).partitions().get(0)
+                .setOffset(456L)
+                .setTimestamp(123L);
             if (version > 1) {
                 responseData.setThrottleTimeMs(1000);
             }
@@ -476,22 +472,13 @@ public final class MessageTest {
                                       .setCommittedLeaderEpoch(10)
                                       .setCommittedMetadata(metadata)
                                       .setCommittedOffset(offset)
-                                      .setCommitTimestamp(20)
                             ))))
                     .setRetentionTimeMs(20);
 
         for (short version : ApiKeys.OFFSET_COMMIT.allVersions()) {
             OffsetCommitRequestData requestData = request.get();
-            if (version < 1) {
-                requestData.setMemberId("");
-                requestData.setGenerationIdOrMemberEpoch(-1);
-            }
 
-            if (version != 1) {
-                requestData.topics().get(0).partitions().get(0).setCommitTimestamp(-1);
-            }
-
-            if (version < 2 || version > 4) {
+            if (version > 4) {
                 requestData.setRetentionTimeMs(-1);
             }
 
@@ -503,9 +490,7 @@ public final class MessageTest {
                 requestData.setGroupInstanceId(null);
             }
 
-            if (version == 1) {
-                testEquivalentMessageRoundTrip(version, requestData);
-            } else if (version >= 2 && version <= 4) {
+            if (version >= 2 && version <= 4) {
                 testAllMessageRoundTripsBetweenVersions(version, (short) 5, requestData, requestData);
             } else {
                 testAllMessageRoundTripsFromVersion(version, requestData);

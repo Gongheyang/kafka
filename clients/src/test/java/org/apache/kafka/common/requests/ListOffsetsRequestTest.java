@@ -98,12 +98,10 @@ public class ListOffsetsRequestTest {
         ListOffsetsPartition lop0 = new ListOffsetsPartition()
                 .setPartitionIndex(0)
                 .setCurrentLeaderEpoch(1)
-                .setMaxNumOffsets(2)
                 .setTimestamp(123L);
         ListOffsetsPartition lop1 = new ListOffsetsPartition()
                 .setPartitionIndex(1)
                 .setCurrentLeaderEpoch(3)
-                .setMaxNumOffsets(4)
                 .setTimestamp(567L);
         Map<TopicPartition, ListOffsetsPartition> timestampsToSearch = new HashMap<>();
         timestampsToSearch.put(new TopicPartition("topic", 0), lop0);

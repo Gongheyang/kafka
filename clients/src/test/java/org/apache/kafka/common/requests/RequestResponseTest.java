@@ -2296,19 +2296,7 @@ public class RequestResponseTest {
     }
 
     private ListOffsetsRequest createListOffsetRequest(short version) {
-        if (version == 0) {
-            ListOffsetsTopic topic = new ListOffsetsTopic()
-                    .setName("test")
-                    .setPartitions(singletonList(new ListOffsetsPartition()
-                            .setPartitionIndex(0)
-                            .setTimestamp(1000000L)
-                            .setMaxNumOffsets(10)
-                            .setCurrentLeaderEpoch(5)));
-            return ListOffsetsRequest.Builder
-                    .forConsumer(false, IsolationLevel.READ_UNCOMMITTED)
-                    .setTargetTimes(singletonList(topic))
-                    .build(version);
-        } else if (version == 1) {
+        if (version == 1) {
             ListOffsetsTopic topic = new ListOffsetsTopic()
                     .setName("test")
                     .setPartitions(singletonList(new ListOffsetsPartition()
@@ -2338,16 +2326,7 @@ public class RequestResponseTest {
     }
 
     private ListOffsetsResponse createListOffsetResponse(short version) {
-        if (version == 0) {
-            ListOffsetsResponseData data = new ListOffsetsResponseData()
-                    .setTopics(singletonList(new ListOffsetsTopicResponse()
-                            .setName("test")
-                            .setPartitions(singletonList(new ListOffsetsPartitionResponse()
-                                    .setPartitionIndex(0)
-                                    .setErrorCode(Errors.NONE.code())
-                                    .setOldStyleOffsets(singletonList(100L))))));
-            return new ListOffsetsResponse(data);
-        } else if (version >= 1 && version <= LIST_OFFSETS.latestVersion()) {
+        if (version >= 1 && version <= LIST_OFFSETS.latestVersion()) {
             ListOffsetsPartitionResponse partition = new ListOffsetsPartitionResponse()
                     .setPartitionIndex(0)
                     .setErrorCode(Errors.NONE.code())

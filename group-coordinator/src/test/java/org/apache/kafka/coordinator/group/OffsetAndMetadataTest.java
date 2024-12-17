@@ -87,8 +87,7 @@ public class OffsetAndMetadataTest {
                 .setPartitionIndex(0)
                 .setCommittedOffset(100L)
                 .setCommittedLeaderEpoch(-1)
-                .setCommittedMetadata(null)
-                .setCommitTimestamp(-1L);
+                .setCommittedMetadata(null);
 
         assertEquals(
             new OffsetAndMetadata(
@@ -106,8 +105,7 @@ public class OffsetAndMetadataTest {
 
         partition
             .setCommittedLeaderEpoch(10)
-            .setCommittedMetadata("hello")
-            .setCommitTimestamp(1234L);
+            .setCommittedMetadata("hello");
 
         assertEquals(
             new OffsetAndMetadata(

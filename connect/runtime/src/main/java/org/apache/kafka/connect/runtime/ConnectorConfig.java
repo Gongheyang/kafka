@@ -610,6 +610,8 @@ public class ConnectorConfig extends AbstractConfig {
 
                 final String typeConfig = prefix + "type";
                 final String versionConfig = prefix + WorkerConfig.PLUGIN_VERSION_SUFFIX;
+                final String defaultVersion = fetchPluginVersion(plugins, props.get(ConnectorConfig.CONNECTOR_CLASS_CONFIG),
+                        props.get(ConnectorConfig.CONNECTOR_VERSION), props.get(typeConfig), pluginType);
 
                 // Add the class configuration
                 final ConfigDef.Validator typeValidator = ConfigDef.LambdaValidator.with(
@@ -617,7 +619,7 @@ public class ConnectorConfig extends AbstractConfig {
                             validateProps(prefix);
                             // The value will be null if the class couldn't be found; no point in performing follow-up validation
                             if (value != null) {
-                                getConfigDefFromPlugin(typeConfig, ((Class<?>) value).getName(), null, plugins);
+                                getConfigDefFromPlugin(typeConfig, ((Class<?>) value).getName(), props.getOrDefault(versionConfig, defaultVersion), plugins);
                             }
                         },
                         () -> "valid configs for " + alias + " " + aliasKind.toLowerCase(Locale.ENGLISH));
@@ -628,17 +630,17 @@ public class ConnectorConfig extends AbstractConfig {
 
                 // Add the version configuration
                 final ConfigDef.Validator versionValidator = (name, value) -> {
-                    try {
-                        PluginUtils.connectorVersionRequirement((String) value);
-                    } catch (InvalidVersionSpecificationException e) {
-                        throw new ConfigException(name, value, e.getMessage());
-                    }
                     if (value != null) {
-                        getConfigDefFromPlugin(typeConfig, props.get(typeConfig), (String) value, plugins);
+                        try {
+                            getConfigDefFromPlugin(typeConfig, props.get(typeConfig), (String) value, plugins);
+                        } catch (VersionedPluginLoadingException e) {
+                            throw e;
+                        } catch (Exception e) {
+                            // ignore any other exception here as they are not related to version validation and
+                            // will be captured in the validation of the class configuration
+                        }
                     }
                 };
-                String defaultVersion = fetchPluginVersion(plugins, props.get(ConnectorConfig.CONNECTOR_CLASS_CONFIG),
-                        props.get(ConnectorConfig.CONNECTOR_VERSION), props.get(typeConfig), pluginType);
                 newDef.define(versionConfig, Type.STRING, defaultVersion, versionValidator, Importance.HIGH,
                         "Version of the '" + alias + "' " + aliasKind.toLowerCase(Locale.ENGLISH) + ".", group, orderInGroup++, Width.LONG,
                         baseClass.getSimpleName() + " version for " + alias,
@@ -678,6 +680,9 @@ public class ConnectorConfig extends AbstractConfig {
          * named in the {@code ...type} parameter of the {@code props}.
          */
         protected Stream<Map.Entry<String, ConfigDef.ConfigKey>> configDefsForClass(String typeConfig, String versionConfig, Plugins plugins) {
+            if (props.get(typeConfig) == null) {
+                throw new ConfigException(typeConfig, null, "Not a " + baseClass.getSimpleName());
+            }
             return getConfigDefFromPlugin(typeConfig, props.get(typeConfig), props.get(versionConfig), plugins)
                     .configKeys().entrySet().stream();
         }
@@ -689,27 +694,35 @@ public class ConnectorConfig extends AbstractConfig {
 
         @SuppressWarnings("unchecked")
         ConfigDef getConfigDefFromPlugin(String key, String pluginClass, String version, Plugins plugins) {
-            if (pluginClass == null) {
-                throw new ConfigException(key, null, "Not a " + baseClass.getSimpleName());
-            }
-
             String connectorClass = props.get(CONNECTOR_CLASS_CONFIG);
-            if (connectorClass == null) {
-                throw new ConfigException(key, pluginClass, "Missing required configuration \"" + CONNECTOR_CLASS_CONFIG + "\"");
+            if (pluginClass == null || connectorClass == null) {
+                // if transformation class is null or connector class is null, we return empty as these validations are done in respective validators
+                return new ConfigDef();
             }
-            String connectorVersion = props.get(CONNECTOR_VERSION);
+            VersionRange connectorVersionRange;
+            try {
+                connectorVersionRange = PluginUtils.connectorVersionRequirement(props.get(CONNECTOR_VERSION));
+            } catch (InvalidVersionSpecificationException e) {
+                // this should be caught in connector version validation
+                return new ConfigDef();
+            }
 
+            VersionRange pluginVersion;
+            try {
+                pluginVersion = PluginUtils.connectorVersionRequirement(version);
+            } catch (InvalidVersionSpecificationException e) {
+                throw new ConfigException(e.getMessage());
+            }
+
+            // validate that the plugin class is a subclass of the base class
             final Class<?> cls = (Class<?>) ConfigDef.parseType(key, props.get(key), Type.CLASS);
             Utils.ensureConcreteSubclass(baseClass, cls);
 
             T plugin;
             try {
-                VersionRange connectorVersionRange = PluginUtils.connectorVersionRequirement(connectorVersion);
-                VersionRange pluginVersion = PluginUtils.connectorVersionRequirement(version);
                 plugin = (T) plugins.newPlugin(pluginClass, pluginVersion, plugins.pluginLoader(connectorClass, connectorVersionRange));
-            } catch (InvalidVersionSpecificationException e) {
-                // this should be caught in the validation of the version string
-                return new ConfigDef();
+            } catch (VersionedPluginLoadingException e) {
+                throw e;
             } catch (Exception e) {
                 throw new ConfigException(key, pluginClass, "Error getting config definition from " + baseClass.getSimpleName() + ": " + e.getMessage());
             }

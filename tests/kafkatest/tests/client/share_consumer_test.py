@@ -22,12 +22,12 @@ from kafkatest.services.kafka import TopicPartition, quorum
 
 class ShareTest(VerifiableShareConsumerTest):
     TOPIC1 = {"name": "test_topic1", "partitions": 1,"replication_factor": 1}
-    TOPIC2 = {"name": "test_topic2", "partitions": 1,"replication_factor": 1}
-    TOPIC3 = {"name": "test_topic3", "partitions": 1,"replication_factor": 1}
+    TOPIC2 = {"name": "test_topic2", "partitions": 3,"replication_factor": 3}
+    TOPIC3 = {"name": "test_topic3", "partitions": 3,"replication_factor": 3}
 
     def __init__(self, test_context):
-        super(ShareTest, self).__init__(test_context, num_consumers=1, num_producers=1,
-                                                     num_zk=0, num_brokers=1, topics={
+        super(ShareTest, self).__init__(test_context, num_consumers=3, num_producers=1,
+                                                     num_zk=0, num_brokers=3, topics={
             self.TOPIC1["name"] : { 'partitions': self.TOPIC1["partitions"], 'replication-factor': self.TOPIC1["replication_factor"] },
             self.TOPIC2["name"] : { 'partitions': self.TOPIC2["partitions"], 'replication-factor': self.TOPIC2["replication_factor"] }
         })

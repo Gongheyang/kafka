@@ -49,6 +49,7 @@ import org.apache.kafka.common.errors.WakeupException;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.utils.Utils;
 import org.apache.kafka.coordinator.group.GroupConfig;
+import org.apache.kafka.coordinator.group.ShareGroupAutoOffsetResetStrategy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -87,6 +88,7 @@ public class VerifiableShareConsumer implements Closeable, AcknowledgementCommit
     private final Boolean verbose;
     private final int maxMessages;
     private Integer totalAcknowledged = 0;
+    private Integer totalConsumed = 0;
     private final String brokerHostandPort;
     private final String groupId;
     private final CountDownLatch shutdownLatch = new CountDownLatch(1);
@@ -370,6 +372,7 @@ public class VerifiableShareConsumer implements Closeable, AcknowledgementCommit
 
         }
 
+        totalConsumed += records.count();
         printJson(new RecordsConsumed(records.count(), summaries));
     }
 
@@ -401,8 +404,8 @@ public class VerifiableShareConsumer implements Closeable, AcknowledgementCommit
             printJson(new StartupComplete());
 
             if (!Objects.equals(offsetResetStrategy, "")) {
-                GroupConfig.ShareGroupAutoOffsetReset offsetResetStrategy =
-                    GroupConfig.ShareGroupAutoOffsetReset.valueOf(this.offsetResetStrategy);
+                ShareGroupAutoOffsetResetStrategy offsetResetStrategy =
+                    ShareGroupAutoOffsetResetStrategy.fromString(this.offsetResetStrategy);
 
                 Properties adminClientProps = new Properties();
                 adminClientProps.put(CommonClientConfigs.BOOTSTRAP_SERVERS_CONFIG, brokerHostandPort);
@@ -412,7 +415,7 @@ public class VerifiableShareConsumer implements Closeable, AcknowledgementCommit
                 ConfigResource configResource = new ConfigResource(ConfigResource.Type.GROUP, groupId);
                 Map<ConfigResource, Collection<AlterConfigOp>> alterEntries = new HashMap<>();
                 alterEntries.put(configResource, List.of(new AlterConfigOp(new ConfigEntry(
-                    GroupConfig.SHARE_AUTO_OFFSET_RESET_CONFIG, offsetResetStrategy.toString()), AlterConfigOp.OpType.SET)));
+                    GroupConfig.SHARE_AUTO_OFFSET_RESET_CONFIG, offsetResetStrategy.type().toString()), AlterConfigOp.OpType.SET)));
                 AlterConfigsOptions alterOptions = new AlterConfigsOptions();
 
                 // Setting the share group auto offset reset strategy
@@ -420,7 +423,7 @@ public class VerifiableShareConsumer implements Closeable, AcknowledgementCommit
                     .all()
                     .get(60, TimeUnit.SECONDS);
 
-                printJson(new OffsetResetStrategySet(offsetResetStrategy.toString()));
+                printJson(new OffsetResetStrategySet(offsetResetStrategy.type().toString()));
             }
 
             consumer.subscribe(Collections.singleton(this.topic));
@@ -451,6 +454,8 @@ public class VerifiableShareConsumer implements Closeable, AcknowledgementCommit
             // Log the error, so it goes to the service log and not stdout
             log.error("Error during processing, terminating share consumer process: ", t);
         } finally {
+            out.println("Total records Consumed: " + totalConsumed.toString());
+            out.println("Total records Acknowledged: " + totalAcknowledged.toString());
             consumer.close();
             printJson(new ShutdownComplete());
             shutdownLatch.countDown();
@@ -569,7 +574,7 @@ public class VerifiableShareConsumer implements Closeable, AcknowledgementCommit
 
         AcknowledgementMode acknowledgementMode =
             AcknowledgementMode.valueOf(res.getString("acknowledgementMode").toUpperCase(Locale.ROOT));
-        String offsetResetStrategy = res.getString("offsetResetStrategy").toUpperCase(Locale.ROOT);
+        String offsetResetStrategy = res.getString("offsetResetStrategy").toLowerCase(Locale.ROOT);
         String configFile = res.getString("consumer.config");
         String brokerHostandPort = res.getString("bootstrapServer");
 

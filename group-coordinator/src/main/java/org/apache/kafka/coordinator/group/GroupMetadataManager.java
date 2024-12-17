@@ -6050,7 +6050,7 @@ public class GroupMetadataManager {
         String groupId = group.groupId();
         List<MemberResponse> memberResponses = new ArrayList<>();
         Set<ConsumerGroupMember> validLeaveGroupMembers = new HashSet<>();
-        List<CoordinatorRecord> records = new ArrayList<>();
+        Set<String> validLeaveGroupMemberIds = new HashSet<>();
 
         for (MemberIdentity memberIdentity : request.members()) {
             String reason = memberIdentity.reason() != null ? memberIdentity.reason() : "not provided";
@@ -6078,9 +6078,6 @@ public class GroupMetadataManager {
                         groupId, memberIdentity.memberId(), memberIdentity.groupInstanceId(), reason);
                 }
 
-                removeMember(records, groupId, member.memberId());
-                cancelTimers(groupId, member.memberId());
-
                 memberResponses.add(
                     new MemberResponse()
                         .setMemberId(memberIdentity.memberId())
@@ -6088,6 +6085,7 @@ public class GroupMetadataManager {
                 );
 
                 validLeaveGroupMembers.add(member);
+                validLeaveGroupMemberIds.add(member.memberId());
             } catch (KafkaException e) {
                 memberResponses.add(
                     new MemberResponse()
@@ -6098,30 +6096,41 @@ public class GroupMetadataManager {
             }
         }
 
-        if (!records.isEmpty()) {
-            // Check whether resolved regular expressions could be deleted.
-            Set<String> deletedRegexes = maybeDeleteResolvedRegularExpressions(
-                records,
-                group,
-                validLeaveGroupMembers
-            );
+        List<CoordinatorRecord> records = new ArrayList<>();
+        if (!validLeaveGroupMembers.isEmpty()) {
+            if (validateOnlineDowngradeWithFencedMembers(group, validLeaveGroupMemberIds)) {
+                convertToClassicGroup(group, validLeaveGroupMemberIds, null, null, records);
+                return new CoordinatorResult<>(records, new LeaveGroupResponseData().setMembers(memberResponses), null, false);
+            } else {
+                for (ConsumerGroupMember member : validLeaveGroupMembers) {
+                    removeMember(records, groupId, member.memberId());
+                    cancelTimers(groupId, member.memberId());
+                }
 
-            // Maybe update the subscription metadata.
-            Map<String, TopicMetadata> subscriptionMetadata = group.computeSubscriptionMetadata(
-                group.computeSubscribedTopicNamesWithoutDeletedMembers(validLeaveGroupMembers, deletedRegexes),
-                metadataImage.topics(),
-                metadataImage.cluster()
-            );
+                // Check whether resolved regular expressions could be deleted.
+                Set<String> deletedRegexes = maybeDeleteResolvedRegularExpressions(
+                    records,
+                    group,
+                    validLeaveGroupMembers
+                );
 
-            if (!subscriptionMetadata.equals(group.subscriptionMetadata())) {
-                log.info("[GroupId {}] Computed new subscription metadata: {}.",
-                    group.groupId(), subscriptionMetadata);
-                records.add(newConsumerGroupSubscriptionMetadataRecord(group.groupId(), subscriptionMetadata));
+                // Maybe update the subscription metadata.
+                Map<String, TopicMetadata> subscriptionMetadata = group.computeSubscriptionMetadata(
+                    group.computeSubscribedTopicNamesWithoutDeletedMembers(validLeaveGroupMembers, deletedRegexes),
+                    metadataImage.topics(),
+                    metadataImage.cluster()
+                );
+
+                if (!subscriptionMetadata.equals(group.subscriptionMetadata())) {
+                    log.info("[GroupId {}] Computed new subscription metadata: {}.",
+                        group.groupId(), subscriptionMetadata);
+                    records.add(newConsumerGroupSubscriptionMetadataRecord(group.groupId(), subscriptionMetadata));
+                }
+
+                // Bump the group epoch.
+                records.add(newConsumerGroupEpochRecord(groupId, group.groupEpoch() + 1));
+                log.info("[GroupId {}] Bumped group epoch to {}.", groupId, group.groupEpoch() + 1);
             }
-
-            // Bump the group epoch.
-            records.add(newConsumerGroupEpochRecord(groupId, group.groupEpoch() + 1));
-            log.info("[GroupId {}] Bumped group epoch to {}.", groupId, group.groupEpoch() + 1);
         }
 
         return new CoordinatorResult<>(records, new LeaveGroupResponseData().setMembers(memberResponses));

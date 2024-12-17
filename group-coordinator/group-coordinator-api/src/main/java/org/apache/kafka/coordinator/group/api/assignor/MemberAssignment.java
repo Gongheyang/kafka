@@ -17,7 +17,6 @@
 package org.apache.kafka.coordinator.group.api.assignor;
 
 import org.apache.kafka.common.Uuid;
-import org.apache.kafka.common.annotation.InterfaceStability;
 
 import java.util.Map;
 import java.util.Set;

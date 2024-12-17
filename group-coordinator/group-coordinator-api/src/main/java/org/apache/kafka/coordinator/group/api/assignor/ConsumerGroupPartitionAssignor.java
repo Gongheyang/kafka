@@ -16,8 +16,6 @@
  */
 package org.apache.kafka.coordinator.group.api.assignor;
 
-import org.apache.kafka.common.annotation.InterfaceStability;
-
 /**
  * Server-side partition assignor for consumer groups used by the GroupCoordinator.
  */

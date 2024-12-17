@@ -21,5 +21,6 @@ import org.apache.kafka.common.annotation.InterfaceStability;
 /**
  * Server-side partition assignor for share groups used by the GroupCoordinator.
  */
+@InterfaceStability.Unstable
 public interface ShareGroupPartitionAssignor extends PartitionAssignor {
 }

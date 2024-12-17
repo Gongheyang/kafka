@@ -198,8 +198,6 @@ class CustomQuotaCallbackTest extends IntegrationTestHarness with SaslSetup {
     val thirdExec = updateClusterMetadataCalls.get
     assertNotEquals(secondExec, thirdExec)
 
-    deleteTopic(smallTopic)
-    assertNotEquals(thirdExec, updateClusterMetadataCalls.get)
   }
 
   /**

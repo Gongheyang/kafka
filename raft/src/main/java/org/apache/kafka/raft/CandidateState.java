@@ -20,12 +20,10 @@ import org.apache.kafka.common.Uuid;
 import org.apache.kafka.common.utils.LogContext;
 import org.apache.kafka.common.utils.Time;
 import org.apache.kafka.common.utils.Timer;
-import org.apache.kafka.raft.EpochElection.VoterState.State;
 
 import org.slf4j.Logger;
 
 import java.util.Optional;
-import java.util.Set;
 
 public class CandidateState implements NomineeState {
     private final int localId;
@@ -82,8 +80,8 @@ public class CandidateState implements NomineeState {
         this.backoffTimer = time.timer(0);
         this.log = logContext.logger(CandidateState.class);
 
-        this.epochElection = new EpochElection(localId, voters.voterKeys());
-        epochElection.voterStates().get(localId).setState(State.GRANTED);
+        this.epochElection = new EpochElection(voters.voterKeys());
+        epochElection.recordVote(localId, true); //voterStates().get(localId).setState(State.GRANTED);
     }
 
     public int localId() {
@@ -93,6 +91,24 @@ public class CandidateState implements NomineeState {
     @Override
     public EpochElection epochElection() {
         return epochElection;
+    }
+
+    @Override
+    public boolean recordGrantedVote(int remoteNodeId) {
+        if (epochElection().isRejectedVoter(remoteNodeId)) {
+            throw new IllegalArgumentException("Attempt to grant vote from node " + remoteNodeId +
+                " which previously rejected our request");
+        }
+        return epochElection().recordVote(remoteNodeId, true);
+    }
+
+    @Override
+    public boolean recordRejectedVote(int remoteNodeId) {
+        if (epochElection().isGrantedVoter(remoteNodeId)) {
+            throw new IllegalArgumentException("Attempt to reject vote from node " + remoteNodeId +
+                " which previously granted our request");
+        }
+        return epochElection().recordVote(remoteNodeId, false);
     }
 
     /**
@@ -140,16 +156,12 @@ public class CandidateState implements NomineeState {
         return backoffTimer.remainingMs();
     }
 
-    Set<Integer> grantingVoters() {
-        return epochElection().grantingVoters();
-    }
-
     @Override
     public ElectionState election() {
         return ElectionState.withVotedCandidate(
             epoch,
             ReplicaKey.of(localId, localDirectoryId),
-            epochElection.voterStates().keySet()
+            epochElection.voterIds()
         );
     }
 

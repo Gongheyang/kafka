@@ -430,7 +430,7 @@ public class QuorumState {
             electionTimeoutMs = candidateStateOrThrow().remainingElectionTimeMs(time.milliseconds());
         } else if (isUnattached()) {
             electionTimeoutMs = unattachedStateOrThrow().remainingElectionTimeMs(time.milliseconds());
-        } else if (isProspective() && !prospectiveStateOrThrow().isBackingOff()) {
+        } else if (isProspective() && !prospectiveStateOrThrow().epochElection().isVoteRejected()) {
             electionTimeoutMs = prospectiveStateOrThrow().remainingElectionTimeMs(time.milliseconds());
         } else {
             electionTimeoutMs = randomElectionTimeoutMs();
@@ -658,7 +658,7 @@ public class QuorumState {
         }
 
         CandidateState candidateState = candidateStateOrThrow();
-        if (!candidateState.isVoteGranted())
+        if (!candidateState.epochElection().isVoteGranted())
             throw new IllegalStateException("Cannot become leader without majority votes granted");
 
         // Note that the leader does not retain the high watermark that was known
@@ -680,7 +680,7 @@ public class QuorumState {
             partitionState.lastVoterSet(),
             partitionState.lastVoterSetOffset(),
             partitionState.lastKraftVersion(),
-            candidateState.grantingVoters(),
+            candidateState.epochElection().grantingVoters(),
             accumulator,
             localListeners,
             fetchTimeoutMs,

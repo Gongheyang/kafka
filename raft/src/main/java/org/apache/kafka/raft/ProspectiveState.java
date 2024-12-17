@@ -19,7 +19,6 @@ package org.apache.kafka.raft;
 import org.apache.kafka.common.utils.LogContext;
 import org.apache.kafka.common.utils.Time;
 import org.apache.kafka.common.utils.Timer;
-import org.apache.kafka.raft.EpochElection.VoterState.State;
 import org.slf4j.Logger;
 
 import java.util.Optional;
@@ -34,7 +33,6 @@ public class ProspectiveState implements NomineeState {
     private final VoterSet voters;
     private final EpochElection epochElection;
     private final Optional<LogOffsetMetadata> highWatermark;
-    private final int electionTimeoutMs;
     private final Timer electionTimer;
     private final Logger log;
 
@@ -47,8 +45,6 @@ public class ProspectiveState implements NomineeState {
      * 4. If majority votes rejected or election times out, it will enter a backing off phase;
      *     after the backoff phase completes, it will send out another round of PreVote requests.
      */
-    private boolean isBackingOff;
-
     public ProspectiveState(
         Time time,
         int localId,
@@ -68,13 +64,11 @@ public class ProspectiveState implements NomineeState {
         this.votedKey = votedKey;
         this.voters = voters;
         this.highWatermark = highWatermark;
-        this.isBackingOff = false;
-        this.electionTimeoutMs = electionTimeoutMs;
         this.electionTimer = time.timer(electionTimeoutMs);
         this.log = logContext.logger(ProspectiveState.class);
 
-        this.epochElection = new EpochElection(localId, voters.voterKeys());
-        epochElection.voterStates().get(localId).setState(State.GRANTED);
+        this.epochElection = new EpochElection(voters.voterKeys());
+        epochElection.recordVote(localId, true); //voterStates().get(localId).setState(State.GRANTED);
     }
 
     public int localId() {
@@ -91,20 +85,16 @@ public class ProspectiveState implements NomineeState {
     }
 
     @Override
-    public boolean isBackingOff() {
-        return isBackingOff;
+    public boolean recordGrantedVote(int remoteNodeId) {
+        return epochElection().recordVote(remoteNodeId, true);
     }
 
     @Override
-    public int retries() {
-        return 1;
-    }
-
-    /**
-     * Record the current election has failed since we've either received sufficient rejecting voters or election timed out
-     */
-    public void startBackingOff(long currentTimeMs, long backoffDurationMs) {
-        this.isBackingOff = true;
+    public boolean recordRejectedVote(int remoteNodeId) {
+        if (remoteNodeId == localId) {
+            throw new IllegalStateException("Attempted to reject vote from ourselves");
+        }
+        return epochElection().recordVote(remoteNodeId, false);
     }
 
     @Override

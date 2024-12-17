@@ -95,9 +95,9 @@ public class ProspectiveStateTest {
     @ValueSource(booleans = { true, false })
     public void testSingleNodeQuorum(boolean withDirectoryId) {
         ProspectiveState state = newProspectiveState(voterSetWithLocal(IntStream.empty(), withDirectoryId));
-        assertTrue(state.isVoteGranted());
-        assertFalse(state.isVoteRejected());
-        assertEquals(Collections.emptySet(), state.unrecordedVoters());
+        assertTrue(state.epochElection().isVoteGranted());
+        assertFalse(state.epochElection().isVoteRejected());
+        assertEquals(Collections.emptySet(), state.epochElection().unrecordedVoters());
     }
 
     @ParameterizedTest
@@ -107,12 +107,12 @@ public class ProspectiveStateTest {
         ProspectiveState state = newProspectiveState(
             voterSetWithLocal(Stream.of(otherNode), withDirectoryId)
         );
-        assertFalse(state.isVoteGranted());
-        assertFalse(state.isVoteRejected());
-        assertEquals(Collections.singleton(otherNode), state.unrecordedVoters());
+        assertFalse(state.epochElection().isVoteGranted());
+        assertFalse(state.epochElection().isVoteRejected());
+        assertEquals(Collections.singleton(otherNode), state.epochElection().unrecordedVoters());
         assertTrue(state.recordRejectedVote(otherNode.id()));
-        assertFalse(state.isVoteGranted());
-        assertTrue(state.isVoteRejected());
+        assertFalse(state.epochElection().isVoteGranted());
+        assertTrue(state.epochElection().isVoteRejected());
     }
 
     @ParameterizedTest
@@ -122,13 +122,13 @@ public class ProspectiveStateTest {
         ProspectiveState state = newProspectiveState(
             voterSetWithLocal(Stream.of(otherNode), withDirectoryId)
         );
-        assertFalse(state.isVoteGranted());
-        assertFalse(state.isVoteRejected());
-        assertEquals(Collections.singleton(otherNode), state.unrecordedVoters());
+        assertFalse(state.epochElection().isVoteGranted());
+        assertFalse(state.epochElection().isVoteRejected());
+        assertEquals(Collections.singleton(otherNode), state.epochElection().unrecordedVoters());
         assertTrue(state.recordGrantedVote(otherNode.id()));
-        assertEquals(Collections.emptySet(), state.unrecordedVoters());
-        assertFalse(state.isVoteRejected());
-        assertTrue(state.isVoteGranted());
+        assertEquals(Collections.emptySet(), state.epochElection().unrecordedVoters());
+        assertFalse(state.epochElection().isVoteRejected());
+        assertTrue(state.epochElection().isVoteGranted());
     }
 
     @ParameterizedTest
@@ -139,17 +139,17 @@ public class ProspectiveStateTest {
         ProspectiveState state = newProspectiveState(
             voterSetWithLocal(Stream.of(node1, node2), withDirectoryId)
         );
-        assertFalse(state.isVoteGranted());
-        assertFalse(state.isVoteRejected());
-        assertEquals(Set.of(node1, node2), state.unrecordedVoters());
+        assertFalse(state.epochElection().isVoteGranted());
+        assertFalse(state.epochElection().isVoteRejected());
+        assertEquals(Set.of(node1, node2), state.epochElection().unrecordedVoters());
         assertTrue(state.recordGrantedVote(node1.id()));
-        assertEquals(Collections.singleton(node2), state.unrecordedVoters());
-        assertTrue(state.isVoteGranted());
-        assertFalse(state.isVoteRejected());
+        assertEquals(Collections.singleton(node2), state.epochElection().unrecordedVoters());
+        assertTrue(state.epochElection().isVoteGranted());
+        assertFalse(state.epochElection().isVoteRejected());
         assertTrue(state.recordRejectedVote(node2.id()));
-        assertEquals(Collections.emptySet(), state.unrecordedVoters());
-        assertTrue(state.isVoteGranted());
-        assertFalse(state.isVoteRejected());
+        assertEquals(Collections.emptySet(), state.epochElection().unrecordedVoters());
+        assertTrue(state.epochElection().isVoteGranted());
+        assertFalse(state.epochElection().isVoteRejected());
     }
 
     @ParameterizedTest
@@ -160,17 +160,17 @@ public class ProspectiveStateTest {
         ProspectiveState state = newProspectiveState(
             voterSetWithLocal(Stream.of(node1, node2), withDirectoryId)
         );
-        assertFalse(state.isVoteGranted());
-        assertFalse(state.isVoteRejected());
-        assertEquals(Set.of(node1, node2), state.unrecordedVoters());
+        assertFalse(state.epochElection().isVoteGranted());
+        assertFalse(state.epochElection().isVoteRejected());
+        assertEquals(Set.of(node1, node2), state.epochElection().unrecordedVoters());
         assertTrue(state.recordRejectedVote(node1.id()));
-        assertEquals(Collections.singleton(node2), state.unrecordedVoters());
-        assertFalse(state.isVoteGranted());
-        assertFalse(state.isVoteRejected());
+        assertEquals(Collections.singleton(node2), state.epochElection().unrecordedVoters());
+        assertFalse(state.epochElection().isVoteGranted());
+        assertFalse(state.epochElection().isVoteRejected());
         assertTrue(state.recordRejectedVote(node2.id()));
-        assertEquals(Collections.emptySet(), state.unrecordedVoters());
-        assertFalse(state.isVoteGranted());
-        assertTrue(state.isVoteRejected());
+        assertEquals(Collections.emptySet(), state.epochElection().unrecordedVoters());
+        assertFalse(state.epochElection().isVoteGranted());
+        assertTrue(state.epochElection().isVoteRejected());
     }
 
     @ParameterizedTest
@@ -195,14 +195,14 @@ public class ProspectiveStateTest {
             voterSetWithLocal(IntStream.of(voter1, voter2), withDirectoryId)
         );
         assertTrue(state.recordGrantedVote(voter1));
-        assertTrue(state.isVoteGranted());
+        assertTrue(state.epochElection().isVoteGranted());
         assertFalse(state.recordRejectedVote(voter1));
-        assertFalse(state.isVoteGranted());
+        assertFalse(state.epochElection().isVoteGranted());
 
         assertTrue(state.recordRejectedVote(voter2));
-        assertTrue(state.isVoteRejected());
+        assertTrue(state.epochElection().isVoteRejected());
         assertFalse(state.recordGrantedVote(voter2));
-        assertFalse(state.isVoteRejected());
+        assertFalse(state.epochElection().isVoteRejected());
     }
 
 

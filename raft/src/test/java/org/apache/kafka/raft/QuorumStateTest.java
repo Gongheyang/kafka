@@ -172,7 +172,7 @@ public class QuorumStateTest {
         }
         state.transitionToCandidate();
         CandidateState candidateState = state.candidateStateOrThrow();
-        assertTrue(candidateState.isVoteGranted());
+        assertTrue(candidateState.epochElection().isVoteGranted());
         assertEquals(1, candidateState.epoch());
     }
 
@@ -299,9 +299,9 @@ public class QuorumStateTest {
             ElectionState.withVotedCandidate(epoch, localVoterKey, voters.voterIds()),
             candidateState.election()
         );
-        assertEquals(Set.of(node1, node2), candidateState.unrecordedVoters());
-        assertEquals(Set.of(localId), candidateState.grantingVoters());
-        assertEquals(Collections.emptySet(), candidateState.rejectingVoters());
+        assertEquals(Set.of(node1, node2), candidateState.epochElection().unrecordedVoters());
+        assertEquals(Set.of(localId), candidateState.epochElection().grantingVoters());
+        assertEquals(Collections.emptySet(), candidateState.epochElection().rejectingVoters());
         assertEquals(
             electionTimeoutMs + jitterMs,
             candidateState.remainingElectionTimeMs(time.milliseconds())
@@ -376,8 +376,8 @@ public class QuorumStateTest {
         assertTrue(state.isCandidate());
         CandidateState candidate2 = state.candidateStateOrThrow();
         assertEquals(2, state.epoch());
-        assertEquals(Collections.singleton(localId), candidate2.grantingVoters());
-        assertEquals(Collections.emptySet(), candidate2.rejectingVoters());
+        assertEquals(Collections.singleton(localId), candidate2.epochElection().grantingVoters());
+        assertEquals(Collections.emptySet(), candidate2.epochElection().rejectingVoters());
         assertEquals(electionTimeoutMs + jitterMs,
             candidate2.remainingElectionTimeMs(time.milliseconds()));
     }
@@ -437,10 +437,10 @@ public class QuorumStateTest {
             state.transitionToProspective();
         }
         state.transitionToCandidate();
-        assertFalse(state.candidateStateOrThrow().isVoteGranted());
+        assertFalse(state.candidateStateOrThrow().epochElection().isVoteGranted());
         assertThrows(IllegalStateException.class, () -> state.transitionToLeader(0L, accumulator));
         state.candidateStateOrThrow().recordGrantedVote(otherNodeId);
-        assertTrue(state.candidateStateOrThrow().isVoteGranted());
+        assertTrue(state.candidateStateOrThrow().epochElection().isVoteGranted());
         state.transitionToLeader(0L, accumulator);
         assertTrue(state.isLeader());
     }
@@ -1742,7 +1742,7 @@ public class QuorumStateTest {
 
         CandidateState candidateState = state.candidateStateOrThrow();
         candidateState.recordGrantedVote(otherNodeKey.id());
-        assertTrue(candidateState.isVoteGranted());
+        assertTrue(candidateState.epochElection().isVoteGranted());
 
         state.transitionToLeader(10L, accumulator);
         assertEquals(Optional.empty(), state.highWatermark());

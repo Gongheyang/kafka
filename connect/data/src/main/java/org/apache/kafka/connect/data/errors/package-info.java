@@ -14,21 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.kafka.connect.errors;
-
 /**
- * Indicates an error while building a schema via {@link org.apache.kafka.connect.data.SchemaBuilder}
+ * Provides data related exception classes.
  */
-public class SchemaBuilderException extends DataException {
-    public SchemaBuilderException(String s) {
-        super(s);
-    }
-
-    public SchemaBuilderException(String s, Throwable throwable) {
-        super(s, throwable);
-    }
-
-    public SchemaBuilderException(Throwable throwable) {
-        super(throwable);
-    }
-}
+package org.apache.kafka.connect.data.errors;

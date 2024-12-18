@@ -19,7 +19,7 @@ package org.apache.kafka.connect.transforms.util;
 import org.apache.kafka.connect.connector.ConnectRecord;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.Struct;
-import org.apache.kafka.connect.errors.DataException;
+import org.apache.kafka.connect.data.errors.DataException;
 import org.apache.kafka.connect.sink.SinkRecord;
 
 import java.util.Map;

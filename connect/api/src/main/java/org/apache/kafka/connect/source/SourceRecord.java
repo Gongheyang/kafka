@@ -36,7 +36,7 @@ import java.util.Objects;
  * </p>
  * <p>
  * These values can have arbitrary structure and should be represented using
- * {@link org.apache.kafka.connect.data} objects (or primitive values). For example, a database connector
+ * {@code org.apache.kafka.connect.data} objects (or primitive values). For example, a database connector
  * might specify the sourcePartition as a record containing { "db": "database_name", "table":
  * "table_name"} and the sourceOffset as a Long containing the timestamp of the row.
  * </p>

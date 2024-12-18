@@ -20,7 +20,7 @@ import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.common.utils.AppInfoParser;
 import org.apache.kafka.connect.components.Versioned;
 import org.apache.kafka.connect.connector.ConnectRecord;
-import org.apache.kafka.connect.errors.DataException;
+import org.apache.kafka.connect.data.errors.DataException;
 import org.apache.kafka.connect.transforms.util.SimpleConfig;
 
 import java.text.SimpleDateFormat;

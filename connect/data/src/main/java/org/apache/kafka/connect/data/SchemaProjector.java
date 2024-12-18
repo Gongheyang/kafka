@@ -16,8 +16,9 @@
  */
 package org.apache.kafka.connect.data;
 
+
 import org.apache.kafka.connect.data.Schema.Type;
-import org.apache.kafka.connect.errors.SchemaProjectorException;
+import org.apache.kafka.connect.data.errors.SchemaProjectorException;
 
 import java.util.AbstractMap;
 import java.util.ArrayList;

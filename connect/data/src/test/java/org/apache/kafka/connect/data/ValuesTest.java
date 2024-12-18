@@ -16,10 +16,10 @@
  */
 package org.apache.kafka.connect.data;
 
-import org.apache.kafka.common.utils.Utils;
+
 import org.apache.kafka.connect.data.Schema.Type;
 import org.apache.kafka.connect.data.Values.Parser;
-import org.apache.kafka.connect.errors.DataException;
+import org.apache.kafka.connect.data.errors.DataException;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
@@ -1193,7 +1193,7 @@ public class ValuesTest {
 
     protected void assertConsumable(Parser parser, String... expectedTokens) {
         for (String expectedToken : expectedTokens) {
-            if (!Utils.isBlank(expectedToken)) {
+            if (!isBlank(expectedToken)) {
                 int position = parser.mark();
                 assertTrue(parser.canConsume(expectedToken.trim()));
                 parser.rewindTo(position);
@@ -1202,6 +1202,10 @@ public class ValuesTest {
                 assertTrue(parser.canConsume(expectedToken, false));
             }
         }
+    }
+
+    private static boolean isBlank(String expectedToken) {
+        return expectedToken == null || expectedToken.trim().isEmpty();
     }
 
     protected SchemaAndValue roundTrip(Schema desiredSchema, String currentValue) {

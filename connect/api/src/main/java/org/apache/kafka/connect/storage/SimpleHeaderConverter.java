@@ -22,7 +22,7 @@ import org.apache.kafka.connect.components.Versioned;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaAndValue;
 import org.apache.kafka.connect.data.Values;
-import org.apache.kafka.connect.errors.DataException;
+import org.apache.kafka.connect.data.errors.DataException;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

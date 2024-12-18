@@ -19,7 +19,7 @@ package org.apache.kafka.connect.header;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaAndValue;
 import org.apache.kafka.connect.data.Struct;
-import org.apache.kafka.connect.errors.DataException;
+import org.apache.kafka.connect.data.errors.DataException;
 
 import java.math.BigDecimal;
 import java.util.Iterator;

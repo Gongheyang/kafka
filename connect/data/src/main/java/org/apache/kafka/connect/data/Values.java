@@ -16,9 +16,8 @@
  */
 package org.apache.kafka.connect.data;
 
-import org.apache.kafka.common.utils.Utils;
 import org.apache.kafka.connect.data.Schema.Type;
-import org.apache.kafka.connect.errors.DataException;
+import org.apache.kafka.connect.data.errors.DataException;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -48,7 +47,7 @@ import java.util.regex.Pattern;
  * Utility for converting from one Connect value to a different form. This is useful when the caller expects a value of a particular type
  * but is uncertain whether the actual value is one that isn't directly that type but can be converted into that type.
  *
- * <p>For example, a caller might expect a particular {@link org.apache.kafka.connect.header.Header} to contain a {@link Type#INT64}
+ * <p>For example, a caller might expect a particular {@code  org.apache.kafka.connect.header.Header} to contain a {@link Type#INT64}
  * value, when in fact that header contains a string representation of a 32-bit integer. Here, the caller can use the methods in this
  * class to convert the value to the desired type:
  * <pre>
@@ -469,7 +468,7 @@ public class Values {
 
     private static BigDecimal convertToDecimal(Schema toSchema, Object value) {
         if (value instanceof ByteBuffer) {
-            value = Utils.toArray((ByteBuffer) value);
+            value = toArray((ByteBuffer) value);
         }
         if (value instanceof byte[]) {
             return Decimal.toLogical(toSchema, (byte[]) value);
@@ -490,7 +489,7 @@ public class Values {
 
     private static byte[] convertToBytes(Schema toSchema, Object value) {
         if (value instanceof ByteBuffer) {
-            return Utils.toArray((ByteBuffer) value);
+            return toArray((ByteBuffer) value);
         }
         if (value instanceof byte[]) {
             return (byte[]) value;
@@ -731,7 +730,7 @@ public class Values {
                 sb.append(value);
             }
         } else if (value instanceof ByteBuffer) {
-            byte[] bytes = Utils.readBytes((ByteBuffer) value);
+            byte[] bytes = readBytes((ByteBuffer) value);
             append(sb, bytes, embedded);
         } else if (value instanceof List) {
             List<?> list = (List<?>) value;
@@ -870,7 +869,7 @@ public class Values {
             }
 
             String token = parser.next();
-            if (Utils.isBlank(token)) {
+            if (token == null || token.trim().isEmpty()) {
                 return new SchemaAndValue(Schema.STRING_SCHEMA, token);
             } else {
                 return parseNextToken(embedded, token.trim());
@@ -1412,7 +1411,7 @@ public class Values {
                 nextToken = consumeNextToken();
             }
             if (ignoreLeadingAndTrailingWhitespace) {
-                while (Utils.isBlank(nextToken) && canConsumeNextToken()) {
+                while (nextToken.trim().isEmpty() && canConsumeNextToken()) {
                     nextToken = consumeNextToken();
                 }
             }
@@ -1420,5 +1419,55 @@ public class Values {
                 ? nextToken.trim().equals(expected)
                 : nextToken.equals(expected);
         }
+    }
+
+    /**
+     * Read the given byte buffer from its current position to its limit into a byte array.
+     * @param buffer The buffer to read from
+     */
+    public static byte[] toArray(ByteBuffer buffer) {
+        return toArray(buffer, 0, buffer.remaining());
+    }
+
+    /**
+     * Read a byte array from the given offset and size in the buffer
+     * @param buffer The buffer to read from
+     * @param offset The offset relative to the current position of the buffer
+     * @param size The number of bytes to read into the array
+     */
+    private static byte[] toArray(ByteBuffer buffer, int offset, int size) {
+        byte[] dest = new byte[size];
+        if (buffer.hasArray()) {
+            System.arraycopy(buffer.array(), buffer.position() + buffer.arrayOffset() + offset, dest, 0, size);
+        } else {
+            int pos = buffer.position();
+            buffer.position(pos + offset);
+            buffer.get(dest);
+            buffer.position(pos);
+        }
+        return dest;
+    }
+
+    /**
+     * Read the given byte buffer into a Byte array
+     */
+    public static byte[] readBytes(ByteBuffer buffer) {
+        return readBytes(buffer, 0, buffer.limit());
+    }
+
+    /**
+     * Read a buffer into a Byte array for the given offset and length
+     */
+    public static byte[] readBytes(ByteBuffer buffer, int offset, int length) {
+        byte[] dest = new byte[length];
+        if (buffer.hasArray()) {
+            System.arraycopy(buffer.array(), buffer.arrayOffset() + offset, dest, 0, length);
+        } else {
+            buffer.mark();
+            buffer.position(offset);
+            buffer.get(dest);
+            buffer.reset();
+        }
+        return dest;
     }
 }

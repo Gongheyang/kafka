@@ -21,6 +21,6 @@
   "flexibleVersions": "none",
   "fields": [
     { "name": "GroupId", "type": "string", "versions": "18",
-      "about": "The group id." }
+      "about": "The group ID." }
   ]
 }

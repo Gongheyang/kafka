@@ -56,7 +56,7 @@
       { "name": "key", "type": "string", "versions": "0+",
         "about": "The key of the topic-level configuration." },
       { "name": "value", "type": "string", "versions": "0+",
-        "about": "The value of the topic-level configuration," }
+        "about": "The value of the topic-level configuration." }
     ]
     },
     { "name": "TopicInfo", "versions": "0+", "fields": [

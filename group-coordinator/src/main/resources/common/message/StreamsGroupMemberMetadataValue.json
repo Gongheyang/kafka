@@ -23,17 +23,15 @@
     { "name": "InstanceId", "versions": "0+", "nullableVersions": "0+", "type": "string",
       "about": "The (optional) instance ID for static membership." },
     { "name": "RackId", "versions": "0+", "nullableVersions": "0+", "type": "string",
-      "about": "The (optional) rack id." },
+      "about": "The (optional) rack ID." },
     { "name": "ClientId", "versions": "0+", "type": "string",
-      "about": "The client id." },
+      "about": "The client ID." },
     { "name": "ClientHost", "versions": "0+", "type": "string",
       "about": "The client host." },
     { "name": "RebalanceTimeoutMs", "type": "int32", "versions": "0+", "default": -1,
       "about": "The rebalance timeout." },
-
     { "name": "TopologyEpoch", "type": "int32", "versions": "0+",
       "about": "The epoch of the topology." },
-
     { "name": "ProcessId", "type": "string", "versions": "0+",
       "about": "Identity of the streams instance that may have multiple consumers." },
     { "name": "UserEndpoint", "type": "Endpoint", "versions": "0+", "nullableVersions": "0+", "default": "null",
@@ -44,16 +42,16 @@
   "commonStructs": [
     { "name": "Endpoint", "versions": "0+", "fields": [
       { "name": "Host", "type": "string", "versions": "0+",
-        "about": "host of the endpoint" },
+        "about": "The host of the endpoint." },
       { "name": "Port", "type": "uint16", "versions": "0+",
-        "about": "port of the endpoint" }
+        "about": "The port of the endpoint." }
     ]},
     { "name": "KeyValue", "versions": "0+",
       "fields": [
         { "name": "Key", "type": "string", "versions": "0+",
-          "about": "key of the config" },
+          "about": "The key of the config." },
         { "name": "Value", "type": "string", "versions": "0+",
-          "about": "value of the config" }
+          "about": "the value of the config." }
       ]
     }
   ]

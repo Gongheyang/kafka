@@ -711,7 +711,7 @@ public class ConnectorConfig extends AbstractConfig {
             try {
                 pluginVersion = PluginUtils.connectorVersionRequirement(version);
             } catch (InvalidVersionSpecificationException e) {
-                throw new ConfigException(e.getMessage());
+                throw new VersionedPluginLoadingException(e.getMessage());
             }
 
             // validate that the plugin class is a subclass of the base class
@@ -800,7 +800,7 @@ public class ConnectorConfig extends AbstractConfig {
             try {
                 PluginUtils.connectorVersionRequirement((String) value);
             } catch (InvalidVersionSpecificationException e) {
-                throw new ConfigException(name, value, e.getMessage());
+                throw new VersionedPluginLoadingException(e.getMessage());
             }
         }
     }

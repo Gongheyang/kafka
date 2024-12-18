@@ -18,6 +18,7 @@ package org.apache.kafka.coordinator.group;
 
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.ApiException;
+import org.apache.kafka.common.errors.UnsupportedVersionException;
 import org.apache.kafka.common.message.ConsumerGroupDescribeResponseData;
 import org.apache.kafka.common.message.ConsumerGroupHeartbeatRequestData;
 import org.apache.kafka.common.message.ConsumerGroupHeartbeatResponseData;
@@ -70,10 +71,13 @@ import org.apache.kafka.coordinator.group.generated.ConsumerGroupTargetAssignmen
 import org.apache.kafka.coordinator.group.generated.ConsumerGroupTargetAssignmentMemberValue;
 import org.apache.kafka.coordinator.group.generated.ConsumerGroupTargetAssignmentMetadataKey;
 import org.apache.kafka.coordinator.group.generated.ConsumerGroupTargetAssignmentMetadataValue;
+import org.apache.kafka.coordinator.group.generated.CoordinatorRecordType;
 import org.apache.kafka.coordinator.group.generated.GroupMetadataKey;
 import org.apache.kafka.coordinator.group.generated.GroupMetadataValue;
 import org.apache.kafka.coordinator.group.generated.OffsetCommitKey;
+import org.apache.kafka.coordinator.group.generated.OffsetCommitKeyV0;
 import org.apache.kafka.coordinator.group.generated.OffsetCommitValue;
+import org.apache.kafka.coordinator.group.generated.OffsetCommitValueV0;
 import org.apache.kafka.coordinator.group.generated.ShareGroupCurrentMemberAssignmentKey;
 import org.apache.kafka.coordinator.group.generated.ShareGroupCurrentMemberAssignmentValue;
 import org.apache.kafka.coordinator.group.generated.ShareGroupMemberMetadataKey;
@@ -755,6 +759,28 @@ public class GroupCoordinatorShard implements CoordinatorShard<CoordinatorRecord
         offsetMetadataManager.onNewMetadataImage(newImage, delta);
     }
 
+    private static OffsetCommitKey convertOffsetCommitKeyV0(
+        OffsetCommitKeyV0 key
+    ) {
+        return new OffsetCommitKey()
+            .setGroup(key.group())
+            .setTopic(key.topic())
+            .setPartition(key.partition());
+    }
+
+    private static OffsetCommitValue convertOffsetCommitValueV0(
+        OffsetCommitValueV0 value
+    ) {
+        if (value == null) return null;
+
+        return new OffsetCommitValue()
+            .setOffset(value.offset())
+            .setCommitTimestamp(value.commitTimestamp())
+            .setExpireTimestamp(value.expireTimestamp())
+            .setMetadata(value.metadata())
+            .setLeaderEpoch(value.leaderEpoch());
+    }
+
     /**
      * Replays the Record to update the hard state of the group coordinator.
      *
@@ -775,9 +801,25 @@ public class GroupCoordinatorShard implements CoordinatorShard<CoordinatorRecord
         ApiMessageAndVersion key = record.key();
         ApiMessageAndVersion value = record.value();
 
-        switch (key.version()) {
-            case 0:
-            case 1:
+        CoordinatorRecordType recordType;
+        try {
+            recordType = CoordinatorRecordType.fromId(key.version());
+        } catch (UnsupportedVersionException ex) {
+            throw new IllegalStateException("Received an unknown record type " + key.version()
+                + " in " + record, ex);
+        }
+
+        switch (recordType) {
+            case OFFSET_COMMIT_V0:
+                offsetMetadataManager.replay(
+                    offset,
+                    producerId,
+                    convertOffsetCommitKeyV0((OffsetCommitKeyV0) key.message()),
+                    convertOffsetCommitValueV0((OffsetCommitValueV0) Utils.messageOrNull(value))
+                );
+                break;
+
+            case OFFSET_COMMIT:
                 offsetMetadataManager.replay(
                     offset,
                     producerId,
@@ -786,98 +828,98 @@ public class GroupCoordinatorShard implements CoordinatorShard<CoordinatorRecord
                 );
                 break;
 
-            case 2:
+            case GROUP_METADATA:
                 groupMetadataManager.replay(
                     (GroupMetadataKey) key.message(),
                     (GroupMetadataValue) Utils.messageOrNull(value)
                 );
                 break;
 
-            case 3:
+            case CONSUMER_GROUP_METADATA:
                 groupMetadataManager.replay(
                     (ConsumerGroupMetadataKey) key.message(),
                     (ConsumerGroupMetadataValue) Utils.messageOrNull(value)
                 );
                 break;
 
-            case 4:
+            case CONSUMER_GROUP_PARTITION_METADATA:
                 groupMetadataManager.replay(
                     (ConsumerGroupPartitionMetadataKey) key.message(),
                     (ConsumerGroupPartitionMetadataValue) Utils.messageOrNull(value)
                 );
                 break;
 
-            case 5:
+            case CONSUMER_GROUP_MEMBER_METADATA:
                 groupMetadataManager.replay(
                     (ConsumerGroupMemberMetadataKey) key.message(),
                     (ConsumerGroupMemberMetadataValue) Utils.messageOrNull(value)
                 );
                 break;
 
-            case 6:
+            case CONSUMER_GROUP_TARGET_ASSIGNMENT_METADATA:
                 groupMetadataManager.replay(
                     (ConsumerGroupTargetAssignmentMetadataKey) key.message(),
                     (ConsumerGroupTargetAssignmentMetadataValue) Utils.messageOrNull(value)
                 );
                 break;
 
-            case 7:
+            case CONSUMER_GROUP_TARGET_ASSIGNMENT_MEMBER:
                 groupMetadataManager.replay(
                     (ConsumerGroupTargetAssignmentMemberKey) key.message(),
                     (ConsumerGroupTargetAssignmentMemberValue) Utils.messageOrNull(value)
                 );
                 break;
 
-            case 8:
+            case CONSUMER_GROUP_CURRENT_MEMBER_ASSIGNMENT:
                 groupMetadataManager.replay(
                     (ConsumerGroupCurrentMemberAssignmentKey) key.message(),
                     (ConsumerGroupCurrentMemberAssignmentValue) Utils.messageOrNull(value)
                 );
                 break;
 
-            case 9:
+            case SHARE_GROUP_PARTITION_METADATA:
                 groupMetadataManager.replay(
                     (ShareGroupPartitionMetadataKey) key.message(),
                     (ShareGroupPartitionMetadataValue) Utils.messageOrNull(value)
                 );
                 break;
 
-            case 10:
+            case SHARE_GROUP_MEMBER_METADATA:
                 groupMetadataManager.replay(
                     (ShareGroupMemberMetadataKey) key.message(),
                     (ShareGroupMemberMetadataValue) Utils.messageOrNull(value)
                 );
                 break;
 
-            case 11:
+            case SHARE_GROUP_METADATA:
                 groupMetadataManager.replay(
                     (ShareGroupMetadataKey) key.message(),
                     (ShareGroupMetadataValue) Utils.messageOrNull(value)
                 );
                 break;
 
-            case 12:
+            case SHARE_GROUP_TARGET_ASSIGNMENT_METADATA:
                 groupMetadataManager.replay(
                     (ShareGroupTargetAssignmentMetadataKey) key.message(),
                     (ShareGroupTargetAssignmentMetadataValue) Utils.messageOrNull(value)
                 );
                 break;
 
-            case 13:
+            case SHARE_GROUP_TARGET_ASSIGNMENT_MEMBER:
                 groupMetadataManager.replay(
                     (ShareGroupTargetAssignmentMemberKey) key.message(),
                     (ShareGroupTargetAssignmentMemberValue) Utils.messageOrNull(value)
                 );
                 break;
 
-            case 14:
+            case SHARE_GROUP_CURRENT_MEMBER_ASSIGNMENT:
                 groupMetadataManager.replay(
                     (ShareGroupCurrentMemberAssignmentKey) key.message(),
                     (ShareGroupCurrentMemberAssignmentValue) Utils.messageOrNull(value)
                 );
                 break;
 
-            case 16:
+            case CONSUMER_GROUP_REGULAR_EXPRESSION:
                 groupMetadataManager.replay(
                     (ConsumerGroupRegularExpressionKey) key.message(),
                     (ConsumerGroupRegularExpressionValue) Utils.messageOrNull(value)

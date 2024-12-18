@@ -83,6 +83,7 @@ import org.apache.kafka.raft.internals.UpdateVoterHandler;
 import org.apache.kafka.raft.utils.ApiMessageUtils;
 import org.apache.kafka.raft.utils.BeginQuorumEpochRpc;
 import org.apache.kafka.raft.utils.DescribeQuorumRpc;
+import org.apache.kafka.raft.utils.DynamicReconfigRpc;
 import org.apache.kafka.raft.utils.EndQuorumEpochRpc;
 import org.apache.kafka.raft.utils.FetchRpc;
 import org.apache.kafka.raft.utils.FetchSnapshotRpc;
@@ -2129,7 +2130,7 @@ public final class KafkaRaftClient<T> implements RaftClient<T> {
             );
         }
 
-        Optional<ReplicaKey> newVoter = VoteRpc.addVoterRequestVoterKey(data);
+        Optional<ReplicaKey> newVoter = DynamicReconfigRpc.addVoterRequestVoterKey(data);
         if (newVoter.isEmpty() || newVoter.get().directoryId().isEmpty()) {
             return completedFuture(
                 new AddRaftVoterResponseData()
@@ -2212,7 +2213,7 @@ public final class KafkaRaftClient<T> implements RaftClient<T> {
             );
         }
 
-        Optional<ReplicaKey> oldVoter = VoteRpc.removeVoterRequestVoterKey(data);
+        Optional<ReplicaKey> oldVoter = DynamicReconfigRpc.removeVoterRequestVoterKey(data);
         if (oldVoter.isEmpty() || oldVoter.get().directoryId().isEmpty()) {
             return completedFuture(
                 new RemoveRaftVoterResponseData()
@@ -2236,7 +2237,7 @@ public final class KafkaRaftClient<T> implements RaftClient<T> {
 
         if (!hasValidClusterId(data.clusterId())) {
             return completedFuture(
-                VoteRpc.updateVoterResponse(
+                DynamicReconfigRpc.updateVoterResponse(
                     Errors.INCONSISTENT_CLUSTER_ID,
                     requestMetadata.listenerName(),
                     quorum.leaderAndEpoch(),
@@ -2248,7 +2249,7 @@ public final class KafkaRaftClient<T> implements RaftClient<T> {
         Optional<Errors> leaderValidationError = validateLeaderOnlyRequest(data.currentLeaderEpoch());
         if (leaderValidationError.isPresent()) {
             return completedFuture(
-                VoteRpc.updateVoterResponse(
+                DynamicReconfigRpc.updateVoterResponse(
                     leaderValidationError.get(),
                     requestMetadata.listenerName(),
                     quorum.leaderAndEpoch(),
@@ -2257,10 +2258,10 @@ public final class KafkaRaftClient<T> implements RaftClient<T> {
             );
         }
 
-        Optional<ReplicaKey> voter = VoteRpc.updateVoterRequestVoterKey(data);
+        Optional<ReplicaKey> voter = DynamicReconfigRpc.updateVoterRequestVoterKey(data);
         if (voter.isEmpty() || voter.get().directoryId().isEmpty()) {
             return completedFuture(
-                VoteRpc.updateVoterResponse(
+                DynamicReconfigRpc.updateVoterResponse(
                     Errors.INVALID_REQUEST,
                     requestMetadata.listenerName(),
                     quorum.leaderAndEpoch(),
@@ -2272,7 +2273,7 @@ public final class KafkaRaftClient<T> implements RaftClient<T> {
         Endpoints voterEndpoints = Endpoints.fromUpdateVoterRequest(data.listeners());
         if (voterEndpoints.address(channel.listenerName()).isEmpty()) {
             return completedFuture(
-                VoteRpc.updateVoterResponse(
+                DynamicReconfigRpc.updateVoterResponse(
                     Errors.INVALID_REQUEST,
                     requestMetadata.listenerName(),
                     quorum.leaderAndEpoch(),
@@ -2287,7 +2288,7 @@ public final class KafkaRaftClient<T> implements RaftClient<T> {
             supportedKraftVersions.maxSupportedVersion() < supportedKraftVersions.minSupportedVersion()
         ) {
             return completedFuture(
-                VoteRpc.updateVoterResponse(
+                DynamicReconfigRpc.updateVoterResponse(
                     Errors.INVALID_REQUEST,
                     requestMetadata.listenerName(),
                     quorum.leaderAndEpoch(),
@@ -3138,7 +3139,7 @@ public final class KafkaRaftClient<T> implements RaftClient<T> {
     }
 
     private UpdateRaftVoterRequestData buildUpdateVoterRequest() {
-        return VoteRpc.updateVoterRequest(
+        return DynamicReconfigRpc.updateVoterRequest(
             clusterId,
             quorum.localReplicaKeyOrThrow(),
             quorum.epoch(),

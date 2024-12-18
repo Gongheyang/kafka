@@ -28,7 +28,7 @@ import org.apache.kafka.raft.LeaderState;
 import org.apache.kafka.raft.LogOffsetMetadata;
 import org.apache.kafka.raft.ReplicaKey;
 import org.apache.kafka.raft.VoterSet;
-import org.apache.kafka.raft.utils.VoteRpc;
+import org.apache.kafka.raft.utils.DynamicReconfigRpc;
 import org.apache.kafka.server.common.KRaftVersion;
 
 import java.util.Optional;
@@ -83,7 +83,7 @@ public final class UpdateVoterHandler {
         // Check if there are any pending voter change requests
         if (leaderState.isOperationPending(currentTimeMs)) {
             return CompletableFuture.completedFuture(
-                VoteRpc.updateVoterResponse(
+                DynamicReconfigRpc.updateVoterResponse(
                     Errors.REQUEST_TIMED_OUT,
                     requestListenerName,
                     new LeaderAndEpoch(
@@ -99,7 +99,7 @@ public final class UpdateVoterHandler {
         Optional<Long> highWatermark = leaderState.highWatermark().map(LogOffsetMetadata::offset);
         if (highWatermark.isEmpty()) {
             return CompletableFuture.completedFuture(
-                VoteRpc.updateVoterResponse(
+                DynamicReconfigRpc.updateVoterResponse(
                     Errors.REQUEST_TIMED_OUT,
                     requestListenerName,
                     new LeaderAndEpoch(
@@ -116,7 +116,7 @@ public final class UpdateVoterHandler {
         KRaftVersion kraftVersion = partitionState.lastKraftVersion();
         if (!kraftVersion.isReconfigSupported()) {
             return CompletableFuture.completedFuture(
-                VoteRpc.updateVoterResponse(
+                DynamicReconfigRpc.updateVoterResponse(
                     Errors.UNSUPPORTED_VERSION,
                     requestListenerName,
                     new LeaderAndEpoch(
@@ -132,7 +132,7 @@ public final class UpdateVoterHandler {
         Optional<LogHistory.Entry<VoterSet>> votersEntry = partitionState.lastVoterSetEntry();
         if (votersEntry.isEmpty() || votersEntry.get().offset() >= highWatermark.get()) {
             return CompletableFuture.completedFuture(
-                VoteRpc.updateVoterResponse(
+                DynamicReconfigRpc.updateVoterResponse(
                     Errors.REQUEST_TIMED_OUT,
                     requestListenerName,
                     new LeaderAndEpoch(
@@ -147,7 +147,7 @@ public final class UpdateVoterHandler {
         // Check that the supported version range is valid
         if (!validVersionRange(kraftVersion, supportedKraftVersions)) {
             return CompletableFuture.completedFuture(
-                VoteRpc.updateVoterResponse(
+                DynamicReconfigRpc.updateVoterResponse(
                     Errors.INVALID_REQUEST,
                     requestListenerName,
                     new LeaderAndEpoch(
@@ -162,7 +162,7 @@ public final class UpdateVoterHandler {
         // Check that endpoinds includes the default listener
         if (voterEndpoints.address(defaultListenerName).isEmpty()) {
             return CompletableFuture.completedFuture(
-                VoteRpc.updateVoterResponse(
+                DynamicReconfigRpc.updateVoterResponse(
                     Errors.INVALID_REQUEST,
                     requestListenerName,
                     new LeaderAndEpoch(
@@ -190,7 +190,7 @@ public final class UpdateVoterHandler {
             );
         if (updatedVoters.isEmpty()) {
             return CompletableFuture.completedFuture(
-                VoteRpc.updateVoterResponse(
+                DynamicReconfigRpc.updateVoterResponse(
                     Errors.VOTER_NOT_FOUND,
                     requestListenerName,
                     new LeaderAndEpoch(
@@ -206,7 +206,7 @@ public final class UpdateVoterHandler {
 
         // Reply immediately and don't wait for the change to commit
         return CompletableFuture.completedFuture(
-            VoteRpc.updateVoterResponse(
+            DynamicReconfigRpc.updateVoterResponse(
                 Errors.NONE,
                 requestListenerName,
                 new LeaderAndEpoch(

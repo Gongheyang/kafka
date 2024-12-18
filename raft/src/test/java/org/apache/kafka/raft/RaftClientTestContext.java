@@ -65,13 +65,14 @@ import org.apache.kafka.common.utils.MockTime;
 import org.apache.kafka.common.utils.Utils;
 import org.apache.kafka.raft.internals.BatchBuilder;
 import org.apache.kafka.raft.internals.StringSerde;
-import org.apache.kafka.server.common.Feature;
 import org.apache.kafka.raft.utils.BeginQuorumEpochRpc;
 import org.apache.kafka.raft.utils.DescribeQuorumRpc;
+import org.apache.kafka.raft.utils.DynamicReconfigRpc;
 import org.apache.kafka.raft.utils.EndQuorumEpochRpc;
 import org.apache.kafka.raft.utils.FetchRpc;
 import org.apache.kafka.raft.utils.FetchSnapshotRpc;
 import org.apache.kafka.raft.utils.VoteRpc;
+import org.apache.kafka.server.common.Feature;
 import org.apache.kafka.server.common.KRaftVersion;
 import org.apache.kafka.server.common.serialization.RecordSerde;
 import org.apache.kafka.snapshot.RecordsSnapshotWriter;
@@ -1780,7 +1781,7 @@ public final class RaftClientTestContext {
         ReplicaKey voter,
         Endpoints endpoints
     ) {
-        return VoteRpc.addVoterRequest(
+        return DynamicReconfigRpc.addVoterRequest(
             clusterId,
             timeoutMs,
             voter,
@@ -1793,7 +1794,7 @@ public final class RaftClientTestContext {
     }
 
     RemoveRaftVoterRequestData removeVoterRequest(String cluster, ReplicaKey voter) {
-        return VoteRpc.removeVoterRequest(cluster, voter);
+        return DynamicReconfigRpc.removeVoterRequest(cluster, voter);
     }
 
     UpdateRaftVoterRequestData updateVoterRequest(
@@ -1811,14 +1812,14 @@ public final class RaftClientTestContext {
         SupportedVersionRange supportedVersions,
         Endpoints endpoints
     ) {
-        return VoteRpc.updateVoterRequest(clusterId, voter, epoch, supportedVersions, endpoints);
+        return DynamicReconfigRpc.updateVoterRequest(clusterId, voter, epoch, supportedVersions, endpoints);
     }
 
     UpdateRaftVoterResponseData updateVoterResponse(
         Errors error,
         LeaderAndEpoch leaderAndEpoch
     ) {
-        return VoteRpc.updateVoterResponse(
+        return DynamicReconfigRpc.updateVoterResponse(
             error,
             channel.listenerName(),
             leaderAndEpoch,

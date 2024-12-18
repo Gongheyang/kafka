@@ -50,6 +50,7 @@ import org.apache.kafka.common.requests.VoteResponse;
 import org.apache.kafka.common.utils.MockTime;
 import org.apache.kafka.common.utils.Time;
 import org.apache.kafka.common.utils.annotation.ApiKeyVersionsSource;
+import org.apache.kafka.raft.utils.DynamicReconfigRpc;
 import org.apache.kafka.raft.utils.FetchRpc;
 import org.apache.kafka.raft.utils.FetchSnapshotRpc;
 
@@ -311,7 +312,7 @@ public class KafkaNetworkChannelTest {
                 );
 
             case UPDATE_RAFT_VOTER:
-                return RaftUtil.updateVoterRequest(
+                return DynamicReconfigRpc.updateVoterRequest(
                     clusterId,
                     ReplicaKey.of(1, ReplicaKey.NO_DIRECTORY_ID),
                     5,

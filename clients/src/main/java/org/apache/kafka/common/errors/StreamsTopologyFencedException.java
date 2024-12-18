@@ -14,12 +14,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.kafka.streams.kstream.internals.graph;
+package org.apache.kafka.common.errors;
 
-public class TableSuppressNode<K, V> extends StatefulProcessorNode<K, V> {
-    public TableSuppressNode(final String nodeName,
-                             final ProcessorParameters<K, V, ?, ?> processorParameters,
-                             final String[] storeNames) {
-        super(nodeName, processorParameters, storeNames);
+public class StreamsTopologyFencedException extends ApiException {
+    public StreamsTopologyFencedException(String message) {
+        super(message);
     }
 }

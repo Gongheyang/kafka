@@ -16,8 +16,10 @@
  */
 package org.apache.kafka.tools.consumer;
 
+import org.apache.kafka.common.errors.UnsupportedVersionException;
 import org.apache.kafka.common.protocol.ApiMessage;
 import org.apache.kafka.common.protocol.ByteBufferAccessor;
+import org.apache.kafka.coordinator.group.generated.CoordinatorRecordType;
 import org.apache.kafka.coordinator.group.generated.GroupMetadataKey;
 import org.apache.kafka.coordinator.group.generated.GroupMetadataKeyJsonConverter;
 import org.apache.kafka.coordinator.group.generated.GroupMetadataValue;
@@ -36,7 +38,7 @@ public class GroupMetadataMessageFormatter extends ApiMessageFormatter {
     @Override
     protected JsonNode readToKeyJson(ByteBuffer byteBuffer, short version) {
         return readToGroupMetadataKey(byteBuffer)
-                .map(logKey -> transferKeyMessageToJsonNode(logKey, version))
+                .map(logKey -> transferKeyMessageToJsonNode(logKey, (short) 0))
                 .orElseGet(() -> new TextNode(UNKNOWN));
     }
 
@@ -49,12 +51,19 @@ public class GroupMetadataMessageFormatter extends ApiMessageFormatter {
 
     private Optional<ApiMessage> readToGroupMetadataKey(ByteBuffer byteBuffer) {
         short version = byteBuffer.getShort();
-        if (version >= OffsetCommitKey.LOWEST_SUPPORTED_VERSION
-                && version <= OffsetCommitKey.HIGHEST_SUPPORTED_VERSION) {
-            return Optional.of(new OffsetCommitKey(new ByteBufferAccessor(byteBuffer), version));
-        } else if (version >= GroupMetadataKey.LOWEST_SUPPORTED_VERSION && version <= GroupMetadataKey.HIGHEST_SUPPORTED_VERSION) {
-            return Optional.of(new GroupMetadataKey(new ByteBufferAccessor(byteBuffer), version));
-        } else {
+        try {
+            switch (CoordinatorRecordType.fromId(version)) {
+                case OFFSET_COMMIT_V0:
+                case OFFSET_COMMIT:
+                    return Optional.of(new OffsetCommitKey(new ByteBufferAccessor(byteBuffer), (short) 0));
+
+                case GROUP_METADATA:
+                    return Optional.of(new GroupMetadataKey(new ByteBufferAccessor(byteBuffer), (short) 0));
+
+                default:
+                    return Optional.empty();
+            }
+        } catch (UnsupportedVersionException ex) {
             return Optional.empty();
         }
     }
@@ -71,8 +80,8 @@ public class GroupMetadataMessageFormatter extends ApiMessageFormatter {
 
     private Optional<GroupMetadataValue> readToGroupMetadataValue(ByteBuffer byteBuffer) {
         short version = byteBuffer.getShort();
-        if (version >= GroupMetadataValue.LOWEST_SUPPORTED_VERSION
-                && version <= GroupMetadataValue.HIGHEST_SUPPORTED_VERSION) {
+        if (version >= CoordinatorRecordType.GROUP_METADATA.lowestSupportedVersion()
+            && version <= CoordinatorRecordType.GROUP_METADATA.highestSupportedVersion()) {
             return Optional.of(new GroupMetadataValue(new ByteBufferAccessor(byteBuffer), version));
         } else {
             return Optional.empty();

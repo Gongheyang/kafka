@@ -679,13 +679,14 @@ public class ReassignPartitionsCommandTest {
                                          String jsonString,
                                          Boolean preserveThrottles,
                                          VerifyAssignmentResult expectedResult) throws InterruptedException {
-        final VerifyAssignmentResult[] latestResult = {null};
+        AtomicReference<VerifyAssignmentResult> verifyAssignmentResultAtomicReference = new AtomicReference<>();
         TestUtils.waitForCondition(
                 () -> {
-                    latestResult[0] = runVerifyAssignment(admin, jsonString, preserveThrottles);
-                    return expectedResult.equals(latestResult[0]);
+                    VerifyAssignmentResult verifyAssignmentResult = runVerifyAssignment(admin, jsonString, preserveThrottles);
+                    verifyAssignmentResultAtomicReference.set(verifyAssignmentResult);
+                    return expectedResult.equals(verifyAssignmentResult);
                 },
-                "Timed out waiting for verifyAssignment result " + expectedResult
+                () -> "Timed out waiting for verifyAssignment result, final result " + verifyAssignmentResultAtomicReference.get()
         );
     }
 

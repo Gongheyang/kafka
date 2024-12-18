@@ -200,7 +200,8 @@ public class StreamsGroupCommand {
                 }
 
                 if (!verbose) {
-                    String fmt = "%" + -groupLen + "s %" + -maxMemberIdLen + "s %" + -maxHostLen + "s %" + -maxClientIdLen + "s %s %s %s\n";
+                    String fmt = "%" + -groupLen + "s %" + -maxMemberIdLen + "s %" + -maxHostLen + "s %" + -maxClientIdLen + "s\n"
+                        + "%s %s %s\n\n";
                     System.out.printf(fmt, "GROUP", "MEMBER", "PROCESS", "CLIENT-ID", "ACTIVE-TASKS", "STANDBY-TASKS", "WARMUP-TASKS");
                     for (StreamsGroupMemberDescription member : members) {
                         System.out.printf(fmt, description.groupId(), member.memberId(), member.processId(), member.clientId(),
@@ -209,7 +210,8 @@ public class StreamsGroupCommand {
                             getTopicPartitions(member.assignment().warmupTasks()).stream().map(tp -> tp.topic() + ":" + tp.partition()).collect(Collectors.joining(",")));
                     }
                 } else {
-                    String fmt = "%" + -groupLen + "s %s %" + -maxMemberIdLen + "s %s %s %" + -maxHostLen + "s %" + -maxClientIdLen + "s %s %s %s %s %s %s\n";
+                    String fmt = "%" + -groupLen + "s %-15s%" + -maxMemberIdLen + "s %s %15s %" + -maxHostLen + "s %" + -maxClientIdLen + "s\n"
+                        + "%s %s %s %s %s %s\n\n";
                     System.out.printf(fmt, "GROUP", "TARGET-ASSIGNMENT-EPOCH", "MEMBER", "MEMBER-PROTOCOL", "MEMBER-EPOCH", "PROCESS", "CLIENT",
                         "ACTIVE-TASKS", "STANDBY-TASKS", "WARMUP-TASKS", "TARGET-ACTIVE-TASKS", "TARGET-STANDBY-TASKS", "TARGET-WARMUP-TASKS");
                     for (StreamsGroupMemberDescription member : members) {
@@ -237,7 +239,7 @@ public class StreamsGroupCommand {
                 System.out.printf(fmt, "GROUP", "COORDINATOR (ID)", "STATE", "#MEMBERS");
                 System.out.printf(fmt, description.groupId(), coordinator, description.groupState().toString(), description.members().size());
             } else {
-                String fmt = "%" + -groupLen + "s %" + -coordinatorLen + "s %-15s %s %s %s\n";
+                String fmt = "%" + -groupLen + "s %" + -coordinatorLen + "s %-15s %-15s %-15s %s\n";
                 System.out.printf(fmt, "GROUP", "COORDINATOR (ID)", "STATE", "GROUP-EPOCH", "TARGET-ASSIGNMENT-EPOCH", "#MEMBERS");
                 System.out.printf(fmt, description.groupId(), coordinator, description.groupState().toString(), description.groupEpoch(), description.targetAssignmentEpoch(), description.members().size());
             }
@@ -259,7 +261,7 @@ public class StreamsGroupCommand {
                         System.out.printf(fmt, description.groupId(), offset.getKey().topic(), offset.getKey().partition(), offset.getValue());
                     }
                 } else {
-                    String fmt =  "%" + (-groupLen) + "s %" + (-maxTopicLen) + "s %-10s %s %s\n";
+                    String fmt =  "%" + (-groupLen) + "s %" + (-maxTopicLen) + "s %-10s %-15s %s\n";
                     System.out.printf(fmt, "GROUP", "TOPIC", "PARTITION", "LEADER-EPOCH", "OFFSET-LAG");
                     for (Map.Entry<TopicPartition, Long> offset : offsets.entrySet()) {
                         System.out.printf(fmt, description.groupId(), offset.getKey().topic(), offset.getKey().partition(), "", offset.getValue());

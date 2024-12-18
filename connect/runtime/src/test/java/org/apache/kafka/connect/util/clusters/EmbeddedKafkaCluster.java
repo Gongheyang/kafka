@@ -127,6 +127,7 @@ public class EmbeddedKafkaCluster {
                             // Reduce number of controllers for faster startup
                             // We may make this configurable in the future if there's a use case for it
                             .setNumControllerNodes(1)
+                            .setFeature("group.version", (short) 1)
                             .build()
             );
 

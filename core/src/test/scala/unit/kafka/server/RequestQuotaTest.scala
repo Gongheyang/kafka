@@ -746,9 +746,6 @@ class RequestQuotaTest extends BaseRequestTest {
         case ApiKeys.STREAMS_GROUP_DESCRIBE =>
           new StreamsGroupDescribeRequest.Builder(new StreamsGroupDescribeRequestData(), true)
 
-        case ApiKeys.STREAMS_GROUP_HEARTBEAT =>
-          new StreamsGroupHeartbeatRequest.Builder(new StreamsGroupHeartbeatRequestData(), true)
-
         case _ =>
           throw new IllegalArgumentException("Unsupported API key " + apiKey)
     }

@@ -17,21 +17,33 @@
 package org.apache.kafka.tools.streams;
 
 import org.apache.kafka.clients.admin.Admin;
+import org.apache.kafka.clients.admin.DescribeStreamsGroupsResult;
 import org.apache.kafka.clients.admin.GroupListing;
 import org.apache.kafka.clients.admin.KafkaAdminClient;
 import org.apache.kafka.clients.admin.ListGroupsOptions;
 import org.apache.kafka.clients.admin.ListGroupsResult;
+import org.apache.kafka.clients.admin.ListOffsetsResult;
 import org.apache.kafka.clients.admin.MockAdminClient;
+import org.apache.kafka.clients.admin.StreamsGroupDescription;
+import org.apache.kafka.clients.admin.StreamsGroupMemberAssignment;
+import org.apache.kafka.clients.admin.StreamsGroupMemberDescription;
+import org.apache.kafka.clients.admin.StreamsGroupSubtopologyDescription;
 import org.apache.kafka.common.GroupState;
 import org.apache.kafka.common.GroupType;
 import org.apache.kafka.common.KafkaFuture;
+import org.apache.kafka.common.Node;
+import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.test.TestUtils;
 
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentMatchers;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -39,7 +51,9 @@ import java.util.Set;
 import joptsimple.OptionException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -56,8 +70,8 @@ public class StreamsGroupCommandUnitTest {
         Admin adminClient = mock(KafkaAdminClient.class);
         ListGroupsResult result = mock(ListGroupsResult.class);
         when(result.all()).thenReturn(KafkaFuture.completedFuture(Arrays.asList(
-                new GroupListing(firstGroup, Optional.of(GroupType.STREAMS), "streams", Optional.of(GroupState.STABLE)),
-                new GroupListing(secondGroup, Optional.of(GroupType.STREAMS), "streams", Optional.of(GroupState.EMPTY))
+            new GroupListing(firstGroup, Optional.of(GroupType.STREAMS), "streams", Optional.of(GroupState.STABLE)),
+            new GroupListing(secondGroup, Optional.of(GroupType.STREAMS), "streams", Optional.of(GroupState.EMPTY))
         )));
         when(adminClient.listGroups(any(ListGroupsOptions.class))).thenReturn(result);
         StreamsGroupCommand.StreamsGroupService service = getStreamsGroupService(cgcArgs, adminClient);
@@ -88,14 +102,14 @@ public class StreamsGroupCommandUnitTest {
         Admin adminClient = mock(KafkaAdminClient.class);
         ListGroupsResult resultWithAllStates = mock(ListGroupsResult.class);
         when(resultWithAllStates.all()).thenReturn(KafkaFuture.completedFuture(Arrays.asList(
-                new GroupListing(firstGroup, Optional.of(GroupType.STREAMS), "streams", Optional.of(GroupState.STABLE)),
-                new GroupListing(secondGroup, Optional.of(GroupType.STREAMS), "streams", Optional.of(GroupState.EMPTY))
+            new GroupListing(firstGroup, Optional.of(GroupType.STREAMS), "streams", Optional.of(GroupState.STABLE)),
+            new GroupListing(secondGroup, Optional.of(GroupType.STREAMS), "streams", Optional.of(GroupState.EMPTY))
         )));
         when(adminClient.listGroups(any(ListGroupsOptions.class))).thenReturn(resultWithAllStates);
         StreamsGroupCommand.StreamsGroupService service = getStreamsGroupService(cgcArgs, adminClient);
         Set<GroupListing> expectedListing = new HashSet<>(Arrays.asList(
-                new GroupListing(firstGroup, Optional.of(GroupType.STREAMS), "streams", Optional.of(GroupState.STABLE)),
-                new GroupListing(secondGroup, Optional.of(GroupType.STREAMS), "streams", Optional.of(GroupState.EMPTY))));
+            new GroupListing(firstGroup, Optional.of(GroupType.STREAMS), "streams", Optional.of(GroupState.STABLE)),
+            new GroupListing(secondGroup, Optional.of(GroupType.STREAMS), "streams", Optional.of(GroupState.EMPTY))));
 
         final Set[] foundListing = new Set[]{Collections.emptySet()};
         TestUtils.waitForCondition(() -> {
@@ -105,11 +119,11 @@ public class StreamsGroupCommandUnitTest {
 
         ListGroupsResult resultWithStableState = mock(ListGroupsResult.class);
         when(resultWithStableState.all()).thenReturn(KafkaFuture.completedFuture(Collections.singletonList(
-                new GroupListing(firstGroup, Optional.of(GroupType.STREAMS), "streams", Optional.of(GroupState.STABLE))
+            new GroupListing(firstGroup, Optional.of(GroupType.STREAMS), "streams", Optional.of(GroupState.STABLE))
         )));
         when(adminClient.listGroups(any(ListGroupsOptions.class))).thenReturn(resultWithStableState);
         Set<GroupListing> expectedListingStable = Collections.singleton(
-                new GroupListing(firstGroup, Optional.of(GroupType.STREAMS), "streams", Optional.of(GroupState.STABLE)));
+            new GroupListing(firstGroup, Optional.of(GroupType.STREAMS), "streams", Optional.of(GroupState.STABLE)));
 
         foundListing[0] = Collections.emptySet();
 
@@ -118,6 +132,70 @@ public class StreamsGroupCommandUnitTest {
             return Objects.equals(expectedListingStable, foundListing[0]);
         }, "Expected to show groups " + expectedListingStable + ", but found " + foundListing[0]);
         service.close();
+    }
+
+
+    @Test
+    public void testDescribeStreamsGroups() throws Exception {
+        String firstGroup = "group1";
+        Admin adminClient = mock(KafkaAdminClient.class);
+        DescribeStreamsGroupsResult result = mock(DescribeStreamsGroupsResult.class);
+        Map<String, StreamsGroupDescription> resultMap = new HashMap<>();
+        StreamsGroupDescription exp = new StreamsGroupDescription(
+            firstGroup,
+            0,
+            0,
+            0,
+            List.of(new StreamsGroupSubtopologyDescription("foo", List.of(), List.of(), Map.of(), Map.of())),
+            List.of(),
+            GroupState.STABLE,
+            new Node(0, "bar", 0),
+            null);
+        resultMap.put(firstGroup, exp);
+
+        when(result.all()).thenReturn(KafkaFuture.completedFuture(resultMap));
+        when(adminClient.describeStreamsGroups(ArgumentMatchers.anyCollection())).thenReturn(result);
+        StreamsGroupCommand.StreamsGroupService service = new StreamsGroupCommand.StreamsGroupService(null, adminClient);
+        assertEquals(exp, service.getDescribeGroup(firstGroup));
+        service.close();
+    }
+
+    @Test
+    public void testDescribeStreamsGroupsGetOffsets() throws Exception {
+        Admin adminClient = mock(KafkaAdminClient.class);
+
+        ListOffsetsResult startOffset = mock(ListOffsetsResult.class);
+        Map<TopicPartition, ListOffsetsResult.ListOffsetsResultInfo> startOffsetResultMap = new HashMap<>();
+        startOffsetResultMap.put(new TopicPartition("topic1", 0), new ListOffsetsResult.ListOffsetsResultInfo(10, -1, Optional.empty()));
+
+        ListOffsetsResult endOffset = mock(ListOffsetsResult.class);
+        Map<TopicPartition, ListOffsetsResult.ListOffsetsResultInfo> endOffsetResultMap = new HashMap<>();
+        endOffsetResultMap.put(new TopicPartition("topic1", 0), new ListOffsetsResult.ListOffsetsResultInfo(30, -1, Optional.empty()));
+
+        when(startOffset.all()).thenReturn(KafkaFuture.completedFuture(startOffsetResultMap));
+        when(endOffset.all()).thenReturn(KafkaFuture.completedFuture(endOffsetResultMap));
+
+        when(adminClient.listOffsets(ArgumentMatchers.anyMap())).thenReturn(startOffset, endOffset);
+
+        StreamsGroupMemberDescription description = new StreamsGroupMemberDescription("foo", 0, Optional.empty(),
+            Optional.empty(), "bar", "baz", 0, "qux",
+            Optional.empty(), Map.of(), List.of(), List.of(),
+            new StreamsGroupMemberAssignment(List.of(), List.of(), List.of()), new StreamsGroupMemberAssignment(List.of(), List.of(), List.of()),
+            false);
+        StreamsGroupCommand.StreamsGroupService service = new StreamsGroupCommand.StreamsGroupService(null, adminClient);
+        Map<TopicPartition, Long> lags = service.getOffsets(List.of(description));
+        assertEquals(1, lags.size());
+        assertEquals(20, lags.get(new TopicPartition("topic1", 0)));
+        service.close();
+    }
+
+    @Test
+    public void testPrintEmptyGroupState() {
+        assertFalse(StreamsGroupCommand.StreamsGroupService.maybePrintEmptyGroupState("group", GroupState.EMPTY, 0));
+        assertFalse(StreamsGroupCommand.StreamsGroupService.maybePrintEmptyGroupState("group", GroupState.DEAD, 0));
+        assertFalse(StreamsGroupCommand.StreamsGroupService.maybePrintEmptyGroupState("group", GroupState.STABLE, 0));
+        assertTrue(StreamsGroupCommand.StreamsGroupService.maybePrintEmptyGroupState("group", GroupState.STABLE, 1));
+        assertTrue(StreamsGroupCommand.StreamsGroupService.maybePrintEmptyGroupState("group", GroupState.UNKNOWN, 1));
     }
 
     @Test
@@ -162,6 +240,7 @@ public class StreamsGroupCommandUnitTest {
 
         assertThrows(IllegalArgumentException.class, () -> StreamsGroupCommand.groupStatesFromString("   ,   ,"));
     }
+
 
     StreamsGroupCommand.StreamsGroupService getStreamsGroupService(String[] args, Admin adminClient) {
         StreamsGroupCommandOptions opts = new StreamsGroupCommandOptions(args);

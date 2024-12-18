@@ -46,17 +46,18 @@ class NetworkDegradeTest(Test):
         self.kafka.stop()
 
     @cluster(num_nodes=7)
-    @parametrize(task_name="latency-100", device_name="eth0", latency_ms=50, rate_limit_kbit=0, metadata_quorum=quorum.isolated_kraft)
-    @parametrize(task_name="latency-100-rate-1000", device_name="eth0", latency_ms=50, rate_limit_kbit=1000, metadata_quorum=quorum.isolated_kraft)
-    def test_latency(self, task_name, device_name, latency_ms, rate_limit_kbit, metadata_quorum=quorum.isolated_kraft):
+    @parametrize(task_name="latency-100", device_name="eth0", latency_ms=50, rate_limit_kbit=0, metadata_quorum=quorum.combined_kraft)
+    @parametrize(task_name="latency-100-rate-1000", device_name="eth0", latency_ms=50, rate_limit_kbit=1000, metadata_quorum=quorum.combined_kraft)
+    def test_latency(self, task_name, device_name, latency_ms, rate_limit_kbit, metadata_quorum=quorum.combined_kraft):
         spec = DegradedNetworkFaultSpec(0, 10000)
-        for node in self.kafka.nodes:
+        for node in self.kafka.controller_quorum.nodes:
             spec.add_node_spec(node.name, device_name, latency_ms, rate_limit_kbit)
 
         latency = self.trogdor.create_task(task_name, spec)
 
-        quorum0 = self.kafka.nodes[0]
-        quorum1 = self.kafka.nodes[1]
+        quorum0 = self.kafka.controller_quorum.nodes[0]
+        quorum1 = self.kafka.controller_quorum.nodes[1]
+        
 
         # Capture the ping times from the ping stdout
         # 64 bytes from ducker01 (172.24.0.2): icmp_seq=1 ttl=64 time=0.325 ms
@@ -87,11 +88,11 @@ class NetworkDegradeTest(Test):
         assert len(fast_times) > 5, "Expected to see more fast ping times (higher than %d)" % high_time_ms
 
     @cluster(num_nodes=7)
-    @parametrize(task_name="rate-1000", device_name="eth0", latency_ms=0, rate_limit_kbit=1000000, metadata_quorum=quorum.isolated_kraft)
-    @parametrize(task_name="rate-1000-latency-50", device_name="eth0", latency_ms=50, rate_limit_kbit=1000000, metadata_quorum=quorum.isolated_kraft)
-    def test_rate(self, task_name, device_name, latency_ms, rate_limit_kbit, metadata_quorum=quorum.isolated_kraft):
-        quorum0 = self.kafka.nodes[0]
-        quorum1 = self.kafka.nodes[1]
+    @parametrize(task_name="rate-1000", device_name="eth0", latency_ms=0, rate_limit_kbit=1000000, metadata_quorum=quorum.combined_kraft)
+    @parametrize(task_name="rate-1000-latency-50", device_name="eth0", latency_ms=50, rate_limit_kbit=1000000, metadata_quorum=quorum.combined_kraft)
+    def test_rate(self, task_name, device_name, latency_ms, rate_limit_kbit, metadata_quorum=quorum.combined_kraft):
+        quorum0 = self.kafka.controller_quorum.nodes[0]
+        quorum1 = self.kafka.controller_quorum.nodes[1]
 
         spec = DegradedNetworkFaultSpec(0, 60000)
         spec.add_node_spec(quorum0.name, device_name, latency_ms, rate_limit_kbit)

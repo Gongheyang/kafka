@@ -35,9 +35,11 @@ import java.util.Map;
  * - {@link Errors#INVALID_REQUEST}
  * - {@link Errors#UNKNOWN_MEMBER_ID}
  * - {@link Errors#FENCED_MEMBER_EPOCH}
- * - {@link Errors#UNSUPPORTED_ASSIGNOR}
  * - {@link Errors#UNRELEASED_INSTANCE_ID}
  * - {@link Errors#GROUP_MAX_SIZE_REACHED}
+ * - {@link Errors#GROUP_ID_NOT_FOUND}
+ * - {@link Errors#TOPIC_AUTHORIZATION_FAILED}
+ * - {@link Errors#CLUSTER_AUTHORIZATION_FAILED}
  * - {@link Errors#STREAMS_INVALID_TOPOLOGY}
  * - {@link Errors#STREAMS_INVALID_TOPOLOGY_EPOCH}
  * - {@link Errors#STREAMS_TOPOLOGY_FENCED}

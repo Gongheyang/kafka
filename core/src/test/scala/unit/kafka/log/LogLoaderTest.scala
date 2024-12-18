@@ -31,7 +31,7 @@ import org.apache.kafka.server.common.MetadataVersion
 import org.apache.kafka.server.common.MetadataVersion.IBP_0_11_0_IV0
 import org.apache.kafka.server.util.{MockTime, Scheduler}
 import org.apache.kafka.storage.internals.epoch.LeaderEpochFileCache
-import org.apache.kafka.storage.internals.log.{AbortedTxn, CleanerConfig, EpochEntry, LocalLog, LogConfig, LogDirFailureChannel, LogFileUtils, LogLoader, LogOffsetMetadata, LogSegment, LogSegments, LogStartOffsetIncrementReason, OffsetIndex, ProducerStateManager, ProducerStateManagerConfig, SnapshotFile}
+import org.apache.kafka.storage.internals.log.{AbortedTxn, CleanerConfig, EpochEntry, LocalLog, LogConfig, LogDirFailureChannel, LogFileUtils, LogLoader, LogOffsetMetadata, LogSegment, LogSegments, LogStartOffsetIncrementReason, OffsetIndex, ProducerStateManager, ProducerStateManagerConfig, SnapshotFile, UnifiedLog => JUnifiedLog}
 import org.apache.kafka.storage.internals.checkpoint.CleanShutdownFileHandler
 import org.apache.kafka.storage.log.metrics.BrokerTopicStats
 import org.junit.jupiter.api.Assertions.{assertDoesNotThrow, assertEquals, assertFalse, assertNotEquals, assertThrows, assertTrue}
@@ -54,7 +54,7 @@ import scala.annotation.nowarn
 import scala.collection.mutable.ListBuffer
 import scala.collection.{Iterable, Map, mutable}
 import scala.jdk.CollectionConverters._
-import scala.jdk.OptionConverters.{RichOption, RichOptional}
+import scala.jdk.OptionConverters.RichOptional
 
 class LogLoaderTest {
   var config: KafkaConfig = _
@@ -151,19 +151,19 @@ class LogLoaderTest {
             }
           }
           cleanShutdownInterceptedValue = hadCleanShutdown
-          val topicPartition = UnifiedLog.parseTopicPartitionName(logDir)
+          val topicPartition = JUnifiedLog.parseTopicPartitionName(logDir)
           val config = topicConfigs.getOrElse(topicPartition.topic, defaultConfig)
           val logRecoveryPoint = recoveryPoints.getOrDefault(topicPartition, 0L)
           val logStartOffset = logStartOffsets.getOrDefault(topicPartition, 0L)
           val logDirFailureChannel: LogDirFailureChannel = new LogDirFailureChannel(1)
           val segments = new LogSegments(topicPartition)
-          val leaderEpochCache = UnifiedLog.maybeCreateLeaderEpochCache(
-            logDir, topicPartition, logDirFailureChannel, config.recordVersion, "", None, time.scheduler)
+          val leaderEpochCache = JUnifiedLog.maybeCreateLeaderEpochCache(
+            logDir, topicPartition, logDirFailureChannel, config.recordVersion, "", Optional.empty(), time.scheduler)
           val producerStateManager = new ProducerStateManager(topicPartition, logDir,
             this.maxTransactionTimeoutMs, this.producerStateManagerConfig, time)
           val logLoader = new LogLoader(logDir, topicPartition, config, time.scheduler, time,
             logDirFailureChannel, hadCleanShutdown, segments, logStartOffset, logRecoveryPoint,
-            leaderEpochCache.toJava, producerStateManager, new ConcurrentHashMap[String, Integer], false)
+            leaderEpochCache, producerStateManager, new ConcurrentHashMap[String, Integer], false)
           val offsets = logLoader.load()
           val localLog = new LocalLog(logDir, logConfig, segments, offsets.recoveryPoint,
             offsets.nextOffsetMetadata, mockTime.scheduler, mockTime, topicPartition,
@@ -354,7 +354,7 @@ class LogLoaderTest {
     def createLogWithInterceptedReads(recoveryPoint: Long): UnifiedLog = {
       val maxTransactionTimeoutMs = 5 * 60 * 1000
       val producerIdExpirationCheckIntervalMs = TransactionLogConfig.PRODUCER_ID_EXPIRATION_CHECK_INTERVAL_MS_DEFAULT
-      val topicPartition = UnifiedLog.parseTopicPartitionName(logDir)
+      val topicPartition = JUnifiedLog.parseTopicPartitionName(logDir)
       val logDirFailureChannel = new LogDirFailureChannel(10)
       // Intercept all segment read calls
       val interceptedLogSegments = new LogSegments(topicPartition) {
@@ -371,8 +371,8 @@ class LogLoaderTest {
           super.add(wrapper)
         }
       }
-      val leaderEpochCache = UnifiedLog.maybeCreateLeaderEpochCache(
-        logDir, topicPartition, logDirFailureChannel, logConfig.recordVersion, "", None, mockTime.scheduler)
+      val leaderEpochCache = JUnifiedLog.maybeCreateLeaderEpochCache(
+        logDir, topicPartition, logDirFailureChannel, logConfig.recordVersion, "", Optional.empty(), mockTime.scheduler)
       val producerStateManager = new ProducerStateManager(topicPartition, logDir,
         maxTransactionTimeoutMs, producerStateManagerConfig, mockTime)
       val logLoader = new LogLoader(
@@ -386,7 +386,7 @@ class LogLoaderTest {
         interceptedLogSegments,
         0L,
         recoveryPoint,
-        leaderEpochCache.toJava,
+        leaderEpochCache,
         producerStateManager,
         new ConcurrentHashMap[String, Integer],
         false
@@ -435,12 +435,12 @@ class LogLoaderTest {
     when(stateManager.isEmpty).thenReturn(true)
     when(stateManager.firstUnstableOffset).thenReturn(Optional.empty[LogOffsetMetadata]())
 
-    val topicPartition = UnifiedLog.parseTopicPartitionName(logDir)
+    val topicPartition = JUnifiedLog.parseTopicPartitionName(logDir)
     val logDirFailureChannel: LogDirFailureChannel = new LogDirFailureChannel(1)
     val config = new LogConfig(new Properties())
     val segments = new LogSegments(topicPartition)
-    val leaderEpochCache = UnifiedLog.maybeCreateLeaderEpochCache(
-      logDir, topicPartition, logDirFailureChannel, config.recordVersion, "", None, mockTime.scheduler)
+    val leaderEpochCache = JUnifiedLog.maybeCreateLeaderEpochCache(
+      logDir, topicPartition, logDirFailureChannel, config.recordVersion, "", Optional.empty(), mockTime.scheduler)
     val offsets = new LogLoader(
       logDir,
       topicPartition,
@@ -452,7 +452,7 @@ class LogLoaderTest {
       segments,
       0L,
       0L,
-      leaderEpochCache.toJava,
+      leaderEpochCache,
       stateManager,
       new ConcurrentHashMap[String, Integer],
       false
@@ -545,14 +545,14 @@ class LogLoaderTest {
     when(stateManager.producerStateManagerConfig).thenReturn(producerStateManagerConfig)
     when(stateManager.maxTransactionTimeoutMs).thenReturn(maxTransactionTimeoutMs)
 
-    val topicPartition = UnifiedLog.parseTopicPartitionName(logDir)
+    val topicPartition = JUnifiedLog.parseTopicPartitionName(logDir)
     val logProps = new Properties()
     logProps.put(TopicConfig.MESSAGE_FORMAT_VERSION_CONFIG, "0.10.2")
     val config = new LogConfig(logProps)
     val logDirFailureChannel = null
     val segments = new LogSegments(topicPartition)
-    val leaderEpochCache = UnifiedLog.maybeCreateLeaderEpochCache(
-      logDir, topicPartition, logDirFailureChannel, config.recordVersion, "", None, mockTime.scheduler)
+    val leaderEpochCache = JUnifiedLog.maybeCreateLeaderEpochCache(
+      logDir, topicPartition, logDirFailureChannel, config.recordVersion, "", Optional.empty(), mockTime.scheduler)
     val offsets = new LogLoader(
       logDir,
       topicPartition,
@@ -564,7 +564,7 @@ class LogLoaderTest {
       segments,
       0L,
       0L,
-      leaderEpochCache.toJava,
+      leaderEpochCache,
       stateManager,
       new ConcurrentHashMap[String, Integer],
       false
@@ -602,14 +602,14 @@ class LogLoaderTest {
     when(stateManager.producerStateManagerConfig).thenReturn(producerStateManagerConfig)
     when(stateManager.maxTransactionTimeoutMs).thenReturn(maxTransactionTimeoutMs)
 
-    val topicPartition = UnifiedLog.parseTopicPartitionName(logDir)
+    val topicPartition = JUnifiedLog.parseTopicPartitionName(logDir)
     val logProps = new Properties()
     logProps.put(TopicConfig.MESSAGE_FORMAT_VERSION_CONFIG, "0.10.2")
     val config = new LogConfig(logProps)
     val logDirFailureChannel = null
     val segments = new LogSegments(topicPartition)
-    val leaderEpochCache = UnifiedLog.maybeCreateLeaderEpochCache(
-      logDir, topicPartition, logDirFailureChannel, config.recordVersion, "", None, mockTime.scheduler)
+    val leaderEpochCache = JUnifiedLog.maybeCreateLeaderEpochCache(
+      logDir, topicPartition, logDirFailureChannel, config.recordVersion, "", Optional.empty(), mockTime.scheduler)
     val offsets = new LogLoader(
       logDir,
       topicPartition,
@@ -621,7 +621,7 @@ class LogLoaderTest {
       segments,
       0L,
       0L,
-      leaderEpochCache.toJava,
+      leaderEpochCache,
       stateManager,
       new ConcurrentHashMap[String, Integer],
       false
@@ -658,14 +658,14 @@ class LogLoaderTest {
     when(stateManager.producerStateManagerConfig).thenReturn(producerStateManagerConfig)
     when(stateManager.maxTransactionTimeoutMs).thenReturn(maxTransactionTimeoutMs)
 
-    val topicPartition = UnifiedLog.parseTopicPartitionName(logDir)
+    val topicPartition = JUnifiedLog.parseTopicPartitionName(logDir)
     val logProps = new Properties()
     logProps.put(TopicConfig.MESSAGE_FORMAT_VERSION_CONFIG, "0.11.0")
     val config = new LogConfig(logProps)
     val logDirFailureChannel = null
     val segments = new LogSegments(topicPartition)
-    val leaderEpochCache = UnifiedLog.maybeCreateLeaderEpochCache(
-      logDir, topicPartition, logDirFailureChannel, config.recordVersion, "", None, mockTime.scheduler)
+    val leaderEpochCache = JUnifiedLog.maybeCreateLeaderEpochCache(
+      logDir, topicPartition, logDirFailureChannel, config.recordVersion, "", Optional.empty(), mockTime.scheduler)
     val offsets = new LogLoader(
       logDir,
       topicPartition,
@@ -677,7 +677,7 @@ class LogLoaderTest {
       segments,
       0L,
       0L,
-      leaderEpochCache.toJava,
+      leaderEpochCache,
       stateManager,
       new ConcurrentHashMap[String, Integer],
       false
@@ -1251,7 +1251,7 @@ class LogLoaderTest {
     // Simulate recovery just after .cleaned file is created, before rename to .swap. On recovery, existing split
     // operation is aborted but the recovery process itself kicks off split which should complete.
     newSegments.reverse.foreach(segment => {
-      segment.changeFileSuffixes("", UnifiedLog.CleanedFileSuffix)
+      segment.changeFileSuffixes("", JUnifiedLog.CLEANED_FILE_SUFFIX)
       segment.truncateTo(0)
     })
     for (file <- logDir.listFiles if file.getName.endsWith(LogFileUtils.DELETED_FILE_SUFFIX))
@@ -1277,9 +1277,9 @@ class LogLoaderTest {
     // operation is aborted but the recovery process itself kicks off split which should complete.
     newSegments.reverse.foreach { segment =>
       if (segment != newSegments.last)
-        segment.changeFileSuffixes("", UnifiedLog.CleanedFileSuffix)
+        segment.changeFileSuffixes("", JUnifiedLog.CLEANED_FILE_SUFFIX)
       else
-        segment.changeFileSuffixes("", UnifiedLog.SwapFileSuffix)
+        segment.changeFileSuffixes("", JUnifiedLog.SWAP_FILE_SUFFIX)
       segment.truncateTo(0)
     }
     for (file <- logDir.listFiles if file.getName.endsWith(LogFileUtils.DELETED_FILE_SUFFIX))
@@ -1304,7 +1304,7 @@ class LogLoaderTest {
     // Simulate recovery right after all new segments have been renamed to .swap. On recovery, existing split operation
     // is completed and the old segment must be deleted.
     newSegments.reverse.foreach(segment => {
-      segment.changeFileSuffixes("", UnifiedLog.SwapFileSuffix)
+      segment.changeFileSuffixes("", JUnifiedLog.SWAP_FILE_SUFFIX)
     })
     for (file <- logDir.listFiles if file.getName.endsWith(LogFileUtils.DELETED_FILE_SUFFIX))
       Utils.atomicMoveWithFallback(file.toPath, Paths.get(Utils.replaceSuffix(file.getPath, LogFileUtils.DELETED_FILE_SUFFIX, "")))
@@ -1330,7 +1330,7 @@ class LogLoaderTest {
 
     // Simulate recovery right after all new segments have been renamed to .swap and old segment has been deleted. On
     // recovery, existing split operation is completed.
-    newSegments.reverse.foreach(_.changeFileSuffixes("", UnifiedLog.SwapFileSuffix))
+    newSegments.reverse.foreach(_.changeFileSuffixes("", JUnifiedLog.SWAP_FILE_SUFFIX))
 
     for (file <- logDir.listFiles if file.getName.endsWith(LogFileUtils.DELETED_FILE_SUFFIX))
       Utils.delete(file)
@@ -1356,7 +1356,7 @@ class LogLoaderTest {
 
     // Simulate recovery right after one of the new segment has been renamed to .swap and the other to .log. On
     // recovery, existing split operation is completed.
-    newSegments.last.changeFileSuffixes("", UnifiedLog.SwapFileSuffix)
+    newSegments.last.changeFileSuffixes("", JUnifiedLog.SWAP_FILE_SUFFIX)
 
     // Truncate the old segment
     segmentWithOverflow.truncateTo(0)
@@ -1791,7 +1791,7 @@ class LogLoaderTest {
   def testLogStartOffsetWhenRemoteStorageIsEnabled(isRemoteLogEnabled: Boolean,
                                                    expectedLogStartOffset: Long): Unit = {
     val logDirFailureChannel = null
-    val topicPartition = UnifiedLog.parseTopicPartitionName(logDir)
+    val topicPartition = JUnifiedLog.parseTopicPartitionName(logDir)
     val logConfig = LogTestUtils.createLogConfig()
     val stateManager: ProducerStateManager = mock(classOf[ProducerStateManager])
     when(stateManager.isEmpty).thenReturn(true)
@@ -1813,8 +1813,8 @@ class LogLoaderTest {
     log.logSegments.forEach(segment => segments.add(segment))
     assertEquals(5, segments.firstSegment.get.baseOffset)
 
-    val leaderEpochCache = UnifiedLog.maybeCreateLeaderEpochCache(
-      logDir, topicPartition, logDirFailureChannel, logConfig.recordVersion, "", None, mockTime.scheduler)
+    val leaderEpochCache = JUnifiedLog.maybeCreateLeaderEpochCache(
+      logDir, topicPartition, logDirFailureChannel, logConfig.recordVersion, "", Optional.empty(), mockTime.scheduler)
     val offsets = new LogLoader(
       logDir,
       topicPartition,
@@ -1826,7 +1826,7 @@ class LogLoaderTest {
       segments,
       0L,
       0L,
-      leaderEpochCache.toJava,
+      leaderEpochCache,
       stateManager,
       new ConcurrentHashMap[String, Integer],
       isRemoteLogEnabled

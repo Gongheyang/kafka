@@ -17,7 +17,6 @@
 
 package org.apache.kafka.common.test.api;
 
-import kafka.log.UnifiedLog;
 import kafka.network.SocketServer;
 import kafka.server.BrokerServer;
 import kafka.server.ControllerServer;
@@ -44,6 +43,7 @@ import org.apache.kafka.common.test.TestUtils;
 import org.apache.kafka.server.authorizer.Authorizer;
 import org.apache.kafka.server.fault.FaultHandlerException;
 import org.apache.kafka.storage.internals.checkpoint.OffsetCheckpointFile;
+import org.apache.kafka.storage.internals.log.UnifiedLog;
 
 import java.io.File;
 import java.io.IOException;
@@ -307,7 +307,7 @@ public interface ClusterInstance {
                     topicPartitions.stream().allMatch(tp ->
                         Arrays.stream(Objects.requireNonNull(new File(logDir).list())).noneMatch(partitionDirectoryName ->
                             partitionDirectoryName.startsWith(tp.topic() + "-" + tp.partition()) &&
-                                partitionDirectoryName.endsWith(UnifiedLog.DeleteDirSuffix())))
+                                partitionDirectoryName.endsWith(UnifiedLog.DELETE_DIR_SUFFIX)))
                 )
             ), "Failed to hard-delete the delete directory");
         }

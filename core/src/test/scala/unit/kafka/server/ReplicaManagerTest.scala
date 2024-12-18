@@ -68,7 +68,7 @@ import org.apache.kafka.server.storage.log.{FetchIsolation, FetchParams, FetchPa
 import org.apache.kafka.server.util.timer.MockTimer
 import org.apache.kafka.server.util.{MockScheduler, MockTime}
 import org.apache.kafka.storage.internals.checkpoint.{LazyOffsetCheckpoints, OffsetCheckpointFile, PartitionMetadataFile}
-import org.apache.kafka.storage.internals.log.{AppendOrigin, FetchDataInfo, LocalLog, LogConfig, LogDirFailureChannel, LogLoader, LogOffsetMetadata, LogOffsetSnapshot, LogSegments, LogStartOffsetIncrementReason, ProducerStateManager, ProducerStateManagerConfig, RemoteStorageFetchInfo, VerificationGuard}
+import org.apache.kafka.storage.internals.log.{AppendOrigin, FetchDataInfo, LocalLog, LogConfig, LogDirFailureChannel, LogLoader, LogOffsetMetadata, LogOffsetSnapshot, LogSegments, LogStartOffsetIncrementReason, ProducerStateManager, ProducerStateManagerConfig, RemoteStorageFetchInfo, UnifiedLog => JUnifiedLog, VerificationGuard}
 import org.apache.kafka.storage.log.metrics.BrokerTopicStats
 import org.junit.jupiter.api.Assertions._
 import org.junit.jupiter.api.{AfterAll, AfterEach, BeforeEach, Test}
@@ -312,7 +312,7 @@ class ReplicaManagerTest {
       partition.createLogIfNotExists(isNew = true, isFutureReplica = true,
         new LazyOffsetCheckpoints(rm.highWatermarkCheckpoints.asJava), None)
       // remove cache to disable OffsetsForLeaderEpoch API
-      partition.futureLog.get.leaderEpochCache = None
+      partition.futureLog.get.leaderEpochCache = Optional.empty()
 
       // this method should use hw of future log to create log dir fetcher. Otherwise, it causes offset mismatch error
       rm.maybeAddLogDirFetchers(Set(partition), new LazyOffsetCheckpoints(rm.highWatermarkCheckpoints.asJava), _ => None)
@@ -2909,8 +2909,8 @@ class ReplicaManagerTest {
     val maxTransactionTimeoutMs = 30000
     val maxProducerIdExpirationMs = 30000
     val segments = new LogSegments(tp)
-    val leaderEpochCache = UnifiedLog.maybeCreateLeaderEpochCache(
-      logDir, tp, mockLogDirFailureChannel, logConfig.recordVersion, "", None, time.scheduler)
+    val leaderEpochCache = JUnifiedLog.maybeCreateLeaderEpochCache(
+      logDir, tp, mockLogDirFailureChannel, logConfig.recordVersion, "", Optional.empty(), time.scheduler)
     val producerStateManager = new ProducerStateManager(tp, logDir,
       maxTransactionTimeoutMs, new ProducerStateManagerConfig(maxProducerIdExpirationMs, true), time)
     val offsets = new LogLoader(
@@ -2924,7 +2924,7 @@ class ReplicaManagerTest {
       segments,
       0L,
       0L,
-      leaderEpochCache.toJava,
+      leaderEpochCache,
       producerStateManager,
       new ConcurrentHashMap[String, Integer],
       false
@@ -4515,7 +4515,7 @@ class ReplicaManagerTest {
     when(mockLog.logStartOffset).thenReturn(endOffset).thenReturn(startOffset)
     when(mockLog.logEndOffset).thenReturn(endOffset)
     when(mockLog.localLogStartOffset()).thenReturn(endOffset - 10)
-    when(mockLog.leaderEpochCache).thenReturn(None)
+    when(mockLog.leaderEpochCache).thenReturn(Optional.empty())
     when(mockLog.latestEpoch).thenReturn(Some(0))
     val producerStateManager = mock(classOf[ProducerStateManager])
     when(mockLog.producerStateManager).thenReturn(producerStateManager)
@@ -6535,7 +6535,7 @@ class ReplicaManagerTest {
     assertEquals(tpId0, fetch.head._1)
     val fetchInfo = fetch.head._2.info
     assertEquals(1L, fetchInfo.fetchOffsetMetadata.messageOffset)
-    assertEquals(UnifiedLog.UnknownOffset, fetchInfo.fetchOffsetMetadata.segmentBaseOffset)
+    assertEquals(JUnifiedLog.UNKNOWN_OFFSET, fetchInfo.fetchOffsetMetadata.segmentBaseOffset)
     assertEquals(-1, fetchInfo.fetchOffsetMetadata.relativePositionInSegment)
     assertEquals(MemoryRecords.EMPTY, fetchInfo.records)
     assertTrue(fetchInfo.delayedRemoteStorageFetch.isPresent)

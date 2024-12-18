@@ -16,12 +16,11 @@
  */
 package kafka.cluster
 
-import kafka.log.UnifiedLog
 import kafka.server.metadata.{KRaftMetadataCache, ZkMetadataCache}
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.errors.NotLeaderOrFollowerException
 import org.apache.kafka.server.util.MockTime
-import org.apache.kafka.storage.internals.log.LogOffsetMetadata
+import org.apache.kafka.storage.internals.log.{LogOffsetMetadata, UnifiedLog}
 import org.junit.jupiter.api.Assertions.{assertEquals, assertFalse, assertThrows, assertTrue}
 import org.junit.jupiter.api.{BeforeEach, Test}
 import org.junit.jupiter.params.ParameterizedTest
@@ -130,8 +129,8 @@ class ReplicaTest {
   @Test
   def testInitialState(): Unit = {
     assertReplicaState(
-      logStartOffset = UnifiedLog.UnknownOffset,
-      logEndOffset = UnifiedLog.UnknownOffset,
+      logStartOffset = UnifiedLog.UNKNOWN_OFFSET,
+      logEndOffset = UnifiedLog.UNKNOWN_OFFSET,
       lastCaughtUpTimeMs = 0L,
       lastFetchLeaderLogEndOffset = 0L,
       lastFetchTimeMs = 0L,
@@ -245,10 +244,10 @@ class ReplicaTest {
     )
 
     assertReplicaState(
-      logStartOffset = UnifiedLog.UnknownOffset,
-      logEndOffset = UnifiedLog.UnknownOffset,
+      logStartOffset = UnifiedLog.UNKNOWN_OFFSET,
+      logEndOffset = UnifiedLog.UNKNOWN_OFFSET,
       lastCaughtUpTimeMs = resetTimeMs1,
-      lastFetchLeaderLogEndOffset = UnifiedLog.UnknownOffset,
+      lastFetchLeaderLogEndOffset = UnifiedLog.UNKNOWN_OFFSET,
       lastFetchTimeMs = 0L,
       brokerEpoch = Option.empty
     )
@@ -269,10 +268,10 @@ class ReplicaTest {
     )
 
     assertReplicaState(
-      logStartOffset = UnifiedLog.UnknownOffset,
-      logEndOffset = UnifiedLog.UnknownOffset,
+      logStartOffset = UnifiedLog.UNKNOWN_OFFSET,
+      logEndOffset = UnifiedLog.UNKNOWN_OFFSET,
       lastCaughtUpTimeMs = 0L,
-      lastFetchLeaderLogEndOffset = UnifiedLog.UnknownOffset,
+      lastFetchLeaderLogEndOffset = UnifiedLog.UNKNOWN_OFFSET,
       lastFetchTimeMs = 0L,
       brokerEpoch = Option.empty
     )

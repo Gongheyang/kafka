@@ -460,7 +460,8 @@ public class TransactionManager {
         Short transactionVersion = info.finalizedFeatures.get("transaction.version");
         boolean wasTransactionV2Enabled = isTransactionV2Enabled;
         isTransactionV2Enabled = transactionVersion != null && transactionVersion >= 2;
-        clientSideEpochBumpRequired = !onInitiatialization && !wasTransactionV2Enabled && isTransactionV2Enabled;
+        if (!onInitiatialization && !wasTransactionV2Enabled && isTransactionV2Enabled)
+            clientSideEpochBumpRequired = true;
     }
 
     public boolean isTransactionV2Enabled() {

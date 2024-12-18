@@ -124,20 +124,26 @@ public class KafkaRaftClientPreVoteTest {
 
         // follower can grant pre-votes if it has not fetched successfully from leader yet
         context.assertSentVoteResponse(Errors.NONE, epoch, OptionalInt.empty(), true);
-        context.assertVotedCandidate(epoch, votedCandidateKey.id());
+        ReplicaKey expectedVotedKey = kraftVersion == KRaftVersion.KRAFT_VERSION_1
+            ? votedCandidateKey : replicaKey(votedCandidateKey.id(), false);
+        context.assertVotedCandidate(epoch, expectedVotedKey);
     }
 
     @ParameterizedTest
     @EnumSource(value = KRaftVersion.class)
-    public void testHandlePreVoteRequestAsCandidate() throws Exception {
+    public void testHandlePreVoteRequestAsCandidate(KRaftVersion kraftVersion) throws Exception {
         int localId = randomReplicaId();
+        ReplicaKey localKey = replicaKey(localId, true);
         ReplicaKey otherNodeKey = replicaKey(localId + 1, true);
         ReplicaKey observer = replicaKey(localId + 2, true);
         int leaderEpoch = 2;
-        Set<Integer> voters = Set.of(localId, otherNodeKey.id());
 
-        RaftClientTestContext context = new RaftClientTestContext.Builder(localId, voters)
-            .withVotedCandidate(leaderEpoch, ReplicaKey.of(localId, ReplicaKey.NO_DIRECTORY_ID))
+        RaftClientTestContext context = new RaftClientTestContext.Builder(
+            Optional.of(localKey),
+            Optional.of(VoterSetTest.voterSet(Stream.of(localKey, otherNodeKey))),
+            kraftVersion
+        )
+            .withVotedCandidate(leaderEpoch, ReplicaKey.of(localId, localKey.directoryId().get()))
             .withRaftProtocol(KIP_996_PROTOCOL)
             .build();
         assertTrue(context.client.quorum().isCandidate());
@@ -147,7 +153,9 @@ public class KafkaRaftClientPreVoteTest {
         context.pollUntilResponse();
 
         context.assertSentVoteResponse(Errors.NONE, leaderEpoch, OptionalInt.empty(), true);
-        context.assertVotedCandidate(leaderEpoch, localId);
+        ReplicaKey expectedVotedKey = kraftVersion == KRaftVersion.KRAFT_VERSION_1
+            ? localKey : replicaKey(localId, false);
+        context.assertVotedCandidate(leaderEpoch, expectedVotedKey);
         assertTrue(context.client.quorum().isCandidate());
 
         // if an observer sends a pre-vote request for the same epoch, it should also be granted
@@ -155,7 +163,7 @@ public class KafkaRaftClientPreVoteTest {
         context.pollUntilResponse();
 
         context.assertSentVoteResponse(Errors.NONE, leaderEpoch, OptionalInt.empty(), true);
-        context.assertVotedCandidate(leaderEpoch, localId);
+        context.assertVotedCandidate(leaderEpoch, expectedVotedKey);
         assertTrue(context.client.quorum().isCandidate());
 
         // candidate will transition to unattached if pre-vote request has a higher epoch

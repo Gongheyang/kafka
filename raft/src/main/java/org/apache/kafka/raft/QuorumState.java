@@ -245,6 +245,7 @@ public class QuorumState {
                     election.epoch(),
                     election.leaderId(),
                     leaderEndpoints,
+                    Optional.empty(),
                     voters.voterIds(),
                     Optional.empty(),
                     fetchTimeoutMs,
@@ -322,6 +323,10 @@ public class QuorumState {
             return OptionalInt.empty();
     }
 
+    public Optional<ReplicaKey> votedKey() {
+        return state.election().optionalVotedKey();
+    }
+
     public boolean hasLeader() {
         return leaderId().isPresent();
     }
@@ -375,45 +380,23 @@ public class QuorumState {
     }
 
     /**
-     * Transition to the "unattached" state. This means we have found an epoch greater than the current epoch,
-     * but we do not yet know of the elected leader.
+     * Transition to the "unattached" state. This means we have found an epoch greater than the current epoch
+     * and do not yet know of the elected leader, or we have transitioned from Prospective with the same epoch.
+     * Note, if we are transitioning from unattached and there is no epoch change, we take the path of
+     * unattachedAddVotedState instead.
      */
     public void transitionToUnattached(int epoch) {
-        transitionToUnattached(epoch, Optional.empty(), OptionalInt.empty());
+        transitionToUnattached(epoch, OptionalInt.empty());
     }
 
-    /**
-     * Transition to the "unattached" state with votedKey. This means we have found an epoch greater than the
-     * current epoch, but we do not yet know of the elected leader. Note, if we are transitioning from unattached and
-     * no epoch change, we take the path of unattachedTransitionToUnattachedVotedState instead.
-     */
+    // ahu todo: need to fix all tests which call this method. delete method afterwards
     public void transitionToUnattached(int epoch, Optional<ReplicaKey> votedKey) {
-        transitionToUnattached(epoch, votedKey, OptionalInt.empty());
+        transitionToUnattached(epoch, OptionalInt.empty());
     }
 
     public void transitionToUnattached(int epoch, OptionalInt leaderId) {
-        transitionToUnattached(epoch, Optional.empty(), leaderId);
-    }
-
-    /**
-     * Transition to the "unattached" state with votedKey. This means we have found an epoch greater than the
-     * current epoch, but we do not yet know of the elected leader. Note, if we are transitioning from unattached and
-     * no epoch change, we take the path of unattachedTransitionToUnattachedVotedState instead.
-     * It is invalid to have a votedKey AND leaderId in Unattached state (or any state).
-     */
-    private void transitionToUnattached(int epoch, Optional<ReplicaKey> votedKey, OptionalInt leaderId) {
         int currentEpoch = state.epoch();
-        if (votedKey.isPresent() && leaderId.isPresent()) {
-            throw new IllegalStateException(
-                String.format(
-                    "Cannot transition to Unattached with epoch= %d with both votedKey= %s and leaderId= %d from current state %s",
-                    currentEpoch,
-                    votedKey.get(),
-                    leaderId.getAsInt(),
-                    state
-                )
-            );
-        } else if (epoch < currentEpoch || (epoch == currentEpoch && !isProspective())) {
+        if (epoch < currentEpoch || (epoch == currentEpoch && !isProspective())) {
             throw new IllegalStateException(
                 String.format(
                     "Cannot transition to Unattached with epoch= %d from current state %s",
@@ -440,7 +423,7 @@ public class QuorumState {
             time,
             epoch,
             leaderId,
-            votedKey,
+            epoch == currentEpoch ? votedKey() : Optional.empty(),
             partitionState.lastVoterSet().voterIds(),
             state.highWatermark(),
             electionTimeoutMs,
@@ -467,24 +450,14 @@ public class QuorumState {
                 )
             );
         } else if (localId.isEmpty()) {
-            throw new IllegalStateException("Cannot transition to voted without a replica id");
-        } else if (epoch < currentEpoch) {
+            throw new IllegalStateException("Cannot add voted state without a replica id");
+        } else if (epoch != currentEpoch || !isUnattachedNotVoted()) {
             throw new IllegalStateException(
                 String.format(
-                    "Cannot transition to Voted for %s and epoch %d since the current epoch " +
-                    "(%d) is larger",
+                    "Cannot add voted key (%s) to current state (%s) in epoch %d",
                     candidateKey,
-                    epoch,
-                    currentEpoch
-                )
-            );
-        } else if (epoch == currentEpoch && !isUnattachedNotVoted()) {
-            throw new IllegalStateException(
-                String.format(
-                    "Cannot transition to Voted for %s and epoch %d from the current state (%s)",
-                    candidateKey,
-                    epoch,
-                    state
+                    state,
+                    epoch
                 )
             );
         }
@@ -511,6 +484,7 @@ public class QuorumState {
      */
     public void transitionToFollower(int epoch, int leaderId, Endpoints endpoints) {
         int currentEpoch = state.epoch();
+        boolean retainVotedKey = false;
         if (endpoints.isEmpty()) {
             throw new IllegalArgumentException(
                 String.format(
@@ -538,6 +512,7 @@ public class QuorumState {
                 )
             );
         } else if (epoch == currentEpoch) {
+            retainVotedKey = true;
             if (isFollower() && state.leaderEndpoints().size() >= endpoints.size()) {
                 throw new IllegalStateException(
                     String.format(
@@ -566,6 +541,7 @@ public class QuorumState {
                 epoch,
                 leaderId,
                 endpoints,
+                retainVotedKey ? votedKey() : Optional.empty(),
                 partitionState.lastVoterSet().voterIds(),
                 state.highWatermark(),
                 fetchTimeoutMs,
@@ -596,7 +572,7 @@ public class QuorumState {
             epoch(),
             leaderId(),
             Optional.of(state.leaderEndpoints()),
-            state.election().optionalVotedKey(),
+            votedKey(),
             partitionState.lastVoterSet(),
             state.highWatermark(),
             randomElectionTimeoutMs(),

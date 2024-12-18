@@ -2133,4 +2133,71 @@ public class QuorumStateTest {
         assertTrue(state.isUnattachedNotVoted());
         assertFalse(state.hasLeader());
     }
+
+    @ParameterizedTest
+    @EnumSource(value = KRaftVersion.class)
+    public void testProspectiveVotedToAndFromFollower(KRaftVersion kraftVersion) {
+        int candidate = 1;
+        Uuid candidateDirectoryId = Uuid.randomUuid();
+        int leader = 2;
+        VoterSet voters = localWithRemoteVoterSet(IntStream.of(candidate, leader), kraftVersion);
+        store.writeElectionState(
+            ElectionState.withVotedCandidate(
+                logEndEpoch,
+                ReplicaKey.of(candidate, candidateDirectoryId),
+                voters.voterIds()
+            ), kraftVersion
+        );
+        QuorumState state = buildQuorumState(OptionalInt.of(localId), voters, kraftVersion);
+        state.initialize(new OffsetAndEpoch(0L, logEndEpoch));
+        assertTrue(state.isUnattachedAndVoted());
+
+        // transition to prospective with votedKey
+        state.transitionToProspective();
+
+        assertTrue(state.isProspective());
+        assertEquals(logEndEpoch, state.epoch());
+        Optional<ElectionState> expectedElectionState = Optional.of(
+            ElectionState.withVotedCandidate(
+                logEndEpoch,
+                persistedVotedKey(ReplicaKey.of(candidate, candidateDirectoryId), kraftVersion),
+                persistedVoters(voters.voterIds(), kraftVersion)
+            )
+        );
+        assertEquals(expectedElectionState, store.readElectionState());
+
+        // transition to follower of leader with votedKey
+        state.transitionToFollower(logEndEpoch, leader, voters.listeners(leader));
+        assertTrue(state.isFollower());
+        assertEquals(logEndEpoch, state.epoch());
+        assertEquals(
+            Optional.of(new ElectionState(
+                logEndEpoch,
+                OptionalInt.of(leader),
+                Optional.of(ReplicaKey.of(candidate, candidateDirectoryId)),
+                persistedVoters(voters.voterIds(), kraftVersion))
+            ),
+            store.readElectionState()
+        );
+
+        // transition back to prospective with votedKey and leaderId
+        state.transitionToProspective();
+        assertTrue(state.isProspective());
+        assertEquals(logEndEpoch, state.epoch());
+        assertEquals(
+            Optional.of(new ElectionState(
+                logEndEpoch,
+                OptionalInt.of(leader),
+                Optional.of(ReplicaKey.of(candidate, candidateDirectoryId)),
+                persistedVoters(voters.voterIds(), kraftVersion))
+            ),
+            store.readElectionState()
+        );
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = KRaftVersion.class)
+    public void testFollowerVotedToUnattached(KRaftVersion kraftVersion) {
+
+    }
 }

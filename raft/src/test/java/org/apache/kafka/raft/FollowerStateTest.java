@@ -57,6 +57,7 @@ public class FollowerStateTest {
             epoch,
             leaderId,
             leaderEndpoints,
+            Optional.empty(),
             voters,
             highWatermark,
             fetchTimeoutMs,

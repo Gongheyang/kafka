@@ -729,16 +729,6 @@ public final class KafkaRaftClient<T> implements RaftClient<T> {
         resetConnections();
     }
 
-    private void transitionToUnattachedVoted(int epoch, ReplicaKey candidateKey) {
-        if (quorum.isUnattachedNotVoted() && quorum.epoch() == epoch) {
-            quorum.unattachedAddVotedState(epoch, candidateKey);
-        } else {
-            quorum.transitionToUnattached(epoch, Optional.of(candidateKey));
-            maybeFireLeaderChange();
-            resetConnections();
-        }
-    }
-
     private void transitionToResigned(List<ReplicaKey> preferredSuccessors) {
         fetchPurgatory.completeAllExceptionally(
             Errors.NOT_LEADER_OR_FOLLOWER.exception("Not handling request since this node is resigning"));
@@ -908,7 +898,7 @@ public final class KafkaRaftClient<T> implements RaftClient<T> {
         );
 
         if (!preVote && voteGranted && quorum.isUnattachedNotVoted()) {
-            transitionToUnattachedVoted(replicaEpoch, replicaKey);
+            quorum.unattachedAddVotedState(replicaEpoch, replicaKey);
         }
 
         logger.info(
@@ -3132,11 +3122,6 @@ public final class KafkaRaftClient<T> implements RaftClient<T> {
                     state.election().leaderId(),
                     state.leaderEndpoints(),
                     currentTimeMs);
-            } else if (state.votedKey().isPresent()) {
-                logger.info(
-                    "Election has timed out, transitioning to Unattached with votedKey={} to attempt rediscovering leader",
-                    state.votedKey().get());
-                transitionToUnattachedVoted(quorum().epoch(), state.votedKey().get());
             } else {
                 logger.info("Election has timed out, transitioning to Unattached to attempt rediscovering leader");
                 transitionToUnattached(quorum().epoch());

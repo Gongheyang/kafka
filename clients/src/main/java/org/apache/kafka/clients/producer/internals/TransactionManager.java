@@ -444,7 +444,7 @@ public class TransactionManager {
     }
 
     /**
-     *  Check all the finalized features from apiVersions to whether the transaction V2 is enabled.
+     *  Check all the finalized features from apiVersions to verify whether the transaction V2 is enabled.
      *  Sets clientSideEpochBumpRequired if upgrading to V2 since we need to bump the epoch.
      *  This is because V2 no longer adds partitions explicitly and there are some edge cases on upgrade
      *  that can be avoided by fencing the old V1 transaction epoch. For example, we won't consider

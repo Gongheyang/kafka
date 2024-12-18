@@ -302,8 +302,8 @@ class KafkaService(KafkaPathResolverMixin, JmxMixin, Service):
                 consumer_group_migration_policy = context.globals.get(arg_name)
         self.consumer_group_migration_policy = consumer_group_migration_policy
 
-        if num_nodes < 0:
-            raise Exception("Must set a non-negative number of nodes: %i" % num_nodes)
+        if num_nodes < 1:
+            raise Exception("Must set a positive number of nodes: %i" % num_nodes)
         self.num_nodes_broker_role = 0
         self.num_nodes_controller_role = 0
 

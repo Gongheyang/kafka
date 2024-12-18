@@ -18,8 +18,6 @@
   "type": "request",
   "listeners": ["zkBroker", "broker"],
   "name": "FindCoordinatorRequest",
-  // Versions 0 was removed in Apache Kafka 4.0, Version 1 is the new baseline.
-  //
   // Version 1 adds KeyType.
   //
   // Version 2 is the same as version 1.
@@ -32,7 +30,7 @@
   //
   // Version 6 adds support for share groups (KIP-932).
   // For key type SHARE (2), the coordinator key format is "groupId:topicId:partition".
-  "validVersions": "1-6",
+  "validVersions": "0-6",
   "flexibleVersions": "3+",
   "fields": [
     { "name": "Key", "type": "string", "versions": "0-3",

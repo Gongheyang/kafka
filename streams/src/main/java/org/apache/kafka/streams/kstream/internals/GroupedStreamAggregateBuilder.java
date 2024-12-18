@@ -83,7 +83,7 @@ class GroupedStreamAggregateBuilder<K, V> {
         if (repartitionRequired) {
             final OptimizableRepartitionNodeBuilder<K, V> repartitionNodeBuilder = optimizableRepartitionNodeBuilder();
             final String repartitionTopicPrefix = userProvidedRepartitionTopicName != null ? userProvidedRepartitionTopicName : storeFactory.storeName();
-            sourceName = createRepartitionSource(repartitionTopicPrefix, repartitionNodeBuilder, userProvidedRepartitionTopicName != null);
+            sourceName = createRepartitionSource(repartitionTopicPrefix, repartitionNodeBuilder, userProvidedRepartitionTopicName != null || queryableStoreName != null);
             // First time through we need to create a repartition node.
             // Any subsequent calls to GroupedStreamAggregateBuilder#build we check if
             // the user has provided a name for the repartition topic, is so we re-use

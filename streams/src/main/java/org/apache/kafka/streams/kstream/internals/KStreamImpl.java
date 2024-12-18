@@ -853,13 +853,13 @@ public class KStreamImpl<K, V> extends AbstractStream<K, V> implements KStream<K
         if (joinThis.repartitionRequired) {
             final String joinThisName = joinThis.name;
             final String leftJoinRepartitionTopicName = name.suffixWithOrElseGet("-left", joinThisName);
-            joinThis = joinThis.repartitionForJoin(leftJoinRepartitionTopicName, streamJoinedInternal.keySerde(), streamJoinedInternal.valueSerde(), name.name() != null || joinThisName != null);
+            joinThis = joinThis.repartitionForJoin(leftJoinRepartitionTopicName, streamJoinedInternal.keySerde(), streamJoinedInternal.valueSerde(), name.name() != null);
         }
 
         if (joinOther.repartitionRequired) {
             final String joinOtherName = joinOther.name;
             final String rightJoinRepartitionTopicName = name.suffixWithOrElseGet("-right", joinOtherName);
-            joinOther = joinOther.repartitionForJoin(rightJoinRepartitionTopicName, streamJoinedInternal.keySerde(), streamJoinedInternal.otherValueSerde(), name.name() != null || joinOtherName != null);
+            joinOther = joinOther.repartitionForJoin(rightJoinRepartitionTopicName, streamJoinedInternal.keySerde(), streamJoinedInternal.otherValueSerde(), name.name() != null);
         }
 
         joinThis.ensureCopartitionWith(Collections.singleton(joinOther));

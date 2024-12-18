@@ -255,7 +255,7 @@ private[transaction] class TransactionMetadata(val transactionalId: String,
   def prepareNoTransit(): TxnTransitMetadata = {
     // do not call transitTo as it will set the pending state, a follow-up call to abort the transaction will set its pending state
     TxnTransitMetadata(producerId, prevProducerId, nextProducerId, producerEpoch, lastProducerEpoch, txnTimeoutMs, state, topicPartitions.clone(),
-      txnStartTimestamp, txnLastUpdateTimestamp, TransactionVersion.TV_0)
+      txnStartTimestamp, txnLastUpdateTimestamp, clientTransactionVersion)
   }
 
   def prepareFenceProducerEpoch(): TxnTransitMetadata = {
@@ -341,7 +341,7 @@ private[transaction] class TransactionMetadata(val transactionalId: String,
     )
   }
 
-  def prepareAddPartitions(addedTopicPartitions: immutable.Set[TopicPartition], updateTimestamp: Long): TxnTransitMetadata = {
+  def prepareAddPartitions(addedTopicPartitions: immutable.Set[TopicPartition], updateTimestamp: Long, clientTransactionVersion: TransactionVersion): TxnTransitMetadata = {
     val newTxnStartTimestamp = state match {
       case Empty | CompleteAbort | CompleteCommit => updateTimestamp
       case _ => txnStartTimestamp
@@ -625,7 +625,8 @@ private[transaction] class TransactionMetadata(val transactionalId: String,
       s"pendingState=$pendingState, " +
       s"topicPartitions=$topicPartitions, " +
       s"txnStartTimestamp=$txnStartTimestamp, " +
-      s"txnLastUpdateTimestamp=$txnLastUpdateTimestamp)"
+      s"txnLastUpdateTimestamp=$txnLastUpdateTimestamp, " +
+      s"clientTransactionVersion=$clientTransactionVersion)"
   }
 
   override def equals(that: Any): Boolean = that match {
@@ -638,13 +639,14 @@ private[transaction] class TransactionMetadata(val transactionalId: String,
       state.equals(other.state) &&
       topicPartitions.equals(other.topicPartitions) &&
       txnStartTimestamp == other.txnStartTimestamp &&
-      txnLastUpdateTimestamp == other.txnLastUpdateTimestamp
+      txnLastUpdateTimestamp == other.txnLastUpdateTimestamp &&
+      clientTransactionVersion == other.clientTransactionVersion
     case _ => false
   }
 
   override def hashCode(): Int = {
     val fields = Seq(transactionalId, producerId, producerEpoch, txnTimeoutMs, state, topicPartitions,
-      txnStartTimestamp, txnLastUpdateTimestamp)
+      txnStartTimestamp, txnLastUpdateTimestamp, clientTransactionVersion)
     fields.map(_.hashCode()).foldLeft(0)((a, b) => 31 * a + b)
   }
 }

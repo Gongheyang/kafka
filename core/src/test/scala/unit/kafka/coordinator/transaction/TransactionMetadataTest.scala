@@ -204,7 +204,7 @@ class TransactionMetadataTest {
     assertEquals(producerId, txnMetadata.producerId)
     assertEquals(producerEpoch + 1, txnMetadata.producerEpoch)
     assertEquals(producerEpoch, txnMetadata.lastProducerEpoch)
-    assertEquals(1L, txnMetadata.txnStartTimestamp)
+    assertEquals(-1L, txnMetadata.txnStartTimestamp)
     assertEquals(time.milliseconds() - 1, txnMetadata.txnLastUpdateTimestamp)
   }
 
@@ -231,7 +231,7 @@ class TransactionMetadataTest {
     assertEquals(producerId + 1, txnMetadata.producerId)
     assertEquals(producerEpoch, txnMetadata.lastProducerEpoch)
     assertEquals(0, txnMetadata.producerEpoch)
-    assertEquals(1L, txnMetadata.txnStartTimestamp)
+    assertEquals(-1L, txnMetadata.txnStartTimestamp)
     assertEquals(time.milliseconds() - 1, txnMetadata.txnLastUpdateTimestamp)
   }
 

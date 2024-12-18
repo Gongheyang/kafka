@@ -42,6 +42,7 @@ public final class MessageSpec {
     private final boolean latestVersionUnstable;
 
     @JsonCreator
+    @SuppressWarnings({"NPathComplexity", "CyclomaticComplexity"})
     public MessageSpec(@JsonProperty("name") String name,
                        @JsonProperty("validVersions") String validVersions,
                        @JsonProperty("deprecatedVersions") String deprecatedVersions,

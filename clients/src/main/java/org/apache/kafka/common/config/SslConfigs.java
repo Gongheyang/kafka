@@ -98,6 +98,11 @@ public class SslConfigs {
         + "If a password is not set, trust store file configured will still be used, but integrity checking is disabled. "
         + "Trust store password is not supported for PEM format.";
 
+
+    public static final String SSL_HOT_RELOAD = "ssl.hot.reload";
+    public static final Boolean DEFAULT_SSL_HOT_RELOAD = false;
+    public static final String SSL_HOT_RELOAD_DOC = "Indicates whether to monitor the keystore and truststore directories for changes and automatically reload the SSL Engine Factory with updated keystore/truststore files. ";
+
     public static final String SSL_KEYMANAGER_ALGORITHM_CONFIG = "ssl.keymanager.algorithm";
     public static final String SSL_KEYMANAGER_ALGORITHM_DOC = "The algorithm used by key manager factory for SSL connections. "
             + "Default value is the key manager factory algorithm configured for the Java Virtual Machine.";
@@ -138,6 +143,7 @@ public class SslConfigs {
                 .define(SslConfigs.SSL_TRUSTSTORE_TYPE_CONFIG, ConfigDef.Type.STRING, SslConfigs.DEFAULT_SSL_TRUSTSTORE_TYPE, ConfigDef.Importance.MEDIUM, SslConfigs.SSL_TRUSTSTORE_TYPE_DOC)
                 .define(SslConfigs.SSL_TRUSTSTORE_LOCATION_CONFIG, ConfigDef.Type.STRING, null, ConfigDef.Importance.HIGH, SslConfigs.SSL_TRUSTSTORE_LOCATION_DOC)
                 .define(SslConfigs.SSL_TRUSTSTORE_PASSWORD_CONFIG, ConfigDef.Type.PASSWORD, null, ConfigDef.Importance.HIGH, SslConfigs.SSL_TRUSTSTORE_PASSWORD_DOC)
+                .define(SslConfigs.SSL_HOT_RELOAD, ConfigDef.Type.BOOLEAN, SslConfigs.DEFAULT_SSL_HOT_RELOAD, ConfigDef.Importance.MEDIUM, SslConfigs.SSL_HOT_RELOAD_DOC)
                 .define(SslConfigs.SSL_KEYMANAGER_ALGORITHM_CONFIG, ConfigDef.Type.STRING, SslConfigs.DEFAULT_SSL_KEYMANGER_ALGORITHM, ConfigDef.Importance.LOW, SslConfigs.SSL_KEYMANAGER_ALGORITHM_DOC)
                 .define(SslConfigs.SSL_TRUSTMANAGER_ALGORITHM_CONFIG, ConfigDef.Type.STRING, SslConfigs.DEFAULT_SSL_TRUSTMANAGER_ALGORITHM, ConfigDef.Importance.LOW, SslConfigs.SSL_TRUSTMANAGER_ALGORITHM_DOC)
                 .define(SslConfigs.SSL_ENDPOINT_IDENTIFICATION_ALGORITHM_CONFIG, ConfigDef.Type.STRING, SslConfigs.DEFAULT_SSL_ENDPOINT_IDENTIFICATION_ALGORITHM, ConfigDef.Importance.LOW, SslConfigs.SSL_ENDPOINT_IDENTIFICATION_ALGORITHM_DOC)

@@ -578,6 +578,7 @@ public class TestSslUtils {
         String algorithm;
         CertificateBuilder certBuilder;
         boolean usePem;
+        boolean sslHotReload;
 
         public SslConfigsBuilder(ConnectionMode connectionMode) {
             this.connectionMode = connectionMode;
@@ -639,6 +640,11 @@ public class TestSslUtils {
             return this;
         }
 
+        public SslConfigsBuilder sslHotReload(boolean sslHotReload) {
+            this.sslHotReload = sslHotReload;
+            return this;
+        }
+
         public  Map<String, Object> build() throws IOException, GeneralSecurityException {
             if (usePem) {
                 return buildPem();
@@ -686,6 +692,8 @@ public class TestSslUtils {
             sslConfigs.put(SslConfigs.SSL_TRUSTSTORE_PASSWORD_CONFIG, trustStorePassword);
             sslConfigs.put(SslConfigs.SSL_TRUSTSTORE_TYPE_CONFIG, "JKS");
             sslConfigs.put(SslConfigs.SSL_TRUSTMANAGER_ALGORITHM_CONFIG, TrustManagerFactory.getDefaultAlgorithm());
+            sslConfigs.put(SslConfigs.SSL_HOT_RELOAD, sslHotReload);
+
 
             List<String> enabledProtocols  = new ArrayList<>();
             enabledProtocols.add(tlsProtocol);

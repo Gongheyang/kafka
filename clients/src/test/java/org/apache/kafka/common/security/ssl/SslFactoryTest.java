@@ -43,6 +43,7 @@ import java.security.KeyPair;
 import java.security.KeyStore;
 import java.security.Security;
 import java.security.cert.X509Certificate;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Properties;
@@ -608,6 +609,25 @@ public abstract class SslFactoryTest {
         return store.get();
     }
 
+    
+    @Test
+    public void testFileChangeTriggersReconfigure() throws Exception {
+        File trustStoreFile = TestUtils.tempFile("truststore", ".jks");
+        SslWatcher.setQuietPeriod(Duration.ofSeconds(1));
+        Map<String, Object> serverSslConfig = sslConfigsBuilder(ConnectionMode.SERVER)
+                .createNewTrustStore(trustStoreFile)
+                .sslHotReload(true)
+                .build();
+
+        try (SslFactory sslFactory = new SslFactory(ConnectionMode.SERVER, null, true)) {
+            sslFactory.configure(serverSslConfig);           
+            SslEngineFactory sslEngineFactory = sslFactory.sslEngineFactory();
+            trustStoreFile.setLastModified(System.currentTimeMillis() + 10000);
+            // sleep for more than SslWatcher.QUIET_PERIOD
+            Thread.sleep(3000);
+            assertNotSame(sslEngineFactory, sslFactory.sslEngineFactory(), "SslEngineFactory not recreated");
+        }
+    }
     private TestSslUtils.SslConfigsBuilder sslConfigsBuilder(ConnectionMode connectionMode) {
         return new TestSslUtils.SslConfigsBuilder(connectionMode).tlsProtocol(tlsProtocol);
     }

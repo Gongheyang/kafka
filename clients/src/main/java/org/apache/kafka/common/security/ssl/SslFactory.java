@@ -23,6 +23,7 @@ import org.apache.kafka.common.config.SslConfigs;
 import org.apache.kafka.common.config.internals.BrokerSecurityConfigs;
 import org.apache.kafka.common.network.ConnectionMode;
 import org.apache.kafka.common.security.auth.SslEngineFactory;
+import org.apache.kafka.common.security.ssl.SslWatcher.Registration;
 import org.apache.kafka.common.utils.ConfigUtils;
 import org.apache.kafka.common.utils.Utils;
 
@@ -30,15 +31,19 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.Closeable;
+import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.nio.ByteBuffer;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.security.Principal;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Enumeration;
@@ -60,6 +65,8 @@ public class SslFactory implements Reconfigurable, Closeable {
     private final String clientAuthConfigOverride;
     private final boolean keystoreVerifiableUsingTruststore;
     private String endpointIdentification;
+    private boolean sslHotReload;
+    Registration registration;
     private SslEngineFactory sslEngineFactory;
     private Map<String, Object> sslEngineFactoryConfig;
 
@@ -107,6 +114,16 @@ public class SslFactory implements Reconfigurable, Closeable {
             }
         }
         this.sslEngineFactory = builder;
+
+        this.sslHotReload = ConfigUtils.getBoolean(nextConfigs, SslConfigs.SSL_HOT_RELOAD, SslConfigs.DEFAULT_SSL_HOT_RELOAD);
+
+        if (this.sslHotReload) {
+            Path keystore = Paths.get((String) configs.get(SslConfigs.SSL_KEYSTORE_LOCATION_CONFIG));
+            Path trustore = Paths.get((String) configs.get(SslConfigs.SSL_TRUSTSTORE_LOCATION_CONFIG));
+            SslWatcher watcher = SslWatcher.getInstance();
+            Set<Path> watchedPaths = new HashSet<>(Arrays.asList(keystore, trustore));
+            this.registration = watcher.watch(watchedPaths, () -> reconfigure(this.sslEngineFactoryConfig));
+        }
     }
 
     @Override
@@ -292,6 +309,13 @@ public class SslFactory implements Reconfigurable, Closeable {
 
     @Override
     public void close() {
+        if (this.sslHotReload) {
+            try {
+                SslWatcher.close(this.registration);
+            } catch (IOException e) {
+                throw new KafkaException("Failed to close Ssl watcher registration", e);
+            }
+        }
         Utils.closeQuietly(sslEngineFactory, "close engine factory");
     }
 

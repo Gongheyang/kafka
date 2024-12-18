@@ -185,10 +185,7 @@ public class StreamsGroupCommand {
         StreamsGroupDescription getDescribeGroup(String group) throws ExecutionException, InterruptedException {
             DescribeStreamsGroupsResult result = adminClient.describeStreamsGroups(List.of(group));
             Map<String, StreamsGroupDescription> descriptionMap = result.all().get();
-            if (descriptionMap.containsKey(group)) {
-                return descriptionMap.get(group);
-            }
-            return null;
+          return descriptionMap.get(group);      
         }
 
         private void printMembers(StreamsGroupDescription description, boolean verbose) {

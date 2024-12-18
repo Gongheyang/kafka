@@ -25,6 +25,7 @@ import org.apache.kafka.clients.admin.ListGroupsResult;
 import org.apache.kafka.clients.admin.ListOffsetsResult;
 import org.apache.kafka.clients.admin.OffsetSpec;
 import org.apache.kafka.clients.admin.ShareGroupDescription;
+import org.apache.kafka.clients.admin.ShareMemberAssignment;
 import org.apache.kafka.clients.admin.ShareMemberDescription;
 import org.apache.kafka.common.GroupState;
 import org.apache.kafka.common.GroupType;
@@ -191,9 +192,9 @@ public class ShareGroupCommand {
             if (description == null)
                 return;
             if (opts.options.has(opts.membersOpt)) {
-                printMembers(description);
+                printMembers(description, opts.options.has(opts.verboseOpt));
             } else if (opts.options.has(opts.stateOpt)) {
-                printStates(description);
+                printStates(description, opts.options.has(opts.verboseOpt));
             } else {
                 printOffsets(description);
             }
@@ -253,19 +254,26 @@ public class ShareGroupCommand {
             return "%" + (-groupLen) + "s %" + (-maxTopicLen) + "s %-10s %s\n";
         }
 
-        private void printStates(ShareGroupDescription description) {
+        private void printStates(ShareGroupDescription description, boolean verbose) {
             maybePrintEmptyGroupState(description.groupId(), description.groupState(), 1);
 
             int groupLen = Math.max(15, description.groupId().length());
             String coordinator = description.coordinator().host() + ":" + description.coordinator().port() + "  (" + description.coordinator().idString() + ")";
             int coordinatorLen = Math.max(25, coordinator.length());
 
-            String fmt = "%" + -groupLen + "s %" + -coordinatorLen + "s %-15s %s\n";
-            System.out.printf(fmt, "GROUP", "COORDINATOR (ID)", "STATE", "#MEMBERS");
-            System.out.printf(fmt, description.groupId(), coordinator, description.groupState().toString(), description.members().size());
+            if (verbose) {
+                String fmt = "%" + -groupLen + "s %" + -coordinatorLen + "s %-15s %-12s %-17s %s\n";
+                System.out.printf(fmt, "GROUP", "COORDINATOR (ID)", "STATE", "GROUP-EPOCH", "ASSIGNMENT-EPOCH", "#MEMBERS");
+                System.out.printf(fmt, description.groupId(), coordinator, description.groupState().toString(),
+                    description.groupEpoch(), description.targetAssignmentEpoch(), description.members().size());
+            } else {
+                String fmt = "%" + -groupLen + "s %" + -coordinatorLen + "s %-15s %s\n";
+                System.out.printf(fmt, "GROUP", "COORDINATOR (ID)", "STATE", "#MEMBERS");
+                System.out.printf(fmt, description.groupId(), coordinator, description.groupState().toString(), description.members().size());
+            }
         }
 
-        private void printMembers(ShareGroupDescription description) {
+        private void printMembers(ShareGroupDescription description, boolean verbose) {
             int groupLen = Math.max(15, description.groupId().length());
             int maxConsumerIdLen = 15, maxHostLen = 15, maxClientIdLen = 15;
             Collection<ShareMemberDescription> members = description.members();
@@ -276,13 +284,39 @@ public class ShareGroupCommand {
                     maxClientIdLen = Math.max(maxClientIdLen, member.clientId().length());
                 }
 
-                String fmt = "%" + -groupLen + "s %" + -maxConsumerIdLen + "s %" + -maxHostLen + "s %" + -maxClientIdLen + "s %s\n";
-                System.out.printf(fmt, "GROUP", "CONSUMER-ID", "HOST", "CLIENT-ID", "ASSIGNMENT");
-                for (ShareMemberDescription member : members) {
-                    System.out.printf(fmt, description.groupId(), member.consumerId(), member.host(), member.clientId(),
-                        member.assignment().topicPartitions().stream().map(part -> part.topic() + ":" + part.partition()).collect(Collectors.joining(",")));
+                if (verbose) {
+                    String fmt = "%" + -groupLen + "s %" + -maxConsumerIdLen + "s %" + -maxHostLen + "s %" + -maxClientIdLen + "s %-13s %s\n";
+                    System.out.printf(fmt, "GROUP", "CONSUMER-ID", "HOST", "CLIENT-ID", "MEMBER-EPOCH", "ASSIGNMENT");
+                    for (ShareMemberDescription member : members) {
+                        System.out.printf(fmt, description.groupId(), member.consumerId(), member.host(), member.clientId(), member.memberEpoch(), getAssignmentString(member.assignment()));
+                    }
+                } else {
+                    String fmt = "%" + -groupLen + "s %" + -maxConsumerIdLen + "s %" + -maxHostLen + "s %" + -maxClientIdLen + "s %s\n";
+                    System.out.printf(fmt, "GROUP", "CONSUMER-ID", "HOST", "CLIENT-ID", "ASSIGNMENT");
+                    for (ShareMemberDescription member : members) {
+                        System.out.printf(fmt, description.groupId(), member.consumerId(), member.host(), member.clientId(), getAssignmentString(member.assignment()));
+                    }
                 }
             }
+        }
+
+        private String getAssignmentString(ShareMemberAssignment assignment) {
+            Map<String, List<TopicPartition>> grouped = new HashMap<>();
+            assignment.topicPartitions().forEach(tp ->
+                grouped
+                   .computeIfAbsent(tp.topic(), key -> new ArrayList<>())
+                    .add(tp)
+            );
+            return grouped.entrySet().stream().map(entry -> {
+                String topicName = entry.getKey();
+                List<TopicPartition> topicPartitions = entry.getValue();
+                return topicPartitions
+                    .stream()
+                    .map(TopicPartition::partition)
+                    .map(Object::toString)
+                    .sorted()
+                    .collect(Collectors.joining(",", topicName + ":", ""));
+            }).sorted().collect(Collectors.joining(";"));
         }
 
         public void close() {

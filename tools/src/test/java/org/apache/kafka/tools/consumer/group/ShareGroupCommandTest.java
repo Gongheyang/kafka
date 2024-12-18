@@ -39,7 +39,6 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentMatchers;
 
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -77,7 +76,7 @@ public class ShareGroupCommandTest {
         ShareGroupService service = getShareGroupService(cgcArgs, adminClient);
         Set<String> expectedGroups = new HashSet<>(Arrays.asList(firstGroup, secondGroup));
 
-        final Set[] foundGroups = new Set[]{Collections.emptySet()};
+        final Set[] foundGroups = new Set[]{Set.of()};
         TestUtils.waitForCondition(() -> {
             foundGroups[0] = new HashSet<>(service.listShareGroups());
             return Objects.equals(expectedGroups, foundGroups[0]);
@@ -95,9 +94,9 @@ public class ShareGroupCommandTest {
                 firstGroup,
                 List.of(new ShareMemberDescription("memid1", "clId1", "host1", new ShareMemberAssignment(
                         Set.of(new TopicPartition("topic1", 0))
-                ))),
+                ), 0)),
                 GroupState.STABLE,
-                new Node(0, "host1", 9090));
+                new Node(0, "host1", 9090), 0, 0);
         resultMap.put(firstGroup, exp);
 
         when(result.all()).thenReturn(KafkaFuture.completedFuture(resultMap));
@@ -125,12 +124,26 @@ public class ShareGroupCommandTest {
         when(adminClient.listOffsets(ArgumentMatchers.anyMap())).thenReturn(startOffset, endOffset);
 
         ShareMemberDescription description = new ShareMemberDescription("", "", "",
-                new ShareMemberAssignment(Set.of(new TopicPartition("topic1", 0))));
+                new ShareMemberAssignment(Set.of(new TopicPartition("topic1", 0))), 0);
         ShareGroupService service = new ShareGroupService(null, adminClient);
         Map<TopicPartition, Long> lags = service.getOffsets(List.of(description));
         assertEquals(1, lags.size());
         assertEquals(20, lags.get(new TopicPartition("topic1", 0)));
         service.close();
+    }
+
+    @Test
+    public void testDescribeShareGroupsInvalidVerboseOption() {
+        String bootstrapServer = "localhost:9092";
+        String[] cgcArgs = new String[]{"--bootstrap-server", bootstrapServer, "--describe", "--group", "group1", "--verbose"};
+        assertThrows(OptionException.class, () -> getShareGroupService(cgcArgs, new MockAdminClient()));
+    }
+
+    @Test
+    public void testDescribeShareGroupsOffsetsInvalidVerboseOption() {
+        String bootstrapServer = "localhost:9092";
+        String[] cgcArgs = new String[]{"--bootstrap-server", bootstrapServer, "--describe", "--group", "group1", "--offsets", "--verbose"};
+        assertThrows(OptionException.class, () -> getShareGroupService(cgcArgs, new MockAdminClient()));
     }
 
     @Test
@@ -145,7 +158,7 @@ public class ShareGroupCommandTest {
     @Test
     public void testListWithUnrecognizedOption() {
         String bootstrapServer = "localhost:9092";
-        String[] cgcArgs = new String[]{"--frivolous-nonsense", "--bootstrap-server", bootstrapServer, "--list"};
+        String[] cgcArgs = new String[]{"--bootstrap-server", bootstrapServer, "--list", "--verbose"};
         assertThrows(OptionException.class, () -> getShareGroupService(cgcArgs, new MockAdminClient()));
     }
 
@@ -168,24 +181,24 @@ public class ShareGroupCommandTest {
                 new GroupListing(firstGroup, Optional.of(GroupType.SHARE), "share", Optional.of(GroupState.STABLE)),
                 new GroupListing(secondGroup, Optional.of(GroupType.SHARE), "share", Optional.of(GroupState.EMPTY))));
 
-        final Set[] foundListing = new Set[]{Collections.emptySet()};
+        final Set[] foundListing = new Set[]{Set.of()};
         TestUtils.waitForCondition(() -> {
             foundListing[0] = new HashSet<>(service.listShareGroupsInStates(new HashSet<>(Arrays.asList(GroupState.values()))));
             return Objects.equals(expectedListing, foundListing[0]);
         }, "Expected to show groups " + expectedListing + ", but found " + foundListing[0]);
 
         ListGroupsResult resultWithStableState = mock(ListGroupsResult.class);
-        when(resultWithStableState.all()).thenReturn(KafkaFuture.completedFuture(Collections.singletonList(
+        when(resultWithStableState.all()).thenReturn(KafkaFuture.completedFuture(List.of(
                 new GroupListing(firstGroup, Optional.of(GroupType.SHARE), "share", Optional.of(GroupState.STABLE))
         )));
         when(adminClient.listGroups(any(ListGroupsOptions.class))).thenReturn(resultWithStableState);
-        Set<GroupListing> expectedListingStable = Collections.singleton(
+        Set<GroupListing> expectedListingStable = Set.of(
                 new GroupListing(firstGroup, Optional.of(GroupType.SHARE), "share", Optional.of(GroupState.STABLE)));
 
-        foundListing[0] = Collections.emptySet();
+        foundListing[0] = Set.of();
 
         TestUtils.waitForCondition(() -> {
-            foundListing[0] = new HashSet<>(service.listShareGroupsInStates(Collections.singleton(GroupState.STABLE)));
+            foundListing[0] = new HashSet<>(service.listShareGroupsInStates(Set.of(GroupState.STABLE)));
             return Objects.equals(expectedListingStable, foundListing[0]);
         }, "Expected to show groups " + expectedListingStable + ", but found " + foundListing[0]);
         service.close();
@@ -194,16 +207,16 @@ public class ShareGroupCommandTest {
     @Test
     public void testGroupStatesFromString() {
         Set<GroupState> result = ShareGroupCommand.groupStatesFromString("Stable");
-        assertEquals(Collections.singleton(GroupState.STABLE), result);
+        assertEquals(Set.of(GroupState.STABLE), result);
 
         result = ShareGroupCommand.groupStatesFromString("stable");
-        assertEquals(new HashSet<>(Collections.singletonList(GroupState.STABLE)), result);
+        assertEquals(Set.of(GroupState.STABLE), result);
 
         result = ShareGroupCommand.groupStatesFromString("dead");
-        assertEquals(new HashSet<>(Collections.singletonList(GroupState.DEAD)), result);
+        assertEquals(Set.of(GroupState.DEAD), result);
 
         result = ShareGroupCommand.groupStatesFromString("empty");
-        assertEquals(new HashSet<>(Collections.singletonList(GroupState.EMPTY)), result);
+        assertEquals(Set.of(GroupState.EMPTY), result);
 
         assertThrows(IllegalArgumentException.class, () -> ShareGroupCommand.groupStatesFromString("assigning"));
 

@@ -20,30 +20,32 @@ import org.apache.kafka.common.serialization.Serde;
 import org.apache.kafka.streams.processor.StateStoreContext;
 import org.apache.kafka.streams.processor.api.ProcessorContext;
 
+import java.util.function.Supplier;
+
 /**
  * Allows serde access across different context types.
  */
 public class SerdeGetter {
 
-    private final ProcessorContext<?, ?> processorContext;
-    private final StateStoreContext stateStorecontext;
+    private final Supplier<Serde<?>> keySerdeSupplier;
+    private final Supplier<Serde<?>> valueSerdeSupplier;
 
     public SerdeGetter(final ProcessorContext<?, ?> context) {
-        processorContext = context;
-        stateStorecontext = null;
+        keySerdeSupplier = context::keySerde;
+        valueSerdeSupplier = context::valueSerde;
     }
 
     public SerdeGetter(final StateStoreContext context) {
-        processorContext = null;
-        stateStorecontext = context;
+        keySerdeSupplier = context::keySerde;
+        valueSerdeSupplier = context::valueSerde;
     }
 
     public Serde<?> keySerde() {
-        return processorContext != null ? processorContext.keySerde() : stateStorecontext.keySerde();
+        return keySerdeSupplier.get();
     }
 
     public Serde<?> valueSerde() {
-        return processorContext != null ? processorContext.valueSerde() : stateStorecontext.valueSerde();
+        return valueSerdeSupplier.get();
     }
 
 }

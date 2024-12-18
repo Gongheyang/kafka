@@ -776,9 +776,7 @@ public class GroupCoordinatorShard implements CoordinatorShard<CoordinatorRecord
         return new OffsetCommitValue()
             .setOffset(value.offset())
             .setCommitTimestamp(value.commitTimestamp())
-            .setExpireTimestamp(value.expireTimestamp())
-            .setMetadata(value.metadata())
-            .setLeaderEpoch(value.leaderEpoch());
+            .setMetadata(value.metadata());
     }
 
     /**

@@ -362,9 +362,7 @@ public class GroupCoordinatorShardTest {
                 new OffsetCommitValueV0()
                     .setOffset(100L)
                     .setCommitTimestamp(12345L)
-                    .setExpireTimestamp(6789L)
-                    .setMetadata("Metadata")
-                    .setLeaderEpoch(10),
+                    .setMetadata("Metadata"),
                 (short) 0
             )
         ));
@@ -377,8 +375,14 @@ public class GroupCoordinatorShardTest {
         verify(offsetMetadataManager, times(1)).replay(
             0L,
             RecordBatch.NO_PRODUCER_ID,
-            key,
-            value
+            new OffsetCommitKey()
+                .setGroup("goo")
+                .setTopic("foo")
+                .setPartition(0),
+            new OffsetCommitValue()
+                .setOffset(100L)
+                .setCommitTimestamp(12345L)
+                .setMetadata("Metadata")
         );
 
         verify(offsetMetadataManager, times(1)).replay(
@@ -429,9 +433,7 @@ public class GroupCoordinatorShardTest {
                 new OffsetCommitValueV0()
                     .setOffset(100L)
                     .setCommitTimestamp(12345L)
-                    .setExpireTimestamp(6789L)
-                    .setMetadata("Metadata")
-                    .setLeaderEpoch(10),
+                    .setMetadata("Metadata"),
                 (short) 0
             )
         ));
@@ -444,8 +446,14 @@ public class GroupCoordinatorShardTest {
         verify(offsetMetadataManager, times(1)).replay(
             0L,
             100L,
-            key,
-            value
+            new OffsetCommitKey()
+                .setGroup("goo")
+                .setTopic("foo")
+                .setPartition(0),
+            new OffsetCommitValue()
+                .setOffset(100L)
+                .setCommitTimestamp(12345L)
+                .setMetadata("Metadata")
         );
 
         verify(offsetMetadataManager, times(1)).replay(

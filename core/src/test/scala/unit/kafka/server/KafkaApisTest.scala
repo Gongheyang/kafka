@@ -4753,9 +4753,9 @@ class KafkaApisTest extends Logging {
     assertEquals(Errors.NOT_LEADER_OR_FOLLOWER.code, partitionData.errorCode)
     assertEquals(newLeaderId, partitionData.currentLeader.leaderId())
     assertEquals(newLeaderEpoch, partitionData.currentLeader.leaderEpoch())
-    val node = response.data.nodeEndpoints.asScala.head
-    assertEquals(2, node.nodeId)
-    assertEquals("broker2", node.host)
+    val node = response.data.nodeEndpoints.asScala
+    assertEquals(Seq(2), node.map(_.nodeId))
+    assertEquals(Seq("broker2"), node.map(_.host))
   }
 
   @Test

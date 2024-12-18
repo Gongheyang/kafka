@@ -120,8 +120,9 @@ class SocketServerTest {
     val outgoing = new DataOutputStream(socket.getOutputStream)
     id match {
       case Some(id) =>
-        outgoing.writeInt(request.length + 2)
+        outgoing.writeInt(request.length + 4)
         outgoing.writeShort(id)
+        outgoing.writeShort(ApiKeys.PRODUCE.oldestVersion)
       case None =>
         outgoing.writeInt(request.length)
     }

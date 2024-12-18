@@ -52,7 +52,7 @@ import org.apache.kafka.common.message.OffsetForLeaderEpochRequestData.OffsetFor
 import org.apache.kafka.common.message.OffsetForLeaderEpochResponseData.{EpochEndOffset, OffsetForLeaderTopicResult, OffsetForLeaderTopicResultCollection}
 import org.apache.kafka.common.message._
 import org.apache.kafka.common.metrics.Metrics
-import org.apache.kafka.common.network.{ListenerName, NetworkSend, Send}
+import org.apache.kafka.common.network.{ListenerName}
 import org.apache.kafka.common.protocol.{ApiKeys, ApiMessage, Errors}
 import org.apache.kafka.common.record._
 import org.apache.kafka.common.replica.ClientMetadata
@@ -885,19 +885,15 @@ class KafkaApis(val requestChannel: RequestChannel,
 
       if (fetchRequest.isFromFollower) {
         // We've already evaluated against the quota and are good to go. Just need to record it now.
-        val fetchResponse = fetchContext.updateAndGenerateResponseData(partitions)
+        val fetchResponse = fetchContext.updateAndGenerateResponseData(partitions, Seq.empty.asJava)
         val responseSize = KafkaApis.sizeOfThrottledPartitions(versionId, fetchResponse, quotas.leader)
         quotas.leader.record(responseSize)
         val responsePartitionsSize = fetchResponse.data().responses().stream().mapToInt(_.partitions().size()).sum()
         trace(s"Sending Fetch response with partitions.size=$responsePartitionsSize, " +
           s"metadata=${fetchResponse.sessionId}")
         recordBytesOutMetric(fetchResponse)
-        requestHelper.sendResponseExemptThrottle(request, fetchResponse, onFetchComplete(request))
+        requestHelper.sendResponseExemptThrottle(request, fetchResponse)
       } else {
-        // Fetch size used to determine throttle time is calculated before any down conversions.
-        // This may be slightly different from the actual response size. But since down conversions
-        // result in data being loaded into memory, we should do this only when we are not going to throttle.
-        //
         // Record both bandwidth and request quota-specific values and throttle by muting the channel if any of the
         // quotas have been violated. If both quotas have been violated, use the max throttle time between the two
         // quotas. When throttled, we unrecord the recorded bandwidth quota value.
@@ -918,18 +914,19 @@ class KafkaApis(val requestChannel: RequestChannel,
             requestHelper.throttle(quotas.request, request, requestThrottleTimeMs)
           }
           // If throttling is required, return an empty response.
-          fetchContext.getThrottledResponse(maxThrottleTimeMs)
+          fetchContext.getThrottledResponse(maxThrottleTimeMs, nodeEndpoints.values.toSeq.asJava)
         } else {
           // Get the actual response. This will update the fetch context.
-          val fetchResponse = fetchContext.updateAndGenerateResponseData(partitions)
+          val fetchResponse = fetchContext.updateAndGenerateResponseData(partitions, nodeEndpoints.values.toSeq.asJava)
           val responsePartitionsSize = fetchResponse.data().responses().stream().mapToInt(_.partitions().size()).sum()
           trace(s"Sending Fetch response with partitions.size=$responsePartitionsSize, " +
             s"metadata=${fetchResponse.sessionId}")
           fetchResponse
         }
 
+        recordBytesOutMetric(fetchResponse)
         // Send the response immediately.
-        requestChannel.sendResponse(request, fetchResponse, onFetchComplete(request))
+        requestChannel.sendResponse(request, fetchResponse, None)
       }
     }
 
@@ -4047,7 +4044,7 @@ class KafkaApis(val requestChannel: RequestChannel,
       if (exception != null) {
         requestHelper.sendMaybeThrottle(request, shareFetchRequest.getErrorResponse(AbstractResponse.DEFAULT_THROTTLE_TIME, exception))
       } else {
-        requestChannel.sendResponse(request, result, onFetchComplete(request))
+        requestChannel.sendResponse(request, result, None)
       }
     }
   }
@@ -4572,22 +4569,6 @@ class KafkaApis(val requestChannel: RequestChannel,
       .setRecords(records)
       .setAcquiredRecords(partitionData.acquiredRecords)
       .setCurrentLeader(partitionData.currentLeader)
-  }
-
-  private def onFetchComplete(request: RequestChannel.Request): Option[Send => Unit] = {
-    def updateConversionStats(send: Send): Unit = {
-      send match {
-        case send: MultiRecordsSend if send.recordConversionStats != null =>
-          send.recordConversionStats.asScala.toMap.foreach {
-            case (tp, stats) => updateRecordConversionStats(request, tp, stats)
-          }
-        case send: NetworkSend =>
-          updateConversionStats(send.send())
-        case _ =>
-      }
-    }
-
-    Some(updateConversionStats)
   }
 
   private def isShareGroupProtocolEnabled: Boolean = {

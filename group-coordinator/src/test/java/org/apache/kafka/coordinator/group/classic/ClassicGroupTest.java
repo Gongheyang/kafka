@@ -1366,7 +1366,7 @@ public class ClassicGroupTest {
     }
 
     @Test
-    public void testFromConsumerGroupWithJoiningMember() {
+    public void testFromConsumerGroupWithReplacingMember() {
         MockTime time = new MockTime();
         String groupId = "group-id";
         String memberId1 = Uuid.randomUuid().toString();
@@ -1521,7 +1521,7 @@ public class ClassicGroupTest {
     }
 
     @Test
-    public void testFromConsumerGroupWithoutJoiningMember() {
+    public void testFromConsumerGroupWithoutReplacingMember() {
         MockTime time = new MockTime();
         String groupId = "group-id";
         String memberId1 = Uuid.randomUuid().toString();

@@ -32,7 +32,6 @@ import org.apache.kafka.common.test.api.ClusterInstance;
 import org.apache.kafka.common.test.api.ClusterTest;
 import org.apache.kafka.common.test.api.ClusterTestDefaults;
 import org.apache.kafka.common.test.api.ClusterTestExtensions;
-import org.apache.kafka.common.utils.Utils;
 import org.apache.kafka.coordinator.transaction.TransactionLogConfig;
 import org.apache.kafka.coordinator.transaction.TransactionStateManagerConfig;
 import org.apache.kafka.server.config.ServerLogConfigs;
@@ -42,7 +41,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Properties;
 import java.util.concurrent.ExecutionException;
 
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -69,11 +67,8 @@ public class AdminFenceProducersTest {
     }
 
     private Producer<byte[], byte[]> createProducer() {
-        Properties config = new Properties();
-        config.put(ProducerConfig.TRANSACTIONAL_ID_CONFIG, TXN_ID);
-        config.put(ProducerConfig.TRANSACTION_TIMEOUT_CONFIG, "2000");
-
-        return clusterInstance.producer(Utils.propsToMap(config));
+        return clusterInstance.producer(Map.of(ProducerConfig.TRANSACTIONAL_ID_CONFIG, TXN_ID,
+                ProducerConfig.TRANSACTION_TIMEOUT_CONFIG, "2000"));
     }
 
     @ClusterTest

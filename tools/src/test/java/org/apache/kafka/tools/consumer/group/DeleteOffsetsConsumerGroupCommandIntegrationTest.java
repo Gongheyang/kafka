@@ -35,7 +35,6 @@ import org.apache.kafka.common.test.api.ClusterConfig;
 import org.apache.kafka.common.test.api.ClusterInstance;
 import org.apache.kafka.common.test.api.ClusterTemplate;
 import org.apache.kafka.common.test.api.ClusterTestExtensions;
-import org.apache.kafka.common.utils.Utils;
 import org.apache.kafka.coordinator.group.GroupCoordinatorConfig;
 
 import org.junit.jupiter.api.Assertions;
@@ -47,7 +46,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Properties;
 
 import static org.apache.kafka.test.TestUtils.DEFAULT_MAX_WAIT_MS;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -232,10 +230,7 @@ public class DeleteOffsetsConsumerGroupCommandIntegrationTest {
     }
 
     private Producer<byte[], byte[]> createProducer() {
-        Properties config = new Properties();
-        config.putIfAbsent(ProducerConfig.ACKS_CONFIG, "-1");
-
-        return clusterInstance.producer(Utils.propsToMap(config));
+        return clusterInstance.producer(Map.of(ProducerConfig.ACKS_CONFIG, "-1"));
     }
 
     private Consumer<byte[], byte[]> createConsumer(String group, GroupProtocol groupProtocol) {

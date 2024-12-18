@@ -1422,11 +1422,17 @@ public class ReplicationControlManager {
      * @param records       The record list to append to.
      */
     void handleBrokerUncleanShutdown(int brokerId, List<ApiMessageAndVersion> records) {
-        if (!featureControl.metadataVersion().isElrSupported()) return;
-        generateLeaderAndIsrUpdates("handleBrokerUncleanShutdown", NO_LEADER, NO_LEADER, brokerId, records,
-            brokersToIsrs.partitionsWithBrokerInIsr(brokerId));
-        generateLeaderAndIsrUpdates("handleBrokerUncleanShutdown", NO_LEADER, NO_LEADER, brokerId, records,
-            brokersToElrs.partitionsWithBrokerInElr(brokerId));
+        if (featureControl.metadataVersion().isElrSupported()) {
+            // ELR is enabled, generate unclean shutdown partition change records
+            generateLeaderAndIsrUpdates("handleBrokerUncleanShutdown", NO_LEADER, NO_LEADER, brokerId, records,
+                brokersToIsrs.partitionsWithBrokerInIsr(brokerId));
+            generateLeaderAndIsrUpdates("handleBrokerUncleanShutdown", NO_LEADER, NO_LEADER, brokerId, records,
+                brokersToElrs.partitionsWithBrokerInElr(brokerId));
+        } else {
+            // ELR is not enabled, handle the unclean shutdown as if the broker was fenced
+            generateLeaderAndIsrUpdates("handleBrokerUncleanShutdown", brokerId, NO_LEADER, NO_LEADER, records,
+                brokersToIsrs.partitionsWithBrokerInIsr(brokerId));
+        }
     }
 
     /**
@@ -1761,7 +1767,7 @@ public class ReplicationControlManager {
                 ApiError result = electLeader(topic.name, topicIdPartition.partitionId(),
                         ElectionType.UNCLEAN, records);
                 if (result.error().equals(Errors.NONE)) {
-                    log.error("Triggering unclean leader election for offline partition {}-{}.",
+                    log.info("Triggering unclean leader election for offline partition {}-{}.",
                             topic.name, topicIdPartition.partitionId());
                 } else {
                     log.warn("Cannot trigger unclean leader election for offline partition {}-{}: {}",

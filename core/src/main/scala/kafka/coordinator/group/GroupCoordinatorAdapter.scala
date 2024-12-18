@@ -249,10 +249,11 @@ private[group] class GroupCoordinatorAdapter(
   ): CompletableFuture[util.List[DescribeGroupsResponseData.DescribedGroup]] = {
 
     def describeGroup(groupId: String): DescribeGroupsResponseData.DescribedGroup = {
-      val (error, summary) = coordinator.handleDescribeGroup(groupId)
+      val (error, errorMessage, summary) = coordinator.handleDescribeGroup(groupId, context.apiVersion())
 
       new DescribeGroupsResponseData.DescribedGroup()
         .setErrorCode(error.code)
+        .setErrorMessage(errorMessage.orNull)
         .setGroupId(groupId)
         .setGroupState(summary.state)
         .setProtocolType(summary.protocolType)
@@ -586,12 +587,16 @@ private[group] class GroupCoordinatorAdapter(
     producerId: Long,
     partitions: java.lang.Iterable[TopicPartition],
     transactionResult: TransactionResult
-  ): Unit = {
-    coordinator.scheduleHandleTxnCompletion(
-      producerId,
-      partitions.asScala,
-      transactionResult
-    )
+  ): CompletableFuture[Void] = {
+    try {
+      coordinator.scheduleHandleTxnCompletion(
+        producerId,
+        partitions.asScala,
+        transactionResult
+      )
+    } catch {
+      case e: Throwable => FutureUtils.failedFuture(e)
+    }
   }
 
   override def onPartitionsDeleted(

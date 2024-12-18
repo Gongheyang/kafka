@@ -43,7 +43,7 @@ import org.apache.kafka.common.requests.OffsetFetchResponse
 import org.apache.kafka.common.requests.ProduceResponse.PartitionResponse
 import org.apache.kafka.common.utils.Utils
 import org.apache.kafka.coordinator.group.{GroupCoordinatorConfig, OffsetAndMetadata, OffsetConfig}
-import org.apache.kafka.coordinator.group.generated.{GroupMetadataValue, OffsetCommitValue}
+import org.apache.kafka.coordinator.group.generated.{CoordinatorRecordType, GroupMetadataValue, OffsetCommitValue}
 import org.apache.kafka.server.common.{MetadataVersion, RequestLocal}
 import org.apache.kafka.server.common.MetadataVersion._
 import org.apache.kafka.server.metrics.KafkaYammerMetrics
@@ -3115,8 +3115,7 @@ class GroupMetadataManagerTest {
 
     // Should ignore unknown record
     val unknownKey = new org.apache.kafka.coordinator.group.generated.GroupMetadataKey()
-    val lowestUnsupportedVersion = (org.apache.kafka.coordinator.group.generated.GroupMetadataKey
-      .HIGHEST_SUPPORTED_VERSION + 1).toShort
+    val lowestUnsupportedVersion = (CoordinatorRecordType.GROUP_METADATA.id + 1).toShort
 
     val unknownMessage1 = MessageUtil.toVersionPrefixedBytes(Short.MaxValue, unknownKey)
     val unknownMessage2 = MessageUtil.toVersionPrefixedBytes(lowestUnsupportedVersion, unknownKey)

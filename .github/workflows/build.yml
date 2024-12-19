@@ -152,6 +152,8 @@ jobs:
       fail-fast: false
       matrix:
         java: [ 23, 17 ]  # If we change these, make sure to adjust ci-complete.yml
+    outputs:
+      timed-out: ${{ (steps.junit-test.outputs.gradle-exitcode == '124' || steps.junit-quarantined-test.outputs.gradle-exitcode == '124') }}
     name: JUnit tests Java ${{ matrix.java }}
     steps:
       - name: Checkout code
@@ -246,7 +248,7 @@ jobs:
   update-test-catalog:
     name: Update Test Catalog
     needs: test
-    if: ${{ inputs.is-trunk }}
+    if: ${{ always() && inputs.is-trunk && !needs.test.outputs.timed-out }}
     runs-on: ubuntu-latest
     permissions:
       contents: write

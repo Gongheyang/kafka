@@ -53,7 +53,7 @@ public class GroupMetadataMessageFormatter extends ApiMessageFormatter {
         short version = byteBuffer.getShort();
         try {
             switch (CoordinatorRecordType.fromId(version)) {
-                case OFFSET_COMMIT_V0:
+                case LEGACY_OFFSET_COMMIT:
                 case OFFSET_COMMIT:
                     return Optional.of(new OffsetCommitKey(new ByteBufferAccessor(byteBuffer), (short) 0));
 

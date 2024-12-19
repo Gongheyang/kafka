@@ -15,16 +15,16 @@
 
 {
   "apiKey": 0,
-  "type": "coordinator-value",
-  "name": "OffsetCommitValueV0",
+  "type": "coordinator-key",
+  "name": "LegacyOffsetCommitKey",
   "validVersions": "0",
   "flexibleVersions": "none",
   "fields": [
-    { "name": "offset", "type": "int64", "versions": "0+",
-      "about": "The offset that the consumer wants to store (for this partition)."},
-    { "name": "metadata", "type": "string", "versions": "0+",
-      "about": "Any metadata the client wants to keep."},
-    { "name": "commitTimestamp", "type": "int64", "versions": "0+",
-      "about": "The time at which the commit was added to the log."}
+    { "name": "group", "type": "string", "versions": "0",
+      "about": "The consumer group id."},
+    { "name": "topic", "type": "string", "versions": "0",
+      "about": "The topic name."},
+    { "name": "partition", "type": "int32", "versions": "0",
+      "about": "The topic partition index."}
   ]
 }

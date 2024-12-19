@@ -1167,7 +1167,7 @@ object GroupMetadataManager {
     val version = buffer.getShort
     try {
       CoordinatorRecordType.fromId(version) match {
-        case CoordinatorRecordType.OFFSET_COMMIT | CoordinatorRecordType.OFFSET_COMMIT_V0 =>
+        case CoordinatorRecordType.OFFSET_COMMIT | CoordinatorRecordType.LEGACY_OFFSET_COMMIT =>
           // version 0 and 1 refer to offset
           val key = new OffsetCommitKey(new ByteBufferAccessor(buffer), 0.toShort)
           OffsetKey(version, GroupTopicPartition(key.group, new TopicPartition(key.topic, key.partition)))

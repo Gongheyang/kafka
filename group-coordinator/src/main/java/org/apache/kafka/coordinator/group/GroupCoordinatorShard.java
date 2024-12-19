@@ -74,10 +74,10 @@ import org.apache.kafka.coordinator.group.generated.ConsumerGroupTargetAssignmen
 import org.apache.kafka.coordinator.group.generated.CoordinatorRecordType;
 import org.apache.kafka.coordinator.group.generated.GroupMetadataKey;
 import org.apache.kafka.coordinator.group.generated.GroupMetadataValue;
+import org.apache.kafka.coordinator.group.generated.LegacyOffsetCommitKey;
+import org.apache.kafka.coordinator.group.generated.LegacyOffsetCommitValue;
 import org.apache.kafka.coordinator.group.generated.OffsetCommitKey;
-import org.apache.kafka.coordinator.group.generated.OffsetCommitKeyV0;
 import org.apache.kafka.coordinator.group.generated.OffsetCommitValue;
-import org.apache.kafka.coordinator.group.generated.OffsetCommitValueV0;
 import org.apache.kafka.coordinator.group.generated.ShareGroupCurrentMemberAssignmentKey;
 import org.apache.kafka.coordinator.group.generated.ShareGroupCurrentMemberAssignmentValue;
 import org.apache.kafka.coordinator.group.generated.ShareGroupMemberMetadataKey;
@@ -760,7 +760,7 @@ public class GroupCoordinatorShard implements CoordinatorShard<CoordinatorRecord
     }
 
     private static OffsetCommitKey convertOffsetCommitKeyV0(
-        OffsetCommitKeyV0 key
+        LegacyOffsetCommitKey key
     ) {
         return new OffsetCommitKey()
             .setGroup(key.group())
@@ -769,7 +769,7 @@ public class GroupCoordinatorShard implements CoordinatorShard<CoordinatorRecord
     }
 
     private static OffsetCommitValue convertOffsetCommitValueV0(
-        OffsetCommitValueV0 value
+        LegacyOffsetCommitValue value
     ) {
         if (value == null) return null;
 
@@ -808,12 +808,12 @@ public class GroupCoordinatorShard implements CoordinatorShard<CoordinatorRecord
         }
 
         switch (recordType) {
-            case OFFSET_COMMIT_V0:
+            case LEGACY_OFFSET_COMMIT:
                 offsetMetadataManager.replay(
                     offset,
                     producerId,
-                    convertOffsetCommitKeyV0((OffsetCommitKeyV0) key.message()),
-                    convertOffsetCommitValueV0((OffsetCommitValueV0) Utils.messageOrNull(value))
+                    convertOffsetCommitKeyV0((LegacyOffsetCommitKey) key.message()),
+                    convertOffsetCommitValueV0((LegacyOffsetCommitValue) Utils.messageOrNull(value))
                 );
                 break;
 

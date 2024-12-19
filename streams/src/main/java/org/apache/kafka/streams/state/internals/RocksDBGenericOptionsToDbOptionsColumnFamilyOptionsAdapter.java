@@ -22,7 +22,6 @@ import org.rocksdb.AbstractComparator;
 import org.rocksdb.AbstractEventListener;
 import org.rocksdb.AbstractSlice;
 import org.rocksdb.AbstractWalFilter;
-import org.rocksdb.AccessHint;
 import org.rocksdb.BuiltinComparator;
 import org.rocksdb.Cache;
 import org.rocksdb.ColumnFamilyOptions;
@@ -571,17 +570,6 @@ public class RocksDBGenericOptionsToDbOptionsColumnFamilyOptionsAdapter extends 
         return dbOptions.dbWriteBufferSize();
     }
 
-    @Override
-    public Options setAccessHintOnCompactionStart(final AccessHint accessHint) {
-        dbOptions.setAccessHintOnCompactionStart(accessHint);
-        return this;
-    }
-
-    @Override
-    public AccessHint accessHintOnCompactionStart() {
-        return dbOptions.accessHintOnCompactionStart();
-    }
-
     @Deprecated
     public Options setNewTableReaderForCompactionInputs(final boolean newTableReaderForCompactionInputs) {
         final String message = "This method has been removed from the underlying RocksDB. " +
@@ -839,12 +827,6 @@ public class RocksDBGenericOptionsToDbOptionsColumnFamilyOptionsAdapter extends 
     @Override
     public Options setSstFileManager(final SstFileManager sstFileManager) {
         dbOptions.setSstFileManager(sstFileManager);
-        return this;
-    }
-
-    @Override
-    public Options setLogger(final org.rocksdb.Logger logger) {
-        dbOptions.setLogger(logger);
         return this;
     }
 

@@ -235,7 +235,8 @@ jobs:
           GITHUB_WORKSPACE: ${{ github.workspace }}
           JUNIT_REPORT_URL: ${{ steps.junit-upload-artifact.outputs.artifact-url }}
           THREAD_DUMP_URL: ${{ steps.thread-dump-upload-artifact.outputs.artifact-url }}
-          GRADLE_EXIT_CODE: ${{ steps.junit-test.outputs.gradle-exitcode }}
+          GRADLE_TEST_EXIT_CODE: ${{ steps.junit-test.outputs.gradle-exitcode }}
+          GRADLE_QUARANTINED_TEST_EXIT_CODE: ${{ steps.junit-quarantined-test.outputs.gradle-exitcode }}
 
       - name: Archive Test Catalog
         if: ${{ always() && matrix.java == '23' }}

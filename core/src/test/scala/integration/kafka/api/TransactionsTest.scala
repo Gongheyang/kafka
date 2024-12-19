@@ -741,7 +741,7 @@ class TransactionsTest extends IntegrationTestHarness {
 
       producer.beginTransaction()
       val successfulFuture = producer.send(TestUtils.producerRecordWithExpectedTransactionStatus(topic1, null, "2", "2", willBeCommitted = false))
-      TestUtils.waitUntilTrue(successfulFuture.isDone, "First message of the second transaction did not complete its send.")
+      successfulFuture.get(20, TimeUnit.SECONDS)
 
       killBroker(partitionLeader) // kill the partition leader to prevent the batch from being submitted
       val failedFuture = producer.send(TestUtils.producerRecordWithExpectedTransactionStatus(testTopic, 0, "3", "3", willBeCommitted = false))
@@ -803,7 +803,7 @@ class TransactionsTest extends IntegrationTestHarness {
       // Second transaction: abort
       producer.beginTransaction()
       val successfulFuture = producer.send(TestUtils.producerRecordWithExpectedTransactionStatus(topic1, null, "2", "2", willBeCommitted = false))
-      TestUtils.waitUntilTrue(successfulFuture.isDone, "First message of the second transaction did not complete its send.")
+      successfulFuture.get(20, TimeUnit.SECONDS)
 
       // Get producerId and epoch after first commit. Check after the first successful send of the next transaction to confirm the commit is complete.
       val log = brokers(partitionLeader).logManager.getLog(new TopicPartition(testTopic, 0)).get
@@ -825,7 +825,7 @@ class TransactionsTest extends IntegrationTestHarness {
       // Third transaction: commit
       producer.beginTransaction()
       val nextSuccessfulFuture = producer.send(TestUtils.producerRecordWithExpectedTransactionStatus(topic2, null, "2", "2", willBeCommitted = true))
-      TestUtils.waitUntilTrue(nextSuccessfulFuture.isDone, "First message of the third transaction did not complete its send.")
+      nextSuccessfulFuture.get(20, TimeUnit.SECONDS)
 
       // Confirm the epoch bumped after the previous abort.
       producerStateEntry =

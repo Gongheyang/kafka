@@ -17,12 +17,8 @@
 package org.apache.kafka.tools.consumer;
 
 import org.apache.kafka.common.errors.UnsupportedVersionException;
-import org.apache.kafka.common.protocol.ApiMessage;
 import org.apache.kafka.common.protocol.ByteBufferAccessor;
 import org.apache.kafka.coordinator.group.generated.CoordinatorRecordType;
-import org.apache.kafka.coordinator.group.generated.GroupMetadataKey;
-import org.apache.kafka.coordinator.group.generated.LegacyOffsetCommitKey;
-import org.apache.kafka.coordinator.group.generated.LegacyOffsetCommitKeyJsonConverter;
 import org.apache.kafka.coordinator.group.generated.OffsetCommitKey;
 import org.apache.kafka.coordinator.group.generated.OffsetCommitKeyJsonConverter;
 import org.apache.kafka.coordinator.group.generated.OffsetCommitValue;
@@ -33,67 +29,37 @@ import com.fasterxml.jackson.databind.node.NullNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 
 import java.nio.ByteBuffer;
-import java.util.Optional;
 
 /**
  * Formatter for use with tools such as console consumer: Consumer should also set exclude.internal.topics to false.
  */
 public class OffsetsMessageFormatter extends ApiMessageFormatter {
-
     @Override
-    protected JsonNode readToKeyJson(ByteBuffer byteBuffer, short version) {
-        return readToGroupMetadataKey(byteBuffer)
-                .map(logKey -> transferKeyMessageToJsonNode(logKey))
-                .orElseGet(() -> new TextNode(UNKNOWN));
-    }
-
-    @Override
-    protected JsonNode readToValueJson(ByteBuffer byteBuffer, short version) {
-        return readToOffsetMessageValue(byteBuffer)
-                .map(logValue -> OffsetCommitValueJsonConverter.write(logValue, version))
-                .orElseGet(() -> new TextNode(UNKNOWN));
-    }
-
-    private Optional<ApiMessage> readToGroupMetadataKey(ByteBuffer byteBuffer) {
-        short version = byteBuffer.getShort();
+    protected JsonNode readToKeyJson(ByteBuffer byteBuffer) {
         try {
-            switch (CoordinatorRecordType.fromId(version)) {
+            switch (CoordinatorRecordType.fromId(byteBuffer.getShort())) {
+                // We can read both record types with the offset commit one.
                 case LEGACY_OFFSET_COMMIT:
-                    return Optional.of(new LegacyOffsetCommitKey(new ByteBufferAccessor(byteBuffer), (short) 0));
-
                 case OFFSET_COMMIT:
-                    return Optional.of(new OffsetCommitKey(new ByteBufferAccessor(byteBuffer), (short) 0));
-
-                case GROUP_METADATA:
-                    return Optional.of(new GroupMetadataKey(new ByteBufferAccessor(byteBuffer), (short) 0));
+                    return OffsetCommitKeyJsonConverter.write(
+                        new OffsetCommitKey(new ByteBufferAccessor(byteBuffer), (short) 0),
+                        (short) 0
+                    );
 
                 default:
-                    return Optional.empty();
+                    return NullNode.getInstance();
             }
         } catch (UnsupportedVersionException ex) {
-            return Optional.empty();
-        }
-    }
-
-    private JsonNode transferKeyMessageToJsonNode(ApiMessage logKey) {
-        if (logKey instanceof LegacyOffsetCommitKey) {
-            return LegacyOffsetCommitKeyJsonConverter.write((LegacyOffsetCommitKey) logKey, (short) 0);
-        } else if (logKey instanceof OffsetCommitKey) {
-            return OffsetCommitKeyJsonConverter.write((OffsetCommitKey) logKey, (short) 0);
-        } else if (logKey instanceof GroupMetadataKey) {
             return NullNode.getInstance();
-        } else {
-            return new TextNode(UNKNOWN);
         }
     }
 
-    private Optional<OffsetCommitValue> readToOffsetMessageValue(ByteBuffer byteBuffer) {
+    @Override
+    protected JsonNode readToValueJson(ByteBuffer byteBuffer) {
         short version = byteBuffer.getShort();
-        if (version >= CoordinatorRecordType.OFFSET_COMMIT.lowestSupportedVersion()
-            && version <= CoordinatorRecordType.OFFSET_COMMIT.highestSupportedVersion()) {
-            return Optional.of(new OffsetCommitValue(new ByteBufferAccessor(byteBuffer), version));
-        } else {
-            return Optional.empty();
+        if (version >= OffsetCommitValue.LOWEST_SUPPORTED_VERSION && version <= OffsetCommitValue.HIGHEST_SUPPORTED_VERSION) {
+            return OffsetCommitValueJsonConverter.write(new OffsetCommitValue(new ByteBufferAccessor(byteBuffer), version), version);
         }
+        return new TextNode(UNKNOWN);
     }
 }

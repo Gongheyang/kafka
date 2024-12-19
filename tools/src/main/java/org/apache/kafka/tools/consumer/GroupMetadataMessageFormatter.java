@@ -17,79 +17,44 @@
 package org.apache.kafka.tools.consumer;
 
 import org.apache.kafka.common.errors.UnsupportedVersionException;
-import org.apache.kafka.common.protocol.ApiMessage;
 import org.apache.kafka.common.protocol.ByteBufferAccessor;
 import org.apache.kafka.coordinator.group.generated.CoordinatorRecordType;
 import org.apache.kafka.coordinator.group.generated.GroupMetadataKey;
 import org.apache.kafka.coordinator.group.generated.GroupMetadataKeyJsonConverter;
 import org.apache.kafka.coordinator.group.generated.GroupMetadataValue;
 import org.apache.kafka.coordinator.group.generated.GroupMetadataValueJsonConverter;
-import org.apache.kafka.coordinator.group.generated.LegacyOffsetCommitKey;
-import org.apache.kafka.coordinator.group.generated.OffsetCommitKey;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.NullNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 
 import java.nio.ByteBuffer;
-import java.util.Optional;
 
 public class GroupMetadataMessageFormatter extends ApiMessageFormatter {
-
     @Override
-    protected JsonNode readToKeyJson(ByteBuffer byteBuffer, short version) {
-        return readToGroupMetadataKey(byteBuffer)
-                .map(logKey -> transferKeyMessageToJsonNode(logKey, (short) 0))
-                .orElseGet(() -> new TextNode(UNKNOWN));
-    }
-
-    @Override
-    protected JsonNode readToValueJson(ByteBuffer byteBuffer, short version) {
-        return readToGroupMetadataValue(byteBuffer)
-                .map(logValue -> GroupMetadataValueJsonConverter.write(logValue, version))
-                .orElseGet(() -> new TextNode(UNKNOWN));
-    }
-
-    private Optional<ApiMessage> readToGroupMetadataKey(ByteBuffer byteBuffer) {
-        short version = byteBuffer.getShort();
+    protected JsonNode readToKeyJson(ByteBuffer byteBuffer) {
         try {
-            switch (CoordinatorRecordType.fromId(version)) {
-                case LEGACY_OFFSET_COMMIT:
-                    return Optional.of(new LegacyOffsetCommitKey(new ByteBufferAccessor(byteBuffer), (short) 0));
-
-                case OFFSET_COMMIT:
-                    return Optional.of(new OffsetCommitKey(new ByteBufferAccessor(byteBuffer), (short) 0));
-
+            switch (CoordinatorRecordType.fromId(byteBuffer.getShort())) {
                 case GROUP_METADATA:
-                    return Optional.of(new GroupMetadataKey(new ByteBufferAccessor(byteBuffer), (short) 0));
+                    return GroupMetadataKeyJsonConverter.write(
+                        new GroupMetadataKey(new ByteBufferAccessor(byteBuffer), (short) 0),
+                        (short) 0
+                    );
 
                 default:
-                    return Optional.empty();
+                    return NullNode.getInstance();
             }
         } catch (UnsupportedVersionException ex) {
-            return Optional.empty();
+            return NullNode.getInstance();
         }
     }
 
-    private JsonNode transferKeyMessageToJsonNode(ApiMessage message, short version) {
-        if (message instanceof LegacyOffsetCommitKey) {
-            return NullNode.getInstance();
-        } else if (message instanceof OffsetCommitKey) {
-            return NullNode.getInstance();
-        } else if (message instanceof GroupMetadataKey) {
-            return GroupMetadataKeyJsonConverter.write((GroupMetadataKey) message, version);
-        } else {
-            return new TextNode(UNKNOWN);
-        }
-    }
-
-    private Optional<GroupMetadataValue> readToGroupMetadataValue(ByteBuffer byteBuffer) {
+    @Override
+    protected JsonNode readToValueJson(ByteBuffer byteBuffer) {
         short version = byteBuffer.getShort();
-        if (version >= CoordinatorRecordType.GROUP_METADATA.lowestSupportedVersion()
-            && version <= CoordinatorRecordType.GROUP_METADATA.highestSupportedVersion()) {
-            return Optional.of(new GroupMetadataValue(new ByteBufferAccessor(byteBuffer), version));
-        } else {
-            return Optional.empty();
+        if (version >= GroupMetadataValue.LOWEST_SUPPORTED_VERSION && version <= GroupMetadataValue.HIGHEST_SUPPORTED_VERSION) {
+            return GroupMetadataValueJsonConverter.write(new GroupMetadataValue(new ByteBufferAccessor(byteBuffer), version), version);
         }
+        return new TextNode(UNKNOWN);
     }
 }

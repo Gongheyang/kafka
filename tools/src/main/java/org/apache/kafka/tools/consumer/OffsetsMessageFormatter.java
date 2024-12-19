@@ -16,7 +16,6 @@
  */
 package org.apache.kafka.tools.consumer;
 
-import com.fasterxml.jackson.databind.node.TextNode;
 import org.apache.kafka.common.protocol.ApiMessage;
 import org.apache.kafka.common.protocol.ByteBufferAccessor;
 import org.apache.kafka.coordinator.group.generated.OffsetCommitKey;
@@ -26,6 +25,7 @@ import org.apache.kafka.coordinator.group.generated.OffsetCommitValueJsonConvert
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.NullNode;
+import com.fasterxml.jackson.databind.node.TextNode;
 
 import java.nio.ByteBuffer;
 import java.util.Optional;

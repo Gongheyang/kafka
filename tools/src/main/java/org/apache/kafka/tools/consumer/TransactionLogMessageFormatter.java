@@ -16,7 +16,6 @@
  */
 package org.apache.kafka.tools.consumer;
 
-import com.fasterxml.jackson.databind.node.NullNode;
 import org.apache.kafka.common.protocol.ByteBufferAccessor;
 import org.apache.kafka.coordinator.transaction.generated.TransactionLogKey;
 import org.apache.kafka.coordinator.transaction.generated.TransactionLogKeyJsonConverter;
@@ -24,6 +23,7 @@ import org.apache.kafka.coordinator.transaction.generated.TransactionLogValue;
 import org.apache.kafka.coordinator.transaction.generated.TransactionLogValueJsonConverter;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.NullNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 
 import java.nio.ByteBuffer;

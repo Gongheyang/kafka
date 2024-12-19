@@ -145,7 +145,7 @@ public class GroupCoordinatorRecordHelpers {
             value.topics().add(new ConsumerGroupPartitionMetadataValue.TopicMetadata()
                 .setTopicId(topicMetadata.id())
                 .setTopicName(topicMetadata.name())
-                .setNumPartitions(topicMetadata.numPartitions())
+                .setTopicHash(topicMetadata.topicHash())
             )
         );
 
@@ -678,7 +678,7 @@ public class GroupCoordinatorRecordHelpers {
             value.topics().add(new ShareGroupPartitionMetadataValue.TopicMetadata()
                 .setTopicId(topicMetadata.id())
                 .setTopicName(topicMetadata.name())
-                .setNumPartitions(topicMetadata.numPartitions())
+                .setTopicHash(topicMetadata.topicHash())
             )
         );
 

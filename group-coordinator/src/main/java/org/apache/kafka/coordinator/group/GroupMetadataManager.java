@@ -142,6 +142,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -391,6 +392,11 @@ public class GroupMetadataManager {
     private MetadataImage metadataImage;
 
     /**
+     * The topic hash value by topic name.
+     */
+    private final Map<String, Long> topicHashCache;
+
+    /**
      * This tracks the version (or the offset) of the last metadata image
      * with newly created topics.
      */
@@ -440,6 +446,7 @@ public class GroupMetadataManager {
         this.groupsByTopics = new TimelineHashMap<>(snapshotRegistry, 0);
         this.groupConfigManager = groupConfigManager;
         this.shareGroupAssignor = shareGroupAssignor;
+        this.topicHashCache = new ConcurrentHashMap<>();
     }
 
     /**
@@ -2060,8 +2067,8 @@ public class GroupMetadataManager {
             Map<String, SubscriptionCount> subscribedTopicNamesMap = group.computeSubscribedTopicNames(member, updatedMember);
             subscriptionMetadata = group.computeSubscriptionMetadata(
                 subscribedTopicNamesMap,
-                metadataImage.topics(),
-                metadataImage.cluster()
+                metadataImage,
+                topicHashCache
             );
 
             int numMembers = group.numMembers();
@@ -2530,8 +2537,8 @@ public class GroupMetadataManager {
             // Compute the subscription metadata.
             Map<String, TopicMetadata> subscriptionMetadata = group.computeSubscriptionMetadata(
                 subscribedTopicNames,
-                metadataImage.topics(),
-                metadataImage.cluster()
+                metadataImage,
+                topicHashCache
             );
 
             if (!subscriptionMetadata.equals(group.subscriptionMetadata())) {
@@ -2724,8 +2731,8 @@ public class GroupMetadataManager {
         );
         Map<String, TopicMetadata> subscriptionMetadata = group.computeSubscriptionMetadata(
             subscribedTopicNamesMap,
-            metadataImage.topics(),
-            metadataImage.cluster()
+            metadataImage,
+            topicHashCache
         );
 
         int numMembers = group.numMembers();
@@ -2798,7 +2805,7 @@ public class GroupMetadataManager {
                     .withSubscriptionType(subscriptionType)
                     .withTargetAssignment(group.targetAssignment())
                     .withInvertedTargetAssignment(group.invertedTargetAssignment())
-                    .withTopicsImage(metadataImage.topics())
+                    .withMetadataImage(metadataImage)
                     .withResolvedRegularExpressions(group.resolvedRegularExpressions())
                     .addOrUpdateMember(updatedMember.memberId(), updatedMember);
 
@@ -2865,7 +2872,7 @@ public class GroupMetadataManager {
                     .withSubscriptionType(subscriptionType)
                     .withTargetAssignment(group.targetAssignment())
                     .withInvertedTargetAssignment(group.invertedTargetAssignment())
-                    .withTopicsImage(metadataImage.topics())
+                    .withMetadataImage(metadataImage)
                     .addOrUpdateMember(updatedMember.memberId(), updatedMember);
 
             long startTimeMs = time.milliseconds();
@@ -3012,8 +3019,8 @@ public class GroupMetadataManager {
             // We update the subscription metadata without the leaving member.
             Map<String, TopicMetadata> subscriptionMetadata = group.computeSubscriptionMetadata(
                 group.computeSubscribedTopicNames(member, null),
-                metadataImage.topics(),
-                metadataImage.cluster()
+                metadataImage,
+                topicHashCache
             );
 
             if (!subscriptionMetadata.equals(group.subscriptionMetadata())) {
@@ -3056,8 +3063,8 @@ public class GroupMetadataManager {
         // We update the subscription metadata without the leaving member.
         Map<String, TopicMetadata> subscriptionMetadata = group.computeSubscriptionMetadata(
             group.computeSubscribedTopicNames(member, null),
-            metadataImage.topics(),
-            metadataImage.cluster()
+            metadataImage,
+            topicHashCache
         );
 
         if (!subscriptionMetadata.equals(group.subscriptionMetadata())) {
@@ -3624,7 +3631,11 @@ public class GroupMetadataManager {
     ) {
         groupsByTopics.computeIfPresent(topicName, (__, groupIds) -> {
             groupIds.remove(groupId);
-            return groupIds.isEmpty() ? null : groupIds;
+            if (groups.isEmpty()) {
+                topicHashCache.remove(topicName);
+                return null;
+            }
+            return groupIds;
         });
     }
 
@@ -4096,11 +4107,15 @@ public class GroupMetadataManager {
         Set<String> allGroupIds = new HashSet<>();
         topicsDelta.changedTopics().forEach((topicId, topicDelta) -> {
             String topicName = topicDelta.name();
+            // trigger recalculate topic hash in next consumer group heartbeat
+            topicHashCache.remove(topicName);
             allGroupIds.addAll(groupsSubscribedToTopic(topicName));
         });
         topicsDelta.deletedTopicIds().forEach(topicId -> {
             TopicImage topicImage = delta.image().topics().getTopic(topicId);
-            allGroupIds.addAll(groupsSubscribedToTopic(topicImage.name()));
+            String topicName = topicImage.name();
+            topicHashCache.remove(topicName);
+            allGroupIds.addAll(groupsSubscribedToTopic(topicName));
         });
         allGroupIds.forEach(groupId -> {
             Group group = groups.get(groupId);
@@ -6102,8 +6117,8 @@ public class GroupMetadataManager {
             // Maybe update the subscription metadata.
             Map<String, TopicMetadata> subscriptionMetadata = group.computeSubscriptionMetadata(
                 group.computeSubscribedTopicNamesWithoutDeletedMembers(validLeaveGroupMembers, deletedRegexes),
-                metadataImage.topics(),
-                metadataImage.cluster()
+                metadataImage,
+                topicHashCache
             );
 
             if (!subscriptionMetadata.equals(group.subscriptionMetadata())) {

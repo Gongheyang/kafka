@@ -17,6 +17,7 @@
 package org.apache.kafka.coordinator.group.assignor;
 
 import org.apache.kafka.common.Uuid;
+import org.apache.kafka.coordinator.group.MetadataImageBuilder;
 import org.apache.kafka.coordinator.group.api.assignor.GroupAssignment;
 import org.apache.kafka.coordinator.group.api.assignor.GroupSpec;
 import org.apache.kafka.coordinator.group.api.assignor.PartitionAssignorException;
@@ -24,8 +25,10 @@ import org.apache.kafka.coordinator.group.api.assignor.SubscriptionType;
 import org.apache.kafka.coordinator.group.modern.Assignment;
 import org.apache.kafka.coordinator.group.modern.GroupSpecImpl;
 import org.apache.kafka.coordinator.group.modern.MemberSubscriptionAndAssignmentImpl;
+import org.apache.kafka.coordinator.group.modern.ModernGroup;
 import org.apache.kafka.coordinator.group.modern.SubscribedTopicDescriberImpl;
 import org.apache.kafka.coordinator.group.modern.TopicMetadata;
+import org.apache.kafka.image.MetadataImage;
 
 import org.junit.jupiter.api.Test;
 
@@ -90,15 +93,21 @@ public class UniformHeterogeneousAssignmentBuilderTest {
 
     @Test
     public void testTwoMembersNoTopicSubscription() {
+        MetadataImage metadataImage = new MetadataImageBuilder()
+            .addTopic(topic1Uuid, topic1Name, 3)
+            .addRacks()
+            .build();
+        long topic1Hash = ModernGroup.computeTopicHash(metadataImage.topics().getTopic(topic1Uuid), metadataImage.cluster());
         SubscribedTopicDescriberImpl subscribedTopicMetadata = new SubscribedTopicDescriberImpl(
             Collections.singletonMap(
                 topic1Uuid,
                 new TopicMetadata(
                     topic1Uuid,
                     topic1Name,
-                    3
+                    topic1Hash
                 )
-            )
+            ),
+            metadataImage
         );
 
         Map<String, MemberSubscriptionAndAssignmentImpl> members = new TreeMap<>();
@@ -131,15 +140,21 @@ public class UniformHeterogeneousAssignmentBuilderTest {
 
     @Test
     public void testTwoMembersSubscribedToNonexistentTopics() {
+        MetadataImage metadataImage = new MetadataImageBuilder()
+            .addTopic(topic1Uuid, topic1Name, 3)
+            .addRacks()
+            .build();
+        long topic1Hash = ModernGroup.computeTopicHash(metadataImage.topics().getTopic(topic1Uuid), metadataImage.cluster());
         SubscribedTopicDescriberImpl subscribedTopicMetadata = new SubscribedTopicDescriberImpl(
             Collections.singletonMap(
                 topic1Uuid,
                 new TopicMetadata(
                     topic1Uuid,
                     topic1Name,
-                    3
+                    topic1Hash
                 )
-            )
+            ),
+            metadataImage
         );
 
         Map<String, MemberSubscriptionAndAssignmentImpl> members = new TreeMap<>();
@@ -169,16 +184,23 @@ public class UniformHeterogeneousAssignmentBuilderTest {
 
     @Test
     public void testFirstAssignmentTwoMembersTwoTopics() {
+        MetadataImage metadataImage = new MetadataImageBuilder()
+            .addTopic(topic1Uuid, topic1Name, 3)
+            .addTopic(topic3Uuid, topic3Name, 6)
+            .addRacks()
+            .build();
+        long topic1Hash = ModernGroup.computeTopicHash(metadataImage.topics().getTopic(topic1Uuid), metadataImage.cluster());
+        long topic3Hash = ModernGroup.computeTopicHash(metadataImage.topics().getTopic(topic3Uuid), metadataImage.cluster());
         Map<Uuid, TopicMetadata> topicMetadata = new HashMap<>();
         topicMetadata.put(topic1Uuid, new TopicMetadata(
             topic1Uuid,
             topic1Name,
-            3
+            topic1Hash
         ));
         topicMetadata.put(topic3Uuid, new TopicMetadata(
             topic3Uuid,
             topic3Name,
-            6
+            topic3Hash
         ));
 
         Map<String, MemberSubscriptionAndAssignmentImpl> members = new TreeMap<>();
@@ -202,7 +224,7 @@ public class UniformHeterogeneousAssignmentBuilderTest {
             HETEROGENEOUS,
             Collections.emptyMap()
         );
-        SubscribedTopicDescriberImpl subscribedTopicMetadata = new SubscribedTopicDescriberImpl(topicMetadata);
+        SubscribedTopicDescriberImpl subscribedTopicMetadata = new SubscribedTopicDescriberImpl(topicMetadata, metadataImage);
 
         GroupAssignment computedAssignment = assignor.assign(
             groupSpec,
@@ -223,16 +245,23 @@ public class UniformHeterogeneousAssignmentBuilderTest {
 
     @Test
     public void testFirstAssignmentNumMembersGreaterThanTotalNumPartitions() {
+        MetadataImage metadataImage = new MetadataImageBuilder()
+            .addTopic(topic1Uuid, topic1Name, 2)
+            .addTopic(topic3Uuid, topic3Name, 1)
+            .addRacks()
+            .build();
+        long topic1Hash = ModernGroup.computeTopicHash(metadataImage.topics().getTopic(topic1Uuid), metadataImage.cluster());
+        long topic3Hash = ModernGroup.computeTopicHash(metadataImage.topics().getTopic(topic3Uuid), metadataImage.cluster());
         Map<Uuid, TopicMetadata> topicMetadata = new HashMap<>();
         topicMetadata.put(topic3Uuid, new TopicMetadata(
             topic3Uuid,
             topic3Name,
-            1
+            topic3Hash
         ));
         topicMetadata.put(topic1Uuid, new TopicMetadata(
             topic1Uuid,
             topic1Name,
-            2
+            topic1Hash
         ));
 
         Map<String, MemberSubscriptionAndAssignmentImpl> members = new TreeMap<>();
@@ -263,7 +292,7 @@ public class UniformHeterogeneousAssignmentBuilderTest {
             HETEROGENEOUS,
             Collections.emptyMap()
         );
-        SubscribedTopicDescriberImpl subscribedTopicMetadata = new SubscribedTopicDescriberImpl(topicMetadata);
+        SubscribedTopicDescriberImpl subscribedTopicMetadata = new SubscribedTopicDescriberImpl(topicMetadata, metadataImage);
 
         GroupAssignment computedAssignment = assignor.assign(
             groupSpec,
@@ -287,21 +316,30 @@ public class UniformHeterogeneousAssignmentBuilderTest {
 
     @Test
     public void testReassignmentForTwoMembersThreeTopicsGivenUnbalancedPrevAssignment() {
+        MetadataImage metadataImage = new MetadataImageBuilder()
+            .addTopic(topic1Uuid, topic1Name, 6)
+            .addTopic(topic2Uuid, topic2Name, 4)
+            .addTopic(topic3Uuid, topic3Name, 4)
+            .addRacks()
+            .build();
+        long topic1Hash = ModernGroup.computeTopicHash(metadataImage.topics().getTopic(topic1Uuid), metadataImage.cluster());
+        long topic2Hash = ModernGroup.computeTopicHash(metadataImage.topics().getTopic(topic2Uuid), metadataImage.cluster());
+        long topic3Hash = ModernGroup.computeTopicHash(metadataImage.topics().getTopic(topic3Uuid), metadataImage.cluster());
         Map<Uuid, TopicMetadata> topicMetadata = new HashMap<>();
         topicMetadata.put(topic1Uuid, new TopicMetadata(
             topic1Uuid,
             topic1Name,
-            6
+            topic1Hash
         ));
         topicMetadata.put(topic2Uuid, new TopicMetadata(
             topic2Uuid,
             topic2Name,
-            4
+            topic2Hash
         ));
         topicMetadata.put(topic3Uuid, new TopicMetadata(
             topic3Uuid,
             topic3Name,
-            4
+            topic3Hash
         ));
 
         Map<String, MemberSubscriptionAndAssignmentImpl> members = new TreeMap<>();
@@ -341,7 +379,7 @@ public class UniformHeterogeneousAssignmentBuilderTest {
             HETEROGENEOUS,
             invertedTargetAssignment(members)
         );
-        SubscribedTopicDescriberImpl subscribedTopicMetadata = new SubscribedTopicDescriberImpl(topicMetadata);
+        SubscribedTopicDescriberImpl subscribedTopicMetadata = new SubscribedTopicDescriberImpl(topicMetadata, metadataImage);
 
         GroupAssignment computedAssignment = assignor.assign(
             groupSpec,
@@ -367,26 +405,37 @@ public class UniformHeterogeneousAssignmentBuilderTest {
     @Test
     public void testReassignmentWhenPartitionsAreAddedForTwoMembers() {
         // Simulating adding partitions to T1, T2, T3 - originally T1 -> 4, T2 -> 3, T3 -> 2, T4 -> 3
+        MetadataImage metadataImage = new MetadataImageBuilder()
+            .addTopic(topic1Uuid, topic1Name, 6)
+            .addTopic(topic2Uuid, topic2Name, 5)
+            .addTopic(topic3Uuid, topic3Name, 3)
+            .addTopic(topic4Uuid, topic4Name, 3)
+            .addRacks()
+            .build();
+        long topic1Hash = ModernGroup.computeTopicHash(metadataImage.topics().getTopic(topic1Uuid), metadataImage.cluster());
+        long topic2Hash = ModernGroup.computeTopicHash(metadataImage.topics().getTopic(topic2Uuid), metadataImage.cluster());
+        long topic3Hash = ModernGroup.computeTopicHash(metadataImage.topics().getTopic(topic3Uuid), metadataImage.cluster());
+        long topic4Hash = ModernGroup.computeTopicHash(metadataImage.topics().getTopic(topic4Uuid), metadataImage.cluster());
         Map<Uuid, TopicMetadata> topicMetadata = new HashMap<>();
         topicMetadata.put(topic1Uuid, new TopicMetadata(
             topic1Uuid,
             topic1Name,
-            6
+            topic1Hash
         ));
         topicMetadata.put(topic2Uuid, new TopicMetadata(
             topic2Uuid,
             topic2Name,
-            5
+            topic2Hash
         ));
         topicMetadata.put(topic3Uuid, new TopicMetadata(
             topic3Uuid,
             topic3Name,
-            3
+            topic3Hash
         ));
         topicMetadata.put(topic4Uuid, new TopicMetadata(
             topic4Uuid,
             topic4Name,
-            3
+            topic4Hash
         ));
 
         Map<String, MemberSubscriptionAndAssignmentImpl> members = new TreeMap<>();
@@ -416,7 +465,7 @@ public class UniformHeterogeneousAssignmentBuilderTest {
             HETEROGENEOUS,
             invertedTargetAssignment(members)
         );
-        SubscribedTopicDescriberImpl subscribedTopicMetadata = new SubscribedTopicDescriberImpl(topicMetadata);
+        SubscribedTopicDescriberImpl subscribedTopicMetadata = new SubscribedTopicDescriberImpl(topicMetadata, metadataImage);
 
         GroupAssignment computedAssignment = assignor.assign(
             groupSpec,
@@ -439,16 +488,23 @@ public class UniformHeterogeneousAssignmentBuilderTest {
     @Test
     public void testReassignmentWhenOneMemberAddedAndPartitionsAddedTwoMembersTwoTopics() {
         // Initially T1 -> 3, T2 -> 3 partitions.
+        MetadataImage metadataImage = new MetadataImageBuilder()
+            .addTopic(topic1Uuid, topic1Name, 6)
+            .addTopic(topic2Uuid, topic2Name, 7)
+            .addRacks()
+            .build();
+        long topic1Hash = ModernGroup.computeTopicHash(metadataImage.topics().getTopic(topic1Uuid), metadataImage.cluster());
+        long topic2Hash = ModernGroup.computeTopicHash(metadataImage.topics().getTopic(topic2Uuid), metadataImage.cluster());
         Map<Uuid, TopicMetadata> topicMetadata = new HashMap<>();
         topicMetadata.put(topic1Uuid, new TopicMetadata(
             topic1Uuid,
             topic1Name,
-            6
+            topic1Hash
         ));
         topicMetadata.put(topic2Uuid, new TopicMetadata(
             topic2Uuid,
             topic2Name,
-            7
+            topic2Hash
         ));
 
         Map<String, MemberSubscriptionAndAssignmentImpl> members = new TreeMap<>();
@@ -486,7 +542,7 @@ public class UniformHeterogeneousAssignmentBuilderTest {
             HETEROGENEOUS,
             invertedTargetAssignment(members)
         );
-        SubscribedTopicDescriberImpl subscribedTopicMetadata = new SubscribedTopicDescriberImpl(topicMetadata);
+        SubscribedTopicDescriberImpl subscribedTopicMetadata = new SubscribedTopicDescriberImpl(topicMetadata, metadataImage);
 
         GroupAssignment computedAssignment = assignor.assign(
             groupSpec,
@@ -510,21 +566,30 @@ public class UniformHeterogeneousAssignmentBuilderTest {
 
     @Test
     public void testReassignmentWhenOneMemberRemovedAfterInitialAssignmentWithThreeMembersThreeTopics() {
+        MetadataImage metadataImage = new MetadataImageBuilder()
+            .addTopic(topic1Uuid, topic1Name, 3)
+            .addTopic(topic2Uuid, topic2Name, 8)
+            .addTopic(topic3Uuid, topic3Name, 3)
+            .addRacks()
+            .build();
+        long topic1Hash = ModernGroup.computeTopicHash(metadataImage.topics().getTopic(topic1Uuid), metadataImage.cluster());
+        long topic2Hash = ModernGroup.computeTopicHash(metadataImage.topics().getTopic(topic2Uuid), metadataImage.cluster());
+        long topic3Hash = ModernGroup.computeTopicHash(metadataImage.topics().getTopic(topic3Uuid), metadataImage.cluster());
         Map<Uuid, TopicMetadata> topicMetadata = new HashMap<>();
         topicMetadata.put(topic1Uuid, new TopicMetadata(
             topic1Uuid,
             topic1Name,
-            3
+            topic1Hash
         ));
         topicMetadata.put(topic2Uuid, new TopicMetadata(
             topic2Uuid,
             topic2Name,
-            8
+            topic2Hash
         ));
         topicMetadata.put(topic3Uuid, new TopicMetadata(
             topic3Uuid,
             topic3Name,
-            3
+            topic3Hash
         ));
 
         Map<String, MemberSubscriptionAndAssignmentImpl> members = new TreeMap<>();
@@ -555,7 +620,7 @@ public class UniformHeterogeneousAssignmentBuilderTest {
             HETEROGENEOUS,
             invertedTargetAssignment(members)
         );
-        SubscribedTopicDescriberImpl subscribedTopicMetadata = new SubscribedTopicDescriberImpl(topicMetadata);
+        SubscribedTopicDescriberImpl subscribedTopicMetadata = new SubscribedTopicDescriberImpl(topicMetadata, metadataImage);
 
         GroupAssignment computedAssignment = assignor.assign(
             groupSpec,
@@ -576,16 +641,23 @@ public class UniformHeterogeneousAssignmentBuilderTest {
 
     @Test
     public void testReassignmentWhenOneSubscriptionRemovedAfterInitialAssignmentWithTwoMembersTwoTopics() {
+        MetadataImage metadataImage = new MetadataImageBuilder()
+            .addTopic(topic1Uuid, topic1Name, 3)
+            .addTopic(topic2Uuid, topic2Name, 5)
+            .addRacks()
+            .build();
+        long topic1Hash = ModernGroup.computeTopicHash(metadataImage.topics().getTopic(topic1Uuid), metadataImage.cluster());
+        long topic2Hash = ModernGroup.computeTopicHash(metadataImage.topics().getTopic(topic2Uuid), metadataImage.cluster());
         Map<Uuid, TopicMetadata> topicMetadata = new HashMap<>();
         topicMetadata.put(topic1Uuid, new TopicMetadata(
             topic1Uuid,
             topic1Name,
-            3
+            topic1Hash
         ));
         topicMetadata.put(topic2Uuid, new TopicMetadata(
             topic2Uuid,
             topic2Name,
-            5
+            topic2Hash
         ));
 
         // Initial subscriptions were [T1, T2]
@@ -616,7 +688,7 @@ public class UniformHeterogeneousAssignmentBuilderTest {
             HETEROGENEOUS,
             invertedTargetAssignment(members)
         );
-        SubscribedTopicDescriberImpl subscribedTopicMetadata = new SubscribedTopicDescriberImpl(topicMetadata);
+        SubscribedTopicDescriberImpl subscribedTopicMetadata = new SubscribedTopicDescriberImpl(topicMetadata, metadataImage);
 
         GroupAssignment computedAssignment = assignor.assign(
             groupSpec,
@@ -642,21 +714,30 @@ public class UniformHeterogeneousAssignmentBuilderTest {
      */
     @Test
     public void testReassignmentWhenTopicPartitionsRunOutAndMembersHaveNoPartitions() {
+        MetadataImage metadataImage = new MetadataImageBuilder()
+            .addTopic(topic1Uuid, topic1Name, 2)
+            .addTopic(topic2Uuid, topic2Name, 2)
+            .addTopic(topic3Uuid, topic3Name, 2)
+            .addRacks()
+            .build();
+        long topic1Hash = ModernGroup.computeTopicHash(metadataImage.topics().getTopic(topic1Uuid), metadataImage.cluster());
+        long topic2Hash = ModernGroup.computeTopicHash(metadataImage.topics().getTopic(topic2Uuid), metadataImage.cluster());
+        long topic3Hash = ModernGroup.computeTopicHash(metadataImage.topics().getTopic(topic3Uuid), metadataImage.cluster());
         Map<Uuid, TopicMetadata> topicMetadata = new HashMap<>();
         topicMetadata.put(topic1Uuid, new TopicMetadata(
             topic1Uuid,
             topic1Name,
-            2
+            topic1Hash
         ));
         topicMetadata.put(topic2Uuid, new TopicMetadata(
             topic2Uuid,
             topic2Name,
-            2
+            topic2Hash
         ));
         topicMetadata.put(topic3Uuid, new TopicMetadata(
             topic3Uuid,
             topic3Name,
-            2
+            topic3Hash
         ));
 
         Map<String, MemberSubscriptionAndAssignmentImpl> members = new TreeMap<>();
@@ -684,7 +765,7 @@ public class UniformHeterogeneousAssignmentBuilderTest {
             HETEROGENEOUS,
             invertedTargetAssignment(members)
         );
-        SubscribedTopicDescriberImpl subscribedTopicMetadata = new SubscribedTopicDescriberImpl(topicMetadata);
+        SubscribedTopicDescriberImpl subscribedTopicMetadata = new SubscribedTopicDescriberImpl(topicMetadata, metadataImage);
 
         GroupAssignment computedAssignment = assignor.assign(
             groupSpec,
@@ -706,11 +787,16 @@ public class UniformHeterogeneousAssignmentBuilderTest {
 
     @Test
     public void testFirstAssignmentWithTwoMembersIncludingOneWithoutSubscriptions() {
+        MetadataImage metadataImage = new MetadataImageBuilder()
+            .addTopic(topic1Uuid, topic1Name, 3)
+            .addRacks()
+            .build();
+        long topic1Hash = ModernGroup.computeTopicHash(metadataImage.topics().getTopic(topic1Uuid), metadataImage.cluster());
         Map<Uuid, TopicMetadata> topicMetadata = new HashMap<>();
         topicMetadata.put(topic1Uuid, new TopicMetadata(
             topic1Uuid,
             topic1Name,
-            3
+            topic1Hash
         ));
 
         Map<String, MemberSubscriptionAndAssignmentImpl> members = new TreeMap<>();
@@ -734,7 +820,7 @@ public class UniformHeterogeneousAssignmentBuilderTest {
             HETEROGENEOUS,
             Collections.emptyMap()
         );
-        SubscribedTopicDescriberImpl subscribedTopicMetadata = new SubscribedTopicDescriberImpl(topicMetadata);
+        SubscribedTopicDescriberImpl subscribedTopicMetadata = new SubscribedTopicDescriberImpl(topicMetadata, metadataImage);
 
         GroupAssignment computedAssignment = assignor.assign(
             groupSpec,

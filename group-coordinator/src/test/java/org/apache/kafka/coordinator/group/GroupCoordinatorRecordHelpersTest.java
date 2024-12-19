@@ -46,9 +46,11 @@ import org.apache.kafka.coordinator.group.generated.OffsetCommitKey;
 import org.apache.kafka.coordinator.group.generated.OffsetCommitValue;
 import org.apache.kafka.coordinator.group.generated.ShareGroupMetadataKey;
 import org.apache.kafka.coordinator.group.modern.MemberState;
+import org.apache.kafka.coordinator.group.modern.ModernGroup;
 import org.apache.kafka.coordinator.group.modern.TopicMetadata;
 import org.apache.kafka.coordinator.group.modern.consumer.ConsumerGroupMember;
 import org.apache.kafka.coordinator.group.modern.consumer.ResolvedRegularExpression;
+import org.apache.kafka.image.MetadataImage;
 import org.apache.kafka.server.common.ApiMessageAndVersion;
 import org.apache.kafka.server.common.MetadataVersion;
 
@@ -161,17 +163,24 @@ public class GroupCoordinatorRecordHelpersTest {
     public void testNewConsumerGroupSubscriptionMetadataRecord() {
         Uuid fooTopicId = Uuid.randomUuid();
         Uuid barTopicId = Uuid.randomUuid();
+        MetadataImage metadataImage = new MetadataImageBuilder()
+            .addTopic(fooTopicId, "foo", 10)
+            .addTopic(barTopicId, "bar", 20)
+            .addRacks()
+            .build();
+        long fooTopicHash = ModernGroup.computeTopicHash(metadataImage.topics().getTopic(fooTopicId), metadataImage.cluster());
+        long barTopicHash = ModernGroup.computeTopicHash(metadataImage.topics().getTopic(barTopicId), metadataImage.cluster());
         Map<String, TopicMetadata> subscriptionMetadata = new LinkedHashMap<>();
 
         subscriptionMetadata.put("foo", new TopicMetadata(
             fooTopicId,
             "foo",
-            10
+            fooTopicHash
         ));
         subscriptionMetadata.put("bar", new TopicMetadata(
             barTopicId,
             "bar",
-            20
+            barTopicHash
         ));
 
         CoordinatorRecord expectedRecord = new CoordinatorRecord(
@@ -186,11 +195,11 @@ public class GroupCoordinatorRecordHelpersTest {
                         new ConsumerGroupPartitionMetadataValue.TopicMetadata()
                             .setTopicId(fooTopicId)
                             .setTopicName("foo")
-                            .setNumPartitions(10),
+                            .setTopicHash(fooTopicHash),
                         new ConsumerGroupPartitionMetadataValue.TopicMetadata()
                             .setTopicId(barTopicId)
                             .setTopicName("bar")
-                            .setNumPartitions(20))),
+                            .setTopicHash(barTopicHash))),
                 (short) 0));
 
         assertRecordEquals(expectedRecord, newConsumerGroupSubscriptionMetadataRecord(
@@ -218,17 +227,23 @@ public class GroupCoordinatorRecordHelpersTest {
     public void testEmptyPartitionMetadataWhenRacksUnavailableGroupSubscriptionMetadataRecord() {
         Uuid fooTopicId = Uuid.randomUuid();
         Uuid barTopicId = Uuid.randomUuid();
+        MetadataImage metadataImage = new MetadataImageBuilder()
+            .addTopic(fooTopicId, "foo", 10)
+            .addTopic(barTopicId, "bar", 20)
+            .build();
+        long fooTopicHash = ModernGroup.computeTopicHash(metadataImage.topics().getTopic(fooTopicId), metadataImage.cluster());
+        long barTopicHash = ModernGroup.computeTopicHash(metadataImage.topics().getTopic(barTopicId), metadataImage.cluster());
         Map<String, TopicMetadata> subscriptionMetadata = new LinkedHashMap<>();
 
         subscriptionMetadata.put("foo", new TopicMetadata(
             fooTopicId,
             "foo",
-            10
+            fooTopicHash
         ));
         subscriptionMetadata.put("bar", new TopicMetadata(
             barTopicId,
             "bar",
-            20
+            barTopicHash
         ));
 
         CoordinatorRecord expectedRecord = new CoordinatorRecord(
@@ -243,11 +258,11 @@ public class GroupCoordinatorRecordHelpersTest {
                         new ConsumerGroupPartitionMetadataValue.TopicMetadata()
                             .setTopicId(fooTopicId)
                             .setTopicName("foo")
-                            .setNumPartitions(10),
+                            .setTopicHash(fooTopicHash),
                         new ConsumerGroupPartitionMetadataValue.TopicMetadata()
                             .setTopicId(barTopicId)
                             .setTopicName("bar")
-                            .setNumPartitions(20))),
+                            .setTopicHash(barTopicHash))),
                 (short) 0));
 
         assertRecordEquals(expectedRecord, newConsumerGroupSubscriptionMetadataRecord(

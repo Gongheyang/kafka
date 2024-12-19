@@ -37,14 +37,14 @@ public class TopicMetadata {
     private final String name;
 
     /**
-     * The number of partitions.
+     * The topic hash from ModernGroup#computeTopicHash.
      */
-    private final int numPartitions;
+    private final long topicHash;
 
     public TopicMetadata(
         Uuid id,
         String name,
-        int numPartitions
+        long topicHash
     ) {
         this.id = Objects.requireNonNull(id);
         if (Uuid.ZERO_UUID.equals(id)) {
@@ -54,10 +54,7 @@ public class TopicMetadata {
         if (name.isEmpty()) {
             throw new IllegalArgumentException("Topic name cannot be empty.");
         }
-        this.numPartitions = numPartitions;
-        if (numPartitions < 0) {
-            throw new IllegalArgumentException("Number of partitions cannot be negative.");
-        }
+        this.topicHash = topicHash;
     }
 
     /**
@@ -75,10 +72,10 @@ public class TopicMetadata {
     }
 
     /**
-     * @return The number of partitions.
+     * @return The topic hash.
      */
-    public int numPartitions() {
-        return this.numPartitions;
+    public long topicHash() {
+        return this.topicHash;
     }
 
     @Override
@@ -90,14 +87,14 @@ public class TopicMetadata {
 
         if (!id.equals(that.id)) return false;
         if (!name.equals(that.name)) return false;
-        return numPartitions == that.numPartitions;
+        return topicHash == that.topicHash;
     }
 
     @Override
     public int hashCode() {
         int result = id.hashCode();
         result = 31 * result + name.hashCode();
-        result = 31 * result + numPartitions;
+        result = 31 * result + Long.valueOf(topicHash).intValue();
         return result;
     }
 
@@ -106,7 +103,7 @@ public class TopicMetadata {
         return "TopicMetadata(" +
             "id=" + id +
             ", name=" + name +
-            ", numPartitions=" + numPartitions +
+            ", topicHash=" + topicHash +
             ')';
     }
 
@@ -116,7 +113,7 @@ public class TopicMetadata {
         return new TopicMetadata(
             record.topicId(),
             record.topicName(),
-            record.numPartitions()
+            record.topicHash()
         );
     }
 
@@ -126,7 +123,7 @@ public class TopicMetadata {
         return new TopicMetadata(
             record.topicId(),
             record.topicName(),
-            record.numPartitions()
+            record.topicHash()
         );
     }
 }

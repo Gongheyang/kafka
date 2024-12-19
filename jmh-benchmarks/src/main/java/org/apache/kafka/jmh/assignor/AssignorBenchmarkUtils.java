@@ -32,7 +32,6 @@ import org.apache.kafka.coordinator.group.modern.consumer.ConsumerGroupMember;
 import org.apache.kafka.image.MetadataDelta;
 import org.apache.kafka.image.MetadataImage;
 import org.apache.kafka.image.MetadataProvenance;
-import org.apache.kafka.image.TopicsImage;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -91,13 +90,11 @@ public class AssignorBenchmarkUtils {
     /**
      * Creates a subscription metadata map for the given topics.
      *
-     * @param topicNames                The names of the topics.
-     * @param partitionsPerTopic        The number of partitions per topic.
+     * @param topicNames The names of the topics.
      * @return The subscription metadata map.
      */
     public static Map<String, TopicMetadata> createSubscriptionMetadata(
-        List<String> topicNames,
-        int partitionsPerTopic
+        List<String> topicNames
     ) {
         Map<String, TopicMetadata> subscriptionMetadata = new HashMap<>();
 
@@ -107,7 +104,7 @@ public class AssignorBenchmarkUtils {
             TopicMetadata metadata = new TopicMetadata(
                 topicId,
                 topicName,
-                partitionsPerTopic
+                topicName.hashCode()
             );
             subscriptionMetadata.put(topicName, metadata);
         }
@@ -134,11 +131,15 @@ public class AssignorBenchmarkUtils {
     /**
      * Creates a TopicsImage from the given subscription metadata.
      *
-     * @param subscriptionMetadata  The subscription metadata.
+     * @param subscriptionMetadata The subscription metadata.
+     * @param partitionsPerTopic
      * @return A TopicsImage containing the topic ids, names and partition counts from the
-     *         subscription metadata.
+     * subscription metadata.
      */
-    public static TopicsImage createTopicsImage(Map<String, TopicMetadata> subscriptionMetadata) {
+    public static MetadataImage createMetadataImage(
+        Map<String, TopicMetadata> subscriptionMetadata,
+        int partitionsPerTopic
+    ) {
         MetadataDelta delta = new MetadataDelta(MetadataImage.EMPTY);
 
         for (Map.Entry<String, TopicMetadata> entry : subscriptionMetadata.entrySet()) {
@@ -147,11 +148,11 @@ public class AssignorBenchmarkUtils {
                 delta,
                 topicMetadata.id(),
                 topicMetadata.name(),
-                topicMetadata.numPartitions()
+                partitionsPerTopic
             );
         }
 
-        return delta.apply(MetadataProvenance.EMPTY).topics();
+        return delta.apply(MetadataProvenance.EMPTY);
     }
 
     /**

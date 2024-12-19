@@ -18,23 +18,31 @@ package org.apache.kafka.coordinator.group.modern;
 
 import org.apache.kafka.common.Uuid;
 import org.apache.kafka.common.errors.UnknownMemberIdException;
+import org.apache.kafka.common.hash.Murmur3;
 import org.apache.kafka.common.message.ListGroupsResponseData;
 import org.apache.kafka.coordinator.group.Group;
 import org.apache.kafka.coordinator.group.api.assignor.SubscriptionType;
 import org.apache.kafka.image.ClusterImage;
+import org.apache.kafka.image.MetadataImage;
 import org.apache.kafka.image.TopicImage;
 import org.apache.kafka.image.TopicsImage;
+import org.apache.kafka.metadata.BrokerRegistration;
+import org.apache.kafka.metadata.PartitionRegistration;
 import org.apache.kafka.timeline.SnapshotRegistry;
 import org.apache.kafka.timeline.TimelineHashMap;
 import org.apache.kafka.timeline.TimelineInteger;
 import org.apache.kafka.timeline.TimelineObject;
 
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.apache.kafka.coordinator.group.api.assignor.SubscriptionType.HETEROGENEOUS;
 import static org.apache.kafka.coordinator.group.api.assignor.SubscriptionType.HOMOGENEOUS;
@@ -370,32 +378,63 @@ public abstract class ModernGroup<T extends ModernGroupMember> implements Group 
     /**
      * Computes the subscription metadata based on the current subscription info.
      *
-     * @param subscribedTopicNames      Map of topic names to the number of subscribers.
-     * @param topicsImage               The current metadata for all available topics.
-     * @param clusterImage              The current metadata for the Kafka cluster.
-     *
+     * @param subscribedTopicNames Map of topic names to the number of subscribers.
+     * @param metadataImage        The current metadata for all available topics.
+     * @param topicHashCache       The cache of topic hashes.
      * @return An immutable map of subscription metadata for each topic that the consumer group is subscribed to.
      */
     public Map<String, TopicMetadata> computeSubscriptionMetadata(
         Map<String, SubscriptionCount> subscribedTopicNames,
-        TopicsImage topicsImage,
-        ClusterImage clusterImage
+        MetadataImage metadataImage,
+        Map<String, Long> topicHashCache
     ) {
         // Create the topic metadata for each subscribed topic.
         Map<String, TopicMetadata> newSubscriptionMetadata = new HashMap<>(subscribedTopicNames.size());
-
+        TopicsImage topicsImage = metadataImage.topics();
         subscribedTopicNames.forEach((topicName, count) -> {
             TopicImage topicImage = topicsImage.getTopic(topicName);
             if (topicImage != null) {
                 newSubscriptionMetadata.put(topicName, new TopicMetadata(
                     topicImage.id(),
                     topicImage.name(),
-                    topicImage.partitions().size()
+                    topicHashCache.computeIfAbsent(
+                        topicName,
+                        key -> computeTopicHash(topicImage, metadataImage.cluster())
+                    )
                 ));
             }
         });
 
         return Collections.unmodifiableMap(newSubscriptionMetadata);
+    }
+
+    /**
+     * Computes the hash of the topic id, name, number of partitions, and partition racks by Murmur3.
+     *
+     * @param topicImage   The topic image.
+     * @param clusterImage The cluster image.
+     */
+    public static long computeTopicHash(TopicImage topicImage, ClusterImage clusterImage) {
+        long result = topicImage.id().hashCode();
+        result = 63 * result + Murmur3.hash64(topicImage.name().getBytes(StandardCharsets.UTF_8));
+        result = 63 * result + Murmur3.hash64(topicImage.partitions().size());
+        result = 63 * result + topicImage.partitions().entrySet().stream().mapToLong(
+            entry -> {
+                PartitionRegistration partitionRegistration = entry.getValue();
+                long partitionHash = Murmur3.hash64(entry.getKey());
+                Set<String> racks = Arrays.stream(partitionRegistration.replicas)
+                    .mapToObj(clusterImage::broker)
+                    .filter(Objects::nonNull)
+                    .map(BrokerRegistration::rack)
+                    .filter(Optional::isPresent)
+                    .map(Optional::get)
+                    .collect(Collectors.toSet());
+                return 63 * partitionHash + racks.stream().mapToLong(
+                    rack -> Murmur3.hash64(rack.getBytes(StandardCharsets.UTF_8))
+                ).reduce(0L, Long::sum);
+            }
+        ).reduce(0L, Long::sum);
+        return result;
     }
 
     /**

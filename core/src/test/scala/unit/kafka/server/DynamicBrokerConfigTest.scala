@@ -455,13 +455,14 @@ class DynamicBrokerConfigTest {
   }
 
   @Test
-  def testPasswordConfigEncryption(): Unit = {
-    val props = TestUtils.createBrokerConfig(0, TestUtils.MockZkConnect, port = 8181)
+  def testPasswordConfigNotEncryption(): Unit = {
+    val props = TestUtils.createBrokerConfig(0, null, port = 8181)
     val configWithoutSecret = KafkaConfig(props)
     props.put(PasswordEncoderConfigs.PASSWORD_ENCODER_SECRET_CONFIG, "config-encoder-secret")
     val configWithSecret = KafkaConfig(props)
     val dynamicProps = new Properties
-    dynamicProps.put(SaslConfigs.SASL_JAAS_CONFIG, "myLoginModule required;")
+    val password = "myLoginModule required;"
+    dynamicProps.put(SaslConfigs.SASL_JAAS_CONFIG, password)
 
     try {
       configWithoutSecret.dynamicConfig.toPersistentProps(dynamicProps, perBrokerConfig = true)
@@ -469,10 +470,7 @@ class DynamicBrokerConfigTest {
       case _: ConfigException => // expected exception
     }
     val persistedProps = configWithSecret.dynamicConfig.toPersistentProps(dynamicProps, perBrokerConfig = true)
-    assertFalse(persistedProps.getProperty(SaslConfigs.SASL_JAAS_CONFIG).contains("myLoginModule"),
-      "Password not encoded")
-    val decodedProps = configWithSecret.dynamicConfig.fromPersistentProps(persistedProps, perBrokerConfig = true)
-    assertEquals("myLoginModule required;", decodedProps.getProperty(SaslConfigs.SASL_JAAS_CONFIG))
+    assertEquals(password, persistedProps.getProperty(SaslConfigs.SASL_JAAS_CONFIG))
   }
 
   @Test

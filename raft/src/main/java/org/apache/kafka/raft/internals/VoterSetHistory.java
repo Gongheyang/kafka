@@ -16,7 +16,9 @@
  */
 package org.apache.kafka.raft.internals;
 
+import org.apache.kafka.common.utils.LogContext;
 import org.apache.kafka.raft.VoterSet;
+import org.slf4j.Logger;
 
 import java.util.Optional;
 import java.util.OptionalLong;
@@ -31,9 +33,11 @@ import java.util.OptionalLong;
 public final class VoterSetHistory {
     private final VoterSet staticVoterSet;
     private final LogHistory<VoterSet> votersHistory = new TreeMapLogHistory<>();
+    private final Logger logger;
 
-    VoterSetHistory(VoterSet staticVoterSet) {
+    VoterSetHistory(VoterSet staticVoterSet, LogContext logContext) {
         this.staticVoterSet = staticVoterSet;
+        this.logger = logContext.logger(this.getClass());
     }
 
     /**
@@ -47,6 +51,22 @@ public final class VoterSetHistory {
      * @throws IllegalArgumentException if the offset is not greater than all previous offsets
      */
     public void addAt(long offset, VoterSet voters) {
+        Optional<LogHistory.Entry<VoterSet>> lastEntry = votersHistory.lastEntry();
+        if (lastEntry.isPresent() && lastEntry.get().offset() >= 0) {
+            // If the last voter set comes from the replicated log then the majorities must overlap.
+            // This ignores the static voter set and the bootstrapped voter set since they come from
+            // the configuration and the KRaft leader never guaranteed that they are the same across
+            // all replicas.
+            VoterSet lastVoterSet = lastEntry.get().value();
+            if (!lastVoterSet.hasOverlappingMajority(voters)) {
+                logger.info(
+                        "Last voter set ({}) doesn't have an overlapping majority with the new voter set ({})",
+                        lastVoterSet,
+                        voters
+                );
+            }
+        }
+
         votersHistory.addAt(offset, voters);
     }
 

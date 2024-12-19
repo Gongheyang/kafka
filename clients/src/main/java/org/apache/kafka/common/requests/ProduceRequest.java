@@ -214,7 +214,6 @@ public class ProduceRequest extends AbstractRequest {
         data = null;
     }
 
-    //FIXME Check this logic
     public static void validateRecords(short version, BaseRecords baseRecords) {
         if (baseRecords instanceof Records) {
             Records records = (Records) baseRecords;

@@ -382,7 +382,7 @@ public class RequestResponseTest {
         checkResponse(createFetchResponse(Errors.FETCH_SESSION_ID_NOT_FOUND, 123), (short) 7);
         checkOlderFetchVersions();
         // Metadata
-        checkRequest(MetadataRequest.Builder.allTopics().build((short) 4)); //FIXME Does version 4 have the special cases?
+        checkRequest(MetadataRequest.Builder.allTopics().build((short) 4));
         // OffsetFetch
         checkRequest(createOffsetFetchRequestWithMultipleGroups((short) 8, true));
         checkRequest(createOffsetFetchRequestWithMultipleGroups((short) 8, false));
@@ -416,10 +416,10 @@ public class RequestResponseTest {
         checkRequest(createTxnOffsetCommitRequestWithAutoDowngrade());
         checkErrorResponse(createTxnOffsetCommitRequestWithAutoDowngrade(), unknownServerException);
         // DescribeAcls
-        checkErrorResponse(createDescribeAclsRequest((short) 1), new SecurityDisabledException("Security is not enabled.")); //FIXME Does version 1 have the special cases
-        checkErrorResponse(createCreateAclsRequest((short) 1), new SecurityDisabledException("Security is not enabled.")); //FIXME Does version 1 have the special cases
+        checkErrorResponse(createDescribeAclsRequest((short) 1), new SecurityDisabledException("Security is not enabled."));
+        checkErrorResponse(createCreateAclsRequest((short) 1), new SecurityDisabledException("Security is not enabled."));
         // DeleteAcls
-        checkErrorResponse(createDeleteAclsRequest((short) 1), new SecurityDisabledException("Security is not enabled.")); //FIXME Does version 1 have the special cases
+        checkErrorResponse(createDeleteAclsRequest((short) 1), new SecurityDisabledException("Security is not enabled."));
         // DescribeConfigs
         checkRequest(createDescribeConfigsRequestWithConfigEntries((short) 1));
         checkRequest(createDescribeConfigsRequestWithDocumentation((short) 1));

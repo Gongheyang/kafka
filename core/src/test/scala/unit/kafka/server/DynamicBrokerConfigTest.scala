@@ -511,12 +511,12 @@ class DynamicBrokerConfigTest {
 
   @Test
   def testDynamicListenerConfig(): Unit = {
-    val props = TestUtils.createBrokerConfig(0, TestUtils.MockZkConnect, port = 9092)
+    val props = TestUtils.createBrokerConfig(0, null, port = 9092)
     val oldConfig =  KafkaConfig.fromProps(props)
     val kafkaServer: KafkaBroker = mock(classOf[kafka.server.KafkaBroker])
     when(kafkaServer.config).thenReturn(oldConfig)
 
-    props.put(SocketServerConfigs.LISTENERS_CONFIG, "PLAINTEXT://hostname:9092,SASL_PLAINTEXT://hostname:9093")
+    props.put(SocketServerConfigs.LISTENERS_CONFIG, "PLAINTEXT://hostname:9092")
     new DynamicListenerConfig(kafkaServer).validateReconfiguration(KafkaConfig(props))
 
     // it is illegal to update non-reconfiguable configs of existent listeners

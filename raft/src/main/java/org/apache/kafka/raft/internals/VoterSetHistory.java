@@ -18,6 +18,7 @@ package org.apache.kafka.raft.internals;
 
 import org.apache.kafka.common.utils.LogContext;
 import org.apache.kafka.raft.VoterSet;
+
 import org.slf4j.Logger;
 
 import java.util.Optional;

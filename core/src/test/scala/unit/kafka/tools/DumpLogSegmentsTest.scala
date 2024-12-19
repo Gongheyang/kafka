@@ -858,7 +858,9 @@ class DumpLogSegmentsTest {
     assertEquals(
       (
         Some("{\"type\":\"0\",\"data\":{\"transactionalId\":\"txnId\"}}"),
-        Some("{\"type\":\"0\",\"data\":{\"producerId\":123,\"producerEpoch\":0,\"transactionTimeoutMs\":0,\"transactionStatus\":0,\"transactionPartitions\":[],\"transactionLastUpdateTimestampMs\":0,\"transactionStartTimestampMs\":0}}")
+        Some("{\"type\":\"0\",\"data\":{\"producerId\":123,\"producerEpoch\":0,\"transactionTimeoutMs\":0," +
+             "\"transactionStatus\":0,\"transactionPartitions\":[],\"transactionLastUpdateTimestampMs\":0," +
+             "\"transactionStartTimestampMs\":0}}")
       ),
       parser.parse(serializedRecord(
         new ApiMessageAndVersion(
@@ -893,9 +895,7 @@ class DumpLogSegmentsTest {
     // An unknown record type should be handled and reported as such.
     assertEquals(
       (
-        Some(
-          "Unknown record type 32767 at offset 0, skipping."
-        ),
+        Some("Unknown record type 32767 at offset 0, skipping."),
         None
       ),
       parser.parse(serializedRecord(
@@ -907,6 +907,46 @@ class DumpLogSegmentsTest {
         new ApiMessageAndVersion(
           new TransactionLogValue(),
           0.toShort
+        )
+      ))
+    )
+
+    // A valid key and value with all fields set should work.
+    assertEquals(
+      (
+        Some("{\"type\":\"0\",\"data\":{\"transactionalId\":\"txnId\"}}"),
+        Some("{\"type\":\"1\",\"data\":{\"producerId\":12,\"previousProducerId\":11,\"nextProducerId\":10," +
+             "\"producerEpoch\":2,\"transactionTimeoutMs\":14,\"transactionStatus\":0," +
+             "\"transactionPartitions\":[{\"topic\":\"topic1\",\"partitionIds\":[0,1,2]}," +
+             "{\"topic\":\"topic2\",\"partitionIds\":[3,4,5]}],\"transactionLastUpdateTimestampMs\":123," +
+             "\"transactionStartTimestampMs\":13}}")
+      ),
+      parser.parse(serializedRecord(
+        new ApiMessageAndVersion(
+          new TransactionLogKey()
+            .setTransactionalId("txnId"),
+          0.toShort
+        ),
+        new ApiMessageAndVersion(
+          new TransactionLogValue()
+            .setClientTransactionVersion(0.toShort)
+            .setNextProducerId(10L)
+            .setPreviousProducerId(11L)
+            .setProducerEpoch(2.toShort)
+            .setProducerId(12L)
+            .setTransactionLastUpdateTimestampMs(123L)
+            .setTransactionPartitions(List(
+              new TransactionLogValue.PartitionsSchema()
+                .setTopic("topic1")
+                .setPartitionIds(List(0, 1, 2).map(Integer.valueOf).asJava),
+              new TransactionLogValue.PartitionsSchema()
+                .setTopic("topic2")
+                .setPartitionIds(List(3, 4, 5).map(Integer.valueOf).asJava)
+            ).asJava)
+            .setTransactionStartTimestampMs(13L)
+            .setTransactionStatus(0)
+            .setTransactionTimeoutMs(14),
+          1.toShort
         )
       ))
     )

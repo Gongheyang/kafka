@@ -143,7 +143,6 @@ object TransactionLog {
       } else throw new IllegalStateException(s"Unknown version $version from the transaction log message value")
     }
   }
-
 }
 
 sealed trait BaseKey{

@@ -196,7 +196,6 @@ public class QuorumState {
                 election.epoch(),
                 partitionState.lastVoterSet(),
                 Optional.empty(),
-                1,
                 randomElectionTimeoutMs(),
                 logContext
             );
@@ -389,11 +388,6 @@ public class QuorumState {
         transitionToUnattached(epoch, OptionalInt.empty());
     }
 
-    // ahu todo: need to fix all tests which call this method. delete method afterwards
-    public void transitionToUnattached(int epoch, Optional<ReplicaKey> votedKey) {
-        transitionToUnattached(epoch, OptionalInt.empty());
-    }
-
     public void transitionToUnattached(int epoch, OptionalInt leaderId) {
         int currentEpoch = state.epoch();
         if (epoch < currentEpoch || (epoch == currentEpoch && !isProspective())) {
@@ -583,7 +577,6 @@ public class QuorumState {
     public void transitionToCandidate() {
         checkValidTransitionToCandidate();
 
-        int retries = isCandidate() ? candidateStateOrThrow().retries() + 1 : 1;
         int newEpoch = epoch() + 1;
         int electionTimeoutMs = randomElectionTimeoutMs();
 
@@ -594,7 +587,6 @@ public class QuorumState {
             newEpoch,
             partitionState.lastVoterSet(),
             state.highWatermark(),
-            retries,
             electionTimeoutMs,
             logContext
         ));
@@ -612,7 +604,9 @@ public class QuorumState {
                 )
             );
         }
-        if (!isProspective() && !isOnlyVoter()) {
+        // Leader state can never transition to Candidate state
+        // Only Prospective is allowed to transition to Candidate, unless the local replica is the only voter
+        if (isLeader() || (!isProspective() && !isOnlyVoter())) {
             throw new IllegalStateException("Cannot transition to Candidate since the local broker.id=" + localId +
                 " is state " + state);
         }
@@ -751,10 +745,10 @@ public class QuorumState {
         throw new IllegalStateException("Expected to be Candidate, but current state is " + state);
     }
 
-    public NomineeState votingStateOrThrow() {
-        if (isVotingState())
+    public NomineeState nomineeStateOrThrow() {
+        if (isNomineeState())
             return (NomineeState) state;
-        throw new IllegalStateException("Expected to be a VotingState (Prospective or Candidate), " +
+        throw new IllegalStateException("Expected to be a NomineeState (Prospective or Candidate), " +
             "but current state is " + state);
     }
 
@@ -795,7 +789,7 @@ public class QuorumState {
         return state instanceof CandidateState;
     }
 
-    public boolean isVotingState() {
+    public boolean isNomineeState() {
         return state instanceof NomineeState;
     }
 }

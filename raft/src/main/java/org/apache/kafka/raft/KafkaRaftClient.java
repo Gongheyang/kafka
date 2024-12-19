@@ -924,7 +924,7 @@ public final class KafkaRaftClient<T> implements RaftClient<T> {
         Errors topLevelError = Errors.forCode(response.errorCode());
         if (topLevelError != Errors.NONE) {
             if (topLevelError == Errors.UNSUPPORTED_VERSION && quorum.isProspective()) {
-                logger.warn("Prospective received unsupported version error in vote response in epoch {}, " +
+                logger.info("Prospective received unsupported version error in vote response in epoch {}, " +
                         "transitioning to Candidate state immediately since entire quorum does not support PreVote.",
                     quorum.epoch());
                 transitionToCandidate(currentTimeMs);
@@ -973,13 +973,14 @@ public final class KafkaRaftClient<T> implements RaftClient<T> {
             if (quorum.isLeader()) {
                 logger.debug("Ignoring vote response {} since we already became leader for epoch {}",
                     partitionResponse, quorum.epoch());
-            } else if (quorum.isVotingState()) {
-                NomineeState state = quorum.votingStateOrThrow();
-                handleVoteResponse(
-                    state,
-                    partitionResponse,
-                    remoteNodeId,
-                    currentTimeMs);
+            } else if (quorum.isNomineeState()) {
+                NomineeState state = quorum.nomineeStateOrThrow();
+                if (partitionResponse.voteGranted()) {
+                    state.recordGrantedVote(remoteNodeId);
+                    maybeTransitionForward(state, currentTimeMs);
+                } else {
+                    state.recordRejectedVote(remoteNodeId);
+                }
             } else {
                 logger.debug("Ignoring vote response {} since we are no longer a VotingState " +
                         "(Prospective or Candidate) in epoch {}",
@@ -989,42 +990,6 @@ public final class KafkaRaftClient<T> implements RaftClient<T> {
         } else {
             return handleUnexpectedError(error, responseMetadata);
         }
-    }
-
-    private void handleVoteResponse(NomineeState state,
-                                    VoteResponseData.PartitionData partitionResponse,
-                                    int remoteNodeId,
-                                    long currentTimeMs) {
-        if (partitionResponse.voteGranted()) {
-            state.recordGrantedVote(remoteNodeId);
-            maybeTransitionForward(state, currentTimeMs);
-        } else {
-            state.recordRejectedVote(remoteNodeId);
-
-            // If our vote is rejected, we go immediately to backoff phase. This ensures that we are not stuck
-            // waiting for the election timeout when the vote has become gridlocked.
-            if (state.epochElection().isVoteRejected() && quorum.isCandidate()) {
-                CandidateState candidateState = quorum.candidateStateOrThrow();
-                if (!candidateState.isBackingOff()) {
-                    logger.info("Insufficient remaining votes to win election (rejected by {}). We will backoff " +
-                        "before retrying election again", candidateState.epochElection().rejectingVoters());
-
-                    candidateState.startBackingOff(
-                        currentTimeMs,
-                        binaryExponentialElectionBackoffMs(candidateState.retries())
-                    );
-                }
-            }
-        }
-    }
-
-    private int binaryExponentialElectionBackoffMs(int retries) {
-        if (retries <= 0) {
-            throw new IllegalArgumentException("Retries " + retries + " should be larger than zero");
-        }
-        // upper limit exponential co-efficients at 20 to avoid overflow
-        return Math.min(RETRY_BACKOFF_BASE_MS * random.nextInt(2 << Math.min(20, retries - 1)),
-                quorumConfig.electionBackoffMaxMs());
     }
 
     private int strictExponentialElectionBackoffMs(int positionInSuccessors, int totalNumSuccessors) {
@@ -3086,19 +3051,10 @@ public final class KafkaRaftClient<T> implements RaftClient<T> {
             //  3) the shutdown timer expires
             long minRequestBackoffMs = maybeSendVoteRequests(state, currentTimeMs);
             return Math.min(shutdown.remainingTimeMs(), minRequestBackoffMs);
-        } else if (state.isBackingOff()) {
-            if (state.isBackoffComplete(currentTimeMs)) {
-                logger.info("Transition to prospective after election backoff has completed");
-                transitionToProspective(currentTimeMs);
-                return 0L;
-            }
-            return state.remainingBackoffMs(currentTimeMs);
-        } else if (state.hasElectionTimeoutExpired(currentTimeMs)) {
-            long backoffDurationMs = binaryExponentialElectionBackoffMs(state.retries());
-            logger.info("Election has timed out, backing off for {}ms before becoming a {} again",
-                backoffDurationMs, state.name());
-            state.startBackingOff(currentTimeMs, backoffDurationMs);
-            return backoffDurationMs;
+        } else if (state.epochElection().isVoteRejected() || state.hasElectionTimeoutExpired(currentTimeMs)) {
+            logger.info("Election was not granted, transitioning to prospective");
+            transitionToProspective(currentTimeMs);
+            return 0L;
         } else {
             long minVoteRequestBackoffMs = maybeSendVoteRequests(state, currentTimeMs);
             return Math.min(minVoteRequestBackoffMs, state.remainingElectionTimeMs(currentTimeMs));
@@ -3115,7 +3071,7 @@ public final class KafkaRaftClient<T> implements RaftClient<T> {
         } else if (state.epochElection().isVoteRejected() || state.hasElectionTimeoutExpired(currentTimeMs)) {
             if (state.election().hasLeader() && !state.leaderEndpoints().isEmpty()) {
                 logger.info(
-                    "Election has timed out, transitioning to Follower of leader {}",
+                    "Election was not granted, transitioning to Follower of leader {}",
                     state.election().leaderId());
                 transitionToFollower(
                     quorum().epoch(),
@@ -3123,7 +3079,7 @@ public final class KafkaRaftClient<T> implements RaftClient<T> {
                     state.leaderEndpoints(),
                     currentTimeMs);
             } else {
-                logger.info("Election has timed out, transitioning to Unattached to attempt rediscovering leader");
+                logger.info("Election was not granted, transitioning to Unattached to attempt rediscovering leader");
                 transitionToUnattached(quorum().epoch());
             }
             return 0L;

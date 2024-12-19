@@ -17,6 +17,7 @@
 package org.apache.kafka.raft;
 
 import org.apache.kafka.common.Uuid;
+import org.apache.kafka.raft.internals.EpochElection;
 import org.junit.jupiter.api.Test;
 
 import java.util.Set;

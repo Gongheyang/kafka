@@ -39,7 +39,6 @@ import org.mockito.Mockito;
 
 import java.util.Collections;
 import java.util.Map;
-import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.OptionalLong;
 import java.util.Random;
@@ -212,7 +211,8 @@ public class KafkaRaftMetricsTest {
             assertEquals((double) 10L, getMetric(metrics, "high-watermark").metricValue());
         }
 
-        state.transitionToUnattached(3, Optional.of(ReplicaKey.of(2, ReplicaKey.NO_DIRECTORY_ID)));
+        state.transitionToUnattached(3);
+        state.unattachedAddVotedState(3, ReplicaKey.of(2, ReplicaKey.NO_DIRECTORY_ID));
         assertEquals("unattached-voted", getMetric(metrics, "current-state").metricValue());
         assertEquals((double) -1, getMetric(metrics, "current-leader").metricValue());
         assertEquals((double) 2, getMetric(metrics, "current-vote").metricValue());

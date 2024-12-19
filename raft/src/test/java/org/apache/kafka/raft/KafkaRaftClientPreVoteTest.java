@@ -772,12 +772,10 @@ public class KafkaRaftClientPreVoteTest {
         context.client.poll();
         assertEquals(epoch + 1, context.currentEpoch());
         context.client.quorum().isCandidate();
+        context.collectVoteRequests(epoch + 1, 0, 0);
 
         // Sleep to transition back to Prospective
         context.time.sleep(context.client.quorum().candidateStateOrThrow().remainingElectionTimeMs(context.time.milliseconds()));
-        context.client.poll();
-        context.time.sleep(context.client.quorum().candidateStateOrThrow().remainingBackoffMs(context.time.milliseconds()));
-        context.collectVoteRequests(epoch + 1, 0, 0);
         context.client.poll();
         assertEquals(epoch + 1, context.currentEpoch());
         assertTrue(context.client.quorum().isProspective());

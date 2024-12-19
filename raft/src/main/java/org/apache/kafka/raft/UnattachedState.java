@@ -71,13 +71,7 @@ public class UnattachedState implements EpochState {
 
     @Override
     public ElectionState election() {
-        if (votedKey.isPresent()) {
-            return ElectionState.withVotedCandidate(epoch, votedKey().get(), voters);
-        } else if (leaderId.isPresent()) {
-            return ElectionState.withElectedLeader(epoch, leaderId.getAsInt(), voters);
-        } else {
-            return ElectionState.withUnknownLeader(epoch, voters);
-        }
+        return new ElectionState(epoch, leaderId, votedKey, voters);
     }
 
     @Override

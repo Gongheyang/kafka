@@ -14,7 +14,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.kafka.raft;
+package org.apache.kafka.raft.internals;
+
+import org.apache.kafka.raft.ReplicaKey;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -23,10 +25,13 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+/**
+ *  Tracks the votes cast by voters in an election held by a Nominee.
+ */
 public class EpochElection {
     private Map<Integer, VoterState> voterStates;
 
-    EpochElection(Set<ReplicaKey> voters) {
+    public EpochElection(Set<ReplicaKey> voters) {
         this.voterStates = voters.stream()
             .collect(Collectors.toMap(
                 ReplicaKey::id,
@@ -34,15 +39,13 @@ public class EpochElection {
             ));
     }
 
-    VoterState getVoterStateOrThrow(int voterId) {
-        VoterState voterState = voterStates.get(voterId);
-        if (voterState == null) {
-            throw new IllegalArgumentException("Attempt to access voter state of non-voter " + voterId);
-        }
-        return voterState;
-    }
-
-    boolean recordVote(int voterId, boolean isGranted) {
+    /**
+     * Record a vote from a voter.
+     * @param voterId The id of the voter
+     * @param isGranted true if the vote is granted, false if it is rejected
+     * @return true if the voter had not been previously recorded
+     */
+    public boolean recordVote(int voterId, boolean isGranted) {
         boolean wasUnrecorded = false;
         VoterState voterState = getVoterStateOrThrow(voterId);
         if (voterState.state == VoterState.State.UNRECORDED) {
@@ -56,19 +59,35 @@ public class EpochElection {
         return wasUnrecorded;
     }
 
-    boolean isGrantedVoter(int voterId) {
+    /**
+     * Returns if a voter has granted the vote.
+     * @param voterId The id of the voter
+     * @throws IllegalArgumentException if the voter is not in the set of voters
+     */
+    public boolean isGrantedVoter(int voterId) {
         return getVoterStateOrThrow(voterId).state == VoterState.State.GRANTED;
     }
 
-    boolean isRejectedVoter(int voterId) {
+    /**
+     * Returns if a voter has rejected the vote.
+     * @param voterId The id of the voter
+     * @throws IllegalArgumentException if the voter is not in the set of voters
+     */
+    public boolean isRejectedVoter(int voterId) {
         return getVoterStateOrThrow(voterId).state == VoterState.State.REJECTED;
     }
 
-    Set<Integer> voterIds() {
+    /**
+     * The set of voter ids.
+     */
+    public Set<Integer> voterIds() {
         return Collections.unmodifiableSet(voterStates.keySet());
     }
 
-    Collection<VoterState> voterStates() {
+    /**
+     * Get the collection of voter states.
+     */
+    public Collection<VoterState> voterStates() {
         return Collections.unmodifiableCollection(voterStates.values());
     }
 
@@ -77,7 +96,7 @@ public class EpochElection {
      *
      * @return true if at least a majority of nodes have granted the vote
      */
-    boolean isVoteGranted() {
+    public boolean isVoteGranted() {
         return numGranted() >= majoritySize();
     }
 
@@ -87,7 +106,7 @@ public class EpochElection {
      *
      * @return true if the vote is rejected, false if the vote is already or can still be granted
      */
-    boolean isVoteRejected() {
+    public boolean isVoteRejected() {
         return numGranted() + numUnrecorded() < majoritySize();
     }
 
@@ -96,7 +115,7 @@ public class EpochElection {
      *
      * @return The set of unrecorded voters
      */
-    Set<ReplicaKey> unrecordedVoters() {
+    public Set<ReplicaKey> unrecordedVoters() {
         return votersOfState(VoterState.State.UNRECORDED).collect(Collectors.toSet());
     }
 
@@ -105,7 +124,7 @@ public class EpochElection {
      *
      * @return The set of granting voters, which should always contain the localId
      */
-    Set<Integer> grantingVoters() {
+    public Set<Integer> grantingVoters() {
         return votersOfState(VoterState.State.GRANTED).map(ReplicaKey::id).collect(Collectors.toSet());
     }
 
@@ -114,8 +133,16 @@ public class EpochElection {
      *
      * @return The set of rejecting voters
      */
-    Set<Integer> rejectingVoters() {
+    public Set<Integer> rejectingVoters() {
         return votersOfState(VoterState.State.REJECTED).map(ReplicaKey::id).collect(Collectors.toSet());
+    }
+
+    private VoterState getVoterStateOrThrow(int voterId) {
+        VoterState voterState = voterStates.get(voterId);
+        if (voterState == null) {
+            throw new IllegalArgumentException("Attempt to access voter state of non-voter " + voterId);
+        }
+        return voterState;
     }
 
     private Stream<ReplicaKey> votersOfState(VoterState.State state) {

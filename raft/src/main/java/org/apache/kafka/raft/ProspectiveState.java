@@ -19,6 +19,7 @@ package org.apache.kafka.raft;
 import org.apache.kafka.common.utils.LogContext;
 import org.apache.kafka.common.utils.Time;
 import org.apache.kafka.common.utils.Timer;
+import org.apache.kafka.raft.internals.EpochElection;
 import org.slf4j.Logger;
 
 import java.util.Optional;
@@ -92,7 +93,7 @@ public class ProspectiveState implements NomineeState {
     @Override
     public boolean recordRejectedVote(int remoteNodeId) {
         if (remoteNodeId == localId) {
-            throw new IllegalStateException("Attempted to reject vote from ourselves");
+            throw new IllegalArgumentException("Attempted to reject vote from ourselves");
         }
         return epochElection().recordVote(remoteNodeId, false);
     }
@@ -150,13 +151,7 @@ public class ProspectiveState implements NomineeState {
 
     @Override
     public ElectionState election() {
-        if (votedKey.isPresent()) {
-            return ElectionState.withVotedCandidate(epoch, votedKey().get(), voters.voterIds());
-        } else if (leaderId.isPresent()) {
-            return ElectionState.withElectedLeader(epoch, leaderId.getAsInt(), voters.voterIds());
-        } else {
-            return ElectionState.withUnknownLeader(epoch, voters.voterIds());
-        }
+        return new ElectionState(epoch, leaderId, votedKey, voters.voterIds());
     }
 
     @Override

@@ -51,7 +51,6 @@ public class CandidateStateTest {
                 epoch,
                 voters,
                 Optional.empty(),
-                0,
                 electionTimeoutMs,
                 logContext
         );

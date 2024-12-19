@@ -16,6 +16,8 @@
  */
 package org.apache.kafka.raft;
 
+import org.apache.kafka.raft.internals.EpochElection;
+
 interface NomineeState extends EpochState {
     EpochElection epochElection();
 
@@ -37,7 +39,16 @@ interface NomineeState extends EpochState {
      */
     boolean recordRejectedVote(int remoteNodeId);
 
+    /**
+     * Returns true if the election timeout has expired, false otherwise.
+     * @param currentTimeMs The current time in milliseconds
+     */
     boolean hasElectionTimeoutExpired(long currentTimeMs);
 
+    /**
+     * Returns the remaining time in milliseconds until the election timeout expires.
+     * @param currentTimeMs
+     * @return
+     */
     long remainingElectionTimeMs(long currentTimeMs);
 }

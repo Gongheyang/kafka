@@ -33,6 +33,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 
 public abstract class ApiMessageFormatter implements MessageFormatter {
 
+    private static final String TYPE = "type";
     private static final String VERSION = "version";
     private static final String DATA = "data";
     private static final String KEY = "key";
@@ -52,10 +53,10 @@ public abstract class ApiMessageFormatter implements MessageFormatter {
                 return;
             }
             json.putObject(KEY)
-                    .put(VERSION, keyVersion)
+                    .put(TYPE, keyVersion)
                     .set(DATA, dataNode);
         } else {
-            json.set(KEY, NullNode.getInstance());
+            return;
         }
 
         byte[] value = consumerRecord.value();

@@ -16,6 +16,7 @@
  */
 package org.apache.kafka.tools.consumer;
 
+import com.fasterxml.jackson.databind.node.NullNode;
 import org.apache.kafka.common.protocol.ByteBufferAccessor;
 import org.apache.kafka.coordinator.transaction.generated.TransactionLogKey;
 import org.apache.kafka.coordinator.transaction.generated.TransactionLogKeyJsonConverter;
@@ -34,7 +35,7 @@ public class TransactionLogMessageFormatter extends ApiMessageFormatter {
     protected JsonNode readToKeyJson(ByteBuffer byteBuffer, short version) {
         return readToTransactionLogKey(byteBuffer)
                 .map(logKey -> TransactionLogKeyJsonConverter.write(logKey, version))
-                .orElseGet(() -> new TextNode(UNKNOWN));
+                .orElseGet(NullNode::getInstance);
     }
 
     @Override
@@ -46,8 +47,7 @@ public class TransactionLogMessageFormatter extends ApiMessageFormatter {
 
     private Optional<TransactionLogKey> readToTransactionLogKey(ByteBuffer byteBuffer) {
         short version = byteBuffer.getShort();
-        if (version >= TransactionLogKey.LOWEST_SUPPORTED_VERSION
-                && version <= TransactionLogKey.HIGHEST_SUPPORTED_VERSION) {
+        if (version >= TransactionLogKey.LOWEST_SUPPORTED_VERSION && version <= TransactionLogKey.HIGHEST_SUPPORTED_VERSION) {
             return Optional.of(new TransactionLogKey(new ByteBufferAccessor(byteBuffer), version));
         } else {
             return Optional.empty();
@@ -56,8 +56,7 @@ public class TransactionLogMessageFormatter extends ApiMessageFormatter {
 
     private Optional<TransactionLogValue> readToTransactionLogValue(ByteBuffer byteBuffer) {
         short version = byteBuffer.getShort();
-        if (version >= TransactionLogValue.LOWEST_SUPPORTED_VERSION
-                && version <= TransactionLogValue.HIGHEST_SUPPORTED_VERSION) {
+        if (version >= TransactionLogValue.LOWEST_SUPPORTED_VERSION && version <= TransactionLogValue.HIGHEST_SUPPORTED_VERSION) {
             return Optional.of(new TransactionLogValue(new ByteBufferAccessor(byteBuffer), version));
         } else {
             return Optional.empty();

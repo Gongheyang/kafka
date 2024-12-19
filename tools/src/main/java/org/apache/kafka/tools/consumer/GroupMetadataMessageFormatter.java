@@ -37,7 +37,7 @@ public class GroupMetadataMessageFormatter extends ApiMessageFormatter {
     protected JsonNode readToKeyJson(ByteBuffer byteBuffer, short version) {
         return readToGroupMetadataKey(byteBuffer)
                 .map(logKey -> transferKeyMessageToJsonNode(logKey, version))
-                .orElseGet(() -> new TextNode(UNKNOWN));
+                .orElseGet(NullNode::getInstance);
     }
 
     @Override
@@ -49,10 +49,7 @@ public class GroupMetadataMessageFormatter extends ApiMessageFormatter {
 
     private Optional<ApiMessage> readToGroupMetadataKey(ByteBuffer byteBuffer) {
         short version = byteBuffer.getShort();
-        if (version >= OffsetCommitKey.LOWEST_SUPPORTED_VERSION
-                && version <= OffsetCommitKey.HIGHEST_SUPPORTED_VERSION) {
-            return Optional.of(new OffsetCommitKey(new ByteBufferAccessor(byteBuffer), version));
-        } else if (version >= GroupMetadataKey.LOWEST_SUPPORTED_VERSION && version <= GroupMetadataKey.HIGHEST_SUPPORTED_VERSION) {
+        if (version >= GroupMetadataKey.LOWEST_SUPPORTED_VERSION && version <= GroupMetadataKey.HIGHEST_SUPPORTED_VERSION) {
             return Optional.of(new GroupMetadataKey(new ByteBufferAccessor(byteBuffer), version));
         } else {
             return Optional.empty();
@@ -65,14 +62,13 @@ public class GroupMetadataMessageFormatter extends ApiMessageFormatter {
         } else if (message instanceof GroupMetadataKey) {
             return GroupMetadataKeyJsonConverter.write((GroupMetadataKey) message, version);
         } else {
-            return new TextNode(UNKNOWN);
+            return NullNode.getInstance();
         }
     }
 
     private Optional<GroupMetadataValue> readToGroupMetadataValue(ByteBuffer byteBuffer) {
         short version = byteBuffer.getShort();
-        if (version >= GroupMetadataValue.LOWEST_SUPPORTED_VERSION
-                && version <= GroupMetadataValue.HIGHEST_SUPPORTED_VERSION) {
+        if (version >= GroupMetadataValue.LOWEST_SUPPORTED_VERSION && version <= GroupMetadataValue.HIGHEST_SUPPORTED_VERSION) {
             return Optional.of(new GroupMetadataValue(new ByteBufferAccessor(byteBuffer), version));
         } else {
             return Optional.empty();

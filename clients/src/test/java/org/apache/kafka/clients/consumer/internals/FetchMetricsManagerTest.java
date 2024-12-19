@@ -129,7 +129,7 @@ public class FetchMetricsManagerTest {
         // 4 new metrics shall be registered.
         assertEquals(4, metrics.metrics().size() - initialMetricsSize);
         metricsManager.recordBytesFetched(topicName2, 1);
-        // Another 8 metrics gets registered as deprecated metrics should be reported for topicName2.
+        // Another 8 metrics get registered as deprecated metrics should be reported for topicName2.
         assertEquals(12, metrics.metrics().size() - initialMetricsSize);
 
         time.sleep(metrics.config().timeWindowMs() + 1);
@@ -177,7 +177,7 @@ public class FetchMetricsManagerTest {
         // 3 new metrics shall be registered.
         assertEquals(3, metrics.metrics().size() - initialMetricsSize);
         metricsManager.recordRecordsFetched(topicName2, 1);
-        // Another 6 metrics gets registered as deprecated metrics should be reported for topicName2.
+        // Another 6 metrics get registered as deprecated metrics should be reported for topicName2.
         assertEquals(9, metrics.metrics().size() - initialMetricsSize);
 
         time.sleep(metrics.config().timeWindowMs() + 1);
@@ -227,7 +227,7 @@ public class FetchMetricsManagerTest {
         assertEquals(9, metricValue(metricsRegistry.partitionRecordsLagAvg, tags1), EPSILON);
 
         metricsManager.recordPartitionLag(tp2, 7);
-        // Another 6 metrics gets registered as deprecated metrics should be reported for tp2.
+        // Another 6 metrics get registered as deprecated metrics should be reported for tp2.
         assertEquals(9, metrics.metrics().size() - initialMetricsSize);
         metricsManager.recordPartitionLag(tp2, 3);
         time.sleep(metrics.config().timeWindowMs() + 1);
@@ -273,7 +273,7 @@ public class FetchMetricsManagerTest {
         assertEquals(13, metricValue(metricsRegistry.partitionRecordsLeadAvg, tags1), EPSILON);
 
         metricsManager.recordPartitionLead(tp2, 18);
-        // Another 6 metrics gets registered as deprecated metrics should be reported for tp2.
+        // Another 6 metrics get registered as deprecated metrics should be reported for tp2.
         assertEquals(9, metrics.metrics().size() - initialMetricsSize);
 
         metricsManager.recordPartitionLead(tp2, 12);
@@ -310,7 +310,7 @@ public class FetchMetricsManagerTest {
         subscriptionState.assignFromUser(Set.of(tp1, tp2));
         subscriptionState.updatePreferredReadReplica(tp2, 1, () -> 0L);
         metricsManager.maybeUpdateAssignment(subscriptionState);
-        // Another 2 metrics gets registered as deprecated metrics should be reported for tp2.
+        // Another 2 metrics get registered as deprecated metrics should be reported for tp2.
         assertEquals(3, metrics.metrics().size() - initialMetricsSize);
 
         Map<String, String> tags1 = Map.of("topic", tp1.topic(), "partition", String.valueOf(tp1.partition()));
@@ -358,12 +358,13 @@ public class FetchMetricsManagerTest {
         // 5 new metrics shall be registered.
         assertEquals(5, metrics.metrics().size() - additionalRegisteredMetricsSize);
 
-        // Remove 1 topic which has deprecated metrics as well.
+        // Remove 1 partition which has deprecated metrics as well.
         subscriptionState.assignFromUser(Set.of(tp1, tp2));
         metricsManager.maybeUpdateAssignment(subscriptionState);
         // For tp2, 14 metrics will be unregistered. 3 for partition lag, 3 for partition lead, 1 for
-        // preferred read replica and similarly 7 deprecated metrics.
-        assertEquals(-9, metrics.metrics().size() - additionalRegisteredMetricsSize);
+        // preferred read replica and similarly 7 deprecated metrics. Hence, we should have 9 metrics
+        // removed from additionalRegisteredMetricsSize.
+        assertEquals(9, additionalRegisteredMetricsSize - metrics.metrics().size());
 
         // Remove all partitions.
         subscriptionState.assignFromUser(Set.of());

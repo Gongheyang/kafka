@@ -33,6 +33,7 @@ import java.util.Set;
  * It keeps an internal ID of the assigned set of partitions which is updated to ensure the set of metrics it
  * records matches up with the topic-partitions in use.
  */
+@SuppressWarnings("deprecation")
 public class FetchMetricsManager {
 
     private final Metrics metrics;
@@ -173,7 +174,7 @@ public class FetchMetricsManager {
                     // Remove deprecated metrics.
                     metrics.removeSensor(deprecatedMetricName(partitionRecordsLagMetricName(tp)));
                     metrics.removeSensor(deprecatedMetricName(partitionRecordsLeadMetricName(tp)));
-                    metrics.removeMetric(partitionPreferredReadReplicaMetricNameDeprecated(tp));
+                    metrics.removeMetric(deprecatedPartitionPreferredReadReplicaMetricName(tp));
                 }
             }
 
@@ -198,56 +199,56 @@ public class FetchMetricsManager {
     @Deprecated // To be removed in Kafka 5.0 release.
     private void maybeRecordDeprecatedBytesFetched(String name, String topic, int bytes) {
         if (shouldReportDeprecatedMetric(topic)) {
-            Sensor bytesFetchedDeprecated = new SensorBuilder(metrics, deprecatedMetricName(name), () -> topicTags(topic))
+            Sensor deprecatedBytesFetched = new SensorBuilder(metrics, deprecatedMetricName(name), () -> topicTags(topic))
                 .withAvg(metricsRegistry.topicFetchSizeAvg)
                 .withMax(metricsRegistry.topicFetchSizeMax)
                 .withMeter(metricsRegistry.topicBytesConsumedRate, metricsRegistry.topicBytesConsumedTotal)
                 .build();
-            bytesFetchedDeprecated.record(bytes);
+            deprecatedBytesFetched.record(bytes);
         }
     }
 
     @Deprecated // To be removed in Kafka 5.0 release.
     private void maybeRecordDeprecatedRecordsFetched(String name, String topic, int records) {
         if (shouldReportDeprecatedMetric(topic)) {
-            Sensor recordsFetchedDeprecated = new SensorBuilder(metrics, deprecatedMetricName(name), () -> topicTags(topic))
+            Sensor deprecatedRecordsFetched = new SensorBuilder(metrics, deprecatedMetricName(name), () -> topicTags(topic))
                 .withAvg(metricsRegistry.topicRecordsPerRequestAvg)
                 .withMeter(metricsRegistry.topicRecordsConsumedRate, metricsRegistry.topicRecordsConsumedTotal)
                 .build();
-            recordsFetchedDeprecated.record(records);
+            deprecatedRecordsFetched.record(records);
         }
     }
 
     @Deprecated // To be removed in Kafka 5.0 release.
     private void maybeRecordDeprecatedPartitionLag(String name, TopicPartition tp, long lag) {
         if (shouldReportDeprecatedMetric(tp.topic())) {
-            Sensor recordsLagDeprecated = new SensorBuilder(metrics, deprecatedMetricName(name), () -> topicPartitionTags(tp))
+            Sensor deprecatedRecordsLag = new SensorBuilder(metrics, deprecatedMetricName(name), () -> topicPartitionTags(tp))
                 .withValue(metricsRegistry.partitionRecordsLag)
                 .withMax(metricsRegistry.partitionRecordsLagMax)
                 .withAvg(metricsRegistry.partitionRecordsLagAvg)
                 .build();
 
-            recordsLagDeprecated.record(lag);
+            deprecatedRecordsLag.record(lag);
         }
     }
 
     @Deprecated // To be removed in Kafka 5.0 release.
     private void maybeRecordDeprecatedPartitionLead(String name, TopicPartition tp, double lead) {
         if (shouldReportDeprecatedMetric(tp.topic())) {
-            Sensor recordsLeadDeprecated = new SensorBuilder(metrics, deprecatedMetricName(name), () -> topicPartitionTags(tp))
+            Sensor deprecatedRecordsLead = new SensorBuilder(metrics, deprecatedMetricName(name), () -> topicPartitionTags(tp))
                 .withValue(metricsRegistry.partitionRecordsLead)
                 .withMin(metricsRegistry.partitionRecordsLeadMin)
                 .withAvg(metricsRegistry.partitionRecordsLeadAvg)
                 .build();
 
-            recordsLeadDeprecated.record(lead);
+            deprecatedRecordsLead.record(lead);
         }
     }
 
     @Deprecated // To be removed in Kafka 5.0 release.
     private void maybeRecordDeprecatedPreferredReadReplica(TopicPartition tp, SubscriptionState subscription) {
         if (shouldReportDeprecatedMetric(tp.topic())) {
-            MetricName metricName = partitionPreferredReadReplicaMetricNameDeprecated(tp);
+            MetricName metricName = deprecatedPartitionPreferredReadReplicaMetricName(tp);
             metrics.addMetricIfAbsent(
                 metricName,
                 null,
@@ -286,7 +287,7 @@ public class FetchMetricsManager {
     }
 
     @Deprecated
-    private MetricName partitionPreferredReadReplicaMetricNameDeprecated(TopicPartition tp) {
+    private MetricName deprecatedPartitionPreferredReadReplicaMetricName(TopicPartition tp) {
         Map<String, String> metricTags = topicPartitionTags(tp);
         return this.metrics.metricInstance(metricsRegistry.partitionPreferredReadReplica, metricTags);
     }

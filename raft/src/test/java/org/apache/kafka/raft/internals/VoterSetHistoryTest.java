@@ -160,8 +160,8 @@ public final class VoterSetHistoryTest {
 
         // Remove voter so that it doesn't overlap
         VoterSet nonoverlappingRemovedSet = staticVoterSet
-                .removeVoter(voterMap.get(1).voterKey()).get()
-                .removeVoter(voterMap.get(2).voterKey()).get();
+            .removeVoter(voterMap.get(1).voterKey()).get()
+            .removeVoter(voterMap.get(2).voterKey()).get();
 
         votersHistory.addAt(100, nonoverlappingRemovedSet);
         assertEquals(nonoverlappingRemovedSet, votersHistory.lastValue());

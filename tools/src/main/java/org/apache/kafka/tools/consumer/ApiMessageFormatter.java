@@ -47,7 +47,7 @@ public abstract class ApiMessageFormatter implements MessageFormatter {
         byte[] key = consumerRecord.key();
         if (Objects.nonNull(key)) {
             short keyVersion = ByteBuffer.wrap(key).getShort();
-            JsonNode dataNode = readToKeyJson(ByteBuffer.wrap(key), keyVersion);
+            JsonNode dataNode = readToKeyJson(ByteBuffer.wrap(key));
 
             if (dataNode instanceof NullNode) {
                 return;
@@ -62,7 +62,7 @@ public abstract class ApiMessageFormatter implements MessageFormatter {
         byte[] value = consumerRecord.value();
         if (Objects.nonNull(value)) {
             short valueVersion = ByteBuffer.wrap(value).getShort();
-            JsonNode dataNode = readToValueJson(ByteBuffer.wrap(value), valueVersion);
+            JsonNode dataNode = readToValueJson(ByteBuffer.wrap(value));
 
             json.putObject(VALUE)
                     .put(VERSION, valueVersion)
@@ -78,6 +78,6 @@ public abstract class ApiMessageFormatter implements MessageFormatter {
         }
     }
 
-    protected abstract JsonNode readToKeyJson(ByteBuffer byteBuffer, short version);
-    protected abstract JsonNode readToValueJson(ByteBuffer byteBuffer, short version);
+    protected abstract JsonNode readToKeyJson(ByteBuffer byteBuffer);
+    protected abstract JsonNode readToValueJson(ByteBuffer byteBuffer);
 }  

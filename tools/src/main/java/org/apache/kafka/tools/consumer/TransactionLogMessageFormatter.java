@@ -27,39 +27,23 @@ import com.fasterxml.jackson.databind.node.NullNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 
 import java.nio.ByteBuffer;
-import java.util.Optional;
 
 public class TransactionLogMessageFormatter extends ApiMessageFormatter {
-
     @Override
-    protected JsonNode readToKeyJson(ByteBuffer byteBuffer, short version) {
-        return readToTransactionLogKey(byteBuffer)
-                .map(logKey -> TransactionLogKeyJsonConverter.write(logKey, version))
-                .orElseGet(NullNode::getInstance);
-    }
-
-    @Override
-    protected JsonNode readToValueJson(ByteBuffer byteBuffer, short version) {
-        return readToTransactionLogValue(byteBuffer)
-                .map(logValue -> TransactionLogValueJsonConverter.write(logValue, version))
-                .orElseGet(() -> new TextNode(UNKNOWN));
-    }
-
-    private Optional<TransactionLogKey> readToTransactionLogKey(ByteBuffer byteBuffer) {
+    protected JsonNode readToKeyJson(ByteBuffer byteBuffer) {
         short version = byteBuffer.getShort();
         if (version >= TransactionLogKey.LOWEST_SUPPORTED_VERSION && version <= TransactionLogKey.HIGHEST_SUPPORTED_VERSION) {
-            return Optional.of(new TransactionLogKey(new ByteBufferAccessor(byteBuffer), version));
-        } else {
-            return Optional.empty();
+            return TransactionLogKeyJsonConverter.write(new TransactionLogKey(new ByteBufferAccessor(byteBuffer), version), version);
         }
+        return NullNode.getInstance();
     }
 
-    private Optional<TransactionLogValue> readToTransactionLogValue(ByteBuffer byteBuffer) {
+    @Override
+    protected JsonNode readToValueJson(ByteBuffer byteBuffer) {
         short version = byteBuffer.getShort();
         if (version >= TransactionLogValue.LOWEST_SUPPORTED_VERSION && version <= TransactionLogValue.HIGHEST_SUPPORTED_VERSION) {
-            return Optional.of(new TransactionLogValue(new ByteBufferAccessor(byteBuffer), version));
-        } else {
-            return Optional.empty();
+            return TransactionLogValueJsonConverter.write(new TransactionLogValue(new ByteBufferAccessor(byteBuffer), version), version);
         }
+        return new TextNode(UNKNOWN);
     }
 }

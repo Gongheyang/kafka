@@ -16,7 +16,6 @@
  */
 package org.apache.kafka.tools.consumer;
 
-import com.fasterxml.jackson.databind.node.TextNode;
 import org.apache.kafka.common.protocol.ByteBufferAccessor;
 import org.apache.kafka.coordinator.group.generated.GroupMetadataKey;
 import org.apache.kafka.coordinator.group.generated.GroupMetadataKeyJsonConverter;
@@ -25,6 +24,7 @@ import org.apache.kafka.coordinator.group.generated.GroupMetadataValueJsonConver
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.NullNode;
+import com.fasterxml.jackson.databind.node.TextNode;
 
 import java.nio.ByteBuffer;
 

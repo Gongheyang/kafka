@@ -2376,28 +2376,41 @@ class KafkaApis(val requestChannel: RequestChannel,
       trace(s"End transaction marker append for producer id $producerId completed with status: $currentErrors")
       updateErrors(producerId, currentErrors)
 
-      if (!groupCoordinator.isNewGroupCoordinator) {
-        val successfulOffsetsPartitions = currentErrors.asScala.filter { case (topicPartition, error) =>
-          topicPartition.topic == GROUP_METADATA_TOPIC_NAME && error == Errors.NONE
-        }.keys
-
-        if (successfulOffsetsPartitions.nonEmpty) {
-          // as soon as the end transaction marker has been written for a transactional offset commit,
-          // call to the group coordinator to materialize the offsets into the cache
-          try {
-            groupCoordinator.onTransactionCompleted(producerId, successfulOffsetsPartitions.asJava, result)
-          } catch {
-            case e: Exception =>
-              error(s"Received an exception while trying to update the offsets cache on transaction marker append", e)
-              val updatedErrors = new ConcurrentHashMap[TopicPartition, Errors]()
-              successfulOffsetsPartitions.foreach(updatedErrors.put(_, Errors.UNKNOWN_SERVER_ERROR))
-              updateErrors(producerId, updatedErrors)
-          }
+      def maybeSendResponse(): Unit = {
+        if (numAppends.decrementAndGet() == 0) {
+          requestHelper.sendResponseExemptThrottle(request, new WriteTxnMarkersResponse(errors))
         }
       }
 
-      if (numAppends.decrementAndGet() == 0)
-        requestHelper.sendResponseExemptThrottle(request, new WriteTxnMarkersResponse(errors))
+      // The new group coordinator uses GroupCoordinator#completeTransaction so we do
+      // not need to call GroupCoordinator#onTransactionCompleted here.
+      if (config.isNewGroupCoordinatorEnabled) {
+        maybeSendResponse()
+        return
+      }
+
+      val successfulOffsetsPartitions = currentErrors.asScala.filter { case (topicPartition, error) =>
+        topicPartition.topic == GROUP_METADATA_TOPIC_NAME && error == Errors.NONE
+      }.keys
+
+      // If no end transaction marker has been written to a __consumer_offsets partition, we do not
+      // need to call GroupCoordinator#onTransactionCompleted.
+      if (successfulOffsetsPartitions.isEmpty) {
+        maybeSendResponse()
+        return
+      }
+
+      // Otherwise, we call GroupCoordinator#onTransactionCompleted to materialize the offsets
+      // into the cache and we wait until the meterialization is completed.
+      groupCoordinator.onTransactionCompleted(producerId, successfulOffsetsPartitions.asJava, result).whenComplete { (_, exception) =>
+        if (exception != null) {
+          error(s"Received an exception while trying to update the offsets cache on transaction marker append", exception)
+          val updatedErrors = new ConcurrentHashMap[TopicPartition, Errors]()
+          successfulOffsetsPartitions.foreach(updatedErrors.put(_, Errors.UNKNOWN_SERVER_ERROR))
+          updateErrors(producerId, updatedErrors)
+        }
+        maybeSendResponse()
+      }
     }
 
     // TODO: The current append API makes doing separate writes per producerId a little easier, but it would
@@ -3160,7 +3173,7 @@ class KafkaApis(val requestChannel: RequestChannel,
       new KafkaPrincipal(entry.principalType, entry.principalName))
 
     // DelegationToken changes only need to be executed on the controller during migration
-    if (config.migrationEnabled && (!zkSupport.controller.isActive)) {
+    if (!zkSupport.controller.isActive) {
       requestHelper.sendResponseMaybeThrottle(request, requestThrottleMs =>
         CreateDelegationTokenResponse.prepareResponse(request.context.requestVersion, requestThrottleMs,
           Errors.NOT_CONTROLLER, owner, requester))
@@ -3204,7 +3217,7 @@ class KafkaApis(val requestChannel: RequestChannel,
                .setExpiryTimestampMs(expiryTimestamp)))
     }
     // DelegationToken changes only need to be executed on the controller during migration
-    if (config.migrationEnabled && (!zkSupport.controller.isActive)) {
+    if (!zkSupport.controller.isActive) {
       requestHelper.sendResponseMaybeThrottle(request, requestThrottleMs =>
         new RenewDelegationTokenResponse(
           new RenewDelegationTokenResponseData()
@@ -3250,7 +3263,7 @@ class KafkaApis(val requestChannel: RequestChannel,
               .setExpiryTimestampMs(expiryTimestamp)))
     }
     // DelegationToken changes only need to be executed on the controller during migration
-    if (config.migrationEnabled && (!zkSupport.controller.isActive)) {
+    if (!zkSupport.controller.isActive) {
       requestHelper.sendResponseMaybeThrottle(request, requestThrottleMs =>
         new ExpireDelegationTokenResponse(
           new ExpireDelegationTokenResponseData()
@@ -3617,12 +3630,16 @@ class KafkaApis(val requestChannel: RequestChannel,
       clusterId,
       () => {
         val brokers = new DescribeClusterResponseData.DescribeClusterBrokerCollection()
-        metadataCache.getAliveBrokerNodes(request.context.listenerName).foreach { node =>
+        val describeClusterRequest = request.body[DescribeClusterRequest]
+        metadataCache.getBrokerNodes(request.context.listenerName).foreach { node =>
+          if (!node.isFenced || describeClusterRequest.data().includeFencedBrokers()) {
           brokers.add(new DescribeClusterResponseData.DescribeClusterBroker().
             setBrokerId(node.id).
             setHost(node.host).
             setPort(node.port).
-            setRack(node.rack))
+            setRack(node.rack).
+            setIsFenced(node.isFenced))
+          }
         }
         brokers
       },

@@ -44,6 +44,15 @@
                         <li>The <code>kafka.common.requests.DescribeLogDirsResponse.ReplicaInfo</code> class was removed. Please use the <code>kafka.clients.admin.DescribeLogDirsResult.descriptions()</code> class
                             and <code>kafka.clients.admin.DescribeLogDirsResult.allDescriptions()</code>instead.
                         </li>
+                        <li>The <code>org.apache.kafka.common.security.oauthbearer.secured.OAuthBearerLoginCallbackHandler</code> class was removed.
+                            Please use the <code>org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginCallbackHandler</code> class instead.
+                        </li>
+                        <li>The <code>org.apache.kafka.common.security.oauthbearer.secured.OAuthBearerValidatorCallbackHandler</code> class was removed.
+                            Please use the <code>org.apache.kafka.common.security.oauthbearer.OAuthBearerValidatorCallbackHandler</code> class instead.
+                        </li>
+                        <li>The <code>org.apache.kafka.common.errors.NotLeaderForPartitionException</code> class was removed. The <code>org.apache.kafka.common.errors.NotLeaderOrFollowerException</code> is returned
+                            if a request could not be processed because the broker is not the leader or follower for a topic partition.
+                        </li>
                     </ul>
                 </li>
                 <li><b>Broker</b>
@@ -58,6 +67,20 @@
                         <li>The <code>log.message.timestamp.difference.max.ms</code> configuration was removed.
                             Please use <code>log.message.timestamp.before.max.ms</code> and <code>log.message.timestamp.after.max.ms</code> instead.
                             See <a href="https://cwiki.apache.org/confluence/display/KAFKA/KIP-937%3A+Improve+Message+Timestamp+Validation">KIP-937</a> for details.
+                        </li>
+                        <li>
+                            The <code>remote.log.manager.copier.thread.pool.size</code> configuration default value was changed to 10 from -1.
+                            Values of -1 are no longer valid. A minimum of 1 or higher is valid.
+                            See <a href="https://cwiki.apache.org/confluence/display/KAFKA/KIP-1030%3A+Change+constraints+and+default+values+for+various+configurations">KIP-1030</a> 
+                        </li>
+                        <li>
+                            The <code>remote.log.manager.expiration.thread.pool.size</code> configuration default value was changed to 10 from -1.
+                            Values of -1 are no longer valid. A minimum of 1 or higher is valid.
+                            See <a href="https://cwiki.apache.org/confluence/display/KAFKA/KIP-1030%3A+Change+constraints+and+default+values+for+various+configurations">KIP-1030</a> 
+                        </li>
+                        <li>
+                            The <code>remote.log.manager.thread.pool.size</code> configuration default value was changed to 2 from 10.
+                            See <a href="https://cwiki.apache.org/confluence/display/KAFKA/KIP-1030%3A+Change+constraints+and+default+values+for+various+configurations">KIP-1030</a> 
                         </li>
                     </ul>
                 </li>
@@ -142,6 +165,8 @@
                         <li>The <code>onPartitionsRevoked(Collection&lt;TopicPartition&gt;)</code> and <code>onPartitionsAssigned(Collection&lt;TopicPartition&gt;)</code> methods
                             were removed from <code>SinkTask</code>.
                         </li>
+                        <li>The <code>commitRecord(SourceRecord)</code> method was removed from <code>SourceTask</code>.
+                        </li>
                     </ul>
                 </li>
                 <li><b>Consumer</b>
@@ -175,6 +200,9 @@
                         <li>The <code>Admin.describeConsumerGroups</code> method used to return a <code>ConsumerGroupDescription</code> in state
                             <code>DEAD</code> if the group ID was not found. In Apache Kafka 4.0, the <code>GroupIdNotFoundException</code>
                             is thrown instead as part of the support for new types of group.
+                        </li>
+                        <li>The <code>org.apache.kafka.clients.admin.TopicListing.TopicListing(String, boolean)</code> method were removed.
+                            Please use <code>org.apache.kafka.clients.admin.TopicListing.TopicListing(String, Uuid, boolean)</code> instead.
                         </li>
                     </ul>
                 </li>

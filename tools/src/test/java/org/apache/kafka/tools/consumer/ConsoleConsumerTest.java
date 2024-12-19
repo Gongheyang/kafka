@@ -21,9 +21,9 @@ import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
+import org.apache.kafka.clients.consumer.GroupProtocol;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.consumer.MockConsumer;
-import org.apache.kafka.clients.consumer.RangeAssignor;
 import org.apache.kafka.clients.consumer.internals.AutoOffsetResetStrategy;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.Producer;
@@ -37,7 +37,12 @@ import org.apache.kafka.common.serialization.ByteArraySerializer;
 import org.apache.kafka.common.test.api.ClusterInstance;
 import org.apache.kafka.common.test.api.ClusterTest;
 import org.apache.kafka.common.test.api.ClusterTestExtensions;
+import org.apache.kafka.common.test.api.Type;
 import org.apache.kafka.common.utils.Time;
+import org.apache.kafka.coordinator.group.generated.ConsumerGroupMemberMetadataKey;
+import org.apache.kafka.coordinator.group.generated.ConsumerGroupMemberMetadataKeyJsonConverter;
+import org.apache.kafka.coordinator.group.generated.ConsumerGroupMemberMetadataValue;
+import org.apache.kafka.coordinator.group.generated.ConsumerGroupMemberMetadataValueJsonConverter;
 import org.apache.kafka.coordinator.group.generated.GroupMetadataKey;
 import org.apache.kafka.coordinator.group.generated.GroupMetadataKeyJsonConverter;
 import org.apache.kafka.coordinator.group.generated.GroupMetadataValue;
@@ -66,6 +71,7 @@ import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.regex.Pattern;
@@ -75,9 +81,9 @@ import static org.apache.kafka.clients.CommonClientConfigs.BOOTSTRAP_SERVERS_CON
 import static org.apache.kafka.clients.consumer.ConsumerConfig.AUTO_OFFSET_RESET_CONFIG;
 import static org.apache.kafka.clients.consumer.ConsumerConfig.EXCLUDE_INTERNAL_TOPICS_CONFIG;
 import static org.apache.kafka.clients.consumer.ConsumerConfig.GROUP_ID_CONFIG;
+import static org.apache.kafka.clients.consumer.ConsumerConfig.GROUP_PROTOCOL_CONFIG;
 import static org.apache.kafka.clients.consumer.ConsumerConfig.ISOLATION_LEVEL_CONFIG;
 import static org.apache.kafka.clients.consumer.ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG;
-import static org.apache.kafka.clients.consumer.ConsumerConfig.PARTITION_ASSIGNMENT_STRATEGY_CONFIG;
 import static org.apache.kafka.clients.consumer.ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG;
 import static org.apache.kafka.clients.producer.ProducerConfig.ACKS_CONFIG;
 import static org.apache.kafka.clients.producer.ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG;
@@ -374,8 +380,8 @@ public class ConsoleConsumerTest {
         }
     }
 
-    @ClusterTest(brokers = 3)
-    public void testGroupMetadataMessageFormatter(ClusterInstance cluster) throws Exception {
+    @ClusterTest(types = {Type.CO_KRAFT}, brokers = 3)
+    public void testGroupMetadataMessageFormatterWithClassicProtocol(ClusterInstance cluster) throws Exception {
         try (Admin admin = cluster.admin()) {
 
             NewTopic newTopic = new NewTopic(topic, 1, (short) 1);
@@ -387,8 +393,8 @@ public class ConsoleConsumerTest {
                     "org.apache.kafka.tools.consumer.GroupMetadataMessageFormatter");
 
             ConsoleConsumerOptions options = new ConsoleConsumerOptions(groupMetadataMessageFormatter);
-            ConsoleConsumer.ConsumerWrapper consumerWrapper = 
-                    new ConsoleConsumer.ConsumerWrapper(options, createGroupMetaDataConsumer(cluster));
+            ConsoleConsumer.ConsumerWrapper consumerWrapper =
+                new ConsoleConsumer.ConsumerWrapper(options, createGroupMetaDataConsumer(cluster, GroupProtocol.CLASSIC));
 
             try (ByteArrayOutputStream out = new ByteArrayOutputStream();
                  PrintStream output = new PrintStream(out)) {
@@ -412,6 +418,46 @@ public class ConsoleConsumerTest {
                 assertNull(groupMetadataValue.protocol());
                 assertNull(groupMetadataValue.leader());
                 assertEquals(0, groupMetadataValue.members().size());
+            } finally {
+                consumerWrapper.cleanup();
+            }
+        }
+    }
+
+    @ClusterTest(types = {Type.CO_KRAFT}, brokers = 3)
+    public void testGroupMetadataMessageFormatterWithConsumerProtocol(ClusterInstance cluster) throws Exception {
+        try (Admin admin = cluster.admin()) {
+
+            NewTopic newTopic = new NewTopic(topic, 1, (short) 1);
+            admin.createTopics(singleton(newTopic));
+            produceMessages(cluster);
+
+            String[] groupMetadataMessageFormatter = createConsoleConsumerArgs(cluster,
+                Topic.GROUP_METADATA_TOPIC_NAME,
+                "org.apache.kafka.tools.consumer.GroupMetadataMessageFormatter");
+
+            ConsoleConsumerOptions options = new ConsoleConsumerOptions(groupMetadataMessageFormatter);
+            ConsoleConsumer.ConsumerWrapper consumerWrapper =
+                new ConsoleConsumer.ConsumerWrapper(options, createGroupMetaDataConsumer(cluster, GroupProtocol.CONSUMER));
+
+            try (ByteArrayOutputStream out = new ByteArrayOutputStream();
+                 PrintStream output = new PrintStream(out)) {
+                ConsoleConsumer.process(1, options.formatter(), consumerWrapper, output, true);
+
+                JsonNode jsonNode = objectMapper.reader().readTree(out.toByteArray());
+
+                // The group coordinator writes an empty group metadata record when the group is created for the first time
+                JsonNode keyNode = jsonNode.get("key");
+                ConsumerGroupMemberMetadataKey memberMetadataKey =
+                    ConsumerGroupMemberMetadataKeyJsonConverter.read(keyNode.get("data"), ConsumerGroupMemberMetadataKey.HIGHEST_SUPPORTED_VERSION);
+                assertNotNull(memberMetadataKey);
+                assertEquals(groupId, memberMetadataKey.groupId());
+
+                JsonNode valueNode = jsonNode.get("value");
+                ConsumerGroupMemberMetadataValue memberMetadataValue =
+                    ConsumerGroupMemberMetadataValueJsonConverter.read(valueNode.get("data"), ConsumerGroupMemberMetadataValue.HIGHEST_SUPPORTED_VERSION);
+                assertNotNull(memberMetadataValue);
+                assertEquals(List.of(Topic.GROUP_METADATA_TOPIC_NAME), memberMetadataValue.subscribedTopicNames());
             } finally {
                 consumerWrapper.cleanup();
             }
@@ -462,9 +508,10 @@ public class ConsoleConsumerTest {
         return new KafkaConsumer<>(props);
     }
 
-    private Consumer<byte[], byte[]> createGroupMetaDataConsumer(ClusterInstance cluster) {
+    private Consumer<byte[], byte[]> createGroupMetaDataConsumer(ClusterInstance cluster, GroupProtocol groupProtocol) {
         Properties props = consumerProps(cluster);
         props.put(AUTO_OFFSET_RESET_CONFIG, "earliest");
+        props.put(GROUP_PROTOCOL_CONFIG, groupProtocol.name());
         return new KafkaConsumer<>(props);
     }
     
@@ -481,7 +528,6 @@ public class ConsoleConsumerTest {
         props.put(BOOTSTRAP_SERVERS_CONFIG, cluster.bootstrapServers());
         props.put(KEY_DESERIALIZER_CLASS_CONFIG, ByteArrayDeserializer.class.getName());
         props.put(VALUE_DESERIALIZER_CLASS_CONFIG, ByteArrayDeserializer.class.getName());
-        props.put(PARTITION_ASSIGNMENT_STRATEGY_CONFIG, RangeAssignor.class.getName());
         props.put(GROUP_ID_CONFIG, groupId);
         return props;
     }

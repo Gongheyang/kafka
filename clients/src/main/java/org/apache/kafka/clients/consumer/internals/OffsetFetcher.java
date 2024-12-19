@@ -45,6 +45,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -141,7 +142,7 @@ public class OffsetFetcher {
         if (timestampsToSearch.isEmpty())
             return result;
 
-        Map<TopicPartition, Long> remainingToSearch = new HashMap<>(timestampsToSearch);
+        Map<TopicPartition, Long> remainingToSearch = new ConcurrentHashMap<>(timestampsToSearch);
         do {
             RequestFuture<ListOffsetResult> future = sendListOffsetsRequests(remainingToSearch, requireTimestamps);
 

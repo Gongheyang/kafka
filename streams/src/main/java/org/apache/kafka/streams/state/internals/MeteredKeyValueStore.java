@@ -128,7 +128,7 @@ public class MeteredKeyValueStore<K, V>
     @Override
     public void init(final StateStoreContext stateStoreContext,
                      final StateStore root) {
-        internalContext = asInternalProcessorContext(stateStoreContext);
+        internalContext = stateStoreContext instanceof InternalProcessorContext ? (InternalProcessorContext<?, ?>) stateStoreContext : null;
         taskId = stateStoreContext.taskId();
         initStoreSerde(stateStoreContext);
         streamsMetrics = (StreamsMetricsImpl) stateStoreContext.metrics();

@@ -18,6 +18,7 @@ package org.apache.kafka.coordinator.group.streams.topics;
 
 import org.apache.kafka.common.message.CreateTopicsRequestData.CreatableTopic;
 import org.apache.kafka.common.message.StreamsGroupDescribeResponseData;
+
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 

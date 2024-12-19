@@ -17,6 +17,7 @@
 package org.apache.kafka.coordinator.group.streams.topics;
 
 import org.apache.kafka.common.requests.StreamsGroupHeartbeatResponse.Status;
+
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;

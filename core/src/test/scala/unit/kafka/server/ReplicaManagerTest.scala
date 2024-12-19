@@ -1387,13 +1387,6 @@ class ReplicaManagerTest {
     verifyBecomeFollowerWhenLeaderIsUnchangedButMissedLeaderUpdate(new Properties, expectTruncation = false)
   }
 
-  @Test
-  def testBecomeFollowerWhenLeaderIsUnchangedButMissedLeaderUpdateIbp26(): Unit = {
-    val extraProps = new Properties
-    extraProps.put(ReplicationConfigs.INTER_BROKER_PROTOCOL_VERSION_CONFIG, IBP_2_6_IV0.version)
-    verifyBecomeFollowerWhenLeaderIsUnchangedButMissedLeaderUpdate(extraProps, expectTruncation = true)
-  }
-
   /**
    * If a partition becomes a follower and the leader is unchanged it should check for truncation
    * if the epoch has increased by more than one (which suggests it has missed an update). For

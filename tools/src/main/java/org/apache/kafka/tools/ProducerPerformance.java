@@ -51,6 +51,7 @@ public class ProducerPerformance {
 
     public static final String DEFAULT_TRANSACTION_ID_PREFIX = "performance-producer-";
     public static final long DEFAULT_TRANSACTION_DURATION_MS = 3000L;
+    public static final int DEFAULT_REPORTING_INTERVAL_MS = 5000;
 
     public static void main(String[] args) throws Exception {
         ProducerPerformance perf = new ProducerPerformance();
@@ -75,7 +76,10 @@ public class ProducerPerformance {
             // not thread-safe, do not share with other threads
             SplittableRandom random = new SplittableRandom(0);
             ProducerRecord<byte[], byte[]> record;
-            stats = new Stats(config.numRecords, 5000);
+            if (config.warmupRecords > 0) {
+                System.out.println("Warmup first " + config.warmupRecords + " records. Steady state results will print after the complete test summary.");
+            }
+            stats = new Stats(config.numRecords, DEFAULT_REPORTING_INTERVAL_MS);
             long startMs = System.currentTimeMillis();
 
             ThroughputThrottler throttler = new ThroughputThrottler(config.throughput, startMs);
@@ -94,7 +98,18 @@ public class ProducerPerformance {
                 record = new ProducerRecord<>(config.topicName, payload);
 
                 long sendStartMs = System.currentTimeMillis();
-                cb = new PerfCallback(sendStartMs, payload.length, stats);
+                if (config.warmupRecords > 0) {
+                    if (i < config.warmupRecords) {
+                        cb = new PerfCallback(sendStartMs, payload.length, stats);
+                    } else {
+                        if (i == config.warmupRecords) {
+                            steadyStateStats = new Stats(config.numRecords - config.warmupRecords, DEFAULT_REPORTING_INTERVAL_MS, config.warmupRecords > 0);
+                        }
+                        cb = new PerfCallback(sendStartMs, payload.length, stats, steadyStateStats);
+                    }
+                } else {
+                    cb = new PerfCallback(sendStartMs, payload.length, stats);
+                }
                 producer.send(record, cb);
 
                 currentTransactionSize++;
@@ -116,6 +131,10 @@ public class ProducerPerformance {
 
                 /* print final results */
                 stats.printTotal();
+                /* print steady-state stats if relevant */
+                if (steadyStateStats != null) {
+                    steadyStateStats.printTotal();
+                }
             } else {
                 // Make sure all messages are sent before printing out the stats and the metrics
                 // We need to do this in a different branch for now since tests/kafkatest/sanity_checks/test_performance_services.py
@@ -124,6 +143,10 @@ public class ProducerPerformance {
 
                 /* print final results */
                 stats.printTotal();
+                /* print steady-state stats if relevant */
+                if (steadyStateStats != null) {
+                    steadyStateStats.printTotal();
+                }
 
                 /* print out metrics */
                 ToolsUtils.printMetrics(producer.metrics());
@@ -148,6 +171,7 @@ public class ProducerPerformance {
     Callback cb;
 
     Stats stats;
+    Stats steadyStateStats;
 
     static byte[] generateRandomPayload(Integer recordSize, List<byte[]> payloadByteList, byte[] payload,
             SplittableRandom random, boolean payloadMonotonic, long recordValue) {
@@ -163,7 +187,7 @@ public class ProducerPerformance {
         }
         return payload;
     }
-    
+
     static Properties readProps(List<String> producerProps, String producerConfig) throws IOException {
         Properties props = new Properties();
         if (producerConfig != null) {
@@ -326,6 +350,16 @@ public class ProducerPerformance {
                        "--producer.config, or --transactional-id but --transaction-duration-ms is not specified, " +
                        "the default value will be 3000.");
 
+        parser.addArgument("--warmup-records")
+               .action(store())
+               .required(false)
+               .type(Long.class)
+               .metavar("WARMUP-RECORDS")
+               .dest("warmupRecords")
+               .setDefault(0L)
+               .help("The number of records to treat as warmup; these initial records will not be included in steady-state statistics. " +
+                       "An additional summary line will be printed describing the steady-state statistics. (default: 0).");
+
         return parser;
     }
 
@@ -346,8 +380,13 @@ public class ProducerPerformance {
         private long windowTotalLatency;
         private long windowBytes;
         private long windowStart;
+        private final boolean isSteadyState;
 
         public Stats(long numRecords, int reportingInterval) {
+            this(numRecords, reportingInterval, false);
+        }
+
+        public Stats(long numRecords, int reportingInterval, boolean isSteadyState) {
             this.start = System.currentTimeMillis();
             this.windowStart = System.currentTimeMillis();
             this.iteration = 0;
@@ -361,6 +400,26 @@ public class ProducerPerformance {
             this.windowBytes = 0;
             this.totalLatency = 0;
             this.reportingInterval = reportingInterval;
+            this.isSteadyState = isSteadyState;
+        }
+
+        Stats(Stats first, Stats second) {
+            // create a Stats object that's the combination of two disjoint Stats objects
+            this.start = Math.min(first.start, second.start);
+            this.iteration = first.iteration + second.iteration;
+            this.sampling = first.sampling;
+            this.index = first.index() + second.index();
+            this.latencies = Arrays.copyOf(first.latencies, this.index);
+            System.arraycopy(second.latencies, 0, this.latencies, first.index(), second.index());
+            this.maxLatency = Math.max(first.maxLatency, second.maxLatency);
+            this.windowCount = first.windowCount + second.windowCount;
+            this.windowMaxLatency = 0;
+            this.windowTotalLatency = 0;
+            this.totalLatency = first.totalLatency + second.totalLatency;
+            this.reportingInterval = first.reportingInterval;
+            this.isSteadyState = false; // false except in the steady-state case
+            this.count = first.count + second.count;
+            this.bytes = first.bytes + second.bytes;
         }
 
         public void record(int latency, int bytes, long time) {
@@ -378,6 +437,9 @@ public class ProducerPerformance {
             }
             /* maybe report the recent perf */
             if (time - windowStart >= reportingInterval) {
+                if (this.isSteadyState && count == windowCount) {
+                    System.out.println("Beginning steady state.");
+                }
                 printWindow();
                 newWindow();
             }
@@ -428,8 +490,9 @@ public class ProducerPerformance {
             double recsPerSec = 1000.0 * count / (double) elapsed;
             double mbPerSec = 1000.0 * this.bytes / (double) elapsed / (1024.0 * 1024.0);
             int[] percs = percentiles(this.latencies, index, 0.5, 0.95, 0.99, 0.999);
-            System.out.printf("%d records sent, %.1f records/sec (%.2f MB/sec), %.2f ms avg latency, %.2f ms max latency, %d ms 50th, %d ms 95th, %d ms 99th, %d ms 99.9th.%n",
+            System.out.printf("%d%s records sent, %f records/sec (%.2f MB/sec), %.2f ms avg latency, %.2f ms max latency, %d ms 50th, %d ms 95th, %d ms 99th, %d ms 99.9th.%n",
                               count,
+                              this.isSteadyState ? " steady state" : "",
                               recsPerSec,
                               mbPerSec,
                               totalLatency / (double) count,
@@ -456,10 +519,19 @@ public class ProducerPerformance {
         private final long start;
         private final int bytes;
         private final Stats stats;
+        private final Stats steadyStateStats;
 
         public PerfCallback(long start, int bytes, Stats stats) {
             this.start = start;
             this.stats = stats;
+            this.steadyStateStats = null;
+            this.bytes = bytes;
+        }
+
+        public PerfCallback(long start, int bytes, Stats stats, Stats steadyStateStats) {
+            this.start = start;
+            this.stats = stats;
+            this.steadyStateStats = steadyStateStats;
             this.bytes = bytes;
         }
 
@@ -471,6 +543,10 @@ public class ProducerPerformance {
             if (exception == null) {
                 this.stats.record(latency, bytes, now);
                 this.stats.iteration++;
+                if (steadyStateStats != null) {
+                    this.steadyStateStats.record(latency, bytes, now);
+                    this.steadyStateStats.iteration++;
+                }
             }
             if (exception != null)
                 exception.printStackTrace();
@@ -480,6 +556,7 @@ public class ProducerPerformance {
     static final class ConfigPostProcessor {
         final String topicName;
         final Long numRecords;
+        final Long warmupRecords;
         final Integer recordSize;
         final double throughput;
         final boolean payloadMonotonic;
@@ -493,6 +570,7 @@ public class ProducerPerformance {
             Namespace namespace = parser.parseArgs(args);
             this.topicName = namespace.getString("topic");
             this.numRecords = namespace.getLong("numRecords");
+            this.warmupRecords = Math.max(namespace.getLong("warmupRecords"), 0);
             this.recordSize = namespace.getInt("recordSize");
             this.throughput = namespace.getDouble("throughput");
             this.payloadMonotonic = namespace.getBoolean("payloadMonotonic");
@@ -505,6 +583,9 @@ public class ProducerPerformance {
             String transactionIdArg = namespace.getString("transactionalId");
             if (numRecords != null && numRecords <= 0) {
                 throw new ArgumentParserException("--num-records should be greater than zero", parser);
+            }
+            if (warmupRecords != null && warmupRecords >= numRecords) {
+                throw new ArgumentParserException("The value for --warmup-records must be strictly fewer than the number of records in the test, --num-records.", parser);
             }
             if (recordSize != null && recordSize <= 0) {
                 throw new ArgumentParserException("--record-size should be greater than zero", parser);

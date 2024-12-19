@@ -1172,7 +1172,7 @@ object GroupMetadataManager {
           val key = new LegacyOffsetCommitKey(new ByteBufferAccessor(buffer), 0.toShort)
           OffsetKey(version, GroupTopicPartition(key.group, new TopicPartition(key.topic, key.partition)))
 
-        case CoordinatorRecordType.OFFSET_COMMIT | CoordinatorRecordType.LEGACY_OFFSET_COMMIT =>
+        case CoordinatorRecordType.OFFSET_COMMIT =>
           // version 1 refers to offset commit.
           val key = new OffsetCommitKey(new ByteBufferAccessor(buffer), 0.toShort)
           OffsetKey(version, GroupTopicPartition(key.group, new TopicPartition(key.topic, key.partition)))

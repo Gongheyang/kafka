@@ -14,15 +14,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.kafka.coordinator.group.taskassignor;
+package org.apache.kafka.coordinator.group.streams.assignor;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -32,13 +30,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 public class GroupSpecImplTest {
 
     private Map<String, AssignmentMemberSpec> members;
-    private List<String> subtopologies;
     private GroupSpecImpl groupSpec;
 
     @BeforeEach
     void setUp() {
         members = new HashMap<>();
-        subtopologies = new ArrayList<>();
 
         members.put("test-member", new AssignmentMemberSpec(
             Optional.of("test-instance"),
@@ -52,11 +48,8 @@ public class GroupSpecImplTest {
             Collections.emptyMap()
         ));
 
-        subtopologies.add("test-subtopology");
-
         groupSpec = new GroupSpecImpl(
             members,
-            subtopologies,
             new HashMap<>()
         );
     }
@@ -66,8 +59,4 @@ public class GroupSpecImplTest {
         assertEquals(members, groupSpec.members());
     }
 
-    @Test
-    void testSubtopologies() {
-        assertEquals(subtopologies, groupSpec.subtopologies());
-    }
 }

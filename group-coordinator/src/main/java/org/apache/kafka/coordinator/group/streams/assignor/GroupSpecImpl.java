@@ -14,24 +14,23 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.kafka.coordinator.group.taskassignor;
+package org.apache.kafka.coordinator.group.streams.assignor;
 
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
 /**
  * The assignment specification for a Streams group.
  *
- * @param members       The member metadata keyed by member ID.
- * @param subtopologies The subtopologies.
+ * @param members           The member metadata keyed by member ID.
+ * @param assignmentConfigs Any configurations passed to the assignor.
  */
 public record GroupSpecImpl(Map<String, AssignmentMemberSpec> members,
-                            List<String> subtopologies,
                             Map<String, String> assignmentConfigs) implements GroupSpec {
 
     public GroupSpecImpl {
         Objects.requireNonNull(members);
-        Objects.requireNonNull(subtopologies);
+        Objects.requireNonNull(assignmentConfigs);
     }
+
 }

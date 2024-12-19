@@ -14,29 +14,29 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.kafka.coordinator.group.taskassignor;
+package org.apache.kafka.coordinator.group.streams.assignor;
 
-import java.util.List;
+import java.util.Collections;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 
 /**
- * The group metadata specifications required to compute the target assignment.
+ * The task assignment for a Streams group member.
+ *
+ * @param activeTasks The target tasks assigned to this member keyed by subtopologyId.
  */
-public interface GroupSpec {
+public record MemberAssignment(Map<String, Set<Integer>> activeTasks,
+                               Map<String, Set<Integer>> standbyTasks,
+                               Map<String, Set<Integer>> warmupTasks) {
 
-    /**
-     * @return Member metadata keyed by member Id.
-     */
-    Map<String, AssignmentMemberSpec> members();
+    public MemberAssignment {
+        Objects.requireNonNull(activeTasks);
+        Objects.requireNonNull(standbyTasks);
+        Objects.requireNonNull(warmupTasks);
+    }
 
-    /**
-     * @return The list of subtopologies.
-     */
-    List<String> subtopologies();
-
-    /**
-     * @return Any configurations passed to the assignor.
-     */
-    Map<String, String> assignmentConfigs();
-
+    public static MemberAssignment empty() {
+        return new MemberAssignment(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
+    }
 }

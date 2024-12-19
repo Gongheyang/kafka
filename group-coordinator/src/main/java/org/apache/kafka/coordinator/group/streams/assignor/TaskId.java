@@ -14,28 +14,28 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.kafka.coordinator.group.taskassignor;
+package org.apache.kafka.coordinator.group.streams.assignor;
+
+import java.util.Comparator;
+import java.util.Objects;
 
 /**
- * Server side task assignor used by streams groups.
+ * The identifier for a task
+ *
+ * @param subtopologyId The unique identifier of the subtopology.
+ * @param partition     The partition of the input topics this task is processing.
  */
-public interface TaskAssignor {
+public record TaskId(String subtopologyId, int partition) implements Comparable<TaskId> {
 
-    /**
-     * Unique name for this assignor.
-     */
-    String name();
+    public TaskId {
+        Objects.requireNonNull(subtopologyId);
+    }
 
-    /**
-     * Assigns tasks to group members based on the given assignment specification and topic metadata.
-     *
-     * @param groupSpec         The assignment spec which includes member metadata.
-     * @param topologyDescriber The task metadata describer.
-     * @return The new assignment for the group.
-     */
-    GroupAssignment assign(
-        GroupSpec groupSpec,
-        TopologyDescriber topologyDescriber
-    ) throws TaskAssignorException;
+    @Override
+    public int compareTo(final TaskId other) {
+        return Comparator.comparing(TaskId::subtopologyId)
+            .thenComparingInt(TaskId::partition)
+            .compare(this, other);
+    }
 
 }

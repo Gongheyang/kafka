@@ -14,20 +14,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.kafka.coordinator.group.taskassignor;
+package org.apache.kafka.coordinator.group.streams.assignor;
 
-import java.util.Map;
-import java.util.Objects;
+import org.apache.kafka.common.errors.ApiException;
 
 /**
- * The task assignment for a streams group.
- *
- * @param members The member assignments keyed by member id.
+ * Exception thrown by {@link TaskAssignor#assign(GroupSpec, TopologyDescriber)}}. The exception is only used internally.
  */
-public record GroupAssignment(Map<String, MemberAssignment> members) {
+public class TaskAssignorException extends ApiException {
 
-    public GroupAssignment {
-        Objects.requireNonNull(members);
+    public TaskAssignorException(String message) {
+        super(message);
     }
 
+    public TaskAssignorException(String message, Throwable cause) {
+        super(message, cause);
+    }
 }

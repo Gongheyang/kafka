@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.kafka.coordinator.group.taskassignor;
+package org.apache.kafka.coordinator.group.streams.assignor;
 
 import java.util.Comparator;
 import java.util.HashMap;
@@ -45,8 +45,8 @@ public class MockAssignor implements TaskAssignor {
         Map<String, MemberAssignment> newTargetAssignment = new HashMap<>();
         Map<String, String[]> subtopologyToActiveMember = new HashMap<>();
 
-        for (String subtopology : groupSpec.subtopologies()) {
-            int numberOfPartitions = topologyDescriber.numPartitions(subtopology);
+        for (String subtopology : topologyDescriber.subtopologies()) {
+            int numberOfPartitions = topologyDescriber.numTasks(subtopology);
             subtopologyToActiveMember.put(subtopology, new String[numberOfPartitions]);
         }
 

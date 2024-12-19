@@ -14,7 +14,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.kafka.coordinator.group.taskassignor;
+package org.apache.kafka.coordinator.group.streams.assignor;
+
+import java.util.List;
+import java.util.NoSuchElementException;
 
 /**
  * The subscribed topic describer is used by the {@link TaskAssignor} to obtain topic and task metadata of the groups topology.
@@ -22,12 +25,19 @@ package org.apache.kafka.coordinator.group.taskassignor;
 public interface TopologyDescriber {
 
     /**
-     * The number of partitions for the given subtopology.
+     * @return The list of subtopologies IDs.
+     */
+    List<String> subtopologies();
+
+    /**
+     * The number of tasks for the given subtopology.
      *
      * @param subtopologyId String identifying the subtopology.
-     * @return The number of tasks corresponding to the given subtopology ID, or -1 if the subtopology ID does not exist.
+     *
+     * @return The number of tasks corresponding to the given subtopology ID.
+     * @throws NoSuchElementException if subtopology does not exist in the topology.
      */
-    int numPartitions(String subtopologyId);
+    int numTasks(String subtopologyId) throws NoSuchElementException;
 
     /**
      * Whether the given subtopology is stateful.

@@ -43,7 +43,7 @@ import org.apache.kafka.common.requests.OffsetFetchResponse
 import org.apache.kafka.common.requests.ProduceResponse.PartitionResponse
 import org.apache.kafka.common.utils.Utils
 import org.apache.kafka.coordinator.group.{GroupCoordinatorConfig, OffsetAndMetadata, OffsetConfig}
-import org.apache.kafka.coordinator.group.generated.{CoordinatorRecordType, GroupMetadataValue, OffsetCommitValue}
+import org.apache.kafka.coordinator.group.generated.{CoordinatorRecordType, GroupMetadataValue, OffsetCommitKey, OffsetCommitValue, GroupMetadataKey => GroupMetadataKeyData}
 import org.apache.kafka.server.common.{MetadataVersion, RequestLocal}
 import org.apache.kafka.server.common.MetadataVersion._
 import org.apache.kafka.server.metrics.KafkaYammerMetrics
@@ -3142,5 +3142,34 @@ class GroupMetadataManagerTest {
       assertEquals(Some(offset), group.offset(topicPartition).map(_.committedOffset))
       assertTrue(group.offset(topicPartition).map(_.expireTimestampMs).get.isEmpty)
     }
+  }
+
+  @Test
+  def testOffsetCommitKey(): Unit = {
+    val bytes = GroupMetadataManager.offsetCommitKey(
+      "foo",
+      new TopicPartition("__consumer_offsets", 0)
+    )
+    val buffer = ByteBuffer.wrap(bytes)
+    assertEquals(1.toShort, buffer.getShort)
+    assertEquals(
+      new OffsetCommitKey(new ByteBufferAccessor(buffer), 0.toShort),
+      new OffsetCommitKey()
+        .setGroup("foo")
+        .setTopic("__consumer_offsets")
+        .setPartition(0)
+    )
+  }
+
+  @Test
+  def testGroupMetadataKey(): Unit = {
+    val bytes = GroupMetadataManager.groupMetadataKey("foo")
+    val buffer = ByteBuffer.wrap(bytes)
+    assertEquals(2.toShort, buffer.getShort())
+    assertEquals(
+      new GroupMetadataKeyData(new ByteBufferAccessor(buffer), 0.toShort),
+      new GroupMetadataKeyData()
+        .setGroup("foo")
+    )
   }
 }

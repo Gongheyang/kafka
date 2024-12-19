@@ -22,6 +22,7 @@ import org.apache.kafka.coordinator.group.generated.StreamsGroupCurrentMemberAss
 import org.apache.kafka.coordinator.group.generated.StreamsGroupCurrentMemberAssignmentValue.TaskIds;
 import org.apache.kafka.coordinator.group.generated.StreamsGroupMemberMetadataValue;
 import org.apache.kafka.coordinator.group.generated.StreamsGroupMemberMetadataValue.KeyValue;
+
 import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
@@ -33,7 +34,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.apache.kafka.common.utils.Utils.mkEntry;

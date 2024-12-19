@@ -24,6 +24,7 @@ import org.apache.kafka.coordinator.group.generated.GroupMetadataKey;
 import org.apache.kafka.coordinator.group.generated.GroupMetadataKeyJsonConverter;
 import org.apache.kafka.coordinator.group.generated.GroupMetadataValue;
 import org.apache.kafka.coordinator.group.generated.GroupMetadataValueJsonConverter;
+import org.apache.kafka.coordinator.group.generated.LegacyOffsetCommitKey;
 import org.apache.kafka.coordinator.group.generated.OffsetCommitKey;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -54,6 +55,8 @@ public class GroupMetadataMessageFormatter extends ApiMessageFormatter {
         try {
             switch (CoordinatorRecordType.fromId(version)) {
                 case LEGACY_OFFSET_COMMIT:
+                    return Optional.of(new LegacyOffsetCommitKey(new ByteBufferAccessor(byteBuffer), (short) 0));
+
                 case OFFSET_COMMIT:
                     return Optional.of(new OffsetCommitKey(new ByteBufferAccessor(byteBuffer), (short) 0));
 
@@ -69,7 +72,9 @@ public class GroupMetadataMessageFormatter extends ApiMessageFormatter {
     }
 
     private JsonNode transferKeyMessageToJsonNode(ApiMessage message, short version) {
-        if (message instanceof OffsetCommitKey) {
+        if (message instanceof LegacyOffsetCommitKey) {
+            return NullNode.getInstance();
+        } else if (message instanceof OffsetCommitKey) {
             return NullNode.getInstance();
         } else if (message instanceof GroupMetadataKey) {
             return GroupMetadataKeyJsonConverter.write((GroupMetadataKey) message, version);

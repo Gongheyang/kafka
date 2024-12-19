@@ -21,6 +21,8 @@ import org.apache.kafka.common.protocol.ApiMessage;
 import org.apache.kafka.common.protocol.ByteBufferAccessor;
 import org.apache.kafka.coordinator.group.generated.CoordinatorRecordType;
 import org.apache.kafka.coordinator.group.generated.GroupMetadataKey;
+import org.apache.kafka.coordinator.group.generated.LegacyOffsetCommitKey;
+import org.apache.kafka.coordinator.group.generated.LegacyOffsetCommitKeyJsonConverter;
 import org.apache.kafka.coordinator.group.generated.OffsetCommitKey;
 import org.apache.kafka.coordinator.group.generated.OffsetCommitKeyJsonConverter;
 import org.apache.kafka.coordinator.group.generated.OffsetCommitValue;
@@ -41,7 +43,7 @@ public class OffsetsMessageFormatter extends ApiMessageFormatter {
     @Override
     protected JsonNode readToKeyJson(ByteBuffer byteBuffer, short version) {
         return readToGroupMetadataKey(byteBuffer)
-                .map(logKey -> transferKeyMessageToJsonNode(logKey, (short) 0))
+                .map(logKey -> transferKeyMessageToJsonNode(logKey))
                 .orElseGet(() -> new TextNode(UNKNOWN));
     }
 
@@ -57,6 +59,8 @@ public class OffsetsMessageFormatter extends ApiMessageFormatter {
         try {
             switch (CoordinatorRecordType.fromId(version)) {
                 case LEGACY_OFFSET_COMMIT:
+                    return Optional.of(new LegacyOffsetCommitKey(new ByteBufferAccessor(byteBuffer), (short) 0));
+
                 case OFFSET_COMMIT:
                     return Optional.of(new OffsetCommitKey(new ByteBufferAccessor(byteBuffer), (short) 0));
 
@@ -71,9 +75,11 @@ public class OffsetsMessageFormatter extends ApiMessageFormatter {
         }
     }
 
-    private JsonNode transferKeyMessageToJsonNode(ApiMessage logKey, short keyVersion) {
-        if (logKey instanceof OffsetCommitKey) {
-            return OffsetCommitKeyJsonConverter.write((OffsetCommitKey) logKey, keyVersion);
+    private JsonNode transferKeyMessageToJsonNode(ApiMessage logKey) {
+        if (logKey instanceof LegacyOffsetCommitKey) {
+            return LegacyOffsetCommitKeyJsonConverter.write((LegacyOffsetCommitKey) logKey, (short) 0);
+        } else if (logKey instanceof OffsetCommitKey) {
+            return OffsetCommitKeyJsonConverter.write((OffsetCommitKey) logKey, (short) 0);
         } else if (logKey instanceof GroupMetadataKey) {
             return NullNode.getInstance();
         } else {

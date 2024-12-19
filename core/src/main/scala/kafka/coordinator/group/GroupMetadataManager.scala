@@ -41,7 +41,7 @@ import org.apache.kafka.common.requests.{OffsetCommitRequest, OffsetFetchRespons
 import org.apache.kafka.common.utils.{Time, Utils}
 import org.apache.kafka.common.{TopicIdPartition, TopicPartition}
 import org.apache.kafka.coordinator.group.{OffsetAndMetadata, OffsetConfig}
-import org.apache.kafka.coordinator.group.generated.{CoordinatorRecordType, GroupMetadataValue, OffsetCommitKey, OffsetCommitValue, GroupMetadataKey => GroupMetadataKeyData}
+import org.apache.kafka.coordinator.group.generated.{CoordinatorRecordType, GroupMetadataValue, LegacyOffsetCommitKey, OffsetCommitKey, OffsetCommitValue, GroupMetadataKey => GroupMetadataKeyData}
 import org.apache.kafka.server.common.{MetadataVersion, RequestLocal}
 import org.apache.kafka.server.common.MetadataVersion.{IBP_0_10_1_IV0, IBP_2_1_IV0, IBP_2_1_IV1, IBP_2_3_IV0}
 import org.apache.kafka.server.metrics.KafkaMetricsGroup
@@ -1167,13 +1167,18 @@ object GroupMetadataManager {
     val version = buffer.getShort
     try {
       CoordinatorRecordType.fromId(version) match {
+        case CoordinatorRecordType.LEGACY_OFFSET_COMMIT =>
+          // version 0 refers to the legacy offset commit.
+          val key = new LegacyOffsetCommitKey(new ByteBufferAccessor(buffer), 0.toShort)
+          OffsetKey(version, GroupTopicPartition(key.group, new TopicPartition(key.topic, key.partition)))
+
         case CoordinatorRecordType.OFFSET_COMMIT | CoordinatorRecordType.LEGACY_OFFSET_COMMIT =>
-          // version 0 and 1 refer to offset
+          // version 1 refers to offset commit.
           val key = new OffsetCommitKey(new ByteBufferAccessor(buffer), 0.toShort)
           OffsetKey(version, GroupTopicPartition(key.group, new TopicPartition(key.topic, key.partition)))
 
         case CoordinatorRecordType.GROUP_METADATA =>
-          // version 2 refers to group metadata
+          // version 2 refers to group metadata.
           val key = new GroupMetadataKeyData(new ByteBufferAccessor(buffer), 0.toShort)
           GroupMetadataKey(version, key.group)
 

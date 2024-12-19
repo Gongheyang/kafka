@@ -97,8 +97,6 @@ object KafkaServer {
     if (!JaasUtils.isZkSaslEnabled) clientConfig.setProperty(JaasUtils.ZK_SASL_CLIENT, "false")
     clientConfig
   }
-
-  val MIN_INCREMENTAL_FETCH_SESSION_EVICTION_MS: Long = 120000
 }
 
 /**
@@ -455,7 +453,7 @@ class KafkaServer(
         val fetchSessionCacheShards = (0 until NumFetchSessionCacheShards)
           .map(shardNum => new FetchSessionCacheShard(
             config.maxIncrementalFetchSessionCacheSlots / NumFetchSessionCacheShards,
-            KafkaServer.MIN_INCREMENTAL_FETCH_SESSION_EVICTION_MS,
+            KafkaBroker.MIN_INCREMENTAL_FETCH_SESSION_EVICTION_MS,
             sessionIdRange,
             shardNum
           ))

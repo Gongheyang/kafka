@@ -159,6 +159,13 @@ public final class VoterSet {
     }
 
     /**
+     * Returns size of the voter set.
+     */
+    public int size() {
+        return voters.size();
+    }
+
+    /**
      * Returns all of the endpoints for a voter id.
      *
      * {@code Endpoints.empty()} is returned if the id is not a voter.

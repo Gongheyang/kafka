@@ -3842,6 +3842,7 @@ public class KafkaRaftClientTest {
         assertNotNull(getMetric(context.metrics, "election-latency-max"));
         assertNotNull(getMetric(context.metrics, "fetch-records-rate"));
         assertNotNull(getMetric(context.metrics, "append-records-rate"));
+        assertNotNull(getMetric(context.metrics, "number-of-voters"));
 
         assertEquals("leader", getMetric(context.metrics, "current-state").metricValue());
         assertEquals((double) localId, getMetric(context.metrics, "current-leader").metricValue());
@@ -3850,6 +3851,8 @@ public class KafkaRaftClientTest {
         assertEquals((double) 1L, getMetric(context.metrics, "high-watermark").metricValue());
         assertEquals((double) 1L, getMetric(context.metrics, "log-end-offset").metricValue());
         assertEquals((double) epoch, getMetric(context.metrics, "log-end-epoch").metricValue());
+        assertNotNull(getMetric(context.metrics, "number-of-observers"));
+        assertNotNull(getMetric(context.metrics, "uncommitted-voter-change"));
 
         context.client.prepareAppend(epoch, Arrays.asList("a", "b", "c"));
         context.client.schedulePreparedAppend();

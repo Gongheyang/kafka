@@ -648,6 +648,7 @@ public final class KafkaRaftClient<T> implements RaftClient<T> {
 
         resetConnections();
         kafkaRaftMetrics.maybeUpdateElectionLatency(currentTimeMs);
+        kafkaRaftMetrics.addLeaderMetrics(state);
     }
 
     private void flushLeaderLog(LeaderState<T> state, long currentTimeMs) {
@@ -682,6 +683,7 @@ public final class KafkaRaftClient<T> implements RaftClient<T> {
     private void transitionToUnattached(int epoch) {
         quorum.transitionToUnattached(epoch);
         maybeFireLeaderChange();
+        kafkaRaftMetrics.removeLeaderMetrics();
         resetConnections();
     }
 
@@ -689,6 +691,7 @@ public final class KafkaRaftClient<T> implements RaftClient<T> {
         fetchPurgatory.completeAllExceptionally(
             Errors.NOT_LEADER_OR_FOLLOWER.exception("Not handling request since this node is resigning"));
         quorum.transitionToResigned(preferredSuccessors);
+        kafkaRaftMetrics.removeLeaderMetrics();
         resetConnections();
     }
 
@@ -698,6 +701,7 @@ public final class KafkaRaftClient<T> implements RaftClient<T> {
 
     private void onBecomeFollower(long currentTimeMs) {
         kafkaRaftMetrics.maybeUpdateElectionLatency(currentTimeMs);
+        kafkaRaftMetrics.removeLeaderMetrics();
 
         resetConnections();
 

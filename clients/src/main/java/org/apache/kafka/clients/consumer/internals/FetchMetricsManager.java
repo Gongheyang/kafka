@@ -24,7 +24,6 @@ import org.apache.kafka.common.metrics.Sensor;
 import org.apache.kafka.common.metrics.stats.WindowedCount;
 
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
@@ -297,17 +296,13 @@ public class FetchMetricsManager {
 
     @Deprecated
     static Map<String, String> topicTags(String topic) {
-        Map<String, String> metricTags = new HashMap<>(1);
-        metricTags.put("topic", topic.replace('.', '_'));
-        return metricTags;
+        return Map.of("topic", topic.replace('.', '_'));
     }
 
     @Deprecated
     static Map<String, String> topicPartitionTags(TopicPartition tp) {
-        Map<String, String> metricTags = new HashMap<>(2);
-        metricTags.put("topic", tp.topic().replace('.', '_'));
-        metricTags.put("partition", String.valueOf(tp.partition()));
-        return metricTags;
+        return mkMap(mkEntry("topic", tp.topic().replace('.', '_')),
+            mkEntry("partition", String.valueOf(tp.partition())));
     }
 
 }

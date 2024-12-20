@@ -38,6 +38,7 @@ import org.apache.kafka.metadata.authorizer.StandardAuthorizer;
 import org.apache.kafka.security.authorizer.AclEntry;
 import org.apache.kafka.server.authorizer.Action;
 
+import org.apache.kafka.server.authorizer.AuthorizationResult;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -89,6 +90,9 @@ public class AuthorizerBenchmark {
     private List<Action> actions = new ArrayList<>();
     private RequestContext authorizeContext;
     private RequestContext authorizeByResourceTypeContext;
+    private AclBindingFilter filter;
+    private AclOperation op;
+    private ResourceType resourceType;
 
     Random rand = new Random(System.currentTimeMillis());
     double eps = 1e-9;
@@ -96,6 +100,9 @@ public class AuthorizerBenchmark {
     @Setup(Level.Trial)
     public void setup() throws Exception {
         authorizer = new StandardAuthorizer();
+        filter = AclBindingFilter.ANY;
+        op = AclOperation.READ;
+        resourceType = ResourceType.TOPIC;
         prepareAclCache();
         // By adding `-95` to the resource name prefix, we cause the `TreeMap.from/to` call to return
         // most map entries. In such cases, we rely on the filtering based on `String.startsWith`
@@ -204,17 +211,17 @@ public class AuthorizerBenchmark {
     }
 
     @Benchmark
-    public void testAclsIterator() {
-        authorizer.acls(AclBindingFilter.ANY);
+    public Iterable<AclBinding> testAclsIterator() {
+        return authorizer.acls(filter);
     }
 
     @Benchmark
-    public void testAuthorizer() {
-        authorizer.authorize(authorizeContext, actions);
+    public List<AuthorizationResult> testAuthorizer() {
+        return authorizer.authorize(authorizeContext, actions);
     }
 
     @Benchmark
-    public void testAuthorizeByResourceType() {
-        authorizer.authorizeByResourceType(authorizeByResourceTypeContext, AclOperation.READ, ResourceType.TOPIC);
+    public AuthorizationResult testAuthorizeByResourceType() {
+        return authorizer.authorizeByResourceType(authorizeByResourceTypeContext, op, resourceType);
     }
 }

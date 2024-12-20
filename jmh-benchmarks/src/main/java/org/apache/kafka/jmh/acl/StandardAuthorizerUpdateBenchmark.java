@@ -55,8 +55,8 @@ import static org.apache.kafka.common.acl.AclPermissionType.ALLOW;
 
 @State(Scope.Benchmark)
 @Fork(value = 1)
-@Warmup(iterations = 0)
-@Measurement(iterations = 4)
+@Warmup(iterations = 5)
+@Measurement(iterations = 10)
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
 public class StandardAuthorizerUpdateBenchmark {
@@ -72,13 +72,13 @@ public class StandardAuthorizerUpdateBenchmark {
     private int aclCount;
     int index = 0;
 
-    @Setup(Level.Trial)
+    @Setup(Level.Iteration)
     public void setup() throws Exception {
         authorizer = new StandardAuthorizer();
         addAcls(aclCount);
     }
 
-    @TearDown(Level.Trial)
+    @TearDown(Level.Iteration)
     public void tearDown() throws IOException {
         authorizer.close();
     }

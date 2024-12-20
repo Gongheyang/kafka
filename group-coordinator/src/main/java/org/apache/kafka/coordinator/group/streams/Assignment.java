@@ -28,72 +28,21 @@ import java.util.stream.Collectors;
 /**
  * An immutable assignment for a member.
  */
-public class Assignment {
+public record Assignment(Map<String, Set<Integer>> activeTasks,
+                         Map<String, Set<Integer>> standbyTasks,
+                         Map<String, Set<Integer>> warmupTasks) {
+
+    public Assignment {
+        activeTasks = Collections.unmodifiableMap(Objects.requireNonNull(activeTasks));
+        standbyTasks = Collections.unmodifiableMap(Objects.requireNonNull(standbyTasks));
+        warmupTasks = Collections.unmodifiableMap(Objects.requireNonNull(warmupTasks));
+    }
 
     public static final Assignment EMPTY = new Assignment(
         Collections.emptyMap(),
         Collections.emptyMap(),
         Collections.emptyMap()
     );
-
-    private final Map<String, Set<Integer>> activeTasks;
-    private final Map<String, Set<Integer>> standbyTasks;
-    private final Map<String, Set<Integer>> warmupTasks;
-
-    public Assignment(final Map<String, Set<Integer>> activeTasks,
-                      final Map<String, Set<Integer>> standbyTasks,
-                      final Map<String, Set<Integer>> warmupTasks) {
-        this.activeTasks = Collections.unmodifiableMap(Objects.requireNonNull(activeTasks));
-        this.standbyTasks = Collections.unmodifiableMap(Objects.requireNonNull(standbyTasks));
-        this.warmupTasks = Collections.unmodifiableMap(Objects.requireNonNull(warmupTasks));
-    }
-
-    /**
-     * @return The assigned active tasks.
-     */
-    public Map<String, Set<Integer>> activeTasks() {
-        return activeTasks;
-    }
-
-    /**
-     * @return The assigned standby tasks.
-     */
-    public Map<String, Set<Integer>> standbyTasks() {
-        return standbyTasks;
-    }
-
-    /**
-     * @return The assigned warm-up tasks.
-     */
-    public Map<String, Set<Integer>> warmupTasks() {
-        return warmupTasks;
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        Assignment that = (Assignment) o;
-        return Objects.equals(activeTasks, that.activeTasks)
-            && Objects.equals(standbyTasks, that.standbyTasks)
-            && Objects.equals(warmupTasks, that.warmupTasks);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(activeTasks, standbyTasks, warmupTasks);
-    }
-
-    @Override
-    public String toString() {
-        return "Assignment(active tasks=" + activeTasks +
-            ", standby tasks=" + standbyTasks +
-            ", warm-up tasks=" + warmupTasks + ')';
-    }
 
     /**
      * Creates a {{@link org.apache.kafka.coordinator.group.streams.Assignment}} from a

@@ -16,38 +16,7 @@
  */
 package org.apache.kafka.streams.state.internals;
 
-import org.rocksdb.AbstractCompactionFilter;
-import org.rocksdb.AbstractCompactionFilterFactory;
-import org.rocksdb.AbstractComparator;
-import org.rocksdb.AbstractEventListener;
-import org.rocksdb.AbstractSlice;
-import org.rocksdb.AbstractWalFilter;
-import org.rocksdb.BuiltinComparator;
-import org.rocksdb.Cache;
-import org.rocksdb.ColumnFamilyOptions;
-import org.rocksdb.CompactionOptionsFIFO;
-import org.rocksdb.CompactionOptionsUniversal;
-import org.rocksdb.CompactionPriority;
-import org.rocksdb.CompactionStyle;
-import org.rocksdb.CompressionOptions;
-import org.rocksdb.CompressionType;
-import org.rocksdb.ConcurrentTaskLimiter;
-import org.rocksdb.DBOptions;
-import org.rocksdb.DbPath;
-import org.rocksdb.Env;
-import org.rocksdb.InfoLogLevel;
-import org.rocksdb.MemTableConfig;
-import org.rocksdb.MergeOperator;
-import org.rocksdb.Options;
-import org.rocksdb.PrepopulateBlobCache;
-import org.rocksdb.RateLimiter;
-import org.rocksdb.SstFileManager;
-import org.rocksdb.SstPartitionerFactory;
-import org.rocksdb.Statistics;
-import org.rocksdb.TableFormatConfig;
-import org.rocksdb.WALRecoveryMode;
-import org.rocksdb.WalFilter;
-import org.rocksdb.WriteBufferManager;
+import org.rocksdb.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -827,6 +796,12 @@ public class RocksDBGenericOptionsToDbOptionsColumnFamilyOptionsAdapter extends 
     @Override
     public Options setSstFileManager(final SstFileManager sstFileManager) {
         dbOptions.setSstFileManager(sstFileManager);
+        return this;
+    }
+
+    @Override
+    public Options setLogger(final LoggerInterface logger) {
+        dbOptions.setLogger(logger);
         return this;
     }
 

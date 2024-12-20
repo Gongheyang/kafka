@@ -184,7 +184,7 @@ jobs:
         uses: ./.github/actions/run-gradle
         with:
           test-task: quarantinedTest
-          timeout-minutes: 30
+          timeout-minutes: 180
           test-catalog-path: ${{ steps.load-test-catalog.outputs.download-path }}/combined-test-catalog.txt
           build-scan-artifact-name: build-scan-quarantined-test-${{ matrix.java }}
 

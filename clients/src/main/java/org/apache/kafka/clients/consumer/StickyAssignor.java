@@ -55,7 +55,7 @@ import java.util.Set;
  * four topics <code>t0,</code> <code>t1</code>, <code>t2</code>, <code>t3</code>, and each topic has 2 partitions,
  * resulting in partitions <code>t0p0</code>, <code>t0p1</code>, <code>t1p0</code>, <code>t1p1</code>, <code>t2p0</code>,
  * <code>t2p1</code>, <code>t3p0</code>, <code>t3p1</code>. Each consumer is subscribed to all three topics.
- *
+ * <p>
  * The assignment with both sticky and round robin assignors will be:
  * <ul>
  * <li><code>C0: [t0p0, t1p1, t3p0]</code></li>
@@ -81,7 +81,7 @@ import java.util.Set;
  * Therefore, the partitions are <code>t0p0</code>, <code>t1p0</code>, <code>t1p1</code>, <code>t2p0</code>,
  * <code>t2p1</code>, <code>t2p2</code>. <code>C0</code> is subscribed to <code>t0</code>; <code>C1</code> is subscribed to
  * <code>t0</code>, <code>t1</code>; and <code>C2</code> is subscribed to <code>t0</code>, <code>t1</code>, <code>t2</code>.
- *
+ * <p>
  * The round robin assignor would come up with the following assignment:
  * <ul>
  * <li><code>C0 [t0p0]</code></li>
@@ -169,7 +169,7 @@ import java.util.Set;
  *
  * Any consumer that uses sticky assignment can leverage this listener like this:
  * <code>consumer.subscribe(topics, new TheNewRebalanceListener());</code>
- *
+ * <p>
  * Note that you can leverage the {@link CooperativeStickyAssignor} so that only partitions which are being
  * reassigned to another consumer will be revoked. That is the preferred assignor for newer cluster. See
  * {@link ConsumerPartitionAssignor.RebalanceProtocol} for a detailed explanation of cooperative rebalancing.

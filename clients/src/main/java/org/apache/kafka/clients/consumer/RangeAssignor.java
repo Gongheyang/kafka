@@ -175,7 +175,7 @@ public class RangeAssignor extends AbstractPartitionAssignor {
                 if (coPartitionedStates.size() > 1)
                     assignCoPartitionedWithRackMatching(consumers, numPartitions, coPartitionedStates, assignment);
                 else {
-                    TopicAssignmentState state = coPartitionedStates.get(0);
+                    TopicAssignmentState state = coPartitionedStates.getFirst();
                     if (state.needsRackAwareAssignment)
                         assignRanges(state, state::racksMatch, assignment);
                 }
@@ -281,7 +281,7 @@ public class RangeAssignor extends AbstractPartitionAssignor {
             int numAssigned = numAssignedByConsumer.compute(consumer, (c, n) -> n + newlyAssignedPartitions.size());
             if (numAssigned > numPartitionsPerConsumer)
                 remainingConsumersWithExtraPartition--;
-            unassignedPartitions.removeAll(newlyAssignedPartitions);
+            newlyAssignedPartitions.forEach(unassignedPartitions::remove);
         }
 
         @Override

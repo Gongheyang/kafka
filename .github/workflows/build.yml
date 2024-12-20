@@ -262,9 +262,12 @@ jobs:
         with:
           persist-credentials: true  # Needed to commit and push later
           ref: test-catalog
-      - name: Only run if not timed out
+      - name: Only run if not timed out 1
         if: ${{ !needs.test.outputs.timed-out }}
-        run: echo "ok"
+        run: echo "ok 1"
+      - name: Only run if not timed out 2
+        if: ${{ needs.test.outputs.timed-out == 'false' }}
+        run: echo "ok 2"
       - name: Reset Catalog
         run: |
           rm -rf test-catalog

@@ -351,7 +351,8 @@ private[transaction] class TransactionMetadata(val transactionalId: String,
       state = Ongoing,
       topicPartitions = (topicPartitions ++ addedTopicPartitions),
       txnStartTimestamp = newTxnStartTimestamp,
-      txnLastUpdateTimestamp = updateTimestamp
+      txnLastUpdateTimestamp = updateTimestamp,
+      clientTransactionVersion = clientTransactionVersion
     )
   }
 

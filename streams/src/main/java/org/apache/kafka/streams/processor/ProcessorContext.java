@@ -36,11 +36,11 @@ import java.util.Map;
  * Processor context interface.
  */
 /* This interface was technically deprecated via KIP-478 (AK 2.7), but we did not mark it as deprecated yet,
-*  as it's used on many other places
-*
-* We need to clean this all up (https://issues.apache.org/jira/browse/KAFKA-17131) and mark the interface
-* deprecated afterward.
-*/
+ *  as it's used on many other places
+ *
+ * We need to clean this all up (https://issues.apache.org/jira/browse/KAFKA-17131) and mark the interface
+ * deprecated afterward.
+ */
 @SuppressWarnings("deprecation")
 public interface ProcessorContext {
 

@@ -343,7 +343,8 @@ public class RecordAccumulator {
                 }
 
                 if (buffer == null) {
-                    int size = Math.max(this.batchSize, AbstractRecords.estimateSizeInBytesUpperBound(RecordBatch.CURRENT_MAGIC_VALUE, compression.type(), key, value, headers));
+                    int size = Math.max(this.batchSize, AbstractRecords.estimateSizeInBytesUpperBound(
+                            RecordBatch.CURRENT_MAGIC_VALUE, compression.type(), key, value, headers));
                     log.trace("Allocating a new {} byte message buffer for topic {} partition {} with remaining timeout {}ms", size, topic, effectivePartition, maxTimeToBlock);
                     // This call may block if we exhausted buffer space.
                     buffer = free.allocate(size, maxTimeToBlock);

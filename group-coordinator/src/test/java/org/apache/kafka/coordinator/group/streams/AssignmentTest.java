@@ -30,7 +30,6 @@ import java.util.Set;
 import static org.apache.kafka.coordinator.group.streams.TaskAssignmentTestUtil.mkTasks;
 import static org.apache.kafka.coordinator.group.streams.TaskAssignmentTestUtil.mkTasksPerSubtopology;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 public class AssignmentTest {

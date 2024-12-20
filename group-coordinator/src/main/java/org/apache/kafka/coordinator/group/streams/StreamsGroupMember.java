@@ -273,12 +273,12 @@ public class StreamsGroupMember {
             return this;
         }
 
-        private Map<String, Set<Integer>> assignmentFromTaskIds(
+        static private Map<String, Set<Integer>> assignmentFromTaskIds(
             List<StreamsGroupCurrentMemberAssignmentValue.TaskIds> topicPartitionsList
         ) {
             return topicPartitionsList.stream().collect(Collectors.toMap(
                 StreamsGroupCurrentMemberAssignmentValue.TaskIds::subtopologyId,
-                taskIds -> Collections.unmodifiableSet(new HashSet<>(taskIds.partitions()))));
+                taskIds -> Set.copyOf(taskIds.partitions())));
         }
 
         public StreamsGroupMember build() {
@@ -307,7 +307,7 @@ public class StreamsGroupMember {
     }
 
     /**
-     * The member id.
+     * The member ID.
      */
     private final String memberId;
 
@@ -327,12 +327,12 @@ public class StreamsGroupMember {
     private final MemberState state;
 
     /**
-     * The instance id provided by the member.
+     * The instance ID provided by the member.
      */
     private final String instanceId;
 
     /**
-     * The rack id provided by the member.
+     * The rack ID provided by the member.
      */
     private final String rackId;
 
@@ -342,7 +342,7 @@ public class StreamsGroupMember {
     private final int rebalanceTimeoutMs;
 
     /**
-     * The client id reported by the member.
+     * The client ID reported by the member.
      */
     private final String clientId;
 
@@ -352,22 +352,22 @@ public class StreamsGroupMember {
     private final String clientHost;
 
     /**
-     * The topology epoch
+     * The topology epoch.
      */
     private final int topologyEpoch;
 
     /**
-     * The process ID
+     * The process ID.
      */
     private final String processId;
 
     /**
-     * The endpoint
+     * The endpoint.
      */
     private final StreamsGroupMemberMetadataValue.Endpoint userEndpoint;
 
     /**
-     * The client tags
+     * The client tags.
      */
     private final Map<String, String> clientTags;
 
@@ -445,7 +445,7 @@ public class StreamsGroupMember {
     }
 
     /**
-     * @return The member id.
+     * @return The member ID.
      */
     public String memberId() {
         return memberId;
@@ -466,14 +466,14 @@ public class StreamsGroupMember {
     }
 
     /**
-     * @return The instance id.
+     * @return The instance ID.
      */
     public String instanceId() {
         return instanceId;
     }
 
     /**
-     * @return The rack id.
+     * @return The rack ID.
      */
     public String rackId() {
         return rackId;
@@ -487,7 +487,7 @@ public class StreamsGroupMember {
     }
 
     /**
-     * @return The client id.
+     * @return The client ID.
      */
     public String clientId() {
         return clientId;

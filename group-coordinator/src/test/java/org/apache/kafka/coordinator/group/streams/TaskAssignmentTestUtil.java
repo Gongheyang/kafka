@@ -27,11 +27,6 @@ import java.util.Set;
 
 public class TaskAssignmentTestUtil {
 
-    public enum TaskRole {
-        ACTIVE,
-        STANDBY,
-        WARMUP
-    }
     public static Assignment mkAssignment(final Map<String, Set<Integer>> activeTasks,
                                           final Map<String, Set<Integer>> standbyTasks,
                                           final Map<String, Set<Integer>> warmupTasks) {
@@ -42,33 +37,8 @@ public class TaskAssignmentTestUtil {
         );
     }
 
-    // TODO: Tests using this util probably should be extended to cover standby tasks
-    public static Assignment mkAssignment(final Map<String, Set<Integer>> activeTasks) {
-        return new Assignment(
-            Collections.unmodifiableMap(Objects.requireNonNull(activeTasks)),
-            Collections.emptyMap(),
-            Collections.emptyMap()
-        );
-    }
-
-    @SafeVarargs
-    public static Assignment mkAssignment(TaskRole taskRole, Map.Entry<String, Set<Integer>>... entries) {
-        switch (taskRole) {
-            case ACTIVE:
-                return new Assignment(mkTasksPerSubtopology(entries), new HashMap<>(), new HashMap<>());
-            case STANDBY:
-                return new Assignment(new HashMap<>(), mkTasksPerSubtopology(entries), new HashMap<>());
-            case WARMUP:
-                return new Assignment(new HashMap<>(), new HashMap<>(), mkTasksPerSubtopology(entries));
-            default:
-                throw new IllegalArgumentException("Unknown task role: " + taskRole);
-        }
-    }
-
-    public static Map.Entry<String, Set<Integer>> mkTasks(
-        String subtopologyId,
-        Integer... tasks
-    ) {
+    public static Map.Entry<String, Set<Integer>> mkTasks(String subtopologyId,
+                                                          Integer... tasks) {
         return new AbstractMap.SimpleEntry<>(
             subtopologyId,
             new HashSet<>(List.of(tasks))
@@ -76,7 +46,8 @@ public class TaskAssignmentTestUtil {
     }
 
     @SafeVarargs
-    public static Map<String, Set<Integer>> mkTasksPerSubtopology(Map.Entry<String, Set<Integer>>... entries) {
+    public static Map<String, Set<Integer>> mkTasksPerSubtopology(Map.Entry<String,
+                                                                  Set<Integer>>... entries) {
         Map<String, Set<Integer>> assignment = new HashMap<>();
         for (Map.Entry<String, Set<Integer>> entry : entries) {
             assignment.put(entry.getKey(), entry.getValue());

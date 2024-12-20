@@ -164,7 +164,7 @@ public class SharePartitionManagerTest {
             new SystemTimer("sharePartitionManagerTestTimer"));
         mockReplicaManager = mock(ReplicaManager.class);
         Partition partition = mockPartition();
-        when(mockReplicaManager.getPartitionOrException(Mockito.any())).thenReturn(partition);
+        when(mockReplicaManager.getPartitionOrException((TopicPartition) any())).thenReturn(partition);
     }
 
     @AfterEach
@@ -2302,7 +2302,7 @@ public class SharePartitionManagerTest {
         ReplicaManager replicaManager = mock(ReplicaManager.class);
         // First check should throw KafkaStorageException, second check should return partition which
         // is not leader.
-        when(replicaManager.getPartitionOrException(any()))
+        when(replicaManager.getPartitionOrException(any(TopicPartition.class)))
             .thenThrow(new KafkaStorageException("Exception"))
             .thenReturn(partition);
         SharePartitionManager sharePartitionManager = SharePartitionManagerBuilder.builder()
@@ -2349,7 +2349,7 @@ public class SharePartitionManagerTest {
         Partition partition0 = mock(Partition.class);
         when(partition0.isLeader()).thenReturn(false);
         ReplicaManager replicaManager = mock(ReplicaManager.class);
-        when(replicaManager.getPartitionOrException(any()))
+        when(replicaManager.getPartitionOrException(any(TopicPartition.class)))
             .thenReturn(partition0);
 
         // Mock share partition for tp1, so it can succeed.
@@ -2516,7 +2516,7 @@ public class SharePartitionManagerTest {
 
         ReplicaManager mockReplicaManager = mock(ReplicaManager.class);
         Partition partition = mockPartition();
-        when(mockReplicaManager.getPartitionOrException(Mockito.any())).thenReturn(partition);
+        when(mockReplicaManager.getPartitionOrException((TopicPartition) Mockito.any())).thenReturn(partition);
 
         SharePartitionManager sharePartitionManager = SharePartitionManagerBuilder.builder()
             .withReplicaManager(mockReplicaManager)

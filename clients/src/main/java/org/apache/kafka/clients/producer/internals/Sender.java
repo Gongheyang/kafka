@@ -29,6 +29,7 @@ import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.MetricName;
 import org.apache.kafka.common.Node;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.Uuid;
 import org.apache.kafka.common.errors.AuthenticationException;
 import org.apache.kafka.common.errors.ClusterAuthorizationException;
 import org.apache.kafka.common.errors.FencedLeaderEpochException;
@@ -611,7 +612,9 @@ public class Sender implements Runnable {
                 // This will be set by completeBatch.
                 Map<TopicPartition, Metadata.LeaderIdAndEpoch> partitionsWithUpdatedLeaderInfo = new HashMap<>();
                 produceResponse.data().responses().forEach(r -> r.partitionResponses().forEach(p -> {
-                    TopicPartition tp = new TopicPartition(r.name(), p.index());
+                    // Version 13 drop topic name and add support to topic id. However, metadata can be used to map topic id to topic name.
+                    String topicName = metadata.topicNames().getOrDefault(r.topicId(), r.name());
+                    TopicPartition tp = new TopicPartition(topicName, p.index());
                     ProduceResponse.PartitionResponse partResp = new ProduceResponse.PartitionResponse(
                             Errors.forCode(p.errorCode()),
                             p.baseOffset(),
@@ -878,6 +881,7 @@ public class Sender implements Runnable {
             if (batch.magic() < minUsedMagic)
                 minUsedMagic = batch.magic();
         }
+        Map<String, Uuid> topicIds = topicIdsForBatches(batches);
         ProduceRequestData.TopicProduceDataCollection tpd = new ProduceRequestData.TopicProduceDataCollection();
         for (ProducerBatch batch : batches) {
             TopicPartition tp = batch.topicPartition;
@@ -892,11 +896,15 @@ public class Sender implements Runnable {
             // which is supporting the new magic version to one which doesn't, then we will need to convert.
             if (!records.hasMatchingMagic(minUsedMagic))
                 records = batch.records().downConvert(minUsedMagic, 0, time).records();
-            ProduceRequestData.TopicProduceData tpData = tpd.find(tp.topic());
+            Uuid topicId = topicIds.get(tp.topic());
+            ProduceRequestData.TopicProduceData tpData = tpd.find(tp.topic(), topicId);
+
             if (tpData == null) {
-                tpData = new ProduceRequestData.TopicProduceData().setName(tp.topic());
+                tpData = new ProduceRequestData.TopicProduceData()
+                        .setTopicId(topicId).setName(tp.topic());
                 tpd.add(tpData);
             }
+
             tpData.partitionData().add(new ProduceRequestData.PartitionProduceData()
                     .setIndex(tp.partition())
                     .setRecords(records));
@@ -930,6 +938,15 @@ public class Sender implements Runnable {
                 requestTimeoutMs, callback);
         client.send(clientRequest, now);
         log.trace("Sent produce request to {}: {}", nodeId, requestBuilder);
+    }
+
+    private Map<String, Uuid> topicIdsForBatches(List<ProducerBatch> batches) {
+        return batches.stream()
+                .collect(Collectors.toMap(
+                        b -> b.topicPartition.topic(),
+                        b -> metadata.topicIds().getOrDefault(b.topicPartition.topic(), Uuid.ZERO_UUID),
+                        (existing, replacement) -> replacement)
+                );
     }
 
     /**

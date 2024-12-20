@@ -1690,6 +1690,18 @@ public final class Utils {
         configDefs.forEach(configDef -> configDef.configKeys().values().forEach(all::define));
         return all;
     }
+
+    /**
+     * Convert a map's keys to another type.
+     */
+    public static <K1, K2, V> Map<K2, V> convertKeys(Map<K1, V> originalMap, Function<K1, K2> converter) {
+        return originalMap.entrySet().stream()
+                .collect(Collectors.toMap(
+                        entry -> converter.apply(entry.getKey()),
+                        Map.Entry::getValue
+                ));
+    }
+
     /**
      * A runnable that can throw checked exception.
      */

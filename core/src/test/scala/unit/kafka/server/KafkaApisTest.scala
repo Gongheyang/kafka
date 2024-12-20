@@ -2641,23 +2641,31 @@ class KafkaApisTest extends Logging {
   @Test
   def shouldReplaceProducerFencedWithInvalidProducerEpochInProduceResponse(): Unit = {
     val topic = "topic"
-    addTopicToMetadataCache(topic, numPartitions = 2)
+    val topicId = Uuid.fromString("d2Gg8tgzJa2JYK2eTHUapg")
+    val tp = new TopicIdPartition(topicId, 0, "topic")
+    addTopicToMetadataCache(topic, numPartitions = 2, topicId = topicId)
 
     for (version <- ApiKeys.PRODUCE.oldestVersion to ApiKeys.PRODUCE.latestVersion) {
 
       reset(replicaManager, clientQuotaManager, clientRequestQuotaManager, requestChannel, txnCoordinator)
 
-      val responseCallback: ArgumentCaptor[Map[TopicPartition, PartitionResponse] => Unit] = ArgumentCaptor.forClass(classOf[Map[TopicPartition, PartitionResponse] => Unit])
+      val responseCallback: ArgumentCaptor[Map[TopicIdPartition, PartitionResponse] => Unit] = ArgumentCaptor.forClass(classOf[Map[TopicIdPartition, PartitionResponse] => Unit])
 
-      val tp = new TopicPartition("topic", 0)
+      val produceData = new ProduceRequestData.TopicProduceData()
+        .setPartitionData(Collections.singletonList(
+          new ProduceRequestData.PartitionProduceData()
+            .setIndex(tp.partition)
+            .setRecords(MemoryRecords.withRecords(Compression.NONE, new SimpleRecord("test".getBytes)))))
+
+      if (version >= 13 ) {
+        produceData.setTopicId(topicId)
+      } else {
+        produceData.setName(tp.topic)
+      }
 
       val produceRequest = ProduceRequest.forCurrentMagic(new ProduceRequestData()
         .setTopicData(new ProduceRequestData.TopicProduceDataCollection(
-          Collections.singletonList(new ProduceRequestData.TopicProduceData()
-            .setName(tp.topic).setPartitionData(Collections.singletonList(
-            new ProduceRequestData.PartitionProduceData()
-              .setIndex(tp.partition)
-              .setRecords(MemoryRecords.withRecords(Compression.NONE, new SimpleRecord("test".getBytes))))))
+          Collections.singletonList(produceData)
             .iterator))
         .setAcks(1.toShort)
         .setTimeoutMs(5000))
@@ -2700,27 +2708,34 @@ class KafkaApisTest extends Logging {
   @Test
   def testProduceResponseContainsNewLeaderOnNotLeaderOrFollower(): Unit = {
     val topic = "topic"
-    addTopicToMetadataCache(topic, numPartitions = 2, numBrokers = 3)
+    val topicId = Uuid.fromString("d2Gg8tgzJa2JYK2eTHUapg")
+    addTopicToMetadataCache(topic, numPartitions = 2, numBrokers = 3, topicId = topicId)
 
     for (version <- 10 to ApiKeys.PRODUCE.latestVersion) {
 
       reset(replicaManager, clientQuotaManager, clientRequestQuotaManager, requestChannel, txnCoordinator)
 
-      val responseCallback: ArgumentCaptor[Map[TopicPartition, PartitionResponse] => Unit] = ArgumentCaptor.forClass(classOf[Map[TopicPartition, PartitionResponse] => Unit])
+      val responseCallback: ArgumentCaptor[Map[TopicIdPartition, PartitionResponse] => Unit] = ArgumentCaptor.forClass(classOf[Map[TopicIdPartition, PartitionResponse] => Unit])
 
-      val tp = new TopicPartition(topic, 0)
+      val tp = new TopicIdPartition(topicId, 0, topic)
       val partition = mock(classOf[Partition])
       val newLeaderId = 2
       val newLeaderEpoch = 5
 
+      val produceData = new ProduceRequestData.TopicProduceData()
+        .setPartitionData(Collections.singletonList(
+          new ProduceRequestData.PartitionProduceData()
+            .setIndex(tp.partition)
+            .setRecords(MemoryRecords.withRecords(Compression.NONE, new SimpleRecord("test".getBytes)))))
+
+      if (version >= 13 ) {
+        produceData.setTopicId(topicId)
+      } else {
+        produceData.setName(tp.topic)
+      }
       val produceRequest = ProduceRequest.forCurrentMagic(new ProduceRequestData()
         .setTopicData(new ProduceRequestData.TopicProduceDataCollection(
-          Collections.singletonList(new ProduceRequestData.TopicProduceData()
-            .setName(tp.topic).setPartitionData(Collections.singletonList(
-            new ProduceRequestData.PartitionProduceData()
-              .setIndex(tp.partition)
-              .setRecords(MemoryRecords.withRecords(Compression.NONE, new SimpleRecord("test".getBytes))))))
-            .iterator))
+          Collections.singletonList(produceData).iterator))
         .setAcks(1.toShort)
         .setTimeoutMs(5000))
         .build(version.toShort)
@@ -2738,7 +2753,7 @@ class KafkaApisTest extends Logging {
         any())
       ).thenAnswer(_ => responseCallback.getValue.apply(Map(tp -> new PartitionResponse(Errors.NOT_LEADER_OR_FOLLOWER))))
 
-      when(replicaManager.getPartitionOrError(tp)).thenAnswer(_ => Right(partition))
+      when(replicaManager.getPartitionOrError(tp.topicPartition())).thenAnswer(_ => Right(partition))
       when(partition.leaderReplicaIdOpt).thenAnswer(_ => Some(newLeaderId))
       when(partition.getLeaderEpoch).thenAnswer(_ => newLeaderEpoch)
 
@@ -2768,24 +2783,31 @@ class KafkaApisTest extends Logging {
   @Test
   def testProduceResponseReplicaManagerLookupErrorOnNotLeaderOrFollower(): Unit = {
     val topic = "topic"
-    addTopicToMetadataCache(topic, numPartitions = 2, numBrokers = 3)
+    val topicId = Uuid.fromString("d2Gg8tgzJa2JYK2eTHUapg")
+    addTopicToMetadataCache(topic, numPartitions = 2, numBrokers = 3, topicId = topicId)
 
     for (version <- 10 to ApiKeys.PRODUCE.latestVersion) {
 
       reset(replicaManager, clientQuotaManager, clientRequestQuotaManager, requestChannel, txnCoordinator)
 
-      val responseCallback: ArgumentCaptor[Map[TopicPartition, PartitionResponse] => Unit] = ArgumentCaptor.forClass(classOf[Map[TopicPartition, PartitionResponse] => Unit])
+      val responseCallback: ArgumentCaptor[Map[TopicIdPartition, PartitionResponse] => Unit] = ArgumentCaptor.forClass(classOf[Map[TopicIdPartition, PartitionResponse] => Unit])
 
-      val tp = new TopicPartition(topic, 0)
+      val tp = new TopicIdPartition(topicId, 0, topic)
 
+      val produceData = new ProduceRequestData.TopicProduceData()
+        .setPartitionData(Collections.singletonList(
+          new ProduceRequestData.PartitionProduceData()
+            .setIndex(tp.partition)
+            .setRecords(MemoryRecords.withRecords(Compression.NONE, new SimpleRecord("test".getBytes)))))
+
+      if (version >= 13 ) {
+        produceData.setTopicId(topicId)
+      } else {
+        produceData.setName(tp.topic)
+      }
       val produceRequest = ProduceRequest.forCurrentMagic(new ProduceRequestData()
         .setTopicData(new ProduceRequestData.TopicProduceDataCollection(
-          Collections.singletonList(new ProduceRequestData.TopicProduceData()
-            .setName(tp.topic).setPartitionData(Collections.singletonList(
-            new ProduceRequestData.PartitionProduceData()
-              .setIndex(tp.partition)
-              .setRecords(MemoryRecords.withRecords(Compression.NONE, new SimpleRecord("test".getBytes))))))
-            .iterator))
+          Collections.singletonList(produceData).iterator))
         .setAcks(1.toShort)
         .setTimeoutMs(5000))
         .build(version.toShort)
@@ -2803,7 +2825,7 @@ class KafkaApisTest extends Logging {
         any())
       ).thenAnswer(_ => responseCallback.getValue.apply(Map(tp -> new PartitionResponse(Errors.NOT_LEADER_OR_FOLLOWER))))
 
-      when(replicaManager.getPartitionOrError(tp)).thenAnswer(_ => Left(Errors.UNKNOWN_TOPIC_OR_PARTITION))
+      when(replicaManager.getPartitionOrError(tp.topicPartition())).thenAnswer(_ => Left(Errors.UNKNOWN_TOPIC_OR_PARTITION))
 
       when(clientRequestQuotaManager.maybeRecordAndGetThrottleTimeMs(any[RequestChannel.Request](),
         any[Long])).thenReturn(0)
@@ -2832,20 +2854,29 @@ class KafkaApisTest extends Logging {
   @Test
   def testProduceResponseMetadataLookupErrorOnNotLeaderOrFollower(): Unit = {
     val topic = "topic"
+    val topicId = Uuid.fromString("d2Gg8tgzJa2JYK2eTHUapg")
     metadataCache = mock(classOf[ZkMetadataCache])
 
     for (version <- 10 to ApiKeys.PRODUCE.latestVersion) {
 
       reset(replicaManager, clientQuotaManager, clientRequestQuotaManager, requestChannel, txnCoordinator)
 
-      val responseCallback: ArgumentCaptor[Map[TopicPartition, PartitionResponse] => Unit] = ArgumentCaptor.forClass(classOf[Map[TopicPartition, PartitionResponse] => Unit])
+      val responseCallback: ArgumentCaptor[Map[TopicIdPartition, PartitionResponse] => Unit] = ArgumentCaptor.forClass(classOf[Map[TopicIdPartition, PartitionResponse] => Unit])
 
-      val tp = new TopicPartition(topic, 0)
+      val tp = new TopicIdPartition(topicId, 0, topic)
+
+      val topicProduceData = new ProduceRequestData.TopicProduceData()
+
+      if (version >= 13 ) {
+        topicProduceData.setTopicId(topicId)
+      } else {
+        topicProduceData.setName(tp.topic)
+      }
 
       val produceRequest = ProduceRequest.forCurrentMagic(new ProduceRequestData()
         .setTopicData(new ProduceRequestData.TopicProduceDataCollection(
-          Collections.singletonList(new ProduceRequestData.TopicProduceData()
-            .setName(tp.topic).setPartitionData(Collections.singletonList(
+          Collections.singletonList(topicProduceData
+            .setPartitionData(Collections.singletonList(
             new ProduceRequestData.PartitionProduceData()
               .setIndex(tp.partition)
               .setRecords(MemoryRecords.withRecords(Compression.NONE, new SimpleRecord("test".getBytes))))))
@@ -2867,13 +2898,18 @@ class KafkaApisTest extends Logging {
         any())
       ).thenAnswer(_ => responseCallback.getValue.apply(Map(tp -> new PartitionResponse(Errors.NOT_LEADER_OR_FOLLOWER))))
 
-      when(replicaManager.getPartitionOrError(tp)).thenAnswer(_ => Left(Errors.UNKNOWN_TOPIC_OR_PARTITION))
+      when(replicaManager.getPartitionOrError(tp.topicPartition)).thenAnswer(_ => Left(Errors.UNKNOWN_TOPIC_OR_PARTITION))
 
       when(clientRequestQuotaManager.maybeRecordAndGetThrottleTimeMs(any[RequestChannel.Request](),
         any[Long])).thenReturn(0)
       when(clientQuotaManager.maybeRecordAndGetThrottleTimeMs(
         any[RequestChannel.Request](), anyDouble, anyLong)).thenReturn(0)
-      when(metadataCache.contains(tp)).thenAnswer(_ => true)
+      when(metadataCache.contains(tp.topicPartition())).thenAnswer(_ => true)
+      if (version >= 12) {
+        when(metadataCache.getTopicName(tp.topicId())).thenReturn(Some(tp.topic()))
+      } else {
+        when(metadataCache.getTopicId(tp.topic())).thenReturn(tp.topicId())
+      }
       when(metadataCache.getPartitionInfo(tp.topic(), tp.partition())).thenAnswer(_ => Option.empty)
       when(metadataCache.getAliveBrokerNode(any(), any())).thenReturn(Option.empty)
       kafkaApis = createKafkaApis()
@@ -2897,21 +2933,28 @@ class KafkaApisTest extends Logging {
     val topic = "topic"
     val transactionalId = "txn1"
 
-    addTopicToMetadataCache(topic, numPartitions = 2)
+    val topicId = Uuid.fromString("d2Gg8tgzJa2JYK2eTHUapg")
+    val tp = new TopicIdPartition(topicId, 0, "topic")
+    addTopicToMetadataCache(topic, numPartitions = 2, topicId = tp.topicId())
 
     for (version <- 3 to ApiKeys.PRODUCE.latestVersion) {
 
       reset(replicaManager, clientQuotaManager, clientRequestQuotaManager, requestChannel, txnCoordinator)
 
-      val tp = new TopicPartition("topic", 0)
+      val produceData = new ProduceRequestData.TopicProduceData()
+        .setPartitionData(Collections.singletonList(
+          new ProduceRequestData.PartitionProduceData()
+            .setIndex(tp.partition)
+            .setRecords(MemoryRecords.withTransactionalRecords(Compression.NONE, 0, 0, 0, new SimpleRecord("test".getBytes)))))
 
+      if (version >= 13 ) {
+        produceData.setTopicId(topicId)
+      } else {
+        produceData.setName(tp.topic)
+      }
       val produceRequest = ProduceRequest.forCurrentMagic(new ProduceRequestData()
         .setTopicData(new ProduceRequestData.TopicProduceDataCollection(
-          Collections.singletonList(new ProduceRequestData.TopicProduceData()
-            .setName(tp.topic).setPartitionData(Collections.singletonList(
-            new ProduceRequestData.PartitionProduceData()
-              .setIndex(tp.partition)
-              .setRecords(MemoryRecords.withTransactionalRecords(Compression.NONE, 0, 0, 0, new SimpleRecord("test".getBytes))))))
+          Collections.singletonList(produceData)
             .iterator))
         .setAcks(1.toShort)
         .setTransactionalId(transactionalId)
@@ -3123,11 +3166,12 @@ class KafkaApisTest extends Logging {
   def shouldRespondWithUnsupportedMessageFormatForBadPartitionAndNoErrorsForGoodPartition(): Unit = {
     val tp1 = new TopicPartition("t", 0)
     val tp2 = new TopicPartition("t1", 0)
+    val topicId = Uuid.fromString("d2Gg8tgzJa2JYK2eTHUapg")
     val (_, request) = createWriteTxnMarkersRequest(asList(tp1, tp2))
     val expectedErrors = Map(tp1 -> Errors.UNSUPPORTED_FOR_MESSAGE_FORMAT, tp2 -> Errors.NONE).asJava
 
     val capturedResponse: ArgumentCaptor[WriteTxnMarkersResponse] = ArgumentCaptor.forClass(classOf[WriteTxnMarkersResponse])
-    val responseCallback: ArgumentCaptor[Map[TopicPartition, PartitionResponse] => Unit] = ArgumentCaptor.forClass(classOf[Map[TopicPartition, PartitionResponse] => Unit])
+    val responseCallback: ArgumentCaptor[Map[TopicIdPartition, PartitionResponse] => Unit] = ArgumentCaptor.forClass(classOf[Map[TopicIdPartition, PartitionResponse] => Unit])
 
     when(replicaManager.getMagic(tp1))
       .thenReturn(Some(RecordBatch.MAGIC_VALUE_V1))
@@ -3146,7 +3190,7 @@ class KafkaApisTest extends Logging {
       ArgumentMatchers.eq(requestLocal),
       any(),
       any()
-    )).thenAnswer(_ => responseCallback.getValue.apply(Map(tp2 -> new PartitionResponse(Errors.NONE))))
+    )).thenAnswer(_ => responseCallback.getValue.apply(Map(new TopicIdPartition(topicId, tp2) -> new PartitionResponse(Errors.NONE))))
     kafkaApis = createKafkaApis()
     kafkaApis.handleWriteTxnMarkersRequest(request, requestLocal)
 
@@ -3255,11 +3299,12 @@ class KafkaApisTest extends Logging {
   def shouldRespondWithUnknownTopicOrPartitionForBadPartitionAndNoErrorsForGoodPartition(): Unit = {
     val tp1 = new TopicPartition("t", 0)
     val tp2 = new TopicPartition("t1", 0)
+    val topicId = Uuid.fromString("d2Gg8tgzJa2JYK2eTHUapg")
     val (_, request) = createWriteTxnMarkersRequest(asList(tp1, tp2))
     val expectedErrors = Map(tp1 -> Errors.UNKNOWN_TOPIC_OR_PARTITION, tp2 -> Errors.NONE).asJava
 
     val capturedResponse: ArgumentCaptor[WriteTxnMarkersResponse] = ArgumentCaptor.forClass(classOf[WriteTxnMarkersResponse])
-    val responseCallback: ArgumentCaptor[Map[TopicPartition, PartitionResponse] => Unit] = ArgumentCaptor.forClass(classOf[Map[TopicPartition, PartitionResponse] => Unit])
+    val responseCallback: ArgumentCaptor[Map[TopicIdPartition, PartitionResponse] => Unit] = ArgumentCaptor.forClass(classOf[Map[TopicIdPartition, PartitionResponse] => Unit])
 
     when(replicaManager.getMagic(tp1))
       .thenReturn(None)
@@ -3278,7 +3323,7 @@ class KafkaApisTest extends Logging {
       ArgumentMatchers.eq(requestLocal),
       any(),
       any()
-    )).thenAnswer(_ => responseCallback.getValue.apply(Map(tp2 -> new PartitionResponse(Errors.NONE))))
+    )).thenAnswer(_ => responseCallback.getValue.apply(Map(new TopicIdPartition(topicId,tp2) -> new PartitionResponse(Errors.NONE))))
     kafkaApis = createKafkaApis()
     kafkaApis.handleWriteTxnMarkersRequest(request, requestLocal)
     verify(requestChannel).sendResponse(
@@ -3470,6 +3515,9 @@ class KafkaApisTest extends Logging {
     val foo0 = new TopicPartition("foo", 0)
     val foo1 = new TopicPartition("foo", 1)
 
+    val topicIds = Map(
+      Topic.GROUP_METADATA_TOPIC_NAME -> Uuid.fromString("JaTH2JYK2ed2GzUapg8tgg"),
+      "foo" -> Uuid.fromString("d2Gg8tgzJa2JYK2eTHUapg"))
     val allPartitions = List(
       offset0,
       offset1,
@@ -3500,8 +3548,8 @@ class KafkaApisTest extends Logging {
     val requestChannelRequest = buildRequest(writeTxnMarkersRequest)
 
     allPartitions.foreach { tp =>
-      when(replicaManager.getMagic(tp))
-        .thenReturn(Some(RecordBatch.MAGIC_VALUE_V2))
+      when(replicaManager.getMagic(tp)).thenReturn(Some(RecordBatch.MAGIC_VALUE_V2))
+      when(replicaManager.topicIdPartition(tp)).thenReturn(new TopicIdPartition(topicIds.get(tp.topic()).getOrElse(Uuid.ZERO_UUID), tp))
     }
 
     when(groupCoordinator.completeTransaction(
@@ -3522,10 +3570,10 @@ class KafkaApisTest extends Logging {
       ArgumentMatchers.eq(Duration.ofMillis(ServerConfigs.REQUEST_TIMEOUT_MS_DEFAULT))
     )).thenReturn(CompletableFuture.completedFuture[Void](null))
 
-    val entriesPerPartition: ArgumentCaptor[Map[TopicPartition, MemoryRecords]] =
-      ArgumentCaptor.forClass(classOf[Map[TopicPartition, MemoryRecords]])
-    val responseCallback: ArgumentCaptor[Map[TopicPartition, PartitionResponse] => Unit] =
-      ArgumentCaptor.forClass(classOf[Map[TopicPartition, PartitionResponse] => Unit])
+    val entriesPerPartition: ArgumentCaptor[Map[TopicIdPartition, MemoryRecords]] =
+      ArgumentCaptor.forClass(classOf[Map[TopicIdPartition, MemoryRecords]])
+    val responseCallback: ArgumentCaptor[Map[TopicIdPartition, PartitionResponse] => Unit] =
+      ArgumentCaptor.forClass(classOf[Map[TopicIdPartition, PartitionResponse] => Unit])
 
     when(replicaManager.appendRecords(
       ArgumentMatchers.eq(ServerConfigs.REQUEST_TIMEOUT_MS_DEFAULT.toLong),

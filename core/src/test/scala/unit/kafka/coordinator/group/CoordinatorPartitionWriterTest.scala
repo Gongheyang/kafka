@@ -17,7 +17,7 @@
 package kafka.coordinator.group
 
 import kafka.server.ReplicaManager
-import org.apache.kafka.common.TopicPartition
+import org.apache.kafka.common.{TopicIdPartition, TopicPartition, Uuid}
 import org.apache.kafka.common.compress.Compression
 import org.apache.kafka.common.errors.NotLeaderOrFollowerException
 import org.apache.kafka.common.message.DeleteRecordsResponseData.DeleteRecordsPartitionResult
@@ -87,15 +87,17 @@ class CoordinatorPartitionWriterTest {
   @Test
   def testWriteRecords(): Unit = {
     val tp = new TopicPartition("foo", 0)
+    val topicId = Uuid.fromString("TbEp6-A4s3VPT1TwiI5COw")
     val replicaManager = mock(classOf[ReplicaManager])
-    val partitionRecordWriter = new CoordinatorPartitionWriter(
-      replicaManager
-    )
+    when(replicaManager.topicIdPartition(tp)).thenReturn(new TopicIdPartition(topicId, tp))
 
-    val recordsCapture: ArgumentCaptor[Map[TopicPartition, MemoryRecords]] =
-      ArgumentCaptor.forClass(classOf[Map[TopicPartition, MemoryRecords]])
-    val callbackCapture: ArgumentCaptor[Map[TopicPartition, PartitionResponse] => Unit] =
-      ArgumentCaptor.forClass(classOf[Map[TopicPartition, PartitionResponse] => Unit])
+    val partitionRecordWriter = new CoordinatorPartitionWriter(
+        replicaManager
+    )
+    val recordsCapture: ArgumentCaptor[Map[TopicIdPartition, MemoryRecords]] =
+      ArgumentCaptor.forClass(classOf[Map[TopicIdPartition, MemoryRecords]])
+    val callbackCapture: ArgumentCaptor[Map[TopicIdPartition, PartitionResponse] => Unit] =
+      ArgumentCaptor.forClass(classOf[Map[TopicIdPartition, PartitionResponse] => Unit])
 
     when(replicaManager.appendRecords(
       ArgumentMatchers.eq(0L),
@@ -111,7 +113,7 @@ class CoordinatorPartitionWriterTest {
       ArgumentMatchers.eq(Map(tp -> VerificationGuard.SENTINEL)),
     )).thenAnswer( _ => {
       callbackCapture.getValue.apply(Map(
-        tp -> new PartitionResponse(
+        new TopicIdPartition(topicId, tp) -> new PartitionResponse(
           Errors.NONE,
           5,
           10,
@@ -137,11 +139,10 @@ class CoordinatorPartitionWriterTest {
       VerificationGuard.SENTINEL,
       batch
     ))
-
     assertEquals(
       batch,
-      recordsCapture.getValue.getOrElse(tp,
-        throw new AssertionError(s"No records for $tp"))
+      recordsCapture.getValue.find { case (topicIdPartition, _) => topicIdPartition == new TopicIdPartition(topicId, tp) }.getOrElse(
+        throw new AssertionError(s"No records for $tp"))._2
     )
   }
 
@@ -196,15 +197,18 @@ class CoordinatorPartitionWriterTest {
   @Test
   def testWriteRecordsWithFailure(): Unit = {
     val tp = new TopicPartition("foo", 0)
+    val topicId = Uuid.fromString("TbEp6-A4s3VPT1TwiI5COw")
     val replicaManager = mock(classOf[ReplicaManager])
+    when(replicaManager.topicIdPartition(tp)).thenReturn(new TopicIdPartition(topicId, tp))
+
     val partitionRecordWriter = new CoordinatorPartitionWriter(
       replicaManager
     )
 
-    val recordsCapture: ArgumentCaptor[Map[TopicPartition, MemoryRecords]] =
-      ArgumentCaptor.forClass(classOf[Map[TopicPartition, MemoryRecords]])
-    val callbackCapture: ArgumentCaptor[Map[TopicPartition, PartitionResponse] => Unit] =
-      ArgumentCaptor.forClass(classOf[Map[TopicPartition, PartitionResponse] => Unit])
+    val recordsCapture: ArgumentCaptor[Map[TopicIdPartition, MemoryRecords]] =
+      ArgumentCaptor.forClass(classOf[Map[TopicIdPartition, MemoryRecords]])
+    val callbackCapture: ArgumentCaptor[Map[TopicIdPartition, PartitionResponse] => Unit] =
+      ArgumentCaptor.forClass(classOf[Map[TopicIdPartition, PartitionResponse] => Unit])
 
     when(replicaManager.appendRecords(
       ArgumentMatchers.eq(0L),
@@ -220,7 +224,7 @@ class CoordinatorPartitionWriterTest {
       ArgumentMatchers.eq(Map(tp -> VerificationGuard.SENTINEL)),
     )).thenAnswer(_ => {
       callbackCapture.getValue.apply(Map(
-        tp -> new PartitionResponse(Errors.NOT_LEADER_OR_FOLLOWER)
+        new TopicIdPartition(topicId, tp) -> new PartitionResponse(Errors.NOT_LEADER_OR_FOLLOWER)
       ))
     })
 

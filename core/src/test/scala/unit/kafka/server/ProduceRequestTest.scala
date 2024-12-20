@@ -21,7 +21,7 @@ import java.nio.ByteBuffer
 import java.util.{Collections, Properties}
 import kafka.utils.TestUtils
 import org.apache.kafka.clients.admin.{Admin, TopicDescription}
-import org.apache.kafka.common.TopicPartition
+import org.apache.kafka.common.{TopicIdPartition, TopicPartition}
 import org.apache.kafka.common.compress.Compression
 import org.apache.kafka.common.config.TopicConfig
 import org.apache.kafka.common.message.ProduceRequestData
@@ -122,6 +122,7 @@ class ProduceRequestTest extends BaseRequestTest {
     )
     val partitionToLeader = getPartitionToLeader(admin, topic)
     val leader = partitionToLeader(partition)
+    val topicDescription = TestUtils.describeTopic(createAdminClient(), topic)
 
     def createRecords(magicValue: Byte, timestamp: Long, codec: Compression): MemoryRecords = {
       val buf = ByteBuffer.allocate(512)
@@ -133,11 +134,12 @@ class ProduceRequestTest extends BaseRequestTest {
     }
 
     val records = createRecords(RecordBatch.MAGIC_VALUE_V2, recordTimestamp, Compression.gzip().build())
-    val topicPartition = new TopicPartition("topic", partition)
+    val topicPartition = new TopicIdPartition(topicDescription.topicId(), partition, "topic")
     val produceResponse = sendProduceRequest(leader, ProduceRequest.forCurrentMagic(new ProduceRequestData()
       .setTopicData(new ProduceRequestData.TopicProduceDataCollection(Collections.singletonList(
         new ProduceRequestData.TopicProduceData()
           .setName(topicPartition.topic())
+          .setTopicId(topicPartition.topicId())
           .setPartitionData(Collections.singletonList(new ProduceRequestData.PartitionProduceData()
             .setIndex(topicPartition.partition())
             .setRecords(records)))).iterator))
@@ -149,7 +151,9 @@ class ProduceRequestTest extends BaseRequestTest {
     val topicProduceResponse = produceResponse.data.responses.asScala.head
     assertEquals(1, topicProduceResponse.partitionResponses.size)   
     val partitionProduceResponse = topicProduceResponse.partitionResponses.asScala.head
-    val tp = new TopicPartition(topicProduceResponse.name, partitionProduceResponse.index)
+    val tp = new TopicIdPartition(topicProduceResponse.topicId(),
+      partitionProduceResponse.index,
+      getTopicNames().get(topicProduceResponse.topicId()).getOrElse(""))
     assertEquals(topicPartition, tp)
     assertEquals(Errors.INVALID_TIMESTAMP, Errors.forCode(partitionProduceResponse.errorCode))
     // there are 3 records with InvalidTimestampException created from inner function createRecords

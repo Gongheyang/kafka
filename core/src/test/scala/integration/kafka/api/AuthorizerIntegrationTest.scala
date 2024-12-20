@@ -92,9 +92,14 @@ class AuthorizerIntegrationTest extends AbstractAuthorizerIntegrationTest {
   val requestKeyToError = (topicNames: Map[Uuid, String], version: Short) => Map[ApiKeys, Nothing => Errors](
     ApiKeys.METADATA -> ((resp: requests.MetadataResponse) => resp.errors.asScala.find(_._1 == topic).getOrElse(("test", Errors.NONE))._2),
     ApiKeys.PRODUCE -> ((resp: requests.ProduceResponse) => {
+
+      val topicId = topicNames.find { case (_, topicName) => topicName == topic}
+        .map { case (topicId, _) => topicId }
+        .getOrElse(Uuid.ZERO_UUID)
+      val topicName = if (version >= 12) "" else topic
       Errors.forCode(
         resp.data
-          .responses.find(topic)
+          .responses.find(topicName, topicId)
           .partitionResponses.asScala.find(_.index == part).get
           .errorCode
       )
@@ -263,11 +268,11 @@ class AuthorizerIntegrationTest extends AbstractAuthorizerIntegrationTest {
     new requests.MetadataRequest.Builder(List(topic).asJava, allowAutoTopicCreation).build()
   }
 
-  private def createProduceRequest =
+  private def createProduceRequestWithId(id: Uuid) = {
     requests.ProduceRequest.forCurrentMagic(new ProduceRequestData()
       .setTopicData(new ProduceRequestData.TopicProduceDataCollection(
         Collections.singletonList(new ProduceRequestData.TopicProduceData()
-          .setName(tp.topic).setPartitionData(Collections.singletonList(
+          .setTopicId(id).setPartitionData(Collections.singletonList(
           new ProduceRequestData.PartitionProduceData()
             .setIndex(tp.partition)
             .setRecords(MemoryRecords.withRecords(Compression.NONE, new SimpleRecord("test".getBytes))))))
@@ -275,6 +280,8 @@ class AuthorizerIntegrationTest extends AbstractAuthorizerIntegrationTest {
       .setAcks(1.toShort)
       .setTimeoutMs(5000))
       .build()
+  }
+  private def createProduceRequest = createProduceRequestWithId(getTopicIds().getOrElse(tp.topic, Uuid.ZERO_UUID))
 
   private def createFetchRequest = {
     val partitionMap = new util.LinkedHashMap[TopicPartition, requests.FetchRequest.PartitionData]
@@ -700,7 +707,7 @@ class AuthorizerIntegrationTest extends AbstractAuthorizerIntegrationTest {
     val topicNames = Map(id -> "topic")
     val requestKeyToRequest = mutable.LinkedHashMap[ApiKeys, AbstractRequest](
       ApiKeys.METADATA -> createMetadataRequest(allowAutoTopicCreation = false),
-      ApiKeys.PRODUCE -> createProduceRequest,
+      ApiKeys.PRODUCE -> createProduceRequestWithId(id),
       ApiKeys.FETCH -> createFetchRequestWithUnknownTopic(id, ApiKeys.FETCH.latestVersion()),
       ApiKeys.LIST_OFFSETS -> createListOffsetsRequest,
       ApiKeys.OFFSET_COMMIT -> createOffsetCommitRequest,

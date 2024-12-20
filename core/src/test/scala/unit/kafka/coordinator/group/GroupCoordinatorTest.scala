@@ -94,6 +94,7 @@ class GroupCoordinatorTest {
   private val protocolSuperset = List((protocolName, metadata), ("roundrobin", metadata))
   private val requireStable = true
   private var groupPartitionId: Int = -1
+  val groupMetadataTopicId = Uuid.fromString("JaTH2JYK2ed2GzUapg8tgg")
 
   // we use this string value since its hashcode % #.partitions is different
   private val otherGroupId = "otherGroup"
@@ -128,6 +129,8 @@ class GroupCoordinatorTest {
 
     // add the partition into the owned partition list
     groupPartitionId = groupCoordinator.partitionFor(groupId)
+    val groupPartition = new TopicPartition(Topic.GROUP_METADATA_TOPIC_NAME, groupPartitionId)
+    when(replicaManager.topicIdPartition(groupPartition)).thenReturn(new TopicIdPartition(groupMetadataTopicId, groupPartition))
     groupCoordinator.groupManager.addOwnedPartition(groupPartitionId)
   }
 
@@ -2780,8 +2783,12 @@ class GroupCoordinatorTest {
     val producerEpoch: Short = 3
 
     val groupIds = List(groupId, otherGroupId)
-    val offsetTopicPartitions = List(new TopicPartition(Topic.GROUP_METADATA_TOPIC_NAME, groupCoordinator.partitionFor(groupId)),
-      new TopicPartition(Topic.GROUP_METADATA_TOPIC_NAME, groupCoordinator.partitionFor(otherGroupId)))
+    val otherGroupMetadataPartition = new TopicPartition(Topic.GROUP_METADATA_TOPIC_NAME, groupCoordinator.partitionFor(otherGroupId))
+    val groupMetadataPartition = new TopicPartition(Topic.GROUP_METADATA_TOPIC_NAME, groupCoordinator.partitionFor(groupId))
+    val offsetTopicPartitions = List(groupMetadataPartition, otherGroupMetadataPartition)
+
+    when(replicaManager.topicIdPartition(groupMetadataPartition)).thenReturn(new TopicIdPartition(groupMetadataTopicId, groupMetadataPartition))
+    when(replicaManager.topicIdPartition(otherGroupMetadataPartition)).thenReturn(new TopicIdPartition(groupMetadataTopicId, otherGroupMetadataPartition))
 
     groupCoordinator.groupManager.addOwnedPartition(offsetTopicPartitions(1).partition)
     val errors = mutable.ArrayBuffer[Errors]()
@@ -3947,13 +3954,13 @@ class GroupCoordinatorTest {
                                                  supportSkippingAssignment: Boolean): Future[JoinGroupResult] = {
     val (responseFuture, responseCallback) = setupJoinGroupCallback
 
-    val capturedArgument: ArgumentCaptor[scala.collection.Map[TopicPartition, PartitionResponse] => Unit] = ArgumentCaptor.forClass(classOf[scala.collection.Map[TopicPartition, PartitionResponse] => Unit])
+    val capturedArgument: ArgumentCaptor[scala.collection.Map[TopicIdPartition, PartitionResponse] => Unit] = ArgumentCaptor.forClass(classOf[scala.collection.Map[TopicIdPartition, PartitionResponse] => Unit])
 
     when(replicaManager.appendRecords(anyLong,
       anyShort(),
       internalTopicsAllowed = ArgumentMatchers.eq(true),
       origin = ArgumentMatchers.eq(AppendOrigin.COORDINATOR),
-      any[Map[TopicPartition, MemoryRecords]],
+      any[Map[TopicIdPartition, MemoryRecords]],
       capturedArgument.capture(),
       any[Option[ReentrantLock]],
       any(),
@@ -3962,7 +3969,7 @@ class GroupCoordinatorTest {
       any[Map[TopicPartition, VerificationGuard]]
     )).thenAnswer(_ => {
       capturedArgument.getValue.apply(
-        Map(new TopicPartition(Topic.GROUP_METADATA_TOPIC_NAME, groupPartitionId) ->
+        Map(new TopicIdPartition(groupMetadataTopicId, groupPartitionId, Topic.GROUP_METADATA_TOPIC_NAME) ->
           new PartitionResponse(appendRecordError, 0L, RecordBatch.NO_TIMESTAMP, 0L)
        )
       )
@@ -3983,13 +3990,13 @@ class GroupCoordinatorTest {
                                   assignment: Map[String, Array[Byte]]): Future[SyncGroupResult] = {
     val (responseFuture, responseCallback) = setupSyncGroupCallback
 
-    val capturedArgument: ArgumentCaptor[scala.collection.Map[TopicPartition, PartitionResponse] => Unit] = ArgumentCaptor.forClass(classOf[scala.collection.Map[TopicPartition, PartitionResponse] => Unit])
+    val capturedArgument: ArgumentCaptor[scala.collection.Map[TopicIdPartition, PartitionResponse] => Unit] = ArgumentCaptor.forClass(classOf[scala.collection.Map[TopicIdPartition, PartitionResponse] => Unit])
 
     when(replicaManager.appendRecords(anyLong,
       anyShort(),
       internalTopicsAllowed = ArgumentMatchers.eq(true),
       origin = ArgumentMatchers.eq(AppendOrigin.COORDINATOR),
-      any[Map[TopicPartition, MemoryRecords]],
+      any[Map[TopicIdPartition, MemoryRecords]],
       capturedArgument.capture(),
       any[Option[ReentrantLock]],
       any(),
@@ -3998,7 +4005,7 @@ class GroupCoordinatorTest {
       any[Map[TopicPartition, VerificationGuard]]
     )).thenAnswer(_ => {
         capturedArgument.getValue.apply(
-          Map(new TopicPartition(Topic.GROUP_METADATA_TOPIC_NAME, groupPartitionId) ->
+          Map(new TopicIdPartition(groupMetadataTopicId, groupPartitionId, Topic.GROUP_METADATA_TOPIC_NAME) ->
             new PartitionResponse(Errors.NONE, 0L, RecordBatch.NO_TIMESTAMP, 0L)
           )
         )
@@ -4130,13 +4137,13 @@ class GroupCoordinatorTest {
                             groupInstanceId: Option[String] = None): CommitOffsetCallbackParams = {
     val (responseFuture, responseCallback) = setupCommitOffsetsCallback
 
-    val capturedArgument: ArgumentCaptor[scala.collection.Map[TopicPartition, PartitionResponse] => Unit] = ArgumentCaptor.forClass(classOf[scala.collection.Map[TopicPartition, PartitionResponse] => Unit])
+    val capturedArgument: ArgumentCaptor[scala.collection.Map[TopicIdPartition, PartitionResponse] => Unit] = ArgumentCaptor.forClass(classOf[scala.collection.Map[TopicIdPartition, PartitionResponse] => Unit])
 
     when(replicaManager.appendRecords(anyLong,
       anyShort(),
       internalTopicsAllowed = ArgumentMatchers.eq(true),
       origin = ArgumentMatchers.eq(AppendOrigin.COORDINATOR),
-      any[Map[TopicPartition, MemoryRecords]],
+      any[Map[TopicIdPartition, MemoryRecords]],
       capturedArgument.capture(),
       any[Option[ReentrantLock]],
       any(),
@@ -4145,7 +4152,7 @@ class GroupCoordinatorTest {
       any[Map[TopicPartition, VerificationGuard]]
     )).thenAnswer(_ => {
       capturedArgument.getValue.apply(
-        Map(new TopicPartition(Topic.GROUP_METADATA_TOPIC_NAME, groupPartitionId) ->
+        Map(new TopicIdPartition(groupMetadataTopicId, groupPartitionId, Topic.GROUP_METADATA_TOPIC_NAME) ->
           new PartitionResponse(Errors.NONE, 0L, RecordBatch.NO_TIMESTAMP, 0L)
         )
       )
@@ -4166,7 +4173,7 @@ class GroupCoordinatorTest {
                                          verificationError: Errors = Errors.NONE): CommitOffsetCallbackParams = {
     val (responseFuture, responseCallback) = setupCommitOffsetsCallback
 
-    val capturedArgument: ArgumentCaptor[scala.collection.Map[TopicPartition, PartitionResponse] => Unit] = ArgumentCaptor.forClass(classOf[scala.collection.Map[TopicPartition, PartitionResponse] => Unit])
+    val capturedArgument: ArgumentCaptor[scala.collection.Map[TopicIdPartition, PartitionResponse] => Unit] = ArgumentCaptor.forClass(classOf[scala.collection.Map[TopicIdPartition, PartitionResponse] => Unit])
 
     // Since transactional ID is only used for verification, we can use a dummy value. Ensure it passes through.
     val transactionalId = "dummy-txn-id"
@@ -4194,7 +4201,7 @@ class GroupCoordinatorTest {
       anyShort(),
       internalTopicsAllowed = ArgumentMatchers.eq(true),
       origin = ArgumentMatchers.eq(AppendOrigin.COORDINATOR),
-      any[Map[TopicPartition, MemoryRecords]],
+      any[Map[TopicIdPartition, MemoryRecords]],
       capturedArgument.capture(),
       any[Option[ReentrantLock]],
       any(),
@@ -4203,7 +4210,7 @@ class GroupCoordinatorTest {
       any[Map[TopicPartition, VerificationGuard]]
     )).thenAnswer(_ => {
       capturedArgument.getValue.apply(
-        Map(offsetTopicPartition ->
+        Map(new TopicIdPartition(groupMetadataTopicId, offsetTopicPartition) ->
           new PartitionResponse(Errors.NONE, 0L, RecordBatch.NO_TIMESTAMP, 0L)
         )
       )

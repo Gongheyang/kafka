@@ -16,13 +16,11 @@
  */
 package org.apache.kafka.streams.processor;
 
-import org.apache.kafka.streams.processor.api.Record;
-
 import java.util.Objects;
 
 /**
  * This class is used to provide the optional parameters when sending output records to downstream processor
- * using {@link org.apache.kafka.streams.processor.api.ProcessorContext#forward(Record)}.
+ * using {@link ProcessorContext#forward(Object, Object, To)}.
  */
 public class To {
     protected String childName;

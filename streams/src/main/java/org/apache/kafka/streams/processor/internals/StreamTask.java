@@ -853,7 +853,9 @@ public class StreamTask extends AbstractTask implements ProcessorNodePunctuator,
             record.offset(),
             record.partition(),
             record.topic(),
-            record.headers()
+            record.headers(),
+            record.rawKey(),
+            record.rawValue()
         );
         updateProcessorContext(currNode, wallClockTime, recordContext);
 
@@ -935,11 +937,12 @@ public class StreamTask extends AbstractTask implements ProcessorNodePunctuator,
                 recordContext.headers(),
                 node.name(),
                 id(),
-                recordContext.timestamp()
+                recordContext.timestamp(),
+                recordContext.sourceRawKey(),
+                recordContext.sourceRawValue()
             );
 
-            final ProcessingExceptionHandler.ProcessingHandlerResponse response;
-            try {
+            final ProcessingExceptionHandler.ProcessingHandlerResponse response;            try {
                 response = Objects.requireNonNull(
                     processingExceptionHandler.handle(errorHandlerContext, null, processingException),
                     "Invalid ProcessingExceptionHandler response."

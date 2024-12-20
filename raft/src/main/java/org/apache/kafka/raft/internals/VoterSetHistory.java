@@ -38,7 +38,7 @@ public final class VoterSetHistory {
 
     VoterSetHistory(VoterSet staticVoterSet, LogContext logContext) {
         this.staticVoterSet = staticVoterSet;
-        this.logger = logContext.logger(this.getClass());
+        this.logger = logContext.logger(getClass());
     }
 
     /**
@@ -61,9 +61,9 @@ public final class VoterSetHistory {
             VoterSet lastVoterSet = lastEntry.get().value();
             if (!lastVoterSet.hasOverlappingMajority(voters)) {
                 logger.info(
-                        "Last voter set ({}) doesn't have an overlapping majority with the new voter set ({})",
-                        lastVoterSet,
-                        voters
+                    "Last voter set ({}) doesn't have an overlapping majority with the new voter set ({})",
+                    lastVoterSet,
+                    voters
                 );
             }
         }

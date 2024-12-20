@@ -42,7 +42,6 @@ import java.util.Set;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-import static org.apache.kafka.server.common.KRaftVersion.KRAFT_VERSION_0;
 import static org.apache.kafka.server.common.KRaftVersion.KRAFT_VERSION_1;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -220,13 +219,84 @@ public class QuorumStateTest {
 
     @ParameterizedTest
     @EnumSource(value = KRaftVersion.class)
+    public void testInitializeVotedAndLeaderAreSame(KRaftVersion kraftVersion) {
+        int epoch = 5;
+        ReplicaKey leaderKey = ReplicaKey.of(1, Uuid.randomUuid());
+        VoterSet voters = localWithRemoteVoterSet(IntStream.of(leaderKey.id(), 2), kraftVersion);
+        store.writeElectionState(
+            new ElectionState(epoch, OptionalInt.of(leaderKey.id()), Optional.of(leaderKey), voters.voterIds()),
+            kraftVersion
+        );
+
+        QuorumState state = buildQuorumState(OptionalInt.of(localId), voters, kraftVersion);
+        state.initialize(new OffsetAndEpoch(0L, logEndEpoch));
+        assertTrue(state.isFollower());
+        assertEquals(epoch, state.epoch());
+
+        FollowerState followerState = state.followerStateOrThrow();
+        assertEquals(epoch, followerState.epoch());
+        assertEquals(leaderKey.id(), followerState.leaderId());
+        assertEquals(fetchTimeoutMs, followerState.remainingFetchTimeMs(time.milliseconds()));
+        assertEquals(
+            Optional.of(
+                new ElectionState(
+                    epoch,
+                    OptionalInt.of(leaderKey.id()),
+                    Optional.of(persistedVotedKey(leaderKey, kraftVersion)),
+                    persistedVoters(voters.voterIds(), kraftVersion)
+                )
+            ),
+            store.readElectionState()
+        );
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = KRaftVersion.class)
+    public void testInitializeVotedAndLeaderAreDifferent(KRaftVersion kraftVersion) {
+        int leader = 1;
+        int epoch = 5;
+        ReplicaKey votedKey = ReplicaKey.of(2, Uuid.randomUuid());
+        VoterSet voters = localWithRemoteVoterSet(IntStream.of(leader, votedKey.id()), kraftVersion);
+        store.writeElectionState(
+            new ElectionState(epoch, OptionalInt.of(leader), Optional.of(votedKey), voters.voterIds()),
+            kraftVersion
+        );
+
+        QuorumState state = buildQuorumState(OptionalInt.of(localId), voters, kraftVersion);
+        state.initialize(new OffsetAndEpoch(0L, logEndEpoch));
+        assertTrue(state.isFollower());
+        assertEquals(epoch, state.epoch());
+
+        FollowerState followerState = state.followerStateOrThrow();
+        assertEquals(epoch, followerState.epoch());
+        assertEquals(leader, followerState.leaderId());
+        assertEquals(fetchTimeoutMs, followerState.remainingFetchTimeMs(time.milliseconds()));
+        assertEquals(
+            Optional.of(
+                new ElectionState(
+                    epoch,
+                    OptionalInt.of(leader),
+                    Optional.of(persistedVotedKey(votedKey, kraftVersion)),
+                    persistedVoters(voters.voterIds(), kraftVersion)
+                )
+            ),
+            store.readElectionState()
+        );
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = KRaftVersion.class)
     public void testInitializeAsUnattachedWhenMissingEndpoints(KRaftVersion kraftVersion) {
         int node1 = 1;
         int node2 = 2;
         int leader = 3;
         int epoch = 5;
+        ReplicaKey votedKey = ReplicaKey.of(leader, Uuid.randomUuid());
         VoterSet voters = localWithRemoteVoterSet(IntStream.of(node1, node2), kraftVersion);
-        store.writeElectionState(ElectionState.withElectedLeader(epoch, leader, voters.voterIds()), kraftVersion);
+        store.writeElectionState(
+            new ElectionState(epoch, OptionalInt.of(leader), Optional.of(votedKey), voters.voterIds()),
+            kraftVersion
+        );
 
         QuorumState state = buildQuorumState(OptionalInt.of(localId), voters, kraftVersion);
         state.initialize(new OffsetAndEpoch(0L, logEndEpoch));
@@ -235,11 +305,22 @@ public class QuorumStateTest {
 
         UnattachedState unattachedState = state.unattachedStateOrThrow();
         assertEquals(epoch, unattachedState.epoch());
+        assertEquals(
+            Optional.of(
+                new ElectionState(
+                    epoch,
+                    OptionalInt.of(leader),
+                    Optional.of(persistedVotedKey(votedKey, kraftVersion)),
+                    persistedVoters(voters.voterIds(), kraftVersion)
+                )
+            ),
+            store.readElectionState()
+        );
     }
 
     @ParameterizedTest
     @EnumSource(value = KRaftVersion.class)
-    public void testInitializeAsVoted(KRaftVersion kraftVersion) {
+    public void testInitializeAsVotedNoLeader(KRaftVersion kraftVersion) {
         ReplicaKey nodeKey1 = ReplicaKey.of(1, Uuid.randomUuid());
         ReplicaKey nodeKey2 = ReplicaKey.of(2, Uuid.randomUuid());
 
@@ -337,14 +418,29 @@ public class QuorumStateTest {
             resignedState.remainingElectionTimeMs(time.milliseconds()));
     }
 
-    @Test
-    public void testCandidateToCandidate() {
+    @ParameterizedTest
+    @EnumSource(value = KRaftVersion.class)
+    public void testInitializeAsOnlyVoter(KRaftVersion kraftVersion) {
+        VoterSet voters = localStandaloneVoterSet();
+        store.writeElectionState(ElectionState.withUnknownLeader(0, voters.voterIds()), kraftVersion);
+
+        QuorumState state = buildQuorumState(OptionalInt.of(localId), voters, kraftVersion);
+        state.initialize(new OffsetAndEpoch(0L, logEndEpoch));
+        // start as unattached, in KafkaRaftClient initialization the local replica then transitions to candidate
+        assertTrue(state.isUnattached());
+        assertEquals(0, state.epoch());
+        assertEquals(OptionalInt.empty(), state.leaderId());
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = KRaftVersion.class)
+    public void testCandidateToProspective(KRaftVersion kraftVersion) {
         int node1 = 1;
         int node2 = 2;
-        VoterSet voters = localWithRemoteVoterSet(IntStream.of(node1, node2), KRAFT_VERSION_0);
+        VoterSet voters = localWithRemoteVoterSet(IntStream.of(node1, node2), kraftVersion);
         assertEquals(Optional.empty(), store.readElectionState());
 
-        QuorumState state = initializeEmptyState(voters, KRAFT_VERSION_0);
+        QuorumState state = initializeEmptyState(voters, kraftVersion);
         state.transitionToProspective();
         int jitterMs1 = 2500;
         random.mockNextInt(electionTimeoutMs, jitterMs1);
@@ -352,8 +448,10 @@ public class QuorumStateTest {
         assertTrue(state.isCandidate());
         assertEquals(1, state.epoch());
         CandidateState candidate = state.candidateStateOrThrow();
-        assertEquals(electionTimeoutMs + jitterMs1,
-            candidate.remainingElectionTimeMs(time.milliseconds()));
+        assertEquals(
+            electionTimeoutMs + jitterMs1,
+            candidate.remainingElectionTimeMs(time.milliseconds())
+        );
 
         // The election timeout should be reset after we transition to prospective
         time.sleep(candidate.remainingElectionTimeMs(time.milliseconds()));
@@ -362,17 +460,33 @@ public class QuorumStateTest {
         random.mockNextInt(electionTimeoutMs, jitterMs2);
         state.transitionToProspective();
         ProspectiveState prospective = state.prospectiveStateOrThrow();
-        assertEquals(electionTimeoutMs + jitterMs2,
-            prospective.remainingElectionTimeMs(time.milliseconds()));
+        assertEquals(
+            electionTimeoutMs + jitterMs2,
+            prospective.remainingElectionTimeMs(time.milliseconds())
+        );
+        assertEquals(
+            Optional.of(
+                ElectionState.withVotedCandidate(
+                    1,
+                    persistedVotedKey(localVoterKey, kraftVersion),
+                    persistedVoters(voters.voterIds(), kraftVersion))),
+            store.readElectionState()
+        );
+    }
 
-        // The election timeout should be reset after we transition to candidate again
-        int jitterMs3 = 1000;
-        random.mockNextInt(electionTimeoutMs, jitterMs3);
-        prospective.recordGrantedVote(node1);
+    @ParameterizedTest
+    @EnumSource(value = KRaftVersion.class)
+    public void testCandidateToCandidate(KRaftVersion kraftVersion) {
+        int node1 = 1;
+        int node2 = 2;
+        VoterSet voters = localWithRemoteVoterSet(IntStream.of(node1, node2), kraftVersion);
+        assertEquals(Optional.empty(), store.readElectionState());
+
+        QuorumState state = initializeEmptyState(voters, kraftVersion);
+        state.transitionToProspective();
         state.transitionToCandidate();
-        candidate = state.candidateStateOrThrow();
-        assertEquals(electionTimeoutMs + jitterMs3,
-            candidate.remainingElectionTimeMs(time.milliseconds()));
+        assertTrue(state.isCandidate());
+        assertThrows(IllegalStateException.class, () -> state.transitionToCandidate());
     }
 
     @ParameterizedTest
@@ -434,7 +548,33 @@ public class QuorumStateTest {
 
     @ParameterizedTest
     @EnumSource(value = KRaftVersion.class)
-    public void testCandidateToFollower(KRaftVersion kraftVersion) {
+    public void testCandidateToFollowerSameEpoch(KRaftVersion kraftVersion) {
+        int otherNodeId = 1;
+
+        VoterSet voters = localWithRemoteVoterSet(IntStream.of(otherNodeId), kraftVersion);
+        QuorumState state = initializeEmptyState(voters, kraftVersion);
+        state.initialize(new OffsetAndEpoch(0L, logEndEpoch));
+        state.transitionToProspective();
+        state.transitionToCandidate();
+
+        state.transitionToFollower(state.epoch(), otherNodeId, voters.listeners(otherNodeId));
+        assertEquals(1, state.epoch());
+        assertEquals(OptionalInt.of(otherNodeId), state.leaderId());
+        assertEquals(
+            Optional.of(
+                ElectionState.withElectedLeader(
+                    1,
+                    otherNodeId,
+                    persistedVoters(voters.voterIds(), kraftVersion)
+                )
+            ),
+            store.readElectionState()
+        );
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = KRaftVersion.class)
+    public void testCandidateToFollowerHigherEpoch(KRaftVersion kraftVersion) {
         int otherNodeId = 1;
 
         VoterSet voters = localWithRemoteVoterSet(IntStream.of(otherNodeId), kraftVersion);
@@ -460,7 +600,20 @@ public class QuorumStateTest {
 
     @ParameterizedTest
     @EnumSource(value = KRaftVersion.class)
-    public void testCandidateToUnattached(KRaftVersion kraftVersion) {
+    public void testCandidateToUnattachedSameEpoch(KRaftVersion kraftVersion) {
+        int otherNodeId = 1;
+        VoterSet voters = localWithRemoteVoterSet(IntStream.of(otherNodeId), kraftVersion);
+        QuorumState state = initializeEmptyState(voters, kraftVersion);
+        state.initialize(new OffsetAndEpoch(0L, logEndEpoch));
+        state.transitionToProspective();
+        state.transitionToCandidate();
+
+        assertThrows(IllegalStateException.class, () -> state.transitionToUnattached(state.epoch()));
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = KRaftVersion.class)
+    public void testCandidateToUnattachedHigherEpoch(KRaftVersion kraftVersion) {
         int otherNodeId = 1;
         VoterSet voters = localWithRemoteVoterSet(IntStream.of(otherNodeId), kraftVersion);
         QuorumState state = initializeEmptyState(voters, kraftVersion);
@@ -560,6 +713,25 @@ public class QuorumStateTest {
 
     @ParameterizedTest
     @EnumSource(value = KRaftVersion.class)
+    public void testLeaderToProspective(KRaftVersion kraftVersion) {
+        VoterSet voters = localStandaloneVoterSet();
+        assertEquals(Optional.empty(), store.readElectionState());
+
+        QuorumState state = initializeEmptyState(voters, kraftVersion);
+        state.initialize(new OffsetAndEpoch(0L, logEndEpoch));
+        state.transitionToProspective();
+        state.transitionToCandidate();
+        state.transitionToLeader(0L, accumulator);
+        assertTrue(state.isLeader());
+        assertEquals(1, state.epoch());
+
+        assertThrows(IllegalStateException.class, state::transitionToProspective);
+        assertTrue(state.isLeader());
+        assertEquals(1, state.epoch());
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = KRaftVersion.class)
     public void testLeaderToCandidate(KRaftVersion kraftVersion) {
         VoterSet voters = localStandaloneVoterSet();
         assertEquals(Optional.empty(), store.readElectionState());
@@ -579,7 +751,25 @@ public class QuorumStateTest {
 
     @ParameterizedTest
     @EnumSource(value = KRaftVersion.class)
-    public void testLeaderToFollower(KRaftVersion kraftVersion) {
+    public void testLeaderToFollowerSameEpoch(KRaftVersion kraftVersion) {
+        int otherNodeId = 1;
+        VoterSet voters = localWithRemoteVoterSet(IntStream.of(otherNodeId), kraftVersion);
+
+        QuorumState state = initializeEmptyState(voters, kraftVersion);
+
+        state.transitionToProspective();
+        state.transitionToCandidate();
+        state.candidateStateOrThrow().recordGrantedVote(otherNodeId);
+        state.transitionToLeader(0L, accumulator);
+        assertThrows(
+            IllegalStateException.class,
+            () -> state.transitionToFollower(state.epoch(), otherNodeId, voters.listeners(otherNodeId))
+        );
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = KRaftVersion.class)
+    public void testLeaderToFollowerHigherEpoch(KRaftVersion kraftVersion) {
         int otherNodeId = 1;
         VoterSet voters = localWithRemoteVoterSet(IntStream.of(otherNodeId), kraftVersion);
 
@@ -607,7 +797,21 @@ public class QuorumStateTest {
 
     @ParameterizedTest
     @EnumSource(value = KRaftVersion.class)
-    public void testLeaderToUnattached(KRaftVersion kraftVersion) {
+    public void testLeaderToUnattachedSameEpoch(KRaftVersion kraftVersion) {
+        int otherNodeId = 1;
+        VoterSet voters = localWithRemoteVoterSet(IntStream.of(otherNodeId), kraftVersion);
+        QuorumState state = initializeEmptyState(voters, kraftVersion);
+        state.initialize(new OffsetAndEpoch(0L, logEndEpoch));
+        state.transitionToProspective();
+        state.transitionToCandidate();
+        state.candidateStateOrThrow().recordGrantedVote(otherNodeId);
+        state.transitionToLeader(0L, accumulator);
+        assertThrows(IllegalStateException.class, () -> state.transitionToUnattached(state.epoch()));
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = KRaftVersion.class)
+    public void testLeaderToUnattachedHigherEpoch(KRaftVersion kraftVersion) {
         int otherNodeId = 1;
         VoterSet voters = localWithRemoteVoterSet(IntStream.of(otherNodeId), kraftVersion);
         QuorumState state = initializeEmptyState(voters, kraftVersion);
@@ -666,7 +870,7 @@ public class QuorumStateTest {
 
     @ParameterizedTest
     @EnumSource(value = KRaftVersion.class)
-    public void testCannotFollowOrVoteForSelf(KRaftVersion kraftVersion) {
+    public void testCannotFollowSelf(KRaftVersion kraftVersion) {
         VoterSet voters = localStandaloneVoterSet();
         assertEquals(Optional.empty(), store.readElectionState());
         QuorumState state = initializeEmptyState(voters, kraftVersion);
@@ -679,6 +883,15 @@ public class QuorumStateTest {
                 voters.listeners(localId)
             )
         );
+        assertThrows(IllegalStateException.class, () -> state.unattachedAddVotedState(0, localVoterKey));
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = KRaftVersion.class)
+    public void testCannotAddVotedStateForSelfAsUnattached(KRaftVersion kraftVersion) {
+        VoterSet voters = localStandaloneVoterSet();
+        assertEquals(Optional.empty(), store.readElectionState());
+        QuorumState state = initializeEmptyState(voters, kraftVersion);
         assertThrows(IllegalStateException.class, () -> state.unattachedAddVotedState(0, localVoterKey));
     }
 
@@ -701,7 +914,7 @@ public class QuorumStateTest {
 
     @ParameterizedTest
     @EnumSource(value = KRaftVersion.class)
-    public void testUnattachedVotedSameEpoch(KRaftVersion kraftVersion) {
+    public void testUnattachedToUnattachedVotedSameEpoch(KRaftVersion kraftVersion) {
         ReplicaKey otherNodeKey = ReplicaKey.of(1, Uuid.randomUuid());
         VoterSet voters = VoterSetTest.voterSet(Stream.of(localVoterKey, otherNodeKey));
         QuorumState state = initializeEmptyState(voters, kraftVersion);
@@ -734,7 +947,7 @@ public class QuorumStateTest {
 
     @ParameterizedTest
     @EnumSource(value = KRaftVersion.class)
-    public void testUnattachedVotedHigherEpoch(KRaftVersion kraftVersion) {
+    public void testUnattachedToUnattachedVotedHigherEpoch(KRaftVersion kraftVersion) {
         ReplicaKey otherNodeKey = ReplicaKey.of(1, Uuid.randomUuid());
         VoterSet voters = VoterSetTest.voterSet(Stream.of(localVoterKey, otherNodeKey));
         QuorumState state = initializeEmptyState(voters, kraftVersion);
@@ -747,7 +960,7 @@ public class QuorumStateTest {
 
     @ParameterizedTest
     @EnumSource(value = KRaftVersion.class)
-    public void testUnattachedToCandidate(KRaftVersion kraftVersion) {
+    public void testUnattachedToProspectiveToCandidate(KRaftVersion kraftVersion) {
         ReplicaKey otherNodeKey = ReplicaKey.of(1, Uuid.randomUuid());
         VoterSet voters = VoterSetTest.voterSet(Stream.of(localVoterKey, otherNodeKey));
         QuorumState state = initializeEmptyState(voters, kraftVersion);
@@ -768,6 +981,17 @@ public class QuorumStateTest {
 
     @ParameterizedTest
     @EnumSource(value = KRaftVersion.class)
+    public void testUnattachedToCandidate(KRaftVersion kraftVersion) {
+        ReplicaKey otherNodeKey = ReplicaKey.of(1, Uuid.randomUuid());
+        VoterSet voters = VoterSetTest.voterSet(Stream.of(localVoterKey, otherNodeKey));
+        QuorumState state = initializeEmptyState(voters, kraftVersion);
+        state.initialize(new OffsetAndEpoch(0L, logEndEpoch));
+        state.transitionToUnattached(5);
+        assertThrows(IllegalStateException.class, () -> state.transitionToCandidate());
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = KRaftVersion.class)
     public void testUnattachedToUnattached(KRaftVersion kraftVersion) {
         ReplicaKey otherNodeKey = ReplicaKey.of(1, Uuid.randomUuid());
         VoterSet voters = VoterSetTest.voterSet(Stream.of(localVoterKey, otherNodeKey));
@@ -779,6 +1003,10 @@ public class QuorumStateTest {
         long remainingElectionTimeMs = state.unattachedStateOrThrow().remainingElectionTimeMs(time.milliseconds());
         time.sleep(1000);
 
+        // cannot transition to unattached in same epoch
+        assertThrows(IllegalStateException.class, () -> state.transitionToUnattached(state.epoch()));
+
+        // can transition to unattached in higher epoch
         state.transitionToUnattached(6);
         assertTrue(state.isUnattachedNotVoted());
         UnattachedState unattachedState = state.unattachedStateOrThrow();
@@ -869,20 +1097,21 @@ public class QuorumStateTest {
 
     @ParameterizedTest
     @EnumSource(value = KRaftVersion.class)
-    public void testUnattachedVotedToInvalidLeaderOrResigned(KRaftVersion kraftVersion) {
+    public void testUnattachedVotedToCandidateOrLeaderOrResigned(KRaftVersion kraftVersion) {
         int node1 = 1;
         int node2 = 2;
         VoterSet voters = localWithRemoteVoterSet(IntStream.of(node1, node2), kraftVersion);
         QuorumState state = initializeEmptyState(voters, kraftVersion);
         state.initialize(new OffsetAndEpoch(0L, logEndEpoch));
         state.unattachedAddVotedState(logEndEpoch, ReplicaKey.of(node1, ReplicaKey.NO_DIRECTORY_ID));
+        assertThrows(IllegalStateException.class, () -> state.transitionToCandidate());
         assertThrows(IllegalStateException.class, () -> state.transitionToLeader(0, accumulator));
         assertThrows(IllegalStateException.class, () -> state.transitionToResigned(Collections.emptyList()));
     }
 
     @ParameterizedTest
     @EnumSource(value = KRaftVersion.class)
-    public void testUnattachedVotedToCandidate(KRaftVersion kraftVersion) {
+    public void testUnattachedVotedToProspectiveToCandidate(KRaftVersion kraftVersion) {
         int node1 = 1;
         int node2 = 2;
         VoterSet voters = localWithRemoteVoterSet(IntStream.of(node1, node2), kraftVersion);
@@ -902,40 +1131,27 @@ public class QuorumStateTest {
 
     @ParameterizedTest
     @EnumSource(value = KRaftVersion.class)
-    public void testObserverCannotTransitionToProspective(KRaftVersion kraftVersion) {
-        int voter1 = 1;
-        int voter2 = 2;
-        VoterSet voters = withRemoteVoterSet(IntStream.of(voter1, voter2), kraftVersion);
-        QuorumState state = initializeEmptyState(voters, kraftVersion);
-        state.initialize(new OffsetAndEpoch(0L, logEndEpoch));
-
-        assertTrue(state.isUnattachedNotVoted());
-        assertThrows(IllegalStateException.class, () -> state.transitionToProspective());
-
-        state.unattachedAddVotedState(logEndEpoch, ReplicaKey.of(voter1, ReplicaKey.NO_DIRECTORY_ID));
-        assertTrue(state.isUnattachedAndVoted());
-        assertThrows(IllegalStateException.class, () -> state.transitionToProspective());
-
-        state.transitionToFollower(logEndEpoch + 1, voter1, voters.listeners(voter1));
-        assertThrows(IllegalStateException.class, () -> state.transitionToProspective());
-    }
-
-    @ParameterizedTest
-    @EnumSource(value = KRaftVersion.class)
-    public void testUnattachedVotedToUnattachedVotedSameEpoch(KRaftVersion kraftVersion) {
+    public void testUnattachedVotedToUnattachedVoted(KRaftVersion kraftVersion) {
         int node1 = 1;
         int node2 = 2;
         VoterSet voters = localWithRemoteVoterSet(IntStream.of(node1, node2), kraftVersion);
         QuorumState state = initializeEmptyState(voters, kraftVersion);
         state.initialize(new OffsetAndEpoch(0L, 8));
         state.unattachedAddVotedState(8, ReplicaKey.of(node1, Uuid.randomUuid()));
+        // same epoch
+        assertThrows(
+            IllegalStateException.class,
+            () -> state.unattachedAddVotedState(8, ReplicaKey.of(node2, ReplicaKey.NO_DIRECTORY_ID))
+        );
+        // same votedKey
         assertThrows(
             IllegalStateException.class,
             () -> state.unattachedAddVotedState(8, ReplicaKey.of(node1, ReplicaKey.NO_DIRECTORY_ID))
         );
+        // higher epoch
         assertThrows(
             IllegalStateException.class,
-            () -> state.unattachedAddVotedState(8, ReplicaKey.of(node2, ReplicaKey.NO_DIRECTORY_ID))
+            () -> state.unattachedAddVotedState(10, ReplicaKey.of(node1, ReplicaKey.NO_DIRECTORY_ID))
         );
     }
 
@@ -1073,38 +1289,6 @@ public class QuorumStateTest {
 
     @ParameterizedTest
     @EnumSource(value = KRaftVersion.class)
-    public void testIllegalStateTransitionToUnattachedInSameEpoch(KRaftVersion kraftVersion) {
-        ReplicaKey voter1 = ReplicaKey.of(1, Uuid.randomUuid());
-        ReplicaKey voter2 = ReplicaKey.of(2, Uuid.randomUuid());
-        VoterSet voters = VoterSetTest.voterSet(Stream.of(localVoterKey, voter1, voter2));
-        QuorumState state = initializeEmptyState(voters, kraftVersion);
-        state.initialize(new OffsetAndEpoch(0L, 5));
-
-        // unattached to unattached
-        state.unattachedStateOrThrow();
-        state.unattachedAddVotedState(5, voter1);
-        // cannot vote for same or different node in same epoch
-        assertThrows(IllegalStateException.class, () -> state.unattachedAddVotedState(5, voter1));
-        assertThrows(IllegalStateException.class, () -> state.unattachedAddVotedState(5, voter2));
-
-        // follower to unattached
-        state.transitionToFollower(10, voter1.id(), voters.listeners(voter1.id()));
-        assertThrows(IllegalStateException.class, () -> state.transitionToUnattached(state.epoch()));
-
-        state.transitionToProspective();
-
-        // candidate
-        state.transitionToCandidate();
-        assertThrows(IllegalStateException.class, () -> state.transitionToUnattached(state.epoch()));
-
-        // leader
-        state.candidateStateOrThrow().recordGrantedVote(voter1.id());
-        state.transitionToLeader(0L, accumulator);
-        assertThrows(IllegalStateException.class, () -> state.transitionToUnattached(state.epoch()));
-    }
-
-    @ParameterizedTest
-    @EnumSource(value = KRaftVersion.class)
     public void testProspectiveToUnattachedInSameEpoch(KRaftVersion kraftVersion) {
         ReplicaKey voter1 = ReplicaKey.of(1, Uuid.randomUuid());
         ReplicaKey voter2 = ReplicaKey.of(2, Uuid.randomUuid());
@@ -1113,21 +1297,6 @@ public class QuorumStateTest {
         state.initialize(new OffsetAndEpoch(0L, logEndEpoch));
         state.transitionToProspective();
 
-        // transition to unattached with leader state
-        state.transitionToUnattached(state.epoch(), OptionalInt.of(voter1.id()));
-        assertEquals(
-            ElectionState.withElectedLeader(
-                logEndEpoch,
-                voter1.id(),
-                persistedVoters(voters.voterIds(), kraftVersion)
-            ),
-            store.readElectionState().get()
-        );
-
-        // without leader state
-        state = initializeEmptyState(voters, kraftVersion);
-        state.initialize(new OffsetAndEpoch(0L, logEndEpoch));
-        state.transitionToProspective();
         state.transitionToUnattached(state.epoch());
         assertEquals(
             ElectionState.withUnknownLeader(
@@ -1140,47 +1309,428 @@ public class QuorumStateTest {
 
     @ParameterizedTest
     @EnumSource(value = KRaftVersion.class)
-    public void testProspectiveVotedToUnattachedVotedInSameEpoch(KRaftVersion kraftVersion) {
+    public void testProspectiveWithLeaderToUnattachedInSameEpoch(KRaftVersion kraftVersion) {
         ReplicaKey voter1 = ReplicaKey.of(1, Uuid.randomUuid());
         ReplicaKey voter2 = ReplicaKey.of(2, Uuid.randomUuid());
         VoterSet voters = VoterSetTest.voterSet(Stream.of(localVoterKey, voter1, voter2));
-        store.writeElectionState(
-            ElectionState.withVotedCandidate(
+        store.writeElectionState(ElectionState.withElectedLeader(logEndEpoch, voter1.id(), voters.voterIds()), kraftVersion);
+        QuorumState state = buildQuorumState(OptionalInt.of(localId), voters, kraftVersion);
+        state.initialize(new OffsetAndEpoch(0L, logEndEpoch));
+        state.transitionToProspective();
+        assertEquals(
+            ElectionState.withElectedLeader(
                 logEndEpoch,
-                voter1,
-                voters.voterIds()
-            ), kraftVersion
+                voter1.id(),
+                persistedVoters(voters.voterIds(), kraftVersion)
+            ),
+            store.readElectionState().get()
         );
+
+        state.transitionToUnattached(state.epoch(), OptionalInt.of(voter1.id()));
+        assertEquals(
+            ElectionState.withElectedLeader(
+                logEndEpoch,
+                voter1.id(),
+                persistedVoters(voters.voterIds(), kraftVersion)
+            ),
+            store.readElectionState().get()
+        );
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = KRaftVersion.class)
+    public void testProspectiveToUnattachedInHigherEpoch(KRaftVersion kraftVersion) {
+        ReplicaKey voter1 = ReplicaKey.of(1, Uuid.randomUuid());
+        ReplicaKey voter2 = ReplicaKey.of(2, Uuid.randomUuid());
+        VoterSet voters = VoterSetTest.voterSet(Stream.of(localVoterKey, voter1, voter2));
+        QuorumState state = initializeEmptyState(voters, kraftVersion);
+        state.initialize(new OffsetAndEpoch(0L, logEndEpoch));
+        state.transitionToProspective();
+
+        state.transitionToUnattached(20);
+        assertEquals(
+            ElectionState.withUnknownLeader(
+                20,
+                persistedVoters(voters.voterIds(), kraftVersion)
+            ),
+            store.readElectionState().get()
+        );
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = KRaftVersion.class)
+    public void testProspectiveToUnattachedWithLeaderInHigherEpoch(KRaftVersion kraftVersion) {
+        ReplicaKey voter1 = ReplicaKey.of(1, Uuid.randomUuid());
+        ReplicaKey voter2 = ReplicaKey.of(2, Uuid.randomUuid());
+        VoterSet voters = VoterSetTest.voterSet(Stream.of(localVoterKey, voter1, voter2));
+        QuorumState state = initializeEmptyState(voters, kraftVersion);
+        state.initialize(new OffsetAndEpoch(0L, logEndEpoch));
+        state.transitionToProspective();
+
+        state.transitionToUnattached(10, OptionalInt.of(voter1.id()));
+        assertEquals(
+            ElectionState.withElectedLeader(
+                10,
+                voter1.id(),
+                persistedVoters(voters.voterIds(), kraftVersion)
+            ),
+            store.readElectionState().get()
+        );
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = KRaftVersion.class)
+    public void testProspectiveWithLeaderToUnattachedInHigherEpoch(KRaftVersion kraftVersion) {
+        ReplicaKey voter1 = ReplicaKey.of(1, Uuid.randomUuid());
+        ReplicaKey voter2 = ReplicaKey.of(2, Uuid.randomUuid());
+        VoterSet voters = VoterSetTest.voterSet(Stream.of(localVoterKey, voter1, voter2));
+        store.writeElectionState(ElectionState.withElectedLeader(logEndEpoch, voter1.id(), voters.voterIds()), kraftVersion);
+        QuorumState state = buildQuorumState(OptionalInt.of(localId), voters, kraftVersion);
+        state.initialize(new OffsetAndEpoch(0L, logEndEpoch));
+        state.transitionToProspective();
+        assertEquals(
+            ElectionState.withElectedLeader(
+                logEndEpoch,
+                voter1.id(),
+                persistedVoters(voters.voterIds(), kraftVersion)
+            ),
+            store.readElectionState().get()
+        );
+
+        // transition to unattached
+        state.transitionToUnattached(10);
+        assertEquals(
+            ElectionState.withUnknownLeader(
+                10,
+                persistedVoters(voters.voterIds(), kraftVersion)
+            ),
+            store.readElectionState().get()
+        );
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = KRaftVersion.class)
+    public void testProspectiveWithLeaderToUnattachedWithLeaderInHigherEpoch(KRaftVersion kraftVersion) {
+        ReplicaKey voter1 = ReplicaKey.of(1, Uuid.randomUuid());
+        ReplicaKey voter2 = ReplicaKey.of(2, Uuid.randomUuid());
+        VoterSet voters = VoterSetTest.voterSet(Stream.of(localVoterKey, voter1, voter2));
+        store.writeElectionState(ElectionState.withElectedLeader(logEndEpoch, voter1.id(), voters.voterIds()), kraftVersion);
+        QuorumState state = buildQuorumState(OptionalInt.of(localId), voters, kraftVersion);
+        state.initialize(new OffsetAndEpoch(0L, logEndEpoch));
+        state.transitionToProspective();
+        assertEquals(
+            ElectionState.withElectedLeader(
+                logEndEpoch,
+                voter1.id(),
+                persistedVoters(voters.voterIds(), kraftVersion)
+            ),
+            store.readElectionState().get()
+        );
+
+        // transition to unattached with different leader state
+        state.transitionToUnattached(10, OptionalInt.of(voter2.id()));
+        assertEquals(
+            ElectionState.withElectedLeader(
+                10,
+                voter2.id(),
+                persistedVoters(voters.voterIds(), kraftVersion)
+            ),
+            store.readElectionState().get()
+        );
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = KRaftVersion.class)
+    public void testProspectiveToUnattachedVoted(KRaftVersion kraftVersion) {
+        ReplicaKey voter1 = ReplicaKey.of(1, Uuid.randomUuid());
+        ReplicaKey voter2 = ReplicaKey.of(2, Uuid.randomUuid());
+        VoterSet voters = VoterSetTest.voterSet(Stream.of(localVoterKey, voter1, voter2));
+        QuorumState state = initializeEmptyState(voters, kraftVersion);
+        state.initialize(new OffsetAndEpoch(0L, logEndEpoch));
+        state.transitionToProspective();
+
+        // in same epoch
+        assertThrows(IllegalStateException.class, () -> state.unattachedAddVotedState(logEndEpoch, voter1));
+        assertThrows(IllegalStateException.class, () -> state.unattachedAddVotedState(logEndEpoch, localVoterKey));
+
+        // in higher epoch
+        assertThrows(IllegalStateException.class, () -> state.unattachedAddVotedState(10, voter1));
+        assertThrows(IllegalStateException.class, () -> state.unattachedAddVotedState(10, localVoterKey));
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = KRaftVersion.class)
+    public void testProspectiveToFollowerSameEpoch(KRaftVersion kraftVersion) {
+        ReplicaKey voter1 = ReplicaKey.of(1, Uuid.randomUuid());
+        ReplicaKey voter2 = ReplicaKey.of(2, Uuid.randomUuid());
+        VoterSet voters = VoterSetTest.voterSet(Stream.of(localVoterKey, voter1, voter2));
+        store.writeElectionState(ElectionState.withElectedLeader(logEndEpoch, voter1.id(), voters.voterIds()), kraftVersion);
         QuorumState state = buildQuorumState(OptionalInt.of(localId), voters, kraftVersion);
         state.initialize(new OffsetAndEpoch(0L, logEndEpoch));
         state.transitionToProspective();
 
-        // transition to unattached with leader state
-        state.transitionToUnattached(state.epoch(), OptionalInt.of(voter1.id()));
+        state.transitionToFollower(state.epoch(), voter2.id(), voters.listeners(voter2.id()));
+        assertEquals(
+            ElectionState.withElectedLeader(
+                logEndEpoch,
+                voter2.id(),
+                persistedVoters(voters.voterIds(), kraftVersion)
+            ),
+            store.readElectionState().get()
+        );
+    }
 
-        // with voted state
+    @ParameterizedTest
+    @EnumSource(value = KRaftVersion.class)
+    public void testProspectiveToFollowerHigherEpoch(KRaftVersion kraftVersion) {
+        ReplicaKey voter1 = ReplicaKey.of(1, Uuid.randomUuid());
+        ReplicaKey voter2 = ReplicaKey.of(2, Uuid.randomUuid());
+        VoterSet voters = VoterSetTest.voterSet(Stream.of(localVoterKey, voter1, voter2));
+        store.writeElectionState(ElectionState.withElectedLeader(logEndEpoch, voter1.id(), voters.voterIds()), kraftVersion);
+        QuorumState state = buildQuorumState(OptionalInt.of(localId), voters, kraftVersion);
+        state.initialize(new OffsetAndEpoch(0L, logEndEpoch));
+        state.transitionToProspective();
+
+        state.transitionToFollower(10, voter2.id(), voters.listeners(voter2.id()));
+        assertEquals(
+            ElectionState.withElectedLeader(
+                10,
+                voter2.id(),
+                persistedVoters(voters.voterIds(), kraftVersion)
+            ),
+            store.readElectionState().get()
+        );
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = KRaftVersion.class)
+    public void testProspectiveToProspective(KRaftVersion kraftVersion) {
+        int leaderId = 1;
+        int followerId = 2;
+        VoterSet voters = localWithRemoteVoterSet(IntStream.of(leaderId, followerId), kraftVersion);
+
+        store.writeElectionState(ElectionState.withUnknownLeader(logEndEpoch, voters.voterIds()), kraftVersion);
+        QuorumState state = buildQuorumState(OptionalInt.of(localId), voters, kraftVersion);
+        state.initialize(new OffsetAndEpoch(0L, logEndEpoch));
+        state.transitionToProspective();
+        assertTrue(state.isProspective());
+        assertThrows(IllegalStateException.class, state::transitionToProspective);
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = KRaftVersion.class)
+    public void testProspectiveToCandidate(KRaftVersion kraftVersion) {
+        int leaderId = 1;
+        int followerId = 2;
+        VoterSet voters = localWithRemoteVoterSet(IntStream.of(leaderId, followerId), kraftVersion);
+
+        store.writeElectionState(ElectionState.withUnknownLeader(logEndEpoch, voters.voterIds()), kraftVersion);
+        QuorumState state = buildQuorumState(OptionalInt.of(localId), voters, kraftVersion);
+        state.initialize(new OffsetAndEpoch(0L, logEndEpoch));
+        int jitterMs1 = 2500;
+        random.mockNextInt(electionTimeoutMs, jitterMs1);
+        state.transitionToProspective();
+        assertFalse(state.hasLeader());
+        assertEquals(
+            electionTimeoutMs + jitterMs1,
+            state.prospectiveStateOrThrow().remainingElectionTimeMs(time.milliseconds())
+        );
+
+        int jitterMs2 = 3000;
+        random.mockNextInt(electionTimeoutMs, jitterMs2);
+        state.transitionToCandidate();
+        assertEquals(
+            electionTimeoutMs + jitterMs2,
+            state.candidateStateOrThrow().remainingElectionTimeMs(time.milliseconds())
+        );
+        assertEquals(
+            Optional.of(
+                ElectionState.withVotedCandidate(
+                    logEndEpoch + 1,
+                    persistedVotedKey(localVoterKey, kraftVersion),
+                    persistedVoters(voters.voterIds(), kraftVersion))),
+            store.readElectionState()
+        );
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = KRaftVersion.class)
+    public void testProspectiveWithLeaderToCandidate(KRaftVersion kraftVersion) {
+        int leaderId = 1;
+        int followerId = 2;
+        VoterSet voters = localWithRemoteVoterSet(IntStream.of(leaderId, followerId), kraftVersion);
+
+        store.writeElectionState(ElectionState.withElectedLeader(logEndEpoch, leaderId, voters.voterIds()), kraftVersion);
+        QuorumState state = buildQuorumState(OptionalInt.of(localId), voters, kraftVersion);
+        state.initialize(new OffsetAndEpoch(0L, logEndEpoch));
+        state.transitionToProspective();
+        assertTrue(state.isProspective());
+        assertTrue(state.hasLeader());
+
+        state.transitionToCandidate();
+        assertTrue(state.isCandidate());
+        assertEquals(logEndEpoch + 1, state.epoch());
+        assertEquals(
+            Optional.of(
+                ElectionState.withVotedCandidate(
+                    logEndEpoch + 1,
+                    persistedVotedKey(localVoterKey, kraftVersion),
+                    persistedVoters(voters.voterIds(), kraftVersion))),
+            store.readElectionState()
+        );
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = KRaftVersion.class)
+    public void testProspectiveToLeaderOrResigned(KRaftVersion kraftVersion) {
+        ReplicaKey voter1 = ReplicaKey.of(1, Uuid.randomUuid());
+        ReplicaKey voter2 = ReplicaKey.of(2, Uuid.randomUuid());
+        VoterSet voters = VoterSetTest.voterSet(Stream.of(localVoterKey, voter1, voter2));
+        QuorumState state = initializeEmptyState(voters, kraftVersion);
+        state.initialize(new OffsetAndEpoch(0L, logEndEpoch));
+        state.transitionToProspective();
+
+        // in same epoch
+        assertThrows(IllegalStateException.class, () -> state.transitionToLeader(logEndEpoch, accumulator));
+        assertThrows(IllegalStateException.class, () -> state.transitionToResigned(Collections.emptyList()));
+
+        // in higher epoch
+        assertThrows(IllegalStateException.class, () -> state.transitionToLeader(10, accumulator));
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = KRaftVersion.class)
+    public void testProspectiveVotedToUnattachedInSameEpoch(KRaftVersion kraftVersion) {
+        ReplicaKey voter1 = ReplicaKey.of(1, Uuid.randomUuid());
+        ReplicaKey voter2 = ReplicaKey.of(2, Uuid.randomUuid());
+        VoterSet voters = VoterSetTest.voterSet(Stream.of(localVoterKey, voter1, voter2));
+        store.writeElectionState(ElectionState.withUnknownLeader(logEndEpoch, voters.voterIds()), kraftVersion);
+        QuorumState state = buildQuorumState(OptionalInt.of(localId), voters, kraftVersion);
+        state.initialize(new OffsetAndEpoch(0L, logEndEpoch));
+        state.transitionToProspective();
+        state.prospectiveAddVotedState(logEndEpoch, voter1);
+
+        state.transitionToUnattached(logEndEpoch);
+        assertEquals(
+            ElectionState.withVotedCandidate(
+                logEndEpoch,
+                persistedVotedKey(voter1, kraftVersion),
+                persistedVoters(voters.voterIds(), kraftVersion)
+            ),
+            store.readElectionState().get()
+        );
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = KRaftVersion.class)
+    public void testProspectiveVotedWithLeaderToUnattachedInSameEpoch(KRaftVersion kraftVersion) {
+        ReplicaKey leader = ReplicaKey.of(1, Uuid.randomUuid());
+        ReplicaKey candidate = ReplicaKey.of(2, Uuid.randomUuid());
+        VoterSet voters = VoterSetTest.voterSet(Stream.of(localVoterKey, leader, candidate));
+        store.writeElectionState(
+            ElectionState.withElectedLeader(logEndEpoch, leader.id(), voters.voterIds()),
+            kraftVersion
+        );
+        QuorumState state = buildQuorumState(OptionalInt.of(localId), voters, kraftVersion);
+        state.initialize(new OffsetAndEpoch(0L, logEndEpoch));
+        state.transitionToProspective();
+        state.prospectiveAddVotedState(logEndEpoch, candidate);
+
+        // transition to unattached with different leader state
+        state.transitionToUnattached(state.epoch(), OptionalInt.of(candidate.id()));
+
         assertEquals(
             new ElectionState(
                 logEndEpoch,
-                OptionalInt.of(voter1.id()),
+                OptionalInt.of(candidate.id()),
+                Optional.of(persistedVotedKey(candidate, kraftVersion)),
+                persistedVoters(voters.voterIds(), kraftVersion)
+            ),
+            store.readElectionState().get()
+        );
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = KRaftVersion.class)
+    public void testProspectiveVotedToAndFromFollowerSameEpoch(KRaftVersion kraftVersion) {
+        ReplicaKey voter1 = ReplicaKey.of(1, Uuid.randomUuid());
+        ReplicaKey voter2 = ReplicaKey.of(2, Uuid.randomUuid());
+        VoterSet voters = VoterSetTest.voterSet(Stream.of(localVoterKey, voter1, voter2));
+        store.writeElectionState(ElectionState.withUnknownLeader(logEndEpoch, voters.voterIds()), kraftVersion);
+        QuorumState state = buildQuorumState(OptionalInt.of(localId), voters, kraftVersion);
+        state.initialize(new OffsetAndEpoch(0L, logEndEpoch));
+        state.transitionToProspective();
+        state.prospectiveAddVotedState(logEndEpoch, voter1);
+
+        // transition to follower of voter2 with votedKey voter1
+        state.transitionToFollower(state.epoch(), voter2.id(), voters.listeners(voter2.id()));
+        assertEquals(
+            new ElectionState(
+                logEndEpoch,
+                OptionalInt.of(voter2.id()),
                 Optional.of(persistedVotedKey(voter1, kraftVersion)),
                 persistedVoters(voters.voterIds(), kraftVersion)
             ),
             store.readElectionState().get()
         );
 
-        // without leader state
-        state = initializeEmptyState(voters, kraftVersion);
-        state.initialize(new OffsetAndEpoch(0L, logEndEpoch));
+        // transition back to prospective
         state.transitionToProspective();
-        state.transitionToUnattached(state.epoch());
         assertEquals(
+            Optional.of(new ElectionState(
+                logEndEpoch,
+                OptionalInt.of(voter2.id()),
+                Optional.of(persistedVotedKey(voter1, kraftVersion)),
+                persistedVoters(voters.voterIds(), kraftVersion))
+            ),
+            store.readElectionState()
+        );
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = KRaftVersion.class)
+    public void testProspectiveVotedToCandidate(KRaftVersion kraftVersion) {
+        int node1 = 1;
+        Uuid node1DirectoryId = Uuid.randomUuid();
+        int node2 = 2;
+        VoterSet voters = localWithRemoteVoterSet(IntStream.of(node1, node2), kraftVersion);
+        store.writeElectionState(
             ElectionState.withVotedCandidate(
                 logEndEpoch,
-                persistedVotedKey(localVoterKey, kraftVersion),
-                persistedVoters(voters.voterIds(), kraftVersion)
+                ReplicaKey.of(node1, node1DirectoryId),
+                voters.voterIds()
             ),
-            store.readElectionState().get()
+            kraftVersion
+        );
+        QuorumState state = buildQuorumState(OptionalInt.of(localId), voters, kraftVersion);
+        state.initialize(new OffsetAndEpoch(0L, logEndEpoch));
+        assertTrue(state.isUnattachedAndVoted());
+        int jitterMs1 = 2500;
+        random.mockNextInt(electionTimeoutMs, jitterMs1);
+        state.transitionToProspective();
+        ProspectiveState prospectiveState = state.prospectiveStateOrThrow();
+        assertEquals(
+            electionTimeoutMs + jitterMs1,
+            prospectiveState.remainingElectionTimeMs(time.milliseconds())
+        );
+        assertTrue(prospectiveState.votedKey().isPresent());
+
+        int jitterMs2 = 3000;
+        random.mockNextInt(electionTimeoutMs, jitterMs2);
+        state.transitionToCandidate();
+        assertTrue(state.isCandidate());
+        assertEquals(
+            electionTimeoutMs + jitterMs2,
+            state.candidateStateOrThrow().remainingElectionTimeMs(time.milliseconds())
+        );
+        assertEquals(logEndEpoch + 1, state.epoch());
+        assertEquals(
+            Optional.of(
+                ElectionState.withVotedCandidate(
+                    logEndEpoch + 1,
+                    persistedVotedKey(localVoterKey, kraftVersion),
+                    persistedVoters(voters.voterIds(), kraftVersion))),
+            store.readElectionState()
         );
     }
 
@@ -1320,6 +1870,28 @@ public class QuorumStateTest {
 
     @ParameterizedTest
     @EnumSource(value = KRaftVersion.class)
+    public void testFollowerToProspective(KRaftVersion kraftVersion) {
+        int node1 = 1;
+        int node2 = 2;
+        VoterSet voters = localWithRemoteVoterSet(IntStream.of(node1, node2), kraftVersion);
+        QuorumState state = initializeEmptyState(voters, kraftVersion);
+        state.initialize(new OffsetAndEpoch(0L, logEndEpoch));
+        state.transitionToFollower(
+            8,
+            node2,
+            voters.listeners(node2)
+        );
+        int jitterMs = 2500;
+        random.mockNextInt(electionTimeoutMs, jitterMs);
+        state.transitionToProspective();
+        ProspectiveState prospective = state.prospectiveStateOrThrow();
+        assertEquals(8, prospective.epoch());
+        assertEquals(electionTimeoutMs + jitterMs,
+            prospective.remainingElectionTimeMs(time.milliseconds()));
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = KRaftVersion.class)
     public void testFollowerToCandidate(KRaftVersion kraftVersion) {
         int node1 = 1;
         int node2 = 2;
@@ -1331,15 +1903,7 @@ public class QuorumStateTest {
             node2,
             voters.listeners(node2)
         );
-        state.transitionToProspective();
-        int jitterMs = 2500;
-        random.mockNextInt(electionTimeoutMs, jitterMs);
-        state.transitionToCandidate();
-        assertTrue(state.isCandidate());
-        CandidateState candidateState = state.candidateStateOrThrow();
-        assertEquals(9, candidateState.epoch());
-        assertEquals(electionTimeoutMs + jitterMs,
-            candidateState.remainingElectionTimeMs(time.milliseconds()));
+        assertThrows(IllegalStateException.class, state::transitionToCandidate);
     }
 
     @ParameterizedTest
@@ -1347,6 +1911,7 @@ public class QuorumStateTest {
     public void testFollowerToUnattachedSameEpoch(KRaftVersion kraftVersion) {
         int node1 = 1;
         int node2 = 2;
+        ReplicaKey votedKey = ReplicaKey.of(2, Uuid.randomUuid());
         VoterSet voters = localWithRemoteVoterSet(IntStream.of(node1, node2), kraftVersion);
         QuorumState state = initializeEmptyState(voters, kraftVersion);
         state.initialize(new OffsetAndEpoch(0L, logEndEpoch));
@@ -1356,6 +1921,7 @@ public class QuorumStateTest {
             voters.listeners(node2)
         );
         assertThrows(IllegalStateException.class, () -> state.transitionToUnattached(8));
+        assertThrows(IllegalStateException.class, () -> state.unattachedAddVotedState(8, votedKey));
     }
 
     @ParameterizedTest
@@ -1384,43 +1950,88 @@ public class QuorumStateTest {
 
     @ParameterizedTest
     @EnumSource(value = KRaftVersion.class)
-    public void testIllegalCallsToUnattachedAddVotedState(KRaftVersion kraftVersion) {
-        boolean withDirectoryId = kraftVersion.featureLevel() > 0;
-        ReplicaKey node1 = replicaKey(1, withDirectoryId);
-        ReplicaKey node2 = replicaKey(2, withDirectoryId);
-        VoterSet voters = localWithRemoteVoterSet(Stream.of(node1, node2), kraftVersion);
+    public void testFollowerToUnattachedVotedHigherEpoch(KRaftVersion kraftVersion) {
+        int node1 = 1;
+        int node2 = 2;
+        ReplicaKey votedKey = ReplicaKey.of(node2, Uuid.randomUuid());
+        VoterSet voters = localWithRemoteVoterSet(IntStream.of(node1, node2), kraftVersion);
         QuorumState state = initializeEmptyState(voters, kraftVersion);
         state.initialize(new OffsetAndEpoch(0L, logEndEpoch));
-        // should fail on any state that isn't unattached and not voted
+        state.transitionToFollower(
+            8,
+            node2,
+            voters.listeners(node2)
+        );
 
-        // unattached and voted
-        state.unattachedAddVotedState(state.epoch(), node1);
-        assertThrows(IllegalStateException.class, () -> state.unattachedAddVotedState(state.epoch(), node1));
+        assertThrows(IllegalStateException.class, () -> state.unattachedAddVotedState(9, votedKey));
+    }
 
-        // prospective
-        state.transitionToUnattached(5);
+    @ParameterizedTest
+    @EnumSource(value = KRaftVersion.class)
+    public void testFollowerToProspectiveSameEpoch(KRaftVersion kraftVersion) {
+        int node1 = 1;
+        int node2 = 2;
+        VoterSet voters = localWithRemoteVoterSet(IntStream.of(node1, node2), kraftVersion);
+        store.writeElectionState(ElectionState.withUnknownLeader(logEndEpoch, voters.voterIds()), kraftVersion);
+        QuorumState state = buildQuorumState(OptionalInt.of(localId), voters, kraftVersion);
+        state.initialize(new OffsetAndEpoch(0L, logEndEpoch));
+        state.transitionToFollower(
+            8,
+            node2,
+            voters.listeners(node2)
+        );
+        int jitterMs = 2500;
+        random.mockNextInt(electionTimeoutMs, jitterMs);
         state.transitionToProspective();
-        assertThrows(IllegalStateException.class, () -> state.unattachedAddVotedState(state.epoch(), node1));
+        ProspectiveState prospective = state.prospectiveStateOrThrow();
+        assertEquals(8, prospective.epoch());
+        assertEquals(
+            electionTimeoutMs + jitterMs,
+            prospective.remainingElectionTimeMs(time.milliseconds())
+        );
+        assertEquals(
+            ElectionState.withElectedLeader(
+                8,
+                node2,
+                persistedVoters(voters.voterIds(), kraftVersion)
+            ),
+            store.readElectionState().get()
+        );
+    }
 
-        // prospective and voted
-        state.prospectiveStateOrThrow().recordGrantedVote(node1.id());
-        assertThrows(IllegalStateException.class, () -> state.unattachedAddVotedState(state.epoch(), node1));
-
-        // candidate
-        state.transitionToCandidate();
-        assertThrows(IllegalStateException.class, () -> state.unattachedAddVotedState(state.epoch(), node1));
-
-        // candidate and voted
-        state.candidateStateOrThrow().recordGrantedVote(node1.id());
-        assertThrows(IllegalStateException.class, () -> state.unattachedAddVotedState(state.epoch(), node1));
-
-        // leader
-        state.transitionToLeader(6, accumulator);
-        assertThrows(IllegalStateException.class, () -> state.unattachedAddVotedState(state.epoch(), node1));
-
-        // should fail if epoch is not equal
-        state.transitionToUnattached(7);
-        assertThrows(IllegalStateException.class, () -> state.unattachedAddVotedState(8, node1));
+    @ParameterizedTest
+    @EnumSource(value = KRaftVersion.class)
+    public void testFollowerToAnyStateLowerEpoch(KRaftVersion kraftVersion) {
+        int otherNodeId = 1;
+        VoterSet voters = localWithRemoteVoterSet(IntStream.of(otherNodeId), kraftVersion);
+        QuorumState state = initializeEmptyState(voters, kraftVersion);
+        state.initialize(new OffsetAndEpoch(0L, logEndEpoch));
+        state.transitionToFollower(
+            5,
+            otherNodeId,
+            voters.listeners(otherNodeId)
+        );
+        assertThrows(IllegalStateException.class, () -> state.transitionToUnattached(4));
+        assertThrows(
+            IllegalStateException.class,
+            () -> state.transitionToFollower(
+                4,
+                otherNodeId,
+                voters.listeners(otherNodeId)
+            )
+        );
+        assertThrows(IllegalStateException.class, () -> state.transitionToLeader(4, accumulator));
+        assertEquals(5, state.epoch());
+        assertEquals(
+            Optional.of(
+                ElectionState.withElectedLeader(
+                    5,
+                    otherNodeId,
+                    persistedVoters(voters.voterIds(), kraftVersion)
+                )
+            ),
+            store.readElectionState()
+        );
     }
 
     @ParameterizedTest
@@ -1478,32 +2089,73 @@ public class QuorumStateTest {
 
     @ParameterizedTest
     @EnumSource(value = KRaftVersion.class)
-    public void testFollowerToAnyStateLowerEpoch(KRaftVersion kraftVersion) {
-        int otherNodeId = 1;
-        VoterSet voters = localWithRemoteVoterSet(IntStream.of(otherNodeId), kraftVersion);
+    public void testFollowerVotedToFollowerSameEpoch(KRaftVersion kraftVersion) {
+        int node1 = 1;
+        int node2 = 2;
+        ReplicaKey votedKey = ReplicaKey.of(node1, Uuid.randomUuid());
+        VoterSet voters = localWithRemoteVoterSet(IntStream.of(node1, node2), kraftVersion);
         QuorumState state = initializeEmptyState(voters, kraftVersion);
         state.initialize(new OffsetAndEpoch(0L, logEndEpoch));
+        state.transitionToProspective();
+        state.prospectiveAddVotedState(state.epoch(), votedKey);
         state.transitionToFollower(
-            5,
-            otherNodeId,
-            voters.listeners(otherNodeId)
+            state.epoch(),
+            node2,
+            voters.listeners(node2)
         );
-        assertThrows(IllegalStateException.class, () -> state.transitionToUnattached(4));
+        assertEquals(
+            Optional.of(
+                new ElectionState(
+                    0,
+                    OptionalInt.of(node2),
+                    Optional.of(persistedVotedKey(votedKey, kraftVersion)),
+                    persistedVoters(voters.voterIds(), kraftVersion)
+                )
+            ),
+            store.readElectionState()
+        );
+
         assertThrows(
             IllegalStateException.class,
-            () -> state.transitionToFollower(
-                4,
-                otherNodeId,
-                voters.listeners(otherNodeId)
-            )
+            () -> state.transitionToFollower(state.epoch(), node1, voters.listeners(node1))
         );
-        assertThrows(IllegalStateException.class, () -> state.transitionToLeader(4, accumulator));
-        assertEquals(5, state.epoch());
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = KRaftVersion.class)
+    public void testFollowerVotedToFollowerHigherEpoch(KRaftVersion kraftVersion) {
+        int node1 = 1;
+        int node2 = 2;
+        ReplicaKey votedKey = ReplicaKey.of(node1, Uuid.randomUuid());
+        VoterSet voters = localWithRemoteVoterSet(IntStream.of(node1, node2), kraftVersion);
+        QuorumState state = initializeEmptyState(voters, kraftVersion);
+        state.initialize(new OffsetAndEpoch(0L, logEndEpoch));
+        state.transitionToProspective();
+        state.prospectiveAddVotedState(state.epoch(), votedKey);
+        state.transitionToFollower(
+            state.epoch(),
+            node2,
+            voters.listeners(node2)
+        );
+        assertEquals(
+            Optional.of(
+                new ElectionState(
+                    0,
+                    OptionalInt.of(node2),
+                    Optional.of(persistedVotedKey(votedKey, kraftVersion)),
+                    persistedVoters(voters.voterIds(), kraftVersion)
+                )
+            ),
+            store.readElectionState()
+        );
+
+        state.transitionToFollower(state.epoch() + 1, node1, voters.listeners(node1));
+        assertEquals(1, state.epoch());
         assertEquals(
             Optional.of(
                 ElectionState.withElectedLeader(
-                    5,
-                    otherNodeId,
+                    1,
+                    node1,
                     persistedVoters(voters.voterIds(), kraftVersion)
                 )
             ),
@@ -1638,6 +2290,26 @@ public class QuorumStateTest {
             followerState.leaderEndpoints()
         );
         assertEquals(fetchTimeoutMs, followerState.remainingFetchTimeMs(time.milliseconds()));
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = KRaftVersion.class)
+    public void testObserverUnattachedToProspective(KRaftVersion kraftVersion) {
+        int voter1 = 1;
+        int voter2 = 2;
+        VoterSet voters = withRemoteVoterSet(IntStream.of(voter1, voter2), kraftVersion);
+        QuorumState state = initializeEmptyState(voters, kraftVersion);
+        state.initialize(new OffsetAndEpoch(0L, logEndEpoch));
+
+        assertTrue(state.isUnattachedNotVoted());
+        assertThrows(IllegalStateException.class, () -> state.transitionToProspective());
+
+        state.unattachedAddVotedState(logEndEpoch, ReplicaKey.of(voter1, ReplicaKey.NO_DIRECTORY_ID));
+        assertTrue(state.isUnattachedAndVoted());
+        assertThrows(IllegalStateException.class, () -> state.transitionToProspective());
+
+        state.transitionToFollower(logEndEpoch + 1, voter1, voters.listeners(voter1));
+        assertThrows(IllegalStateException.class, () -> state.transitionToProspective());
     }
 
     @ParameterizedTest
@@ -2020,163 +2692,5 @@ public class QuorumStateTest {
                     persistedVoters(voters.voterIds(), KRAFT_VERSION_1))),
             store.readElectionState()
         );
-    }
-
-    @Test
-    public void testProspectiveVotedToAndFromCandidate() {
-        int node1 = 1;
-        Uuid node1DirectoryId = Uuid.randomUuid();
-        int node2 = 2;
-        VoterSet voters = localWithRemoteVoterSet(IntStream.of(node1, node2), KRAFT_VERSION_1);
-        store.writeElectionState(
-            ElectionState.withVotedCandidate(
-                logEndEpoch,
-                ReplicaKey.of(node1, node1DirectoryId),
-                voters.voterIds()
-            ),
-            KRAFT_VERSION_1
-        );
-        QuorumState state = buildQuorumState(OptionalInt.of(localId), voters, KRAFT_VERSION_1);
-        state.initialize(new OffsetAndEpoch(0L, logEndEpoch));
-        assertTrue(state.isUnattachedAndVoted());
-
-        state.transitionToProspective();
-        ProspectiveState prospectiveState = state.prospectiveStateOrThrow();
-        assertTrue(prospectiveState.votedKey().isPresent());
-
-        state.transitionToCandidate();
-        assertTrue(state.isCandidate());
-        assertEquals(logEndEpoch + 1, state.epoch());
-        assertEquals(
-            Optional.of(
-                ElectionState.withVotedCandidate(
-                    logEndEpoch + 1,
-                    persistedVotedKey(localVoterKey, KRAFT_VERSION_1),
-                    persistedVoters(voters.voterIds(), KRAFT_VERSION_1))),
-            store.readElectionState()
-        );
-
-        state.transitionToProspective();
-        assertTrue(state.isProspective());
-        assertEquals(logEndEpoch + 1, state.epoch());
-        assertEquals(
-            Optional.of(
-                ElectionState.withVotedCandidate(
-                    logEndEpoch + 1,
-                    persistedVotedKey(localVoterKey, KRAFT_VERSION_1),
-                    persistedVoters(voters.voterIds(), KRAFT_VERSION_1))),
-            store.readElectionState()
-        );
-    }
-
-    @Test
-    public void testProspectiveWithLeaderToCandidate() {
-        int leaderId = 1;
-        int followerId = 2;
-        VoterSet voters = localWithRemoteVoterSet(IntStream.of(leaderId, followerId), KRAFT_VERSION_1);
-
-        store.writeElectionState(ElectionState.withElectedLeader(logEndEpoch, leaderId, voters.voterIds()), KRAFT_VERSION_1);
-        QuorumState state = buildQuorumState(OptionalInt.of(localId), voters, KRAFT_VERSION_1);
-        state.initialize(new OffsetAndEpoch(0L, logEndEpoch));
-        state.transitionToProspective();
-        assertTrue(state.isProspective());
-        assertTrue(state.hasLeader());
-
-        state.transitionToCandidate();
-        assertTrue(state.isCandidate());
-        assertEquals(logEndEpoch + 1, state.epoch());
-        assertEquals(
-            Optional.of(
-                ElectionState.withVotedCandidate(
-                    logEndEpoch + 1,
-                    persistedVotedKey(localVoterKey, KRAFT_VERSION_1),
-                    persistedVoters(voters.voterIds(), KRAFT_VERSION_1))),
-            store.readElectionState()
-        );
-    }
-
-    @Test
-    public void testProspectiveToUnattachedHigherEpoch() {
-        int leaderId = 1;
-        int followerId = 2;
-        VoterSet voters = localWithRemoteVoterSet(IntStream.of(leaderId, followerId), KRAFT_VERSION_1);
-
-        store.writeElectionState(ElectionState.withElectedLeader(logEndEpoch, leaderId, voters.voterIds()), KRAFT_VERSION_1);
-        QuorumState state = buildQuorumState(OptionalInt.of(localId), voters, KRAFT_VERSION_1);
-        state.initialize(new OffsetAndEpoch(0L, logEndEpoch));
-        state.transitionToProspective();
-        assertTrue(state.isProspective());
-        assertTrue(state.hasLeader());
-
-        state.transitionToUnattached(logEndEpoch + 1);
-        assertTrue(state.isUnattachedNotVoted());
-        assertFalse(state.hasLeader());
-    }
-
-    @ParameterizedTest
-    @EnumSource(value = KRaftVersion.class)
-    public void testProspectiveVotedToAndFromFollower(KRaftVersion kraftVersion) {
-        int candidate = 1;
-        ReplicaKey candidateKey = ReplicaKey.of(candidate, Uuid.randomUuid());
-        int leader = 2;
-        VoterSet voters = localWithRemoteVoterSet(IntStream.of(candidate, leader), kraftVersion);
-        store.writeElectionState(
-            ElectionState.withVotedCandidate(
-                logEndEpoch,
-                candidateKey,
-                voters.voterIds()
-            ), kraftVersion
-        );
-        QuorumState state = buildQuorumState(OptionalInt.of(localId), voters, kraftVersion);
-        state.initialize(new OffsetAndEpoch(0L, logEndEpoch));
-        assertTrue(state.isUnattachedAndVoted());
-
-        // transition to prospective with votedKey
-        state.transitionToProspective();
-
-        assertTrue(state.isProspective());
-        assertEquals(logEndEpoch, state.epoch());
-        Optional<ElectionState> expectedElectionState = Optional.of(
-            ElectionState.withVotedCandidate(
-                logEndEpoch,
-                persistedVotedKey(candidateKey, kraftVersion),
-                persistedVoters(voters.voterIds(), kraftVersion)
-            )
-        );
-        assertEquals(expectedElectionState, store.readElectionState());
-
-        // transition to follower of leader with votedKey
-        state.transitionToFollower(logEndEpoch, leader, voters.listeners(leader));
-        assertTrue(state.isFollower());
-        assertEquals(logEndEpoch, state.epoch());
-        assertEquals(
-            Optional.of(new ElectionState(
-                logEndEpoch,
-                OptionalInt.of(leader),
-                Optional.of(persistedVotedKey(candidateKey, kraftVersion)),
-                persistedVoters(voters.voterIds(), kraftVersion))
-            ),
-            store.readElectionState()
-        );
-
-        // transition back to prospective with votedKey and leaderId
-        state.transitionToProspective();
-        assertTrue(state.isProspective());
-        assertEquals(logEndEpoch, state.epoch());
-        assertEquals(
-            Optional.of(new ElectionState(
-                logEndEpoch,
-                OptionalInt.of(leader),
-                Optional.of(persistedVotedKey(candidateKey, kraftVersion)),
-                persistedVoters(voters.voterIds(), kraftVersion))
-            ),
-            store.readElectionState()
-        );
-    }
-
-    @ParameterizedTest
-    @EnumSource(value = KRaftVersion.class)
-    public void testFollowerVotedToUnattached(KRaftVersion kraftVersion) {
-
     }
 }

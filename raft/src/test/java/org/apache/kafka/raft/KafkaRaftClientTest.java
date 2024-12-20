@@ -1511,6 +1511,41 @@ public class KafkaRaftClientTest {
 
     @ParameterizedTest
     @ValueSource(booleans = { true, false })
+    public void testProspectiveLosesElectionHasLeaderButMissingEndpoint(boolean withKip853Rpc) throws Exception {
+        int localId = randomReplicaId();
+        int epoch = 2;
+        ReplicaKey voter1 = replicaKey(localId + 1, withKip853Rpc);
+        int electedLeaderId = localId + 3;
+        Set<Integer> voters = Set.of(localId, voter1.id());
+
+        RaftClientTestContext context = new RaftClientTestContext.Builder(localId, voters)
+            .withElectedLeader(epoch, electedLeaderId)
+            .withKip853Rpc(withKip853Rpc)
+            .build();
+        context.assertElectedLeader(epoch, electedLeaderId);
+        assertTrue(context.client.quorum().isUnattached());
+        // Sleep a little to ensure that we become a prospective
+        context.time.sleep(context.electionTimeoutMs() * 2L);
+        context.client.poll();
+        assertTrue(context.client.quorum().isProspective());
+
+        // Sleep past election timeout
+        context.time.sleep(context.electionTimeoutMs() * 2L);
+        context.client.poll();
+
+        // Prospective should transition to unattached
+        assertTrue(context.client.quorum().isUnattached());
+        assertTrue(context.client.quorum().hasLeader());
+
+        // If election timeout expires again, it should transition back to prospective
+        context.time.sleep(context.electionTimeoutMs() * 2L);
+        context.client.poll();
+        assertTrue(context.client.quorum().isProspective());
+        assertTrue(context.client.quorum().hasLeader());
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = { true, false })
     public void testHandleInvalidVoteRequestWithOlderEpoch(boolean withKip853Rpc) throws Exception {
         int localId = randomReplicaId();
         int epoch = 2;

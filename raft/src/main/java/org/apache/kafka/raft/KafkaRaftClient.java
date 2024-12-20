@@ -897,8 +897,12 @@ public final class KafkaRaftClient<T> implements RaftClient<T> {
             preVote
         );
 
-        if (!preVote && voteGranted && quorum.isUnattachedNotVoted()) {
-            quorum.unattachedAddVotedState(replicaEpoch, replicaKey);
+        if (!preVote && voteGranted) {
+            if (quorum.isUnattachedNotVoted()) {
+                quorum.unattachedAddVotedState(replicaEpoch, replicaKey);
+            } else if (quorum.isProspectiveNotVoted()) {
+                quorum.prospectiveAddVotedState(replicaEpoch, replicaKey);
+            }
         }
 
         logger.info(
@@ -3080,7 +3084,7 @@ public final class KafkaRaftClient<T> implements RaftClient<T> {
                     currentTimeMs);
             } else {
                 logger.info("Election was not granted, transitioning to Unattached to attempt rediscovering leader");
-                transitionToUnattached(quorum().epoch());
+                transitionToUnattached(quorum().epoch(), state.election().optionalLeaderId());
             }
             return 0L;
         } else {

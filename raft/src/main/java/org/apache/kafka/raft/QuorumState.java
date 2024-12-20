@@ -199,17 +199,6 @@ public class QuorumState {
                 randomElectionTimeoutMs(),
                 logContext
             );
-        } else if (election.hasVoted()) {
-            initialState = new UnattachedState(
-                time,
-                election.epoch(),
-                OptionalInt.empty(),
-                Optional.of(election.votedKey()),
-                partitionState.lastVoterSet().voterIds(),
-                Optional.empty(),
-                randomElectionTimeoutMs(),
-                logContext
-            );
         } else if (election.hasLeader()) {
             VoterSet voters = partitionState.lastVoterSet();
             Endpoints leaderEndpoints = voters.listeners(election.leaderId());
@@ -232,7 +221,7 @@ public class QuorumState {
                     time,
                     election.epoch(),
                     OptionalInt.of(election.leaderId()),
-                    Optional.empty(),
+                    election.optionalVotedKey(),
                     partitionState.lastVoterSet().voterIds(),
                     Optional.empty(),
                     randomElectionTimeoutMs(),
@@ -244,7 +233,7 @@ public class QuorumState {
                     election.epoch(),
                     election.leaderId(),
                     leaderEndpoints,
-                    Optional.empty(),
+                    election.optionalVotedKey(),
                     voters.voterIds(),
                     Optional.empty(),
                     fetchTimeoutMs,
@@ -256,7 +245,7 @@ public class QuorumState {
                 time,
                 election.epoch(),
                 OptionalInt.empty(),
-                Optional.empty(),
+                election.optionalVotedKey(),
                 partitionState.lastVoterSet().voterIds(),
                 Optional.empty(),
                 randomElectionTimeoutMs(),
@@ -445,7 +434,7 @@ public class QuorumState {
             );
         } else if (localId.isEmpty()) {
             throw new IllegalStateException("Cannot add voted state without a replica id");
-        } else if (epoch != currentEpoch || !isUnattachedNotVoted()) {
+        } else if (epoch != currentEpoch || isUnattachedAndVoted()) {
             throw new IllegalStateException(
                 String.format(
                     "Cannot add voted key (%s) to current state (%s) in epoch %d",
@@ -465,6 +454,56 @@ public class QuorumState {
                 state.election().optionalLeaderId(),
                 Optional.of(candidateKey),
                 partitionState.lastVoterSet().voterIds(),
+                state.highWatermark(),
+                randomElectionTimeoutMs(),
+                logContext
+            )
+        );
+        log.debug("Voted for candidate {} in epoch {}", candidateKey, epoch);
+    }
+
+    /**
+     * Grant a vote to a candidate as Prospective. We will transition to Prospective with votedKey
+     * state and remain there until either the election timeout expires or we discover the leader.
+     */
+    public void prospectiveAddVotedState(
+        int epoch,
+        ReplicaKey candidateKey
+    ) {
+        int currentEpoch = state.epoch();
+        if (localId.isPresent() && candidateKey.id() == localId.getAsInt()) {
+            throw new IllegalStateException(
+                String.format(
+                    "Cannot transition to Voted for %s and epoch %d since it matches the local " +
+                        "broker.id",
+                    candidateKey,
+                    epoch
+                )
+            );
+        } else if (localId.isEmpty()) {
+            throw new IllegalStateException("Cannot add voted state without a replica id");
+        } else if (epoch != currentEpoch || isProspectiveAndVoted()) {
+            throw new IllegalStateException(
+                String.format(
+                    "Cannot add voted key (%s) to current state (%s) in epoch %d",
+                    candidateKey,
+                    state,
+                    epoch
+                )
+            );
+        }
+
+        // Note that we reset the election timeout after voting for a candidate because we
+        // know that the candidate has at least as good of a chance of getting elected as us
+        durableTransitionTo(
+            new ProspectiveState(
+                time,
+                localIdOrThrow(),
+                epoch,
+                state.election().optionalLeaderId(),
+                Optional.of(state.leaderEndpoints()),
+                Optional.of(candidateKey),
+                partitionState.lastVoterSet(),
                 state.highWatermark(),
                 randomElectionTimeoutMs(),
                 logContext
@@ -733,10 +772,27 @@ public class QuorumState {
         throw new IllegalStateException("Expected to be Resigned, but current state is " + state);
     }
 
+    public Optional<ProspectiveState> maybeProspectiveState() {
+        EpochState fixedState = state;
+        if (fixedState instanceof ProspectiveState) {
+            return Optional.of((ProspectiveState) fixedState);
+        } else {
+            return Optional.empty();
+        }
+    }
+
     public ProspectiveState prospectiveStateOrThrow() {
         if (isProspective())
             return (ProspectiveState) state;
         throw new IllegalStateException("Expected to be Prospective, but current state is " + state);
+    }
+
+    public boolean isProspectiveNotVoted() {
+        return maybeProspectiveState().filter(unattached -> unattached.votedKey().isEmpty()).isPresent();
+    }
+
+    public boolean isProspectiveAndVoted() {
+        return maybeUnattachedState().flatMap(UnattachedState::votedKey).isPresent();
     }
 
     public CandidateState candidateStateOrThrow() {

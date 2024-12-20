@@ -108,7 +108,7 @@ public class FollowerStateTest {
 
     @ParameterizedTest
     @ValueSource(booleans = {true, false})
-    public void testGrantVote(boolean isLogUpToDate) {
+    public void testGrantVoteAfterSuccessfulFetchFromLeader(boolean isLogUpToDate) {
         FollowerState state = newFollowerState(
             Set.of(1, 2, 3),
             Optional.empty()

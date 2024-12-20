@@ -759,7 +759,7 @@ public class GroupCoordinatorShard implements CoordinatorShard<CoordinatorRecord
         offsetMetadataManager.onNewMetadataImage(newImage, delta);
     }
 
-    private static OffsetCommitKey convertOffsetCommitKeyV0(
+    private static OffsetCommitKey convertLegacyOffsetCommitKey(
         LegacyOffsetCommitKey key
     ) {
         return new OffsetCommitKey()
@@ -768,7 +768,7 @@ public class GroupCoordinatorShard implements CoordinatorShard<CoordinatorRecord
             .setPartition(key.partition());
     }
 
-    private static OffsetCommitValue convertOffsetCommitValueV0(
+    private static OffsetCommitValue convertLegacyOffsetCommitValue(
         LegacyOffsetCommitValue value
     ) {
         if (value == null) return null;
@@ -812,8 +812,8 @@ public class GroupCoordinatorShard implements CoordinatorShard<CoordinatorRecord
                 offsetMetadataManager.replay(
                     offset,
                     producerId,
-                    convertOffsetCommitKeyV0((LegacyOffsetCommitKey) key.message()),
-                    convertOffsetCommitValueV0((LegacyOffsetCommitValue) Utils.messageOrNull(value))
+                    convertLegacyOffsetCommitKey((LegacyOffsetCommitKey) key.message()),
+                    convertLegacyOffsetCommitValue((LegacyOffsetCommitValue) Utils.messageOrNull(value))
                 );
                 break;
 

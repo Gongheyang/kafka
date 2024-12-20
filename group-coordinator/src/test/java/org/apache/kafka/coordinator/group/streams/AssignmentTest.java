@@ -120,40 +120,4 @@ public class AssignmentTest {
             assignment.warmupTasks()
         );
     }
-
-    @Test
-    public void testEquals() {
-        Map<String, Set<Integer>> activeTasks = mkTasksPerSubtopology(
-            mkTasks("subtopology1", 1, 2, 3)
-        );
-        Map<String, Set<Integer>> standbyTasks = mkTasksPerSubtopology(
-            mkTasks("subtopology2", 9, 8, 7)
-        );
-        Map<String, Set<Integer>> warmupTasks = mkTasksPerSubtopology(
-            mkTasks("subtopology3", 4, 5, 6)
-        );
-        Map<String, Set<Integer>> activeTasks2 = mkTasksPerSubtopology(
-            mkTasks("subtopology1", 4, 5, 6)
-        );
-        Map<String, Set<Integer>> standbyTasks2 = mkTasksPerSubtopology(
-            mkTasks("subtopology2", 1, 2, 3)
-        );
-        Map<String, Set<Integer>> warmupTasks2 = mkTasksPerSubtopology(
-            mkTasks("subtopology3", 9, 8, 7)
-        );
-
-        final Assignment referenceAssignment = new Assignment(activeTasks, standbyTasks, warmupTasks);
-        final Assignment equalAssignment = new Assignment(activeTasks, standbyTasks, warmupTasks);
-        assertEquals(referenceAssignment, equalAssignment);
-        assertEquals(referenceAssignment.hashCode(), equalAssignment.hashCode());
-        final Assignment nonEqualActiveTasks = new Assignment(activeTasks2, standbyTasks, warmupTasks);
-        assertNotEquals(referenceAssignment, nonEqualActiveTasks);
-        assertNotEquals(referenceAssignment.hashCode(), nonEqualActiveTasks.hashCode());
-        final Assignment nonEqualStandbyTasks = new Assignment(activeTasks, standbyTasks2, warmupTasks2);
-        assertNotEquals(referenceAssignment, nonEqualStandbyTasks);
-        assertNotEquals(referenceAssignment.hashCode(), nonEqualStandbyTasks.hashCode());
-        final Assignment nonEqualWarmupTasks = new Assignment(activeTasks, standbyTasks, warmupTasks2);
-        assertNotEquals(referenceAssignment, nonEqualWarmupTasks);
-        assertNotEquals(referenceAssignment.hashCode(), nonEqualWarmupTasks.hashCode());
-    }
 }

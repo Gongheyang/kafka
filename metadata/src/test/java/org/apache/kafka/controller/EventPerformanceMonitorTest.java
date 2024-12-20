@@ -17,73 +17,104 @@
 
 package org.apache.kafka.controller;
 
-import org.apache.kafka.common.utils.LogContext;
-
 import org.junit.jupiter.api.Test;
 
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.AbstractMap;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
+import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 public class EventPerformanceMonitorTest {
     @Test
-    public void testSlowEvents() {
-        LogContext logContext = new LogContext();
-
-        AtomicReference<Double> p99 = new AtomicReference<>(0.0);
-        EventPerformanceMonitor logger = new EventPerformanceMonitor(100, p99::get, logContext);
-
-        // Initially, the p99 is zero
-        assertFalse(logger.observeEvent("test", MILLISECONDS.toNanos(10)));
-        assertFalse(logger.observeEvent("test", MILLISECONDS.toNanos(99)));
-        assertTrue(logger.observeEvent("test", MILLISECONDS.toNanos(100)));
-
-
-        // Idle controller, low p99
-        p99.set(30.0);
-        logger.refreshPercentile();
-        assertFalse(logger.observeEvent("test", MILLISECONDS.toNanos(90)));
-        assertFalse(logger.observeEvent("test", MILLISECONDS.toNanos(99)));
-        assertTrue(logger.observeEvent("test", MILLISECONDS.toNanos(100)));
-
-        // Busy controller, high p99
-        p99.set(1000.0);
-        logger.refreshPercentile();
-        assertFalse(logger.observeEvent("test", MILLISECONDS.toNanos(100)));
-        assertFalse(logger.observeEvent("test", MILLISECONDS.toNanos(200)));
-        assertTrue(logger.observeEvent("test", MILLISECONDS.toNanos(1000)));
-        assertTrue(logger.observeEvent("test", MILLISECONDS.toNanos(2000)));
+    public void testDefaultPeriodNs() {
+        assertEquals(SECONDS.toNanos(60),
+            new EventPerformanceMonitor.Builder().build().periodNs());
     }
 
     @Test
-    public void testThresholdDisabled() {
-        LogContext logContext = new LogContext();
+    public void testSlowestEventWithNoEvents() {
+        EventPerformanceMonitor monitor = new EventPerformanceMonitor.Builder().build();
+        assertEquals(new AbstractMap.SimpleImmutableEntry<>(null, 0L),
+            monitor.slowestEvent());
+    }
 
-        AtomicReference<Double> p99 = new AtomicReference<>(0.0);
-        // Set min slow event time to zero, effectively disabling the threshold
-        EventPerformanceMonitor logger = new EventPerformanceMonitor(0, p99::get, logContext);
+    @Test
+    public void testSlowestEventWithThreeEvents() {
+        EventPerformanceMonitor monitor = new EventPerformanceMonitor.Builder().build();
+        monitor.observeEvent("fastEvent", MILLISECONDS.toNanos(2));
+        monitor.observeEvent("slowEvent", MILLISECONDS.toNanos(100));
+        assertEquals(new AbstractMap.SimpleImmutableEntry<>("slowEvent", MILLISECONDS.toNanos(100)),
+            monitor.slowestEvent());
+    }
 
-        assertTrue(logger.observeEvent("test", MILLISECONDS.toNanos(0)));
-        assertTrue(logger.observeEvent("test", MILLISECONDS.toNanos(10)));
-        assertTrue(logger.observeEvent("test", MILLISECONDS.toNanos(99)));
-        assertTrue(logger.observeEvent("test", MILLISECONDS.toNanos(100)));
+    @Test
+    public void testLogSlowEvent() {
+        EventPerformanceMonitor monitor = new EventPerformanceMonitor.Builder().build();
+        assertEquals("Exceptionally slow controller event slowEvent took 5000 ms.",
+            monitor.doObserveEvent("slowEvent", SECONDS.toNanos(5)));
+    }
 
-        p99.set(30.0);
-        logger.refreshPercentile();
-        assertFalse(logger.observeEvent("test", MILLISECONDS.toNanos(0)));
-        assertFalse(logger.observeEvent("test", MILLISECONDS.toNanos(29)));
-        assertTrue(logger.observeEvent("test", MILLISECONDS.toNanos(30)));
-        assertTrue(logger.observeEvent("test", MILLISECONDS.toNanos(100)));
+    @Test
+    public void testDoNotLogFastEvent() {
+        EventPerformanceMonitor monitor = new EventPerformanceMonitor.Builder().build();
+        assertNull(monitor.doObserveEvent("slowEvent", MILLISECONDS.toNanos(250)));
+    }
 
+    @Test
+    public void testNanosecondsToDecimalMillisWithZero() {
+        assertEquals("0.00",
+            EventPerformanceMonitor.nanosecondsToDecimalMillis(0));
+    }
 
-        p99.set(1000.0);
-        logger.refreshPercentile();
-        assertFalse(logger.observeEvent("test", MILLISECONDS.toNanos(100)));
-        assertFalse(logger.observeEvent("test", MILLISECONDS.toNanos(999)));
-        assertTrue(logger.observeEvent("test", MILLISECONDS.toNanos(1000)));
-        assertTrue(logger.observeEvent("test", MILLISECONDS.toNanos(2000)));
+    @Test
+    public void testNanosecondsToDecimalMillisWith100() {
+        assertEquals("100.00",
+            EventPerformanceMonitor.nanosecondsToDecimalMillis(MILLISECONDS.toNanos(100)));
+    }
+
+    @Test
+    public void testNanosecondsToDecimalMillisWith123456789() {
+        assertEquals("123.46",
+            EventPerformanceMonitor.nanosecondsToDecimalMillis(123456789));
+    }
+
+    @Test
+    public void testPeriodicPerformanceMessageWithNoEvents() {
+        EventPerformanceMonitor monitor = new EventPerformanceMonitor.Builder().build();
+        assertEquals("In the last 60000 ms period, there were no controller events completed.",
+            monitor.periodicPerformanceMessage());
+    }
+
+    @Test
+    public void testPeriodicPerformanceMessageWithOneEvent() {
+        EventPerformanceMonitor monitor = new EventPerformanceMonitor.Builder().build();
+        monitor.observeEvent("myEvent", MILLISECONDS.toNanos(12));
+        assertEquals("In the last 60000 ms period, 1 controller events were completed, which took an " +
+            "average of 12.00 ms each. The slowest event was myEvent, which took 12.00 ms.",
+                monitor.periodicPerformanceMessage());
+    }
+
+    @Test
+    public void testPeriodicPerformanceMessageWithThreeEvents() {
+        EventPerformanceMonitor monitor = new EventPerformanceMonitor.Builder().build();
+        monitor.observeEvent("myEvent", MILLISECONDS.toNanos(12));
+        monitor.observeEvent("myEvent2", MILLISECONDS.toNanos(19));
+        monitor.observeEvent("myEvent3", MILLISECONDS.toNanos(1));
+        assertEquals("In the last 60000 ms period, 3 controller events were completed, which took an " +
+            "average of 10.67 ms each. The slowest event was myEvent2, which took 19.00 ms.",
+                monitor.periodicPerformanceMessage());
+    }
+
+    @Test
+    public void testGeneratePeriodicPerformanceMessageResetsState() {
+        EventPerformanceMonitor monitor = new EventPerformanceMonitor.Builder().build();
+        monitor.observeEvent("myEvent", MILLISECONDS.toNanos(12));
+        monitor.observeEvent("myEvent2", MILLISECONDS.toNanos(19));
+        monitor.observeEvent("myEvent3", MILLISECONDS.toNanos(1));
+        monitor.generatePeriodicPerformanceMessage();
+        assertEquals("In the last 60000 ms period, there were no controller events completed.",
+            monitor.periodicPerformanceMessage());
     }
 }

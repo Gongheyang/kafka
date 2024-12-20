@@ -164,15 +164,6 @@ public class QuorumControllerMetrics implements AutoCloseable {
         eventQueueProcessingTimeUpdater.accept(durationMs);
     }
 
-    public double getEventQueueProcessingTime99() {
-        if (registry.isPresent()) {
-            Histogram histogram = registry.get().newHistogram(EVENT_QUEUE_PROCESSING_TIME_MS, true);
-            return histogram.getSnapshot().get99thPercentile();
-        } else {
-            // Only returned in unit tests when a metrics registry is not set.
-            return 0.0;
-        }
-    }
     public void setLastAppliedRecordOffset(long offset) {
         lastAppliedRecordOffset.set(offset);
     }

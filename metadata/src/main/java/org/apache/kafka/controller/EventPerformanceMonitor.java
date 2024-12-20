@@ -21,86 +21,192 @@ import org.apache.kafka.common.utils.LogContext;
 
 import org.slf4j.Logger;
 
-import java.util.function.Supplier;
+import java.text.DecimalFormat;
+import java.util.AbstractMap;
+import java.util.Map;
 
-import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
+import static java.util.concurrent.TimeUnit.SECONDS;
 
 /**
- * Track the p99 for controller event queue processing time. If we encounter an event that takes longer
- * than this cached p99 time, we will log it at INFO level on the controller logger.
+ * Track the performance of controller events. Periodically log the slowest events.
+ * Log any event slower than a certain threshold.
  */
-public class EventPerformanceMonitor {
+class EventPerformanceMonitor {
     /**
-     * Don't report any p99 events below this threshold. This prevents the controller from reporting p99 event
-     * times in the idle case where p99 event times are essentially the average as well.
+     * The format to use when displaying milliseconds.
      */
-    private final long minSlowEventTimeNs;
+    private static final DecimalFormat MILLISECOND_DECIMAL_FORMAT = new DecimalFormat("#0.00");
+
+    static class Builder {
+        LogContext logContext = null;
+        long periodNs = SECONDS.toNanos(60);
+        long alwaysLogThresholdNs = SECONDS.toNanos(2);
+
+        Builder setLogContext(LogContext logContext) {
+            this.logContext = logContext;
+            return this;
+        }
+
+        Builder setPeriodNs(long periodNs) {
+            this.periodNs = periodNs;
+            return this;
+        }
+
+        Builder setAlwaysLogThresholdNs(long alwaysLogThresholdNs) {
+            this.alwaysLogThresholdNs = alwaysLogThresholdNs;
+            return this;
+        }
+
+        EventPerformanceMonitor build() {
+            if (logContext == null) logContext = new LogContext();
+            return new EventPerformanceMonitor(logContext,
+                    periodNs,
+                    alwaysLogThresholdNs);
+        }
+    }
 
     /**
-     * Function that returns the current p99 time in millis. This call can be expensive, and since the histogram is
-     * biased towards the last 5 minutes of data, we only need to update this p99 every so often.
+     * The log4j object to use.
      */
-    private final Supplier<Double> thresholdMsSupplier;
-
     private final Logger log;
 
     /**
-     * The current p99 threshold in nanos.
+     * The period in nanoseconds.
      */
-    private long thresholdNs;
+    private long periodNs;
 
-    private String slowestEvent;
-    private long slowestDurationNs;
+    /**
+     * The always-log threshold in nanoseconds.
+     */
+    private long alwaysLogThresholdNs;
 
+    /**
+     * The name of the slowest event we've seen so far, or null if none has been seen.
+     */
+    private String slowestEventName;
 
-    public EventPerformanceMonitor(
-        int minSlowEventTimeMs,
-        Supplier<Double> thresholdMsSupplier,
-        LogContext logContext
+    /**
+     * The duration of the slowest event we've seen so far, or 0 if none has been seen.
+     */
+    private long slowestEventDurationNs;
+
+    /**
+     * The total duration of all the events we've seen.
+     */
+    private long totalEventDurationNs;
+
+    /**
+     * The number of events we've seen.
+     */
+    private int numEvents;
+
+    private EventPerformanceMonitor(
+        LogContext logContext,
+        long periodNs,
+        long alwaysLogThresholdNs
     ) {
-        this.minSlowEventTimeNs = MILLISECONDS.toNanos(minSlowEventTimeMs);
-        this.thresholdMsSupplier = thresholdMsSupplier;
-        this.thresholdNs = minSlowEventTimeMs;
         this.log = logContext.logger(EventPerformanceMonitor.class);
-        this.slowestEvent = null;
-        this.slowestDurationNs = 0;
+        this.periodNs = periodNs;
+        this.alwaysLogThresholdNs = alwaysLogThresholdNs;
+        reset();
+    }
+
+    long periodNs() {
+        return periodNs;
+    }
+
+    Map.Entry<String, Long> slowestEvent() {
+        return new AbstractMap.SimpleImmutableEntry<>(slowestEventName, slowestEventDurationNs);
     }
 
     /**
-     * Produce an INFO log if the given event ran for at least as long as the current p99 event processing time.
-     *
-     * @return true if a slow event was logged, false otherwise.
+     * Reset all internal state.
      */
-    public boolean observeEvent(String name, long durationNs) {
-        if (durationNs < minSlowEventTimeNs) {
-            return false;
-        }
-
-        if (slowestEvent == null || slowestDurationNs < durationNs) {
-            slowestEvent = name;
-            slowestDurationNs = durationNs;
-        }
-
-        if (durationNs >= thresholdNs) {
-            log.info("Slow controller event {} processed in {} us which is larger or equal to the p99 of {} us",
-                name,
-                NANOSECONDS.toMicros(durationNs),
-                NANOSECONDS.toMicros(thresholdNs)
-            );
-            return true;
-        }
-        return false;
+    void reset() {
+        this.slowestEventName = null;
+        this.slowestEventDurationNs = 0;
+        this.totalEventDurationNs = 0;
+        this.numEvents = 0;
     }
 
-    public void refreshPercentile() {
-        if (slowestEvent != null) {
-            log.info("Slowest event since last refresh was {} which processed in {} us",
-                slowestEvent, NANOSECONDS.toMicros(slowestDurationNs));
-            slowestEvent = null;
-            slowestDurationNs = 0;
+    /**
+     * Handle a controller event being finished.
+     *
+     * @param name          The name of the controller event.
+     * @param durationNs    The duration of the controller event in nanoseconds.
+     */
+    void observeEvent(String name, long durationNs) {
+        String message = doObserveEvent(name, durationNs);
+        if (message != null) {
+            log.error("{}", message);
         }
-        thresholdNs = (long) (thresholdMsSupplier.get() * 1000000);
-        log.trace("Update slow controller event threshold (p99) to {} us.", NANOSECONDS.toMicros(thresholdNs));
+    }
+
+    /**
+     * Handle a controller event being finished.
+     *
+     * @param name          The name of the controller event.
+     * @param durationNs    The duration of the controller event in nanoseconds.
+     *
+     * @return              The message to log, or null otherwise.
+     */
+    String doObserveEvent(String name, long durationNs) {
+        if (slowestEventName == null || slowestEventDurationNs < durationNs) {
+            slowestEventName = name;
+            slowestEventDurationNs = durationNs;
+        }
+        totalEventDurationNs += durationNs;
+        numEvents++;
+        if (durationNs < alwaysLogThresholdNs) {
+            return null;
+        }
+        return "Exceptionally slow controller event " + name + " took " +
+            NANOSECONDS.toMillis(durationNs) + " ms.";
+    }
+
+    /**
+     * Generate a log message summarizing the events of the last period,
+     * and then reset our internal state.
+     */
+    void generatePeriodicPerformanceMessage() {
+        String message = periodicPerformanceMessage();
+        log.info("{}", message);
+        reset();
+    }
+
+    /**
+     * Generate a log message summarizing the events of the last period.
+     *
+     * @return                          The summary string.
+     */
+    String periodicPerformanceMessage() {
+        StringBuilder bld = new StringBuilder();
+        bld.append("In the last ");
+        bld.append(NANOSECONDS.toMillis(periodNs));
+        bld.append(" ms period, ");
+        if (numEvents == 0) {
+            bld.append("there were no controller events completed.");
+        } else {
+            bld.append(numEvents).append(" controller events were completed, which took an average of ");
+            bld.append(nanosecondsToDecimalMillis(totalEventDurationNs / numEvents));
+            bld.append(" ms each. The slowest event was ").append(slowestEventName);
+            bld.append(", which took ");
+            bld.append(nanosecondsToDecimalMillis(slowestEventDurationNs));
+            bld.append(" ms.");
+        }
+        return bld.toString();
+    }
+
+    /**
+     * Translate a duration in nanoseconds to a decimal duration in milliseconds.
+     *
+     * @param durationNs    The duration in nanoseconds.
+     * @return              The decimal duration in milliseconds.
+     */
+    static String nanosecondsToDecimalMillis(long durationNs) {
+        double number = NANOSECONDS.toMicros(durationNs);
+        number /= 1000;
+        return MILLISECOND_DECIMAL_FORMAT.format(number);
     }
 }

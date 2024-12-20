@@ -317,6 +317,10 @@ public class ShareCoordinatorService implements ShareCoordinator {
                             fut.completeExceptionally(exp);
                             return;
                         }
+                        shareCoordinatorMetrics.recordPrune(
+                            off,
+                            tp
+                        );
                         fut.complete(null);
                         // Best effort prevention of issuing duplicate delete calls.
                         lastPrunedOffsets.put(tp, off);

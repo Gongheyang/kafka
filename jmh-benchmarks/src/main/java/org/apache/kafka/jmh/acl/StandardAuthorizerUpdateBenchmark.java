@@ -55,8 +55,8 @@ import static org.apache.kafka.common.acl.AclPermissionType.ALLOW;
 
 @State(Scope.Benchmark)
 @Fork(value = 1)
-@Warmup(iterations = 5)
-@Measurement(iterations = 10)
+@Warmup(iterations = 7, timeUnit = TimeUnit.SECONDS, time = 2)
+@Measurement(iterations = 10, timeUnit = TimeUnit.SECONDS, time = 2)
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
 public class StandardAuthorizerUpdateBenchmark {

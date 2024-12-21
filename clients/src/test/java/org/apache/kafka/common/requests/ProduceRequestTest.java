@@ -108,7 +108,7 @@ public class ProduceRequestTest {
                 .setAcks((short) 1)
                 .setTimeoutMs(5000),
             false);
-        assertEquals(7, requestBuilder.oldestAllowedVersion());
+        assertEquals(3, requestBuilder.oldestAllowedVersion());
         assertEquals(ApiKeys.PRODUCE.latestVersion(), requestBuilder.latestAllowedVersion());
     }
 

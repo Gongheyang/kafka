@@ -173,7 +173,7 @@ class KafkaApisTest extends Logging {
                       overrideProperties: Map[String, String] = Map.empty,
                       featureVersions: Seq[FeatureVersion] = Seq.empty): KafkaApis = {
     val properties = if (raftSupport) {
-      val properties = TestUtils.createBrokerConfig(brokerId, "")
+      val properties = TestUtils.createBrokerConfig(brokerId)
       properties.put(KRaftConfigs.NODE_ID_CONFIG, brokerId.toString)
       properties.put(KRaftConfigs.PROCESS_ROLES_CONFIG, "broker")
       val voterId = brokerId + 1
@@ -181,7 +181,7 @@ class KafkaApisTest extends Logging {
       properties.put(KRaftConfigs.CONTROLLER_LISTENER_NAMES_CONFIG, "SSL")
       properties
     } else {
-      TestUtils.createBrokerConfig(brokerId, "zk")
+      TestUtils.createBrokerConfig(brokerId)
     }
     overrideProperties.foreach( p => properties.put(p._1, p._2))
     TestUtils.setIbpAndMessageFormatVersions(properties, interBrokerProtocolVersion)

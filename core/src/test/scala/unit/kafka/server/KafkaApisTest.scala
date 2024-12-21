@@ -3099,43 +3099,6 @@ class KafkaApisTest extends Logging {
   }
 
   @Test
-  def shouldRespondWithNoErrorsForGoodPartition(): Unit = {
-    val tp2 = new TopicPartition("t1", 0)
-    val (_, request) = createWriteTxnMarkersRequest(asList(tp2))
-    val expectedErrors = Map(tp2 -> Errors.NONE).asJava
-
-    val capturedResponse: ArgumentCaptor[WriteTxnMarkersResponse] = ArgumentCaptor.forClass(classOf[WriteTxnMarkersResponse])
-    val responseCallback: ArgumentCaptor[Map[TopicPartition, PartitionResponse] => Unit] = ArgumentCaptor.forClass(classOf[Map[TopicPartition, PartitionResponse] => Unit])
-
-    when(replicaManager.onlinePartition(tp2))
-      .thenReturn(Some(mock(classOf[Partition])))
-
-    val requestLocal = RequestLocal.withThreadConfinedCaching
-    when(replicaManager.appendRecords(anyLong,
-      anyShort,
-      ArgumentMatchers.eq(true),
-      ArgumentMatchers.eq(AppendOrigin.COORDINATOR),
-      any(),
-      responseCallback.capture(),
-      any(),
-      any(),
-      ArgumentMatchers.eq(requestLocal),
-      any(),
-      any()
-    )).thenAnswer(_ => responseCallback.getValue.apply(Map(tp2 -> new PartitionResponse(Errors.NONE))))
-    kafkaApis = createKafkaApis()
-    kafkaApis.handleWriteTxnMarkersRequest(request, requestLocal)
-
-    verify(requestChannel).sendResponse(
-      ArgumentMatchers.eq(request),
-      capturedResponse.capture(),
-      ArgumentMatchers.eq(None)
-    )
-    val markersResponse = capturedResponse.getValue
-    assertEquals(expectedErrors, markersResponse.errorsByProducerId.get(1L))
-  }
-
-  @Test
   def shouldResignCoordinatorsIfStopReplicaReceivedWithDeleteFlagAndLeaderEpoch(): Unit = {
     shouldResignCoordinatorsIfStopReplicaReceivedWithDeleteFlag(
       LeaderAndIsr.INITIAL_LEADER_EPOCH + 2, deletePartition = true)

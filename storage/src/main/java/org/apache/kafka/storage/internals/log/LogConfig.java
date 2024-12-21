@@ -27,7 +27,6 @@ import org.apache.kafka.common.config.TopicConfig;
 import org.apache.kafka.common.errors.InvalidConfigurationException;
 import org.apache.kafka.common.record.CompressionType;
 import org.apache.kafka.common.record.LegacyRecord;
-import org.apache.kafka.common.record.RecordVersion;
 import org.apache.kafka.common.record.Records;
 import org.apache.kafka.common.record.TimestampType;
 import org.apache.kafka.common.utils.ConfigUtils;
@@ -372,10 +371,6 @@ public class LogConfig extends AbstractConfig {
             default:
                 throw new IllegalArgumentException("Invalid value for " + TopicConfig.COMPRESSION_TYPE_CONFIG);
         }
-    }
-
-    public RecordVersion recordVersion() {
-        return RecordVersion.V2;
     }
 
     // Exposed as a method so it can be mocked

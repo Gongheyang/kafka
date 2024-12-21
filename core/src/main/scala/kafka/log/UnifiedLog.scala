@@ -252,10 +252,6 @@ class UnifiedLog(@volatile var logStartOffset: Long,
   def updateConfig(newConfig: LogConfig): LogConfig = {
     val oldConfig = localLog.config
     localLog.updateConfig(newConfig)
-    val oldRecordVersion = oldConfig.recordVersion
-    val newRecordVersion = newConfig.recordVersion
-    if (newRecordVersion != oldRecordVersion)
-      initializeLeaderEpochCache()
     oldConfig
   }
 
@@ -478,8 +474,6 @@ class UnifiedLog(@volatile var logStartOffset: Long,
     updateHighWatermark(localLog.logEndOffsetMetadata)
   }
 
-  private def recordVersion: RecordVersion = config.recordVersion
-
   private def initializePartitionMetadata(): Unit = lock synchronized {
     val partitionMetadata = PartitionMetadataFile.newFile(dir)
     partitionMetadataFile = Some(new PartitionMetadataFile(partitionMetadata, logDirFailureChannel))
@@ -516,7 +510,7 @@ class UnifiedLog(@volatile var logStartOffset: Long,
 
   private def initializeLeaderEpochCache(): Unit = lock synchronized {
     leaderEpochCache = UnifiedLog.maybeCreateLeaderEpochCache(
-      dir, topicPartition, logDirFailureChannel, recordVersion, logIdent, leaderEpochCache, scheduler)
+      dir, topicPartition, logDirFailureChannel, RecordVersion.V2, logIdent, leaderEpochCache, scheduler)
   }
 
   private def updateHighWatermarkWithLogEndOffset(): Unit = {
@@ -550,7 +544,7 @@ class UnifiedLog(@volatile var logStartOffset: Long,
   private def rebuildProducerState(lastOffset: Long,
                                    producerStateManager: ProducerStateManager): Unit = lock synchronized {
     localLog.checkIfMemoryMappedBufferClosed()
-    JUnifiedLog.rebuildProducerState(producerStateManager, localLog.segments, logStartOffset, lastOffset, recordVersion, time, false, logIdent)
+    JUnifiedLog.rebuildProducerState(producerStateManager, localLog.segments, logStartOffset, lastOffset, RecordVersion.V2, time, false, logIdent)
   }
 
   @threadsafe
@@ -793,7 +787,7 @@ class UnifiedLog(@volatile var logStartOffset: Long,
                 appendInfo.sourceCompression,
                 targetCompression,
                 config.compact,
-                config.recordVersion.value,
+                RecordBatch.CURRENT_MAGIC_VALUE,
                 config.messageTimestampType,
                 config.messageTimestampBeforeMaxMs,
                 config.messageTimestampAfterMaxMs,
@@ -1343,9 +1337,6 @@ class UnifiedLog(@volatile var logStartOffset: Long,
         if (remoteLogEnabled() && !isEmpty) {
           if (remoteLogManager.isEmpty) {
             throw new KafkaException("RemoteLogManager is empty even though the remote log storage is enabled.")
-          }
-          if (recordVersion.value < RecordVersion.V2.value) {
-            throw new KafkaException("Tiered storage is supported only with versions supporting leader epochs, that means RecordVersion must be >= 2.")
           }
 
           val asyncOffsetReadFutureHolder = remoteLogManager.get.asyncOffsetRead(topicPartition, targetTimestamp,
@@ -2028,7 +2019,7 @@ object UnifiedLog extends Logging {
       dir,
       topicPartition,
       logDirFailureChannel,
-      config.recordVersion,
+      RecordVersion.V2,
       s"[UnifiedLog partition=$topicPartition, dir=${dir.getParent}] ",
       None,
       scheduler)

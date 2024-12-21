@@ -867,9 +867,9 @@ class GroupMetadataManager(brokerId: Int,
         (removedOffsets, group.is(Dead), group.generationId)
       }
 
-      val partitionId = partitionFor(groupId)
-      val appendPartition = new TopicPartition(Topic.GROUP_METADATA_TOPIC_NAME, partitionId)
-      onlinePartition(partitionId) match {
+      val offsetsPartition = partitionFor(groupId)
+      val appendPartition = new TopicPartition(Topic.GROUP_METADATA_TOPIC_NAME, offsetsPartition)
+      onlinePartition(offsetsPartition) match {
         case Some(partition) =>
           // We always use CREATE_TIME, like the producer. The conversion to LOG_APPEND_TIME (if necessary) happens automatically.
           val timestampType = TimestampType.CREATE_TIME

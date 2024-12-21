@@ -248,26 +248,16 @@ jobs:
   update-test-catalog:
     name: Update Test Catalog
     needs: test
-    if: ${{ always() }}
+    if: ${{ always() && inputs.is-trunk && needs.test.outputs.timed-out == 'false' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - name: Env
-        run: printenv
-        env:
-          GITHUB_CONTEXT: ${{ toJson(github) }}
       - name: Checkout Test Catalog
         uses: actions/checkout@v4
         with:
           persist-credentials: true  # Needed to commit and push later
           ref: test-catalog
-      - name: Only run if not timed out 1
-        if: ${{ !needs.test.outputs.timed-out }}
-        run: echo "ok 1"
-      - name: Only run if not timed out 2
-        if: ${{ needs.test.outputs.timed-out == 'false' }}
-        run: echo "ok 2"
       - name: Reset Catalog
         run: |
           rm -rf test-catalog
@@ -276,3 +266,19 @@ jobs:
         with:
           name: test-catalog
           path: test-catalog
+      - name: Push Test Catalog
+        # Git user.name and user.email come from https://github.com/actions/checkout?tab=readme-ov-file#push-a-commit-using-the-built-in-token
+        env:
+          COMMIT_MSG: |
+            Update test catalog data for GHA workflow run ${{ github.run_id }}
+            
+            Commit: https://github.com/apache/kafka/commit/${{ github.sha }}
+            GitHub Run: https://github.com/apache/kafka/actions/runs/${{ github.run_id }}
+        run: |
+          pwd
+          ls -R
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add test-catalog
+          git diff --quiet && git diff --staged --quiet || git commit -m "$COMMIT_MSG"
+          git push

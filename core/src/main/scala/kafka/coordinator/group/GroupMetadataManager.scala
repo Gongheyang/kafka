@@ -240,8 +240,8 @@ class GroupMetadataManager(brokerId: Int,
                  groupAssignment: Map[String, Array[Byte]],
                  responseCallback: Errors => Unit,
                  requestLocal: RequestLocal = RequestLocal.noCaching): Unit = {
-    getMagic(partitionFor(group.groupId)) match {
-      case Some(magicValue) =>
+    replicaManager.onlinePartition(new TopicPartition(Topic.GROUP_METADATA_TOPIC_NAME, partitionFor(group.groupId))) match {
+      case Some(_) =>
         // We always use CREATE_TIME, like the producer. The conversion to LOG_APPEND_TIME (if necessary) happens automatically.
         val timestampType = TimestampType.CREATE_TIME
         val timestamp = time.milliseconds()
@@ -249,9 +249,9 @@ class GroupMetadataManager(brokerId: Int,
         val value = GroupMetadataManager.groupMetadataValue(group, groupAssignment, interBrokerProtocolVersion)
 
         val records = {
-          val buffer = ByteBuffer.allocate(AbstractRecords.estimateSizeInBytes(magicValue, compression.`type`(),
+          val buffer = ByteBuffer.allocate(AbstractRecords.estimateSizeInBytes(RecordBatch.CURRENT_MAGIC_VALUE, compression.`type`(),
             Seq(new SimpleRecord(timestamp, key, value)).asJava))
-          val builder = MemoryRecords.builder(buffer, magicValue, compression, timestampType, 0L)
+          val builder = MemoryRecords.builder(buffer, RecordBatch.CURRENT_MAGIC_VALUE, compression, timestampType, 0L)
           builder.append(timestamp, key, value)
           builder.build()
         }
@@ -464,8 +464,7 @@ class GroupMetadataManager(brokerId: Int,
       return
     }
 
-    val magicOpt = getMagic(partitionFor(group.groupId))
-    if (magicOpt.isEmpty) {
+    if (replicaManager.onlinePartition(new TopicPartition(Topic.GROUP_METADATA_TOPIC_NAME, partitionFor(group.groupId))).isEmpty) {
       val commitStatus = offsetMetadata.map { case (topicIdPartition, _) =>
         (topicIdPartition, Errors.NOT_COORDINATOR)
       }
@@ -474,7 +473,7 @@ class GroupMetadataManager(brokerId: Int,
     }
 
     val isTxnOffsetCommit = producerId != RecordBatch.NO_PRODUCER_ID
-    val records = generateOffsetRecords(magicOpt.get, isTxnOffsetCommit, group.groupId, offsetTopicPartition, filteredOffsetMetadata, producerId, producerEpoch)
+    val records = generateOffsetRecords(RecordBatch.CURRENT_MAGIC_VALUE, isTxnOffsetCommit, group.groupId, offsetTopicPartition, filteredOffsetMetadata, producerId, producerEpoch)
     val putCacheCallback = createPutCacheCallback(isTxnOffsetCommit, group, consumerId, offsetMetadata, filteredOffsetMetadata, responseCallback, producerId, records)
 
     val verificationGuards = verificationGuard.map(guard => offsetTopicPartition -> guard).toMap
@@ -868,53 +867,51 @@ class GroupMetadataManager(brokerId: Int,
         (removedOffsets, group.is(Dead), group.generationId)
       }
 
-    val offsetsPartition = partitionFor(groupId)
-    val appendPartition = new TopicPartition(Topic.GROUP_METADATA_TOPIC_NAME, offsetsPartition)
-    getMagic(offsetsPartition) match {
-      case Some(magicValue) =>
+    val appendPartition = new TopicPartition(Topic.GROUP_METADATA_TOPIC_NAME, partitionFor(groupId))
+    replicaManager.onlinePartition(appendPartition) match {
+      case Some(partition) =>
         // We always use CREATE_TIME, like the producer. The conversion to LOG_APPEND_TIME (if necessary) happens automatically.
         val timestampType = TimestampType.CREATE_TIME
         val timestamp = time.milliseconds()
 
-          replicaManager.onlinePartition(appendPartition).foreach { partition =>
-            val tombstones = ArrayBuffer.empty[SimpleRecord]
-            removedOffsets.foreachEntry { (topicPartition, offsetAndMetadata) =>
-              trace(s"Removing expired/deleted offset and metadata for $groupId, $topicPartition: $offsetAndMetadata")
-              val commitKey = GroupMetadataManager.offsetCommitKey(groupId, topicPartition)
-              tombstones += new SimpleRecord(timestamp, commitKey, null)
-            }
-            trace(s"Marked ${removedOffsets.size} offsets in $appendPartition for deletion.")
+        val tombstones = ArrayBuffer.empty[SimpleRecord]
+        removedOffsets.foreachEntry { (topicPartition, offsetAndMetadata) =>
+          trace(s"Removing expired/deleted offset and metadata for $groupId, $topicPartition: $offsetAndMetadata")
+          val commitKey = GroupMetadataManager.offsetCommitKey(groupId, topicPartition)
+          tombstones += new SimpleRecord(timestamp, commitKey, null)
+        }
+        trace(s"Marked ${removedOffsets.size} offsets in $appendPartition for deletion.")
 
-            // We avoid writing the tombstone when the generationId is 0, since this group is only using
-            // Kafka for offset storage.
-            if (groupIsDead && groupMetadataCache.remove(groupId, group) && generation > 0) {
-              // Append the tombstone messages to the partition. It is okay if the replicas don't receive these (say,
-              // if we crash or leaders move) since the new leaders will still expire the consumers with heartbeat and
-              // retry removing this group.
-              val groupMetadataKey = GroupMetadataManager.groupMetadataKey(group.groupId)
-              tombstones += new SimpleRecord(timestamp, groupMetadataKey, null)
-              trace(s"Group $groupId removed from the metadata cache and marked for deletion in $appendPartition.")
-            }
+        // We avoid writing the tombstone when the generationId is 0, since this group is only using
+        // Kafka for offset storage.
+        if (groupIsDead && groupMetadataCache.remove(groupId, group) && generation > 0) {
+          // Append the tombstone messages to the partition. It is okay if the replicas don't receive these (say,
+          // if we crash or leaders move) since the new leaders will still expire the consumers with heartbeat and
+          // retry removing this group.
+          val groupMetadataKey = GroupMetadataManager.groupMetadataKey(group.groupId)
+          tombstones += new SimpleRecord(timestamp, groupMetadataKey, null)
+          trace(s"Group $groupId removed from the metadata cache and marked for deletion in $appendPartition.")
+        }
 
-            if (tombstones.nonEmpty) {
-              try {
-                // do not need to require acks since even if the tombstone is lost,
-                // it will be appended again in the next purge cycle
-                val records = MemoryRecords.withRecords(magicValue, 0L, compression, timestampType, tombstones.toArray: _*)
-                partition.appendRecordsToLeader(records, origin = AppendOrigin.COORDINATOR, requiredAcks = 0,
-                  requestLocal = requestLocal)
+        if (tombstones.nonEmpty) {
+          try {
+            // do not need to require acks since even if the tombstone is lost,
+            // it will be appended again in the next purge cycle
+            val records = MemoryRecords.withRecords(RecordBatch.CURRENT_MAGIC_VALUE, 0L, compression, timestampType, tombstones.toArray: _*)
+            partition.appendRecordsToLeader(records, origin = AppendOrigin.COORDINATOR, requiredAcks = 0,
+              requestLocal = requestLocal)
 
-                offsetsRemoved += removedOffsets.size
-                trace(s"Successfully appended ${tombstones.size} tombstones to $appendPartition for expired/deleted " +
-                  s"offsets and/or metadata for group $groupId")
-              } catch {
-                case t: Throwable =>
-                  error(s"Failed to append ${tombstones.size} tombstones to $appendPartition for expired/deleted " +
-                    s"offsets and/or metadata for group $groupId.", t)
-                // ignore and continue
-              }
-            }
+            offsetsRemoved += removedOffsets.size
+            trace(s"Successfully appended ${tombstones.size} tombstones to $appendPartition for expired/deleted " +
+              s"offsets and/or metadata for group $groupId")
+          } catch {
+            case t: Throwable =>
+              error(s"Failed to append ${tombstones.size} tombstones to $appendPartition for expired/deleted " +
+                s"offsets and/or metadata for group $groupId.", t)
+            // ignore and continue
           }
+        }
+
 
         case None =>
           info(s"BrokerId $brokerId is no longer a coordinator for the group $groupId. Proceeding cleanup for other alive groups")
@@ -1001,15 +998,6 @@ class GroupMetadataManager(brokerId: Int,
 
     // TODO: clear the caches
   }
-
-  /**
-   * Check if the replica is local and return the message format version
-   *
-   * @param   partition  Partition of GroupMetadataTopic
-   * @return  Some(MessageFormatVersion) if replica is local, None otherwise
-   */
-  private def getMagic(partition: Int): Option[Byte] =
-    replicaManager.getMagic(new TopicPartition(Topic.GROUP_METADATA_TOPIC_NAME, partition))
 
   /**
    * Add a partition to the owned partition set.

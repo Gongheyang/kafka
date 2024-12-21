@@ -3040,34 +3040,13 @@ class KafkaApisTest extends Logging {
   }
 
   @Test
-  def shouldRespondWithUnsupportedForMessageFormatOnHandleWriteTxnMarkersWhenMagicLowerThanRequired(): Unit = {
-    val topicPartition = new TopicPartition("t", 0)
-    val (_, request) = createWriteTxnMarkersRequest(asList(topicPartition))
-    val expectedErrors = Map(topicPartition -> Errors.UNSUPPORTED_FOR_MESSAGE_FORMAT).asJava
-    val capturedResponse: ArgumentCaptor[WriteTxnMarkersResponse] = ArgumentCaptor.forClass(classOf[WriteTxnMarkersResponse])
-
-    when(replicaManager.getMagic(topicPartition))
-      .thenReturn(Some(RecordBatch.MAGIC_VALUE_V1))
-    kafkaApis = createKafkaApis()
-    kafkaApis.handleWriteTxnMarkersRequest(request, RequestLocal.withThreadConfinedCaching)
-
-    verify(requestChannel).sendResponse(
-      ArgumentMatchers.eq(request),
-      capturedResponse.capture(),
-      ArgumentMatchers.eq(None)
-    )
-    val markersResponse = capturedResponse.getValue
-    assertEquals(expectedErrors, markersResponse.errorsByProducerId.get(1L))
-  }
-
-  @Test
   def shouldRespondWithUnknownTopicWhenPartitionIsNotHosted(): Unit = {
     val topicPartition = new TopicPartition("t", 0)
     val (_, request) = createWriteTxnMarkersRequest(asList(topicPartition))
     val expectedErrors = Map(topicPartition -> Errors.UNKNOWN_TOPIC_OR_PARTITION).asJava
     val capturedResponse: ArgumentCaptor[WriteTxnMarkersResponse] = ArgumentCaptor.forClass(classOf[WriteTxnMarkersResponse])
 
-    when(replicaManager.getMagic(topicPartition))
+    when(replicaManager.onlinePartition(topicPartition))
       .thenReturn(None)
     kafkaApis = createKafkaApis()
     kafkaApis.handleWriteTxnMarkersRequest(request, RequestLocal.withThreadConfinedCaching)
@@ -3094,8 +3073,8 @@ class KafkaApisTest extends Logging {
     val request = buildRequest(writeTxnMarkersRequest)
     val capturedResponse: ArgumentCaptor[WriteTxnMarkersResponse] = ArgumentCaptor.forClass(classOf[WriteTxnMarkersResponse])
 
-    when(replicaManager.getMagic(any()))
-      .thenReturn(Some(RecordBatch.MAGIC_VALUE_V2))
+    when(replicaManager.onlinePartition(any()))
+      .thenReturn(Some(mock(classOf[Partition])))
     when(groupCoordinator.isNewGroupCoordinator)
       .thenReturn(true)
     when(groupCoordinator.completeTransaction(
@@ -3120,19 +3099,16 @@ class KafkaApisTest extends Logging {
   }
 
   @Test
-  def shouldRespondWithUnsupportedMessageFormatForBadPartitionAndNoErrorsForGoodPartition(): Unit = {
-    val tp1 = new TopicPartition("t", 0)
+  def shouldRespondWithNoErrorsForGoodPartition(): Unit = {
     val tp2 = new TopicPartition("t1", 0)
-    val (_, request) = createWriteTxnMarkersRequest(asList(tp1, tp2))
-    val expectedErrors = Map(tp1 -> Errors.UNSUPPORTED_FOR_MESSAGE_FORMAT, tp2 -> Errors.NONE).asJava
+    val (_, request) = createWriteTxnMarkersRequest(asList(tp2))
+    val expectedErrors = Map(tp2 -> Errors.NONE).asJava
 
     val capturedResponse: ArgumentCaptor[WriteTxnMarkersResponse] = ArgumentCaptor.forClass(classOf[WriteTxnMarkersResponse])
     val responseCallback: ArgumentCaptor[Map[TopicPartition, PartitionResponse] => Unit] = ArgumentCaptor.forClass(classOf[Map[TopicPartition, PartitionResponse] => Unit])
 
-    when(replicaManager.getMagic(tp1))
-      .thenReturn(Some(RecordBatch.MAGIC_VALUE_V1))
-    when(replicaManager.getMagic(tp2))
-      .thenReturn(Some(RecordBatch.MAGIC_VALUE_V2))
+    when(replicaManager.onlinePartition(tp2))
+      .thenReturn(Some(mock(classOf[Partition])))
 
     val requestLocal = RequestLocal.withThreadConfinedCaching
     when(replicaManager.appendRecords(anyLong,
@@ -3261,10 +3237,10 @@ class KafkaApisTest extends Logging {
     val capturedResponse: ArgumentCaptor[WriteTxnMarkersResponse] = ArgumentCaptor.forClass(classOf[WriteTxnMarkersResponse])
     val responseCallback: ArgumentCaptor[Map[TopicPartition, PartitionResponse] => Unit] = ArgumentCaptor.forClass(classOf[Map[TopicPartition, PartitionResponse] => Unit])
 
-    when(replicaManager.getMagic(tp1))
+    when(replicaManager.onlinePartition(tp1))
       .thenReturn(None)
-    when(replicaManager.getMagic(tp2))
-      .thenReturn(Some(RecordBatch.MAGIC_VALUE_V2))
+    when(replicaManager.onlinePartition(tp2))
+      .thenReturn(Some(mock(classOf[Partition])))
 
     val requestLocal = RequestLocal.withThreadConfinedCaching
     when(replicaManager.appendRecords(anyLong,
@@ -3296,8 +3272,8 @@ class KafkaApisTest extends Logging {
   def shouldAppendToLogOnWriteTxnMarkersWhenCorrectMagicVersion(allowedAclOperation: String): Unit = {
     val topicPartition = new TopicPartition("t", 0)
     val request = createWriteTxnMarkersRequest(asList(topicPartition))._2
-    when(replicaManager.getMagic(topicPartition))
-      .thenReturn(Some(RecordBatch.MAGIC_VALUE_V2))
+    when(replicaManager.onlinePartition(topicPartition))
+      .thenReturn(Some(mock(classOf[Partition])))
 
     val requestLocal = RequestLocal.withThreadConfinedCaching
 
@@ -3374,8 +3350,8 @@ class KafkaApisTest extends Logging {
     val requestChannelRequest = buildRequest(writeTxnMarkersRequest)
 
     allPartitions.foreach { tp =>
-      when(replicaManager.getMagic(tp))
-        .thenReturn(Some(RecordBatch.MAGIC_VALUE_V2))
+      when(replicaManager.onlinePartition(tp))
+        .thenReturn(Some(mock(classOf[Partition])))
     }
 
     when(groupCoordinator.onTransactionCompleted(
@@ -3500,8 +3476,8 @@ class KafkaApisTest extends Logging {
     val requestChannelRequest = buildRequest(writeTxnMarkersRequest)
 
     allPartitions.foreach { tp =>
-      when(replicaManager.getMagic(tp))
-        .thenReturn(Some(RecordBatch.MAGIC_VALUE_V2))
+      when(replicaManager.onlinePartition(tp))
+        .thenReturn(Some(mock(classOf[Partition])))
     }
 
     when(groupCoordinator.completeTransaction(
@@ -3618,8 +3594,8 @@ class KafkaApisTest extends Logging {
 
     val requestChannelRequest = buildRequest(writeTxnMarkersRequest)
 
-    when(replicaManager.getMagic(offset0))
-      .thenReturn(Some(RecordBatch.MAGIC_VALUE_V2))
+    when(replicaManager.onlinePartition(offset0))
+      .thenReturn(Some(mock(classOf[Partition])))
 
     when(groupCoordinator.completeTransaction(
       ArgumentMatchers.eq(offset0),

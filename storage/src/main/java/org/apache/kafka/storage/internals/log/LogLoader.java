@@ -19,7 +19,6 @@ package org.apache.kafka.storage.internals.log;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.InvalidOffsetException;
 import org.apache.kafka.common.errors.KafkaStorageException;
-import org.apache.kafka.common.record.RecordVersion;
 import org.apache.kafka.common.utils.LogContext;
 import org.apache.kafka.common.utils.Time;
 import org.apache.kafka.common.utils.Utils;
@@ -239,7 +238,6 @@ public class LogLoader {
                 segments,
                 newLogStartOffset,
                 recoveryOffsets.nextOffset,
-                RecordVersion.V2,
                 time,
                 hadCleanShutdown,
                 logPrefix);
@@ -409,7 +407,6 @@ public class LogLoader {
                 segments,
                 logStartOffsetCheckpoint,
                 segment.baseOffset(),
-                RecordVersion.V2,
                 time,
                 false,
                 logPrefix);

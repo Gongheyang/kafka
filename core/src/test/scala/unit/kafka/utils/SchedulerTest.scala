@@ -21,7 +21,6 @@ import java.util.concurrent.atomic._
 import java.util.concurrent.{ConcurrentHashMap, CountDownLatch, Executors, TimeUnit}
 import kafka.log.UnifiedLog
 import kafka.utils.TestUtils.retry
-import org.apache.kafka.common.record.RecordVersion
 import org.apache.kafka.coordinator.transaction.TransactionLogConfig
 import org.apache.kafka.server.util.{KafkaScheduler, MockTime}
 import org.apache.kafka.storage.internals.log.{LocalLog, LogConfig, LogDirFailureChannel, LogLoader, LogSegments, ProducerStateManager, ProducerStateManagerConfig}
@@ -142,7 +141,7 @@ class SchedulerTest {
     val logDirFailureChannel = new LogDirFailureChannel(10)
     val segments = new LogSegments(topicPartition)
     val leaderEpochCache = UnifiedLog.maybeCreateLeaderEpochCache(
-      logDir, topicPartition, logDirFailureChannel, RecordVersion.V2, "", None, mockTime.scheduler)
+      logDir, topicPartition, logDirFailureChannel, "", None, mockTime.scheduler)
     val producerStateManager = new ProducerStateManager(topicPartition, logDir,
       maxTransactionTimeoutMs, new ProducerStateManagerConfig(maxProducerIdExpirationMs, false), mockTime)
     val offsets = new LogLoader(

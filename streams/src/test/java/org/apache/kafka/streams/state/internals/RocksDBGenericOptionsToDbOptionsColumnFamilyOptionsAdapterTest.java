@@ -111,6 +111,8 @@ public class RocksDBGenericOptionsToDbOptionsColumnFamilyOptionsAdapterTest {
             add("setMaxBackgroundCompactions");
             add("maxBackgroundFlushes");
             add("setMaxBackgroundFlushes");
+            add("tablePropertiesCollectorFactory");
+            add("setTablePropertiesCollectorFactory");
             addAll(walRelatedMethods);
         }
     };
@@ -124,6 +126,7 @@ public class RocksDBGenericOptionsToDbOptionsColumnFamilyOptionsAdapterTest {
             }
         }
     }
+
 
     @Test
     public void shouldForwardAllDbOptionsCalls() throws Exception {

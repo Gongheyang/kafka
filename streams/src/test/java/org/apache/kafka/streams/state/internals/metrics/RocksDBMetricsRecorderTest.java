@@ -475,7 +475,7 @@ public class RocksDBMetricsRecorderTest {
 
         when(statisticsToAdd1.getAndResetTickerCount(TickerType.NO_FILE_OPENS)).thenReturn(5L);
         when(statisticsToAdd2.getAndResetTickerCount(TickerType.NO_FILE_OPENS)).thenReturn(7L);
-        final double expectedNumberOfOpenFilesSensor = (5 + 7) - (3 + 4);
+        final double expectedNumberOfOpenFilesSensor = -1;
 
         when(statisticsToAdd1.getAndResetTickerCount(TickerType.NO_FILE_ERRORS)).thenReturn(34L);
         when(statisticsToAdd2.getAndResetTickerCount(TickerType.NO_FILE_ERRORS)).thenReturn(11L);
@@ -483,8 +483,8 @@ public class RocksDBMetricsRecorderTest {
 
         recorder.record(now);
 
-        verify(statisticsToAdd1, times(17)).getAndResetTickerCount(isA(TickerType.class));
-        verify(statisticsToAdd2, times(17)).getAndResetTickerCount(isA(TickerType.class));
+        verify(statisticsToAdd1, times(15)).getAndResetTickerCount(isA(TickerType.class));
+        verify(statisticsToAdd2, times(15)).getAndResetTickerCount(isA(TickerType.class));
         verify(statisticsToAdd1, times(2)).getHistogramData(isA(HistogramType.class));
         verify(statisticsToAdd2, times(2)).getHistogramData(isA(HistogramType.class));
         verify(bytesWrittenToDatabaseSensor).record(expectedBytesWrittenToDatabaseSensor, now);

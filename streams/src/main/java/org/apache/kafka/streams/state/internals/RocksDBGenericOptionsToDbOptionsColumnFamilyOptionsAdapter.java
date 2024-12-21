@@ -36,7 +36,6 @@ import org.rocksdb.DBOptions;
 import org.rocksdb.DbPath;
 import org.rocksdb.Env;
 import org.rocksdb.InfoLogLevel;
-import org.rocksdb.LoggerInterface;
 import org.rocksdb.MemTableConfig;
 import org.rocksdb.MergeOperator;
 import org.rocksdb.Options;
@@ -49,6 +48,8 @@ import org.rocksdb.TableFormatConfig;
 import org.rocksdb.WALRecoveryMode;
 import org.rocksdb.WalFilter;
 import org.rocksdb.WriteBufferManager;
+import org.rocksdb.LoggerInterface;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -571,6 +572,8 @@ public class RocksDBGenericOptionsToDbOptionsColumnFamilyOptionsAdapter extends 
         return dbOptions.dbWriteBufferSize();
     }
 
+
+
     @Deprecated
     public Options setNewTableReaderForCompactionInputs(final boolean newTableReaderForCompactionInputs) {
         final String message = "This method has been removed from the underlying RocksDB. " +
@@ -903,6 +906,16 @@ public class RocksDBGenericOptionsToDbOptionsColumnFamilyOptionsAdapter extends 
         return this;
     }
 
+    @Override
+    public Options setMemtableMaxRangeDeletions(final int n) {
+        columnFamilyOptions.setMemtableMaxRangeDeletions(n);
+        return this;
+    }
+
+    @Override
+    public int memtableMaxRangeDeletions() {
+        return columnFamilyOptions.memtableMaxRangeDeletions();
+    }
 
     @Override
     public Options setBottommostCompressionType(final CompressionType bottommostCompressionType) {
@@ -1123,6 +1136,7 @@ public class RocksDBGenericOptionsToDbOptionsColumnFamilyOptionsAdapter extends 
         columnFamilyOptions.setBloomLocality(bloomLocality);
         return this;
     }
+
 
     @Override
     public long maxSuccessiveMerges() {

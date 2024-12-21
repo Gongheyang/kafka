@@ -462,10 +462,7 @@ public class RocksDBMetricsRecorder {
             writeStallDuration += valueProviders.statistics.getAndResetTickerCount(TickerType.STALL_MICROS);
             bytesWrittenDuringCompaction += valueProviders.statistics.getAndResetTickerCount(TickerType.COMPACT_WRITE_BYTES);
             bytesReadDuringCompaction += valueProviders.statistics.getAndResetTickerCount(TickerType.COMPACT_READ_BYTES);
-
-            // NO_FILE_CLOSES metric was removed in RocksDB 9.7.3.
-            // This now tracks the total number of file opens since the last reset.
-            numberOfOpenFiles += valueProviders.statistics.getAndResetTickerCount(TickerType.NO_FILE_OPENS);
+            numberOfOpenFiles = -1;
             numberOfFileErrors += valueProviders.statistics.getAndResetTickerCount(TickerType.NO_FILE_ERRORS);
             final HistogramData memtableFlushTimeData = valueProviders.statistics.getHistogramData(HistogramType.FLUSH_TIME);
             memtableFlushTimeSum += memtableFlushTimeData.getSum();

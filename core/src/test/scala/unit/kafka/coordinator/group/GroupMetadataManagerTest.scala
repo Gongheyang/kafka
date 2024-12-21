@@ -1982,7 +1982,24 @@ class GroupMetadataManagerTest {
     // expire all of the offsets
     time.sleep(4)
 
+    // expect the offset tombstone
+    val recordsCapture: ArgumentCaptor[MemoryRecords] = ArgumentCaptor.forClass(classOf[MemoryRecords])
+    when(replicaManager.onlinePartition(any())).thenReturn(Some(partition))
+    when(partition.appendRecordsToLeader(recordsCapture.capture(),
+      origin = ArgumentMatchers.eq(AppendOrigin.COORDINATOR), requiredAcks = anyInt(),
+      any(), any())).thenReturn(LogAppendInfo.UNKNOWN_LOG_APPEND_INFO)
     groupMetadataManager.cleanupGroupMetadata()
+
+    // verify the tombstones are correct and only for the expired offsets
+    val records = recordsCapture.getValue.records.asScala.toList
+    assertEquals(2, records.size)
+    records.foreach { message =>
+      assertTrue(message.hasKey)
+      assertFalse(message.hasValue)
+      val offsetKey = GroupMetadataManager.readMessageKey(message.key).asInstanceOf[OffsetKey]
+      assertEquals(groupId, offsetKey.key.group)
+      assertEquals("foo", offsetKey.key.topicPartition.topic)
+    }
 
     // the full group should be gone since all offsets were removed
     assertEquals(None, groupMetadataManager.getGroup(groupId))

@@ -2419,6 +2419,7 @@ class GroupMetadataManagerTest {
     group.initNextGeneration()
     group.transitionTo(Stable)
 
+    when(replicaManager.onlinePartition(any)).thenReturn(Some(partition))
     // expect the offset tombstone
     when(partition.appendRecordsToLeader(any[MemoryRecords],
       origin = ArgumentMatchers.eq(AppendOrigin.COORDINATOR), requiredAcks = anyInt(),
@@ -2426,6 +2427,9 @@ class GroupMetadataManagerTest {
 
     groupMetadataManager.cleanupGroupMetadata()
 
+    verify(partition).appendRecordsToLeader(any[MemoryRecords],
+      origin = ArgumentMatchers.eq(AppendOrigin.COORDINATOR), requiredAcks = anyInt(),
+      any(), any())
     verify(replicaManager, times(3)).onlinePartition(groupTopicPartition)
 
     assertEquals(Some(group), groupMetadataManager.getGroup(groupId))

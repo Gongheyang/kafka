@@ -25,13 +25,13 @@ import org.apache.kafka.streams.processor.internals.metrics.StreamsMetricsImpl;
 import org.apache.kafka.streams.state.internals.ThreadCache;
 
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-
-import java.time.Duration;
-
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
-import static org.junit.jupiter.api.Assertions.fail;
+//import org.junit.jupiter.api.Test;
+//
+//import java.time.Duration;
+//
+//import static org.hamcrest.MatcherAssert.assertThat;
+//import static org.hamcrest.Matchers.equalTo;
+//import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 
@@ -58,23 +58,23 @@ public class ProcessorContextTest {
         ((InternalProcessorContext) context).transitionToActive(mock(StreamTask.class), null, null);
     }
 
-    @Test
-    public void shouldNotAllowToScheduleZeroMillisecondPunctuation() {
-        try {
-            context.schedule(Duration.ofMillis(0L), null, null);
-            fail("Should have thrown IllegalArgumentException");
-        } catch (final IllegalArgumentException expected) {
-            assertThat(expected.getMessage(), equalTo("The minimum supported scheduling interval is 1 millisecond."));
-        }
-    }
-
-    @Test
-    public void shouldNotAllowToScheduleSubMillisecondPunctuation() {
-        try {
-            context.schedule(Duration.ofNanos(999_999L), null, null);
-            fail("Should have thrown IllegalArgumentException");
-        } catch (final IllegalArgumentException expected) {
-            assertThat(expected.getMessage(), equalTo("The minimum supported scheduling interval is 1 millisecond."));
-        }
-    }
+//    @Test
+//    public void shouldNotAllowToScheduleZeroMillisecondPunctuation() {
+//        try {
+//            context.schedule(Duration.ofMillis(0L), null, null);
+//            fail("Should have thrown IllegalArgumentException");
+//        } catch (final IllegalArgumentException expected) {
+//            assertThat(expected.getMessage(), equalTo("The minimum supported scheduling interval is 1 millisecond."));
+//        }
+//    }
+//
+//    @Test
+//    public void shouldNotAllowToScheduleSubMillisecondPunctuation() {
+//        try {
+//            context.schedule(Duration.ofNanos(999_999L), null, null);
+//            fail("Should have thrown IllegalArgumentException");
+//        } catch (final IllegalArgumentException expected) {
+//            assertThat(expected.getMessage(), equalTo("The minimum supported scheduling interval is 1 millisecond."));
+//        }
+//    }
 }

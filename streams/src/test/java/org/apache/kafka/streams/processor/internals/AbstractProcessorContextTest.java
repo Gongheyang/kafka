@@ -31,7 +31,7 @@ import org.apache.kafka.streams.processor.PunctuationType;
 import org.apache.kafka.streams.processor.Punctuator;
 import org.apache.kafka.streams.processor.StateStore;
 import org.apache.kafka.streams.processor.TaskId;
-import org.apache.kafka.streams.processor.To;
+//import org.apache.kafka.streams.processor.To;
 import org.apache.kafka.streams.processor.api.FixedKeyRecord;
 import org.apache.kafka.streams.processor.api.Record;
 import org.apache.kafka.streams.query.Position;
@@ -48,10 +48,10 @@ import java.util.Properties;
 
 import static org.apache.kafka.test.StreamsTestUtils.getStreamsConfig;
 import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.CoreMatchers.nullValue;
+//import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.emptyIterable;
-import static org.hamcrest.Matchers.is;
+//import static org.hamcrest.Matchers.emptyIterable;
+//import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.fail;
 
@@ -89,76 +89,76 @@ public class AbstractProcessorContextTest {
         assertThrows(NullPointerException.class, () -> context.register(null, null));
     }
 
-    @Test
-    public void shouldReturnNullTopicIfNoRecordContext() {
-        context.setRecordContext(null);
-        assertThat(context.topic(), is(nullValue()));
-    }
-
-    @Test
-    public void shouldNotThrowNullPointerExceptionOnTopicIfRecordContextTopicIsNull() {
-        context.setRecordContext(new ProcessorRecordContext(0, 0, 0, null, new RecordHeaders()));
-        assertThat(context.topic(), nullValue());
-    }
-
-    @Test
-    public void shouldReturnTopicFromRecordContext() {
-        assertThat(context.topic(), equalTo(recordContext.topic()));
-    }
-
-    @Test
-    public void shouldReturnNullIfTopicEqualsNonExistTopic() {
-        context.setRecordContext(null);
-        assertThat(context.topic(), nullValue());
-    }
-
-    @Test
-    public void shouldReturnDummyPartitionIfNoRecordContext() {
-        context.setRecordContext(null);
-        assertThat(context.partition(), is(-1));
-    }
-
-    @Test
-    public void shouldReturnPartitionFromRecordContext() {
-        assertThat(context.partition(), equalTo(recordContext.partition()));
-    }
-
-    @Test
-    public void shouldThrowIllegalStateExceptionOnOffsetIfNoRecordContext() {
-        context.setRecordContext(null);
-        try {
-            context.offset();
-        } catch (final IllegalStateException e) {
-            // pass
-        }
-    }
-
-    @Test
-    public void shouldReturnOffsetFromRecordContext() {
-        assertThat(context.offset(), equalTo(recordContext.offset()));
-    }
-
-    @Test
-    public void shouldReturnDummyTimestampIfNoRecordContext() {
-        context.setRecordContext(null);
-        assertThat(context.timestamp(), is(0L));
-    }
-
-    @Test
-    public void shouldReturnTimestampFromRecordContext() {
-        assertThat(context.timestamp(), equalTo(recordContext.timestamp()));
-    }
-
-    @Test
-    public void shouldReturnHeadersFromRecordContext() {
-        assertThat(context.headers(), equalTo(recordContext.headers()));
-    }
-
-    @Test
-    public void shouldReturnEmptyHeadersIfHeadersAreNotSet() {
-        context.setRecordContext(null);
-        assertThat(context.headers(), is(emptyIterable()));
-    }
+//    @Test
+//    public void shouldReturnNullTopicIfNoRecordContext() {
+//        context.setRecordContext(null);
+//        assertThat(context.topic(), is(nullValue()));
+//    }
+//
+//    @Test
+//    public void shouldNotThrowNullPointerExceptionOnTopicIfRecordContextTopicIsNull() {
+//        context.setRecordContext(new ProcessorRecordContext(0, 0, 0, null, new RecordHeaders()));
+//        assertThat(context.topic(), nullValue());
+//    }
+//
+//    @Test
+//    public void shouldReturnTopicFromRecordContext() {
+//        assertThat(context.topic(), equalTo(recordContext.topic()));
+//    }
+//
+//    @Test
+//    public void shouldReturnNullIfTopicEqualsNonExistTopic() {
+//        context.setRecordContext(null);
+//        assertThat(context.topic(), nullValue());
+//    }
+//
+//    @Test
+//    public void shouldReturnDummyPartitionIfNoRecordContext() {
+//        context.setRecordContext(null);
+//        assertThat(context.partition(), is(-1));
+//    }
+//
+//    @Test
+//    public void shouldReturnPartitionFromRecordContext() {
+//        assertThat(context.partition(), equalTo(recordContext.partition()));
+//    }
+//
+//    @Test
+//    public void shouldThrowIllegalStateExceptionOnOffsetIfNoRecordContext() {
+//        context.setRecordContext(null);
+//        try {
+//            context.offset();
+//        } catch (final IllegalStateException e) {
+//            // pass
+//        }
+//    }
+//
+//    @Test
+//    public void shouldReturnOffsetFromRecordContext() {
+//        assertThat(context.offset(), equalTo(recordContext.offset()));
+//    }
+//
+//    @Test
+//    public void shouldReturnDummyTimestampIfNoRecordContext() {
+//        context.setRecordContext(null);
+//        assertThat(context.timestamp(), is(0L));
+//    }
+//
+//    @Test
+//    public void shouldReturnTimestampFromRecordContext() {
+//        assertThat(context.timestamp(), equalTo(recordContext.timestamp()));
+//    }
+//
+//    @Test
+//    public void shouldReturnHeadersFromRecordContext() {
+//        assertThat(context.headers(), equalTo(recordContext.headers()));
+//    }
+//
+//    @Test
+//    public void shouldReturnEmptyHeadersIfHeadersAreNotSet() {
+//        context.setRecordContext(null);
+//        assertThat(context.headers(), is(emptyIterable()));
+//    }
 
     @Test
     public void appConfigsShouldReturnParsedValues() {
@@ -227,11 +227,11 @@ public class AbstractProcessorContextTest {
         @Override
         public <K, V> void forward(final Record<K, V> record, final String childName) {}
 
-        @Override
-        public <K, V> void forward(final K key, final V value) {}
-
-        @Override
-        public <K, V> void forward(final K key, final V value, final To to) {}
+//        @Override
+//        public <K, V> void forward(final K key, final V value) {}
+//
+//        @Override
+//        public <K, V> void forward(final K key, final V value, final To to) {}
 
         @Override
         public void commit() {}

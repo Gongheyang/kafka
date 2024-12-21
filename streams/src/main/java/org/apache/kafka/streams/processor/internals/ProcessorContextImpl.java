@@ -28,7 +28,7 @@ import org.apache.kafka.streams.processor.PunctuationType;
 import org.apache.kafka.streams.processor.Punctuator;
 import org.apache.kafka.streams.processor.StateStore;
 import org.apache.kafka.streams.processor.TaskId;
-import org.apache.kafka.streams.processor.To;
+//import org.apache.kafka.streams.processor.To;
 import org.apache.kafka.streams.processor.api.FixedKeyRecord;
 import org.apache.kafka.streams.processor.api.Record;
 import org.apache.kafka.streams.processor.internals.Task.TaskType;
@@ -184,31 +184,31 @@ public final class ProcessorContextImpl extends AbstractProcessorContext<Object,
         return (S) wrapWithReadWriteStore(store);
     }
 
-    @Override
-    public <K, V> void forward(final K key,
-                               final V value) {
-        final Record<K, V> toForward = new Record<>(
-            key,
-            value,
-            recordContext.timestamp(),
-            headers()
-        );
-        forward(toForward);
-    }
-
-    @Override
-    public <K, V> void forward(final K key,
-                               final V value,
-                               final To to) {
-        final ToInternal toInternal = new ToInternal(to);
-        final Record<K, V> toForward = new Record<>(
-            key,
-            value,
-            toInternal.hasTimestamp() ? toInternal.timestamp() : recordContext.timestamp(),
-            headers()
-        );
-        forward(toForward, toInternal.child());
-    }
+//    @Override
+//    public <K, V> void forward(final K key,
+//                               final V value) {
+//        final Record<K, V> toForward = new Record<>(
+//            key,
+//            value,
+//            recordContext.timestamp(),
+//            headers()
+//        );
+//        forward(toForward);
+//    }
+//
+//    @Override
+//    public <K, V> void forward(final K key,
+//                               final V value,
+//                               final To to) {
+//        final ToInternal toInternal = new ToInternal(to);
+//        final Record<K, V> toForward = new Record<>(
+//            key,
+//            value,
+//            toInternal.hasTimestamp() ? toInternal.timestamp() : recordContext.timestamp(),
+//            headers()
+//        );
+//        forward(toForward, toInternal.child());
+//    }
 
     @Override
     public <K, V> void forward(final FixedKeyRecord<K, V> record) {
@@ -313,29 +313,29 @@ public final class ProcessorContextImpl extends AbstractProcessorContext<Object,
         return streamTask.schedule(intervalMs, type, callback);
     }
 
-    @Override
-    public String topic() {
-        throwUnsupportedOperationExceptionIfStandby("topic");
-        return super.topic();
-    }
-
-    @Override
-    public int partition() {
-        throwUnsupportedOperationExceptionIfStandby("partition");
-        return super.partition();
-    }
-
-    @Override
-    public long offset() {
-        throwUnsupportedOperationExceptionIfStandby("offset");
-        return super.offset();
-    }
-
-    @Override
-    public long timestamp() {
-        throwUnsupportedOperationExceptionIfStandby("timestamp");
-        return super.timestamp();
-    }
+//    @Override
+//    public String topic() {
+//        throwUnsupportedOperationExceptionIfStandby("topic");
+//        return super.topic();
+//    }
+//
+//    @Override
+//    public int partition() {
+//        throwUnsupportedOperationExceptionIfStandby("partition");
+//        return super.partition();
+//    }
+//
+//    @Override
+//    public long offset() {
+//        throwUnsupportedOperationExceptionIfStandby("offset");
+//        return super.offset();
+//    }
+//
+//    @Override
+//    public long timestamp() {
+//        throwUnsupportedOperationExceptionIfStandby("timestamp");
+//        return super.timestamp();
+//    }
 
     @Override
     public long currentStreamTimeMs() {

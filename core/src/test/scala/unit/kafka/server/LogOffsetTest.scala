@@ -81,7 +81,7 @@ class LogOffsetTest extends BaseRequestTest {
     log.deleteOldSegments()
 
     val offset = log.fetchOffsetByTimestamp(ListOffsetsRequest.LATEST_TIMESTAMP).timestampAndOffsetOpt.map(_.offset)
-    assertEquals(Optional.of(20L), offset)
+    assertEquals(Some(20L), offset)
 
     TestUtils.waitUntilTrue(() => isLeaderLocalOnBroker(topic, topicPartition.partition, broker),
       "Leader should be elected")
@@ -148,7 +148,7 @@ class LogOffsetTest extends BaseRequestTest {
     log.flush(false)
 
     val offset = log.fetchOffsetByTimestamp(ListOffsetsRequest.LATEST_TIMESTAMP).timestampAndOffsetOpt.map(_.offset)
-    assertEquals(Optional.of(20L), offset)
+    assertEquals(Some(20L), offset)
 
     TestUtils.waitUntilTrue(() => isLeaderLocalOnBroker(topic, 0, broker),
       "Leader should be elected")
@@ -218,7 +218,7 @@ class LogOffsetTest extends BaseRequestTest {
     log.flush(false)
 
     val offset = log.fetchOffsetByTimestamp(ListOffsetsRequest.EARLIEST_TIMESTAMP).timestampAndOffsetOpt.map(_.offset)
-    assertEquals(Optional.of(0L), offset)
+    assertEquals(Some(0L), offset)
 
     TestUtils.waitUntilTrue(() => isLeaderLocalOnBroker(topic, topicPartition.partition, broker),
       "Leader should be elected")

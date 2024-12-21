@@ -22,7 +22,6 @@ import org.rocksdb.AbstractComparator;
 import org.rocksdb.AbstractEventListener;
 import org.rocksdb.AbstractSlice;
 import org.rocksdb.AbstractWalFilter;
-import org.rocksdb.AccessHint;
 import org.rocksdb.BuiltinComparator;
 import org.rocksdb.Cache;
 import org.rocksdb.ColumnFamilyOptions;
@@ -49,6 +48,8 @@ import org.rocksdb.TableFormatConfig;
 import org.rocksdb.WALRecoveryMode;
 import org.rocksdb.WalFilter;
 import org.rocksdb.WriteBufferManager;
+import org.rocksdb.LoggerInterface;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -571,16 +572,7 @@ public class RocksDBGenericOptionsToDbOptionsColumnFamilyOptionsAdapter extends 
         return dbOptions.dbWriteBufferSize();
     }
 
-    @Override
-    public Options setAccessHintOnCompactionStart(final AccessHint accessHint) {
-        dbOptions.setAccessHintOnCompactionStart(accessHint);
-        return this;
-    }
 
-    @Override
-    public AccessHint accessHintOnCompactionStart() {
-        return dbOptions.accessHintOnCompactionStart();
-    }
 
     @Deprecated
     public Options setNewTableReaderForCompactionInputs(final boolean newTableReaderForCompactionInputs) {
@@ -843,7 +835,7 @@ public class RocksDBGenericOptionsToDbOptionsColumnFamilyOptionsAdapter extends 
     }
 
     @Override
-    public Options setLogger(final org.rocksdb.Logger logger) {
+    public Options setLogger(final LoggerInterface logger) {
         dbOptions.setLogger(logger);
         return this;
     }
@@ -914,6 +906,16 @@ public class RocksDBGenericOptionsToDbOptionsColumnFamilyOptionsAdapter extends 
         return this;
     }
 
+    @Override
+    public Options setMemtableMaxRangeDeletions(final int n) {
+        columnFamilyOptions.setMemtableMaxRangeDeletions(n);
+        return this;
+    }
+
+    @Override
+    public int memtableMaxRangeDeletions() {
+        return columnFamilyOptions.memtableMaxRangeDeletions();
+    }
 
     @Override
     public Options setBottommostCompressionType(final CompressionType bottommostCompressionType) {
@@ -1134,6 +1136,7 @@ public class RocksDBGenericOptionsToDbOptionsColumnFamilyOptionsAdapter extends 
         columnFamilyOptions.setBloomLocality(bloomLocality);
         return this;
     }
+
 
     @Override
     public long maxSuccessiveMerges() {

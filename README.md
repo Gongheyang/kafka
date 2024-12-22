@@ -106,7 +106,7 @@ Using compiled files:
 
 Using docker image:
 
-    docker run -p 9092:9092 apache/kafka:3.7.0
+    docker run -p 9092:9092 apache/kafka:3.9.0
 
 ### Cleaning the build ###
     ./gradlew clean

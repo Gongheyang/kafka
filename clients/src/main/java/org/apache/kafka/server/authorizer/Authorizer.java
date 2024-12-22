@@ -44,7 +44,7 @@ import java.util.concurrent.CompletionStage;
 /**
  *
  * Pluggable authorizer interface for Kafka brokers.
- *
+ * <p>
  * Startup sequence in brokers:
  * <ol>
  *   <li>Broker creates authorizer instance if configured in `authorizer.class.name`.</li>
@@ -112,7 +112,8 @@ public interface Authorizer extends Configurable, Closeable {
      * to process the update synchronously on the request thread.
      *
      * @param requestContext Request context if the ACL is being created by a broker to handle
-     *        a client request to create ACLs.
+     *        a client request to create ACLs. This may be null if ACLs are created directly in ZooKeeper
+     *        using AclCommand.
      * @param aclBindings ACL bindings to create
      *
      * @return Create result for each ACL binding in the same order as in the input list. Each result
@@ -130,7 +131,8 @@ public interface Authorizer extends Configurable, Closeable {
      * Refer to the authorizer implementation docs for details on concurrent update guarantees.
      *
      * @param requestContext Request context if the ACL is being deleted by a broker to handle
-     *        a client request to delete ACLs.
+     *        a client request to delete ACLs. This may be null if ACLs are deleted directly in ZooKeeper
+     *        using AclCommand.
      * @param aclBindingFilters Filters to match ACL bindings that are to be deleted
      *
      * @return Delete result for each filter in the same order as in the input list.
@@ -162,7 +164,7 @@ public interface Authorizer extends Configurable, Closeable {
     /**
      * Check if the caller is authorized to perform the given ACL operation on at least one
      * resource of the given type.
-     *
+     * <p>
      * Custom authorizer implementations should consider overriding this default implementation because:
      * 1. The default implementation iterates all AclBindings multiple times, without any caching
      *    by principal, host, operation, permission types, and resource types. More efficient
@@ -184,19 +186,15 @@ public interface Authorizer extends Configurable, Closeable {
 
         // Check a hard-coded name to ensure that super users are granted
         // access regardless of DENY ACLs.
-        if (authorize(requestContext, Collections.singletonList(new Action(
-                op, new ResourcePattern(resourceType, "hardcode", PatternType.LITERAL),
-                0, true, false)))
-                .get(0) == AuthorizationResult.ALLOWED) {
+        Action action = new Action(op, new ResourcePattern(resourceType, "hardcode", PatternType.LITERAL), 0, true, false);
+        if (authorize(requestContext, Collections.singletonList(action)).get(0) == AuthorizationResult.ALLOWED) {
             return AuthorizationResult.ALLOWED;
         }
 
         // Filter out all the resource pattern corresponding to the RequestContext,
         // AclOperation, and ResourceType
-        ResourcePatternFilter resourceTypeFilter = new ResourcePatternFilter(
-            resourceType, null, PatternType.ANY);
-        AclBindingFilter aclFilter = new AclBindingFilter(
-            resourceTypeFilter, AccessControlEntryFilter.ANY);
+        ResourcePatternFilter resourceTypeFilter = new ResourcePatternFilter(resourceType, null, PatternType.ANY);
+        AclBindingFilter aclFilter = new AclBindingFilter(resourceTypeFilter, AccessControlEntryFilter.ANY);
 
         EnumMap<PatternType, Set<String>> denyPatterns =
             new EnumMap<>(PatternType.class) {{
@@ -209,56 +207,31 @@ public interface Authorizer extends Configurable, Closeable {
                     put(PatternType.PREFIXED, new HashSet<>());
                 }};
 
-        boolean hasWildCardAllow = false;
 
         KafkaPrincipal principal = new KafkaPrincipal(
             requestContext.principal().getPrincipalType(),
             requestContext.principal().getName());
         String hostAddr = requestContext.clientAddress().getHostAddress();
 
+        boolean hasWildCardAllow = false;
         for (AclBinding binding : acls(aclFilter)) {
-            if (!binding.entry().host().equals(hostAddr) && !binding.entry().host().equals("*"))
-                continue;
+            if (shouldSkipBinding(binding, hostAddr, principal, op)) continue;
 
-            if (!SecurityUtils.parseKafkaPrincipal(binding.entry().principal()).equals(principal)
-                    && !binding.entry().principal().equals("User:*"))
-                continue;
+            AclPermissionType permissionType = binding.entry().permissionType();
+            PatternType patternType = binding.pattern().patternType();
+            String patternName = binding.pattern().name();
 
-            if (binding.entry().operation() != op
-                    && binding.entry().operation() != AclOperation.ALL)
-                continue;
-
-            if (binding.entry().permissionType() == AclPermissionType.DENY) {
-                switch (binding.pattern().patternType()) {
-                    case LITERAL:
-                        // If wildcard deny exists, return deny directly
-                        if (binding.pattern().name().equals(ResourcePattern.WILDCARD_RESOURCE))
-                            return AuthorizationResult.DENIED;
-                        denyPatterns.get(PatternType.LITERAL).add(binding.pattern().name());
-                        break;
-                    case PREFIXED:
-                        denyPatterns.get(PatternType.PREFIXED).add(binding.pattern().name());
-                        break;
-                    default:
+            if (permissionType == AclPermissionType.DENY) {
+                if (patternName.equals(ResourcePattern.WILDCARD_RESOURCE)) {
+                    return AuthorizationResult.DENIED;
                 }
-                continue;
-            }
-
-            if (binding.entry().permissionType() != AclPermissionType.ALLOW)
-                continue;
-
-            switch (binding.pattern().patternType()) {
-                case LITERAL:
-                    if (binding.pattern().name().equals(ResourcePattern.WILDCARD_RESOURCE)) {
-                        hasWildCardAllow = true;
-                        continue;
-                    }
-                    allowPatterns.get(PatternType.LITERAL).add(binding.pattern().name());
-                    break;
-                case PREFIXED:
-                    allowPatterns.get(PatternType.PREFIXED).add(binding.pattern().name());
-                    break;
-                default:
+                denyPatterns.get(patternType).add(patternName);
+            } else if (permissionType == AclPermissionType.ALLOW) {
+                if (patternName.equals(ResourcePattern.WILDCARD_RESOURCE)) {
+                    hasWildCardAllow = true;
+                } else {
+                    allowPatterns.get(patternType).add(patternName);
+                }
             }
         }
 
@@ -270,9 +243,9 @@ public interface Authorizer extends Configurable, Closeable {
         // For any prefix allowed, if there's no dominant prefix denied, return allow.
         for (Map.Entry<PatternType, Set<String>> entry : allowPatterns.entrySet()) {
             for (String allowStr : entry.getValue()) {
-                if (entry.getKey() == PatternType.LITERAL
-                        && denyPatterns.get(PatternType.LITERAL).contains(allowStr))
+                if (entry.getKey() == PatternType.LITERAL && denyPatterns.get(PatternType.LITERAL).contains(allowStr)) {
                     continue;
+                }
                 StringBuilder sb = new StringBuilder();
                 boolean hasDominatedDeny = false;
                 for (char ch : allowStr.toCharArray()) {
@@ -290,4 +263,10 @@ public interface Authorizer extends Configurable, Closeable {
         return AuthorizationResult.DENIED;
     }
 
+    private boolean shouldSkipBinding(AclBinding binding, String hostAddr, KafkaPrincipal principal, AclOperation op) {
+        return !binding.entry().host().equals(hostAddr) && !binding.entry().host().equals("*")
+                || !SecurityUtils.parseKafkaPrincipal(binding.entry().principal()).equals(principal)
+                && !binding.entry().principal().equals("User:*")
+                || binding.entry().operation() != op && binding.entry().operation() != AclOperation.ALL;
+    }
 }

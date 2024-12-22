@@ -171,38 +171,43 @@ object ConfigCommand extends Logging {
 
     entityTypeHead match {
       case ConfigType.TOPIC | ConfigType.CLIENT_METRICS | ConfigType.BROKER | ConfigType.GROUP =>
-        val configResourceType = entityTypeHead match {
-          case ConfigType.TOPIC => ConfigResource.Type.TOPIC
-          case ConfigType.CLIENT_METRICS => ConfigResource.Type.CLIENT_METRICS
-          case ConfigType.BROKER => ConfigResource.Type.BROKER
-          case ConfigType.GROUP => ConfigResource.Type.GROUP
-        }
-        try {
-          alterResourceConfig(adminClient, entityTypeHead, entityNameHead, configsToBeDeleted, configsToBeAdded, configResourceType)
-        } catch {
-          case e: ExecutionException =>
-            e.getCause match {
-              case _: UnsupportedVersionException =>
-                throw new UnsupportedVersionException(s"The ${ApiKeys.INCREMENTAL_ALTER_CONFIGS} API is not supported by the cluster. The API is supported starting from version 2.3.0."
-                + " You may want to use an older version of this tool to interact with your cluster, or upgrade your brokers to version 2.3.0 or newer to avoid this error.")
-              case _ => throw e
-            }
-          case e: Throwable => throw e
+        entityNames.foreach{ entityName =>
+          val configResourceType = entityTypeHead match {
+            case ConfigType.TOPIC => ConfigResource.Type.TOPIC
+            case ConfigType.CLIENT_METRICS => ConfigResource.Type.CLIENT_METRICS
+            case ConfigType.BROKER => ConfigResource.Type.BROKER
+            case ConfigType.GROUP => ConfigResource.Type.GROUP
+          }
+          try {
+            alterResourceConfig(adminClient, entityTypeHead, entityName, configsToBeDeleted, configsToBeAdded, configResourceType)
+          } catch {
+            case e: ExecutionException =>
+              e.getCause match {
+                case _: UnsupportedVersionException =>
+                  throw new UnsupportedVersionException(s"The ${ApiKeys.INCREMENTAL_ALTER_CONFIGS} API is not supported by the cluster. The API is supported starting from version 2.3.0."
+                    + " You may want to use an older version of this tool to interact with your cluster, or upgrade your brokers to version 2.3.0 or newer to avoid this error.")
+                case _ => throw e
+              }
+            case e: Throwable => throw e
+          }
         }
 
       case BrokerLoggerConfigType =>
-        val validLoggers = getResourceConfig(adminClient, entityTypeHead, entityNameHead, includeSynonyms = true, describeAll = false).map(_.name)
-        // fail the command if any of the configured broker loggers do not exist
-        val invalidBrokerLoggers = configsToBeDeleted.filterNot(validLoggers.contains) ++ configsToBeAdded.keys.filterNot(validLoggers.contains)
-        if (invalidBrokerLoggers.nonEmpty)
-          throw new InvalidConfigurationException(s"Invalid broker logger(s): ${invalidBrokerLoggers.mkString(",")}")
+        entityNames.foreach { entityName =>
+          val validLoggers = getResourceConfig(adminClient, entityTypeHead, entityName, includeSynonyms = true, describeAll = false).map(_.name)
+          // fail the command if any of the configured broker loggers do not exist
+          val invalidBrokerLoggers = configsToBeDeleted.filterNot(validLoggers.contains) ++ configsToBeAdded.keys.filterNot(validLoggers.contains)
+          if (invalidBrokerLoggers.nonEmpty)
+            throw new InvalidConfigurationException(s"Invalid broker logger(s): ${invalidBrokerLoggers.mkString(",")}")
 
-        val configResource = new ConfigResource(ConfigResource.Type.BROKER_LOGGER, entityNameHead)
-        val alterOptions = new AlterConfigsOptions().timeoutMs(30000).validateOnly(false)
-        val addEntries = configsToBeAdded.values.map(k => new AlterConfigOp(k, AlterConfigOp.OpType.SET))
-        val deleteEntries = configsToBeDeleted.map(k => new AlterConfigOp(new ConfigEntry(k, ""), AlterConfigOp.OpType.DELETE))
-        val alterEntries = (deleteEntries ++ addEntries).asJavaCollection
-        adminClient.incrementalAlterConfigs(Map(configResource -> alterEntries).asJava, alterOptions).all().get(60, TimeUnit.SECONDS)
+          val configResource = new ConfigResource(ConfigResource.Type.BROKER_LOGGER, entityName)
+          val alterOptions = new AlterConfigsOptions().timeoutMs(30000).validateOnly(false)
+          val addEntries = configsToBeAdded.values.map(k => new AlterConfigOp(k, AlterConfigOp.OpType.SET))
+          val deleteEntries = configsToBeDeleted.map(k => new AlterConfigOp(new ConfigEntry(k, ""), AlterConfigOp.OpType.DELETE))
+          val alterEntries = (deleteEntries ++ addEntries).asJavaCollection
+          adminClient.incrementalAlterConfigs(Map(configResource -> alterEntries).asJava, alterOptions).all().get(60, TimeUnit.SECONDS)
+
+        }
 
       case ConfigType.USER | ConfigType.CLIENT =>
         val hasQuotaConfigsToAdd = configsToBeAdded.keys.exists(QuotaConfig.isClientOrUserQuotaConfig)

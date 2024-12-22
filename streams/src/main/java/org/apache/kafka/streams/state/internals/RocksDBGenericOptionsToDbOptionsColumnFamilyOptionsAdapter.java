@@ -36,6 +36,7 @@ import org.rocksdb.DBOptions;
 import org.rocksdb.DbPath;
 import org.rocksdb.Env;
 import org.rocksdb.InfoLogLevel;
+import org.rocksdb.LoggerInterface;
 import org.rocksdb.MemTableConfig;
 import org.rocksdb.MergeOperator;
 import org.rocksdb.Options;
@@ -48,8 +49,6 @@ import org.rocksdb.TableFormatConfig;
 import org.rocksdb.WALRecoveryMode;
 import org.rocksdb.WalFilter;
 import org.rocksdb.WriteBufferManager;
-import org.rocksdb.LoggerInterface;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

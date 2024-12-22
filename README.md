@@ -1,5 +1,7 @@
 <a href="https://kafka.apache.org/">
-    <img src="docs/images/kafka-logo-readme.svg" alt="Kafka Logo">
+<div style="color: #000000; @media (prefers-color-scheme: dark) { color: #ffffff; }">
+  <img src="docs/images/kafka-logo-readme.svg" alt="Kafka Logo">
+</div>
 </a> 
 
 [**Apache Kafka**](https://kafka.apache.org) is an open-source distributed event streaming platform used by thousands of

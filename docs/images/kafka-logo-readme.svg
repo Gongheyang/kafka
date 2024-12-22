@@ -18,18 +18,7 @@
             limitations under the License.
         </license>
     </metadata>
-	<style>
-        path {
-            fill: #000000; /* Default fill color for light theme */
-        }
-
-        @media (prefers-color-scheme: dark) {
-            path {
-                fill: #ffffff; /* Fill color for dark theme */
-            }
-        }
-    </style>
-	<path fill="#000000" opacity="1.000000" stroke="none"
+	<path fill="#000000" style="fill: currentColor; @media (prefers-color-scheme: dark) { fill: #ffffff; }" opacity="1.000000" stroke="none"
 	d="
 M181.151978,53.781082 
 	C203.951431,74.937538 197.919922,107.297455 169.306000,118.483780 
@@ -104,7 +93,7 @@ M231.117371,127.908592
 	C262.593323,126.980782 257.445557,120.186684 251.105469,118.483116 
 	C242.915710,116.282547 236.029541,119.315331 231.117371,127.908592 
 z"/>
-<path fill="#000000" opacity="1.000000" stroke="none" 
+<path fill="#000000" opacity="1.000000" stroke="none"
 	d="
 M644.545288,170.617859 
 	C660.775635,153.230316 678.166443,151.772720 701.053894,165.633102 
@@ -124,7 +113,7 @@ M691.352356,219.928223
 	C653.743652,203.654144 656.433044,212.309235 664.338928,218.483856 
 	C672.486450,224.847122 681.581360,224.577911 691.352356,219.928223 
 z"/>
-<path fill="#000000" opacity="1.000000" stroke="none" 
+<path fill="#000000" style="fill: currentColor; @media (prefers-color-scheme: dark) { fill: #ffffff; }" opacity="1.000000" stroke="none"
 	d="
 M477.071899,159.997437 
 	C482.909973,157.611740 488.736420,158.875168 494.484680,158.850433 
@@ -146,7 +135,7 @@ M436.150818,216.344482
 	C464.723450,175.756485 456.291626,173.772934 447.144379,175.959381 
 	C429.583893,180.156784 423.864960,200.482971 436.150818,216.344482 
 z"/>
-<path fill="#000000" opacity="1.000000" stroke="none" 
+<path fill="#000000" style="fill: currentColor; @media (prefers-color-scheme: dark) { fill: #ffffff; }" opacity="1.000000" stroke="none"
 	d="
 M564.593872,239.637482 
 	C561.550659,238.763474 561.856018,236.557938 561.854248,234.613693 
@@ -174,7 +163,7 @@ M564.593872,239.637482
 	C582.465759,238.637543 581.124146,239.976410 578.015137,239.916138 
 	C573.688354,239.832245 569.360901,239.787598 564.593872,239.637482 
 z"/>
-<path fill="#000000" opacity="1.000000" stroke="none" 
+<path fill="#000000" style="fill: currentColor; @media (prefers-color-scheme: dark) { fill: #ffffff; }" opacity="1.000000" stroke="none"
 	d="
 M336.648926,140.042114 
 	C336.720490,129.731644 335.828247,130.678040 345.542786,130.731049 
@@ -200,7 +189,7 @@ M336.648926,140.042114
 	C336.647552,240.362732 336.650146,240.480621 336.649902,226.030975 
 	C336.649445,197.532761 336.649292,169.034531 336.648926,140.042114 
 z"/>
-<path fill="#000000" opacity="1.000000" stroke="none" 
+<path fill="#000000" style="fill: currentColor; @media (prefers-color-scheme: dark) { fill: #ffffff; }" opacity="1.000000" stroke="none"
 	d="
 M517.141968,185.406326 
 	C517.273499,183.126617 517.506042,181.298843 517.482666,179.474365 

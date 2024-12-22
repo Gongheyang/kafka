@@ -286,10 +286,8 @@ public class ConsumerNetworkClientTest {
         client.respond(heartbeatResponse(Errors.NONE));
         // Wait for t1 to block in poll
         t1TheardCountDownLatch.await();
-        
         client.wakeup();
         
-        // Both threads should complete since t1 should wakeup t2
         t1.join();
         consumerClient.poll(future);
         

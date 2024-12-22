@@ -14,7 +14,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package kafka.admin;
+package org.apache.kafka.tools;
+
+import kafka.admin.ConfigCommand;
 
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.AdminClientTestUtils;
@@ -37,8 +39,6 @@ import org.apache.kafka.test.TestUtils;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mockito;
 
-import java.io.ByteArrayOutputStream;
-import java.io.PrintStream;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -65,6 +65,8 @@ import static org.apache.kafka.security.PasswordEncoderConfigs.PASSWORD_ENCODER_
 import static org.apache.kafka.server.config.ReplicationConfigs.AUTO_LEADER_REBALANCE_ENABLE_CONFIG;
 import static org.apache.kafka.server.config.ServerConfigs.MESSAGE_MAX_BYTES_CONFIG;
 import static org.apache.kafka.server.config.ServerLogConfigs.AUTO_CREATE_TOPICS_ENABLE_CONFIG;
+import static org.apache.kafka.tools.ToolsTestUtils.captureStandardErr;
+import static org.apache.kafka.tools.ToolsTestUtils.captureStandardOut;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -111,7 +113,7 @@ public class ConfigCommandIntegrationTest {
             "--entity-type", "users",
             "--entity-name", "admin",
             "--alter", "--add-config", "consumer_byte_rate=20000"));
-        String message = captureStandardStream(false, run(command));
+        String message = captureStandardOut(run(command));
         assertEquals("Completed updating config for user admin.", message);
     }
 
@@ -121,14 +123,14 @@ public class ConfigCommandIntegrationTest {
             "--entity-type", "groups",
             "--entity-name", "group",
             "--alter", "--add-config", "consumer.session.timeout.ms=50000"));
-        String message = captureStandardStream(false, run(command));
+        String message = captureStandardOut(run(command));
         assertEquals("Completed updating config for group group.", message);
 
         // Test for the --group alias
         command = Stream.concat(quorumArgs(), Stream.of(
             "--group", "group",
             "--alter", "--add-config", "consumer.session.timeout.ms=50000"));
-        message = captureStandardStream(false, run(command));
+        message = captureStandardOut(run(command));
         assertEquals("Completed updating config for group group.", message);
     }
 
@@ -138,14 +140,14 @@ public class ConfigCommandIntegrationTest {
                 "--entity-type", "client-metrics",
                 "--entity-name", "cm",
                 "--alter", "--add-config", "metrics=org.apache"));
-        String message = captureStandardStream(false, run(command));
+        String message = captureStandardOut(run(command));
         assertEquals("Completed updating config for client-metric cm.", message);
 
         // Test for the --client-metrics alias
         command = Stream.concat(quorumArgs(), Stream.of(
                 "--client-metrics", "cm",
                 "--alter", "--add-config", "metrics=org.apache"));
-        message = captureStandardStream(false, run(command));
+        message = captureStandardOut(run(command));
         assertEquals("Completed updating config for client-metric cm.", message);
     }
 
@@ -328,7 +330,7 @@ public class ConfigCommandIntegrationTest {
                             Stream.of("--bootstrap-server", cluster.bootstrapServers()),
                             Stream.of(entityOp(brokerIdOrDefault).toArray(new String[0]))),
                     Stream.of("--entity-type", "brokers", "--describe"));
-            String describeResult = captureStandardStream(false, run(describeCommand));
+            String describeResult = captureStandardOut(run(describeCommand));
 
             // We will treat unknown config as sensitive
             assertTrue(describeResult.contains("sensitive=true"), describeResult);
@@ -421,7 +423,7 @@ public class ConfigCommandIntegrationTest {
             throw new RuntimeException();
         });
 
-        String errOut = captureStandardStream(true, run(args));
+        String errOut = captureStandardErr(run(args));
 
         checkErrOut.accept(errOut);
         assertNotNull(exitStatus.get());
@@ -611,27 +613,5 @@ public class ConfigCommandIntegrationTest {
                 .stream()
                 .map(e -> e.getKey() + "=" + e.getValue())
                 .collect(Collectors.joining(","));
-    }
-
-    // Copied from ToolsTestUtils.java, can be removed after we move ConfigCommand to tools module
-    static String captureStandardStream(boolean isErr, Runnable runnable) {
-        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-        PrintStream currentStream = isErr ? System.err : System.out;
-        PrintStream tempStream = new PrintStream(outputStream);
-        if (isErr)
-            System.setErr(tempStream);
-        else
-            System.setOut(tempStream);
-        try {
-            runnable.run();
-            return outputStream.toString().trim();
-        } finally {
-            if (isErr)
-                System.setErr(currentStream);
-            else
-                System.setOut(currentStream);
-
-            tempStream.close();
-        }
     }
 }

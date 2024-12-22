@@ -1,6 +1,35 @@
 <svg version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
 	 width="100%" viewBox="0 0 816 368" enable-background="new 0 0 816 368" xml:space="preserve">
-<path fill="#000000" opacity="1.000000" stroke="none" 
+	<metadata>
+        <license>
+            Licensed to the Apache Software Foundation (ASF) under one or more
+            contributor license agreements.  See the NOTICE file distributed with
+            this work for additional information regarding copyright ownership.
+            The ASF licenses this file to You under the Apache License, Version 2.0
+            (the "License"); you may not use this file except in compliance with
+            the License.  You may obtain a copy of the License at
+
+            http://www.apache.org/licenses/LICENSE-2.0
+
+            Unless required by applicable law or agreed to in writing, software
+            distributed under the License is distributed on an "AS IS" BASIS,
+            WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+            See the License for the specific language governing permissions and
+            limitations under the License.
+        </license>
+    </metadata>
+	<style>
+        path {
+            fill: #000000; /* Default fill color for light theme */
+        }
+
+        @media (prefers-color-scheme: dark) {
+            path {
+                fill: #ffffff; /* Fill color for dark theme */
+            }
+        }
+    </style>
+	<path fill="#000000" opacity="1.000000" stroke="none"
 	d="
 M181.151978,53.781082 
 	C203.951431,74.937538 197.919922,107.297455 169.306000,118.483780 

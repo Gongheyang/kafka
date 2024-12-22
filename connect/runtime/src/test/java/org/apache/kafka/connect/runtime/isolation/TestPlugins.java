@@ -375,7 +375,8 @@ public class TestPlugins {
                 .toArray(TestPlugin[]::new);
     }
 
-    private static Path createPluginJar(String resourceDir, Predicate<String> removeRuntimeClasses) throws IOException {
+
+    static Path createPluginJar(String resourceDir, Predicate<String> removeRuntimeClasses) throws IOException {
         Path inputDir = resourceDirectoryPath("test-plugins/" + resourceDir);
         Path binDir = Files.createTempDirectory(resourceDir + ".bin.");
         compileJavaSources(inputDir, binDir);

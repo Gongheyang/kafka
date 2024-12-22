@@ -2,7 +2,7 @@
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/kafka-logo-readme-dark.svg">
   <source media="(prefers-color-scheme: light)" srcset="docs/images/kafka-logo-readme-light.svg">
-  <img src="docs/images/kafka-logo-readme-light.svg" alt="Kafka Logo" width="1000" height="300"> 
+  <img src="docs/images/kafka-logo-readme-light.svg" alt="Kafka Logo" width="1000" height="200"> 
 </picture>
 </a>
 

@@ -253,6 +253,16 @@
                     been updated to enable the replication of topics that appear to be internal but aren't truly internal to Kafka and Mirror Maker 2.
                     See <a href="https://cwiki.apache.org/confluence/display/KAFKA/KIP-1074%3A+Allow+the+replication+of+user+internal+topics">KIP-1074</a> for more details.
                 </li>
+                <li>
+                    The default value of 'num.recovery.threads.per.data.dir' has been changed from 1 to 2. The impact of this is faster
+                    recovery post unclean shutdown at the expense of extra IO cycles.
+                    See <a href="https://cwiki.apache.org/confluence/display/KAFKA/KIP-1030%3A+Change+constraints+and+default+values+for+various+configurations">KIP-1030</a> 
+                </li>
+                <li>
+                    The default value of 'message.timestamp.after.max.ms' has been changed from Long.Max to 1 hour. The impact of this messages with a 
+                    timestamp of more than 1 hour in the future will be rejected when message.timestamp.type=CreateTime is set.
+                    See <a href="https://cwiki.apache.org/confluence/display/KAFKA/KIP-1030%3A+Change+constraints+and+default+values+for+various+configurations">KIP-1030</a> 
+                </li>
             </ul>
         </li>
     </ul>

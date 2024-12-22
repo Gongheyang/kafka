@@ -3437,6 +3437,72 @@ public class FetchRequestManagerTest {
 
     }
 
+    @Test
+    public void testFetchSessionTestEviction() {
+        buildFetcher();
+
+        Set<TopicPartition> partitions = Set.of(tp0, tp1, tp2, tp3);
+        assignFromUser(partitions);
+        client.updateMetadata(
+            RequestTestUtils.metadataUpdateWithIds(
+                2,
+                singletonMap(topicName, 4),
+                tp -> validLeaderEpoch,
+                topicIds,
+                false
+            )
+        );
+
+        Map<Node, Set<TopicPartition>> nodeToPartitionMap = new HashMap<>();
+
+        partitions.forEach(tp -> {
+            subscriptions.seek(tp, 1);
+            Node node = metadata.fetch().leaderFor(tp);
+            nodeToPartitionMap.computeIfAbsent(node, k -> new HashSet<>()).add(tp);
+        });
+
+        assertEquals(nodeToPartitionMap.size(), sendFetches());
+        assertFalse(fetcher.hasCompletedFetches());
+
+        nodeToPartitionMap.keySet().forEach(node -> {
+            Set<TopicPartition> nodePartitions = nodeToPartitionMap.get(node);
+            assertNotNull(nodePartitions);
+            LinkedHashMap<TopicIdPartition, FetchResponseData.PartitionData> partitionDataMap = new LinkedHashMap<>();
+
+            nodePartitions.forEach(tp -> {
+                TopicIdPartition tidp = new TopicIdPartition(topicId, tp);
+                FetchResponseData.PartitionData partitionData = new FetchResponseData.PartitionData()
+                    .setPartitionIndex(tp1.partition())
+                    .setHighWatermark(100)
+                    .setRecords(records);
+                partitionDataMap.put(tidp, partitionData);
+            });
+
+            client.prepareResponseFrom(
+                FetchResponse.of(Errors.NONE, 0, INVALID_SESSION_ID, partitionDataMap),
+                node
+            );
+        });
+
+        final ArgumentCaptor<NetworkClientDelegate.UnsentRequest> argument = ArgumentCaptor.forClass(NetworkClientDelegate.UnsentRequest.class);
+        networkClientDelegate.poll(time.timer(0));
+
+        verify(networkClientDelegate, times(nodeToPartitionMap.size())).doSend(argument.capture(), any(Long.class));
+
+        for (NetworkClientDelegate.UnsentRequest unsentRequest : argument.getAllValues()) {
+            Optional<Node> nodeOpt = unsentRequest.node();
+            assertTrue(nodeOpt.isPresent());
+            Node node = nodeOpt.get();
+            FetchRequest.Builder builder = (FetchRequest.Builder) unsentRequest.requestBuilder();
+            Set<TopicPartition> nodePartitions = nodeToPartitionMap.get(node);
+            assertNotNull(nodePartitions);
+            assertEquals(nodePartitions.size(), builder.fetchData().size());
+        }
+
+        assertTrue(fetcher.hasCompletedFetches());
+        fetchRecords();
+    }
+
     private OffsetsForLeaderEpochResponse prepareOffsetsForLeaderEpochResponse(
             TopicPartition topicPartition,
             Errors error,

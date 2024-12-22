@@ -25,6 +25,7 @@ import org.apache.kafka.clients.MetadataRecoveryStrategy;
 import org.apache.kafka.clients.MockClient;
 import org.apache.kafka.clients.NetworkClient;
 import org.apache.kafka.clients.NodeApiVersions;
+import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.OffsetOutOfRangeException;
 import org.apache.kafka.common.Cluster;
@@ -2826,7 +2827,8 @@ public class FetcherTest {
                 2 * numPartitions,
                 true, // check crcs
                 CommonClientConfigs.DEFAULT_CLIENT_RACK,
-                isolationLevel);
+                isolationLevel,
+                ConsumerConfig.DEFAULT_TEMP_FETCH_MODE);
         fetcher = new Fetcher<>(
                 logContext,
                 consumerClient,
@@ -3866,7 +3868,8 @@ public class FetcherTest {
                 maxPollRecords,
                 true, // check crc
                 CommonClientConfigs.DEFAULT_CLIENT_RACK,
-                isolationLevel);
+                isolationLevel,
+                ConsumerConfig.DEFAULT_TEMP_FETCH_MODE);
         fetcher = spy(new Fetcher<>(
                 logContext,
                 consumerClient,

@@ -23,6 +23,7 @@ import org.apache.kafka.clients.CommonClientConfigs;
 import org.apache.kafka.clients.Metadata;
 import org.apache.kafka.clients.MockClient;
 import org.apache.kafka.clients.NodeApiVersions;
+import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.LogTruncationException;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.clients.consumer.OffsetAndTimestamp;
@@ -1242,7 +1243,8 @@ public class OffsetFetcherTest {
                 maxPollRecords,
                 true, // check crc
                 CommonClientConfigs.DEFAULT_CLIENT_RACK,
-                isolationLevel);
+                isolationLevel,
+                ConsumerConfig.DEFAULT_TEMP_FETCH_MODE);
         Fetcher<byte[], byte[]> fetcher = new Fetcher<>(
                 logContext,
                 consumerClient,

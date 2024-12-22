@@ -777,7 +777,8 @@ public class FetchCollectorTest {
             config.getInt(ConsumerConfig.MAX_POLL_RECORDS_CONFIG),
             config.getBoolean(ConsumerConfig.CHECK_CRCS_CONFIG),
             config.getString(ConsumerConfig.CLIENT_RACK_CONFIG),
-            isolationLevel
+            isolationLevel,
+            TempFetchMode.of(config.getInt(ConsumerConfig.TEMP_FETCH_MODE_CONFIG))
         );
     }
 

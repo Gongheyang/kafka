@@ -44,6 +44,7 @@ import org.slf4j.helpers.MessageFormatter;
 
 import java.io.Closeable;
 import java.time.Duration;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -72,7 +73,7 @@ public abstract class AbstractFetch implements Closeable {
     protected final BufferSupplier decompressionBufferSupplier;
     protected final Set<Integer> nodesWithPendingFetchRequests;
 
-    private final Map<Integer, FetchSessionHandler> sessionHandlers;
+    protected final Map<Integer, FetchSessionHandler> sessionHandlers;
 
     private final ApiVersions apiVersions;
 
@@ -322,7 +323,7 @@ public abstract class AbstractFetch implements Closeable {
      *
      * @return {@link Set} of {@link TopicPartition topic partitions} for which we should fetch data
      */
-    private Set<TopicPartition> fetchablePartitions() {
+    protected Set<TopicPartition> fetchablePartitions() {
         // This is the set of partitions we have in our buffer
         Set<TopicPartition> buffered = fetchBuffer.bufferedPartitions();
 
@@ -397,10 +398,46 @@ public abstract class AbstractFetch implements Closeable {
     }
 
     /**
+     * Create fetch requests based on the configured {@link TempFetchMode}.
+     */
+    protected Map<Node, FetchSessionHandler.FetchRequestData> prepareFetchRequests() {
+        switch (fetchConfig.tempFetchMode) {
+            case SKIP_BUFFERED:
+                return prepareFetchRequests_option1();
+
+            case SKIP_FETCH:
+                return prepareFetchRequests_option2();
+
+            case INCLUDE_NOMINAL:
+                return prepareFetchRequests_option3();
+
+            case SKIP_NODE:
+                return prepareFetchRequests_option4();
+
+            default:
+                throw new IllegalArgumentException("Invalid " + TempFetchMode.class.getSimpleName() + " option value: " + fetchConfig.tempFetchMode);
+        }
+    }
+
+    /**
      * Create fetch requests for all nodes for which we have assigned partitions
      * that have no existing requests in flight.
      */
-    protected Map<Node, FetchSessionHandler.FetchRequestData> prepareFetchRequests() {
+    protected Map<Node, FetchSessionHandler.FetchRequestData> prepareFetchRequests_option1() {
+        // -------------------------------------------------------------------------------------------------------------
+        //
+        //  #######  ########  ######## ####  #######  ##    ##          ##
+        // ##     ## ##     ##    ##     ##  ##     ## ###   ##        ####
+        // ##     ## ##     ##    ##     ##  ##     ## ####  ##          ##
+        // ##     ## ########     ##     ##  ##     ## ## ## ##          ##
+        // ##     ## ##           ##     ##  ##     ## ##  ####          ##
+        // ##     ## ##           ##     ##  ##     ## ##   ###          ##
+        //  #######  ##           ##    ####  #######  ##    ##        ######
+        //
+        // -------------------------------------------------------------------------------------------------------------
+        // Option 1 is the existing behavior
+        // -------------------------------------------------------------------------------------------------------------
+
         // Update metrics in case there was an assignment change
         metricsManager.maybeUpdateAssignment(subscriptions);
 
@@ -454,6 +491,142 @@ public abstract class AbstractFetch implements Closeable {
         }
 
         return fetchable.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().build()));
+    }
+
+    protected Map<Node, FetchSessionHandler.FetchRequestData> prepareFetchRequests_option2() {
+        throw new UnsupportedOperationException("Fetch mode option 2 is not supported in this consumer");
+    }
+
+    protected Map<Node, FetchSessionHandler.FetchRequestData> prepareFetchRequests_option3() {
+        throw new UnsupportedOperationException("Fetch mode option 3 is not supported in this consumer");
+    }
+
+    protected Map<Node, FetchSessionHandler.FetchRequestData> prepareFetchRequests_option4() {
+        // Update metrics in case there was an assignment change
+        metricsManager.maybeUpdateAssignment(subscriptions);
+
+        Map<Node, FetchSessionHandler.Builder> fetchable = new HashMap<>();
+        long currentTimeMs = time.milliseconds();
+        Map<String, Uuid> topicIds = metadata.topicIds();
+
+        // This is the set of partitions that have buffered data
+        Set<TopicPartition> buffered = Collections.unmodifiableSet(fetchBuffer.bufferedPartitions());
+
+        // This is the set of partitions that do not have buffered data
+        Set<TopicPartition> unbuffered = Set.copyOf(subscriptions.fetchablePartitions(tp -> !buffered.contains(tp)));
+
+        if (unbuffered.isEmpty())
+            return Collections.emptyMap();
+
+        // -------------------------------------------------------------------------------------------------------------
+        //
+        //  #######  ########  ######## ####  #######  ##    ##       ##
+        // ##     ## ##     ##    ##     ##  ##     ## ###   ##       ##    ##
+        // ##     ## ##     ##    ##     ##  ##     ## ####  ##       ##    ##
+        // ##     ## ########     ##     ##  ##     ## ## ## ##       ##    ##
+        // ##     ## ##           ##     ##  ##     ## ##  ####       #########
+        // ##     ## ##           ##     ##  ##     ## ##   ###             ##
+        //  #######  ##           ##    ####  #######  ##    ##             ##
+        //
+        // -------------------------------------------------------------------------------------------------------------
+        // Option 4 skips fetching from a node completely if that node hosts buffered data.
+        //
+        // First, iterate over all the buffered partitions and determine the node from which they fetch data.
+        // -------------------------------------------------------------------------------------------------------------
+        Set<Integer> nodesWithBufferedPartitions = nodesWithBufferedPartitions(buffered, currentTimeMs);
+
+        for (TopicPartition partition : unbuffered) {
+            SubscriptionState.FetchPosition position = subscriptions.position(partition);
+
+            if (position == null)
+                throw new IllegalStateException("Missing position for fetchable partition " + partition);
+
+            Optional<Node> leaderOpt = position.currentLeader.leader;
+
+            if (leaderOpt.isEmpty()) {
+                log.debug("Requesting metadata update for partition {} since the position {} is missing the current leader node", partition, position);
+                metadata.requestUpdate(false);
+                continue;
+            }
+
+            // Use the preferred read replica if set, otherwise the partition's leader
+            Node node = selectReadReplica(partition, leaderOpt.get(), currentTimeMs);
+
+            if (isUnavailable(node)) {
+                maybeThrowAuthFailure(node);
+
+                // If we try to send during the reconnect backoff window, then the request is just
+                // going to be failed anyway before being sent, so skip sending the request for now
+                log.trace("Skipping fetch for partition {} because node {} is awaiting reconnect backoff", partition, node);
+            } else if (nodesWithPendingFetchRequests.contains(node.id())) {
+                log.trace("Skipping fetch for partition {} because previous request to {} has not been processed", partition, node);
+            } else if (nodesWithBufferedPartitions.contains(node.id())) {
+                // -----------------------------------------------------------------------------------------------------
+                //
+                //  #######  ########  ######## ####  #######  ##    ##       ##
+                // ##     ## ##     ##    ##     ##  ##     ## ###   ##       ##    ##
+                // ##     ## ##     ##    ##     ##  ##     ## ####  ##       ##    ##
+                // ##     ## ########     ##     ##  ##     ## ## ## ##       ##    ##
+                // ##     ## ##           ##     ##  ##     ## ##  ####       #########
+                // ##     ## ##           ##     ##  ##     ## ##   ###             ##
+                //  #######  ##           ##    ####  #######  ##    ##             ##
+                //
+                // -----------------------------------------------------------------------------------------------------
+                // Here the partition is not included in the fetch because any partition on a node with partitioned
+                // data will be skipped.
+                // -----------------------------------------------------------------------------------------------------
+                log.info("FETCH_OPTION_DEBUG - Skipping fetch for node {} because it hosts buffered partitions", node);
+            } else {
+                // if there is a leader and no in-flight requests, issue a new fetch
+                FetchSessionHandler.Builder builder = fetchable.computeIfAbsent(node, k -> {
+                    FetchSessionHandler fetchSessionHandler = sessionHandlers.computeIfAbsent(node.id(), n -> new FetchSessionHandler(logContext, n));
+                    return fetchSessionHandler.newBuilder();
+                });
+                Uuid topicId = topicIds.getOrDefault(partition.topic(), Uuid.ZERO_UUID);
+                FetchRequest.PartitionData partitionData = new FetchRequest.PartitionData(topicId,
+                    position.offset,
+                    FetchRequest.INVALID_LOG_START_OFFSET,
+                    fetchConfig.fetchSize,
+                    position.currentLeader.epoch,
+                    Optional.empty());
+                builder.add(partition, partitionData);
+
+                log.debug("Added {} fetch request for partition {} at position {} to node {}", fetchConfig.isolationLevel,
+                    partition, position, node);
+            }
+        }
+
+        return fetchable.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().build()));
+    }
+
+    private Set<Integer> nodesWithBufferedPartitions(Set<TopicPartition> buffered, long currentTimeMs) {
+        Set<Integer> nodesWithBufferedPartitions = new HashSet<>();
+
+        for (TopicPartition partition : buffered) {
+            if (!subscriptions.isAssigned(partition)) {
+                // It's possible that a partition with buffered data from a previous request is now no longer
+                // assigned to the consumer, in which case just skip this partition.
+                continue;
+            }
+
+            SubscriptionState.FetchPosition position = subscriptions.position(partition);
+
+            // This shouldn't be possible, but since SubscriptionState is currently shared in more than one
+            // thread, caution should be exercised.
+            if (position == null)
+                continue;
+
+            Optional<Node> leaderOpt = position.currentLeader.leader;
+
+            if (leaderOpt.isEmpty())
+                continue;
+
+            // Use the preferred read replica if set, otherwise the partition's leader
+            Node node = selectReadReplica(partition, leaderOpt.get(), currentTimeMs);
+            nodesWithBufferedPartitions.add(node.id());
+        }
+
+        return nodesWithBufferedPartitions;
     }
 
     // Visible for testing

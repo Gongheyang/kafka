@@ -14,10 +14,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package kafka.raft
+package org.apache.kafka.raft;
 
-import org.apache.kafka.raft.OffsetMetadata
+public class SegmentPosition implements OffsetMetadata {
 
-case class SegmentPosition(baseOffset: Long, relativePosition: Int) extends OffsetMetadata {
-  override def toString: String = s"(segmentBaseOffset=$baseOffset,relativePositionInSegment=$relativePosition)"
+    public final long baseOffset;
+    public final int relativePosition;
+
+    public SegmentPosition(long baseOffset, int relativePosition) {
+        this.baseOffset = baseOffset;
+        this.relativePosition = relativePosition;
+    }
+
+    @Override
+    public String toString() {
+        return "(segmentBaseOffset=" + baseOffset + ",relativePositionInSegment=" + relativePosition + ")";
+    }
 }

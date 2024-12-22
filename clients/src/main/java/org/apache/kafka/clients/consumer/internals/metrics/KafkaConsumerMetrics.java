@@ -38,7 +38,6 @@ public class KafkaConsumerMetrics implements AutoCloseable {
     private long lastPollMs;
     private long pollStartMs;
     private long pollEndMs;
-    private long timeSinceLastPollMs;
 
     public KafkaConsumerMetrics(Metrics metrics, String metricGrpPrefix) {
         this.metrics = metrics;
@@ -94,12 +93,18 @@ public class KafkaConsumerMetrics implements AutoCloseable {
     public void recordPollStart(long pollStartMs) {
         if (this.pollEndMs != 0) {
             long pollIntervalMs = pollStartMs - this.pollStartMs;
-            long pollTimeMs = this.pollEndMs - this.pollStartMs;
-            double pollIdleRatio = pollTimeMs * 1.0 / pollIntervalMs;
-            this.pollIdleSensor.record(pollIdleRatio);
+            // If the poll interval is too short for this metric to be meaningful,
+            // we could record an arbitrary value such as 0 or 1, but since the value isn't meaningful,
+            // we might as well skip recording a value at all, to avoid skewing the meaningful measurements.
+            if (pollIntervalMs != 0) {
+                long msSpentInPoll = this.pollEndMs - this.pollStartMs;
+                // We want the metric to record the fraction of the entire poll interval we spent inside the poll call.
+                double pollIdleRatio = msSpentInPoll * 1.0 / pollIntervalMs;
+                this.pollIdleSensor.record(pollIdleRatio);
+            }
         }
         this.pollStartMs = pollStartMs;
-        this.timeSinceLastPollMs = lastPollMs != 0L ? pollStartMs - lastPollMs : 0;
+        long timeSinceLastPollMs = lastPollMs != 0L ? pollStartMs - lastPollMs : 0;
         this.timeBetweenPollSensor.record(timeSinceLastPollMs);
         this.lastPollMs = pollStartMs;
     }

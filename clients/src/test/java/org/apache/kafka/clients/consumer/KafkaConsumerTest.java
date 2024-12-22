@@ -3097,29 +3097,34 @@ public class KafkaConsumerTest {
         // Test default value
         assertEquals(Double.NaN, consumer.metrics().get(pollIdleRatio).metricValue());
 
+        // The metric measures the fraction of time spent inside poll for each polling interval. Polling intervals are considered to cover
+        // the time from poll start to poll start. This means the metric is NaN until we have a full interval, which requires two calls to poll.
+        // It also means that for each poll, the time spent outside of poll is considered to be the time after the poll completes, until the next poll begins.
+        // Given a sequence of completed polls, the last poll creates an interval start point, but no endpoint.
+        // This means the last poll is not covered by the metric, i.e. the metric value "lags" the polls by one call.
+
+        time.sleep(50);
+
         // 1st poll
-        // Spend 50ms in poll. value=NaN because "the fraction of time spent inside poll" is undefined until the polling interval has an end point,
-        // which is only known once the second poll starts.
-        // This also means the metric will always exclude the latest poll, since we don't know how much time is spent outside poll for that interval
-        // until poll is called again
+        // Spend 50ms in poll and 50ms after poll. value=NaN because we've only called poll once.
         consumer.kafkaConsumerMetrics().recordPollStart(time.milliseconds());
         time.sleep(50);
         consumer.kafkaConsumerMetrics().recordPollEnd(time.milliseconds());
+        time.sleep(50);
 
         assertEquals(Double.NaN, consumer.metrics().get(pollIdleRatio).metricValue());
 
         // 2nd poll
-        // Spend 50m outside poll and 0ms in poll. value=0.5 from the previous poll plus the time until this poll starts.
-        time.sleep(50);
+        // Spend 0ms in poll and 25ms after poll. value=0.5 from the previous interval.
         consumer.kafkaConsumerMetrics().recordPollStart(time.milliseconds());
         consumer.kafkaConsumerMetrics().recordPollEnd(time.milliseconds());
+        time.sleep(25);
 
         // Avg of first single data point where we spent half of the time inside poll
         assertEquals(0.5, consumer.metrics().get(pollIdleRatio).metricValue());
 
         // 3rd poll
-        // Spend 25ms outside poll and 25ms in poll. value=0.0 from the previous empty poll.
-        time.sleep(25);
+        // Spend 25ms in poll and 0ms after. value=0.0 from the previous interval.
         consumer.kafkaConsumerMetrics().recordPollStart(time.milliseconds());
         time.sleep(25);
         consumer.kafkaConsumerMetrics().recordPollEnd(time.milliseconds());
@@ -3128,23 +3133,35 @@ public class KafkaConsumerTest {
         assertEquals((0.5d + 0.0d) / 2, consumer.metrics().get(pollIdleRatio).metricValue());
 
         // 4th poll
-        // Spend 0ms inside and outside poll. value = 1.0 since the last poll spent 25ms inside poll and 0ms outside afterward.
+        // Spend 0ms inside and 10ms outside poll. value = 1.0 since the last poll spent 25ms inside poll and 0ms outside afterward.
         consumer.kafkaConsumerMetrics().recordPollStart(time.milliseconds());
         consumer.kafkaConsumerMetrics().recordPollEnd(time.milliseconds());
+        time.sleep(10);
 
         // Avg of three data points
         assertEquals((0.5d + 0.0d + 1.0d) / 3, consumer.metrics().get(pollIdleRatio).metricValue());
 
         // Spend 10ms inside and outside poll 5 times. value = 0.0 the first time, then 0.5 after that.
         for (int i = 0; i < 5; i++) {
-            time.sleep(10);
             consumer.kafkaConsumerMetrics().recordPollStart(time.milliseconds());
             time.sleep(10);
             consumer.kafkaConsumerMetrics().recordPollEnd(time.milliseconds());
+            time.sleep(10);
         }
 
         // Avg of the previous data points, plus the 0ms poll, plus the first 4 10ms polls.
-        assertEquals((0.5d + 0.0d + 1.0d + 0.0d + 0.5d * 4) / (3 + 1 + 4), consumer.metrics().get(pollIdleRatio).metricValue());
+        double intervalSizesSoFar = 0.5d + 0.0d + 1.0d + 0.0d + 0.5d * 4;
+        int intervalsSoFar = 3 + 1 + 4;
+        assertEquals(intervalSizesSoFar / intervalsSoFar, consumer.metrics().get(pollIdleRatio).metricValue());
+
+        // Spend 0ms inside and outside poll 5 times. This is to verify that 0ms-wide intervals don't affect the metric,
+        // as we can't meaningfully measure intervals that short.
+        for (int i = 0; i < 5; i++) {
+            consumer.kafkaConsumerMetrics().recordPollStart(time.milliseconds());
+            consumer.kafkaConsumerMetrics().recordPollEnd(time.milliseconds());
+        }
+        // The metric now includes all the polls, except the intervals that were 0ms wide.
+        assertEquals((intervalSizesSoFar + 0.5d) / (intervalsSoFar + 1), consumer.metrics().get(pollIdleRatio).metricValue());
     }
 
     private static boolean consumerMetricPresent(KafkaConsumer<String, String> consumer, String name) {

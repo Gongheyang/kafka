@@ -66,7 +66,9 @@ import java.util.TreeSet;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import static org.apache.kafka.streams.StreamsConfig.ENSURE_EXPLICIT_INTERNAL_RESOURCE_NAMING_CONFIG;
 import static org.apache.kafka.streams.StreamsConfig.PROCESSOR_WRAPPER_CLASS_CONFIG;
+
 
 public class InternalTopologyBuilder {
 
@@ -2361,7 +2363,9 @@ public class InternalTopologyBuilder {
             if (ensureExplicitInternalResourceNaming) {
                 throw new TopologyException(result.toString());
             } else {
-                log.warn(result.toString());
+                log.warn("Enforce explicit naming for all internal resources is set to false. If you want" +
+                    " to ensure that no internal resources have auto-generated names, please set the " +
+                    ENSURE_EXPLICIT_INTERNAL_RESOURCE_NAMING_CONFIG + " configuration to true. {}", result);
             }
         }
     }

@@ -31,9 +31,8 @@ import org.apache.kafka.connect.storage.Converter;
 import org.apache.kafka.connect.runtime.isolation.SamplingTestPlugin;
 
 /**
- * Fake plugin class for testing classloading isolation.
- * See {@link org.apache.kafka.connect.runtime.isolation.TestPlugins}.
- * <p>Samples data about its initialization environment for later analysis.
+ * Header Converter to test multiverioning of plugins.
+ * Any instance of the string PLACEHOLDER_FOR_VERSION will be replaced with the actual version during plugin compilation.
  */
 public class VersionedSamplingHeaderConverter extends SamplingHeaderConverter implements Versioned {
 
@@ -46,7 +45,7 @@ public class VersionedSamplingHeaderConverter extends SamplingHeaderConverter im
         logMethodCall(samples);
         return new ConfigDef()
                 // version specific config will have the defaul value (PLACEHOLDER_FOR_VERSION) replaced with the actual version during plugin compilation
-                // this will help with testing differnt configdef for different version of connector
+                // this will help with testing differnt configdef for different version of header converter
                 .define("version-specific-config", ConfigDef.Type.STRING, "PLACEHOLDER_FOR_VERSION", ConfigDef.Importance.HIGH, "version specific docs")
                 .define("other-config", ConfigDef.Type.STRING, "defaultVal", ConfigDef.Importance.HIGH, "other docs");
     }

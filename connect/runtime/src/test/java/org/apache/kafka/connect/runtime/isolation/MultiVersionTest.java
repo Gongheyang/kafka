@@ -30,6 +30,8 @@ public class MultiVersionTest {
         builder.include(VersionedPluginBuilder.VersionedTestPlugin.CONNECTOR, "0.0.0");
         builder.include(VersionedPluginBuilder.VersionedTestPlugin.CONVERTER, "0.2.0");
         builder.include(VersionedPluginBuilder.VersionedTestPlugin.HEADER_CONVERTER, "0.3.0");
+        builder.include(VersionedPluginBuilder.VersionedTestPlugin.TRANSFORMATION, "0.4.0");
+        builder.include(VersionedPluginBuilder.VersionedTestPlugin.PREDICATE, "0.5.0");
         builder.build("version_test_3");
     }
 }

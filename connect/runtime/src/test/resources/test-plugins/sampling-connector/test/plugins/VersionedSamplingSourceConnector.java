@@ -29,9 +29,8 @@ import org.apache.kafka.connect.runtime.isolation.SamplingTestPlugin;
 import org.apache.kafka.connect.source.SourceConnector;
 
 /**
- * Fake plugin class for testing classloading isolation.
- * See {@link org.apache.kafka.connect.runtime.isolation.TestPlugins}.
- * <p>Samples data about its initialization environment for later analysis.
+ * VersionedSamplingSourceConnector is a test connector that extends SamplingConnector and overrides the version method.
+ * Any instance of the string PLACEHOLDER_FOR_VERSION will be replaced with the actual version during plugin compilation.
  */
 public class VersionedSamplingSourceConnector extends SourceConnector implements SamplingTestPlugin {
 

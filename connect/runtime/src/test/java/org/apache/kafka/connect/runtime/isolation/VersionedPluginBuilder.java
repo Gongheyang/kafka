@@ -33,9 +33,9 @@ public class VersionedPluginBuilder {
 
         CONNECTOR("sampling-connector", "test.plugins.VersionedSamplingSinkConnector", "test.plugins.VersionedSamplingSourceConnector"),
         CONVERTER("sampling-converter", "test.plugins.VersionedSamplingConverter"),
-        HEADER_CONVERTER("sampling-converter", "test.plugins.VersionedSamplingHeaderConnector"),
-        TRANSFORMATION("", ""),
-        PREDICATE("", "");
+        HEADER_CONVERTER("sampling-header-converter", "test.plugins.VersionedSamplingHeaderConnector"),
+        TRANSFORMATION("versioned-transformation", "test.plugins.VersionedTransformation"),
+        PREDICATE("versioned-predicate", "test.plugins.VersionedPredicate");
 
         private final String resourceDir;
         private final List<String> classNames;

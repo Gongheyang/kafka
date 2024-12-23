@@ -14,46 +14,48 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-package test.plugins;
-
-import java.util.Collections;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.HashMap;
+package org.apache.kafka.connect.transforms.predicates;
 
 import org.apache.kafka.common.config.ConfigDef;
+import org.apache.kafka.common.utils.AppInfoParser;
 import org.apache.kafka.connect.components.Versioned;
-import org.apache.kafka.connect.data.Schema;
-import org.apache.kafka.connect.data.SchemaAndValue;
-import org.apache.kafka.connect.storage.Converter;
-import org.apache.kafka.connect.runtime.isolation.SamplingTestPlugin;
+import org.apache.kafka.connect.connector.ConnectRecord;
+
+import java.util.Map;
 
 /**
- * Converter to test multiverioning of plugins.
+ /**
+ * Predicate to test multiverioning of plugins.
  * Any instance of the string PLACEHOLDER_FOR_VERSION will be replaced with the actual version during plugin compilation.
  */
-public class VersionedSamplingConverter extends SamplingConverter implements Versioned {
+public class VersionedPredicate<R extends ConnectRecord<R>> implements Predicate<R>, Versioned {
 
-    public VersionedSamplingConverter() {
-        super();
+    @Override
+    public String version() {
+        return "PLACEHOLDER_FOR_VERSION";
     }
 
     @Override
     public ConfigDef config() {
-        logMethodCall(samples);
         return new ConfigDef()
                 // version specific config will have the defaul value (PLACEHOLDER_FOR_VERSION) replaced with the actual version during plugin compilation
-                // this will help with testing differnt configdef for different version of converter
+                // this will help with testing differnt configdef for different version of the predicate
                 .define("version-specific-config", ConfigDef.Type.STRING, "PLACEHOLDER_FOR_VERSION", ConfigDef.Importance.HIGH, "version specific docs")
                 .define("other-config", ConfigDef.Type.STRING, "defaultVal", ConfigDef.Importance.HIGH, "other docs");
     }
 
     @Override
-    public String version() {
-        logMethodCall(samples);
-        return "PLACEHOLDER_FOR_VERSION";
+    public boolean test(R record) {
+        return false;
     }
 
+    @Override
+    public void close() {
+
+    }
+
+    @Override
+    public void configure(Map<String, ?> configs) {
+
+    }
 }

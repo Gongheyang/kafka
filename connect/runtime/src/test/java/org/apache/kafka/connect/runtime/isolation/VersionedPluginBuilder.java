@@ -33,7 +33,7 @@ public class VersionedPluginBuilder {
 
         CONNECTOR("sampling-connector", "test.plugins.VersionedSamplingSinkConnector", "test.plugins.VersionedSamplingSourceConnector"),
         CONVERTER("sampling-converter", "test.plugins.VersionedSamplingConverter"),
-        HEADER_CONVERTER("sampling-header-converter", "test.plugins.VersionedSamplingHeaderConnector"),
+        HEADER_CONVERTER("sampling-header-converter", "test.plugins.VersionedSamplingHeaderConverter"),
         TRANSFORMATION("versioned-transformation", "test.plugins.VersionedTransformation"),
         PREDICATE("versioned-predicate", "test.plugins.VersionedPredicate");
 
@@ -49,20 +49,24 @@ public class VersionedPluginBuilder {
             return resourceDir;
         }
 
-        public List<String> className() {
+        public List<String> classNames() {
             return classNames;
         }
-
     }
 
-    private static class BuildInfo {
+    public static class BuildInfo {
 
         private final VersionedTestPlugin plugin;
         private final String version;
+        private String location;
 
         private BuildInfo(VersionedTestPlugin plugin, String version) {
             this.plugin = plugin;
             this.version = version;
+        }
+
+        private void setLocation(String location) {
+            this.location = location;
         }
 
         public VersionedTestPlugin plugin() {
@@ -72,6 +76,10 @@ public class VersionedPluginBuilder {
         public String version() {
             return version;
         }
+
+        public String location() {
+            return location;
+        }
     }
 
     private final List<BuildInfo> pluginBuilds;
@@ -80,17 +88,24 @@ public class VersionedPluginBuilder {
         pluginBuilds = new ArrayList<>();
     }
 
-    public void include(VersionedTestPlugin plugin, String version) {
+    public VersionedPluginBuilder include(VersionedTestPlugin plugin, String version) {
         pluginBuilds.add(new BuildInfo(plugin, version));
+        return this;
     }
 
     public synchronized Path build(String pluginDir) throws IOException {
         Path pluginDirPath = Files.createTempDirectory(pluginDir);
+        Path subDir = Files.createDirectory(pluginDirPath.resolve("lib"));
         for (BuildInfo buildInfo : pluginBuilds) {
             Path jarFile = TestPlugins.createPluginJar(buildInfo.plugin.resourceDir(), ignored -> false, Collections.singletonMap(VERSION_PLACEHOLDER, buildInfo.version));
-            Path targetJar = pluginDirPath.resolve(jarFile.getFileName());
+            Path targetJar = subDir.resolve(jarFile.getFileName()).toAbsolutePath();
+            buildInfo.setLocation(targetJar.toString());
             Files.move(jarFile, targetJar);
         }
-        return pluginDirPath;
+        return pluginDirPath.toAbsolutePath();
+    }
+
+    public List<BuildInfo> buildInfos() {
+        return pluginBuilds;
     }
 }

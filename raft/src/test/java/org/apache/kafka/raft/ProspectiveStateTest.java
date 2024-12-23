@@ -49,7 +49,7 @@ public class ProspectiveStateTest {
     );
     private final int epoch = 5;
     private final MockTime time = new MockTime();
-    private final int electionTimeoutMs = 5000;
+    private final int electionTimeoutMs = 10000;
     private final LogContext logContext = new LogContext();
     private final int localId = 0;
     private final int votedId = 1;
@@ -175,19 +175,6 @@ public class ProspectiveStateTest {
 
     @ParameterizedTest
     @ValueSource(booleans = { true, false })
-    public void testCannotRejectVoteFromLocalId(boolean withDirectoryId) {
-        int otherNodeId = 1;
-        ProspectiveState state = newProspectiveState(
-            voterSetWithLocal(IntStream.of(otherNodeId), withDirectoryId)
-        );
-        assertThrows(
-            IllegalStateException.class,
-            () -> state.recordRejectedVote(localReplicaKey.id())
-        );
-    }
-
-    @ParameterizedTest
-    @ValueSource(booleans = { true, false })
     public void testCanChangePreVote(boolean withDirectoryId) {
         int voter1 = 1;
         int voter2 = 2;
@@ -296,9 +283,9 @@ public class ProspectiveStateTest {
         assertEquals(isLogUpToDate, state.canGrantVote(node1, isLogUpToDate, true));
         assertEquals(isLogUpToDate, state.canGrantVote(node2, isLogUpToDate, true));
 
-        assertEquals(isLogUpToDate, state.canGrantVote(node0, isLogUpToDate, false));
-        assertEquals(isLogUpToDate, state.canGrantVote(node1, isLogUpToDate, false));
-        assertEquals(isLogUpToDate, state.canGrantVote(node2, isLogUpToDate, false));
+        assertFalse(state.canGrantVote(node0, isLogUpToDate, false));
+        assertFalse(state.canGrantVote(node1, isLogUpToDate, false));
+        assertFalse(state.canGrantVote(node2, isLogUpToDate, false));
     }
 
     @ParameterizedTest

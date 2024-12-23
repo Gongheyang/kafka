@@ -691,10 +691,13 @@ public final class RaftClientTestContext {
     }
 
     void assertVotedCandidate(int epoch, ReplicaKey candidateKey) {
+        ReplicaKey expectedKey = kraftVersion == KRaftVersion.KRAFT_VERSION_0 ?
+            ReplicaKey.of(candidateKey.id(), ReplicaKey.NO_DIRECTORY_ID) :
+            candidateKey;
         assertEquals(
             ElectionState.withVotedCandidate(
                 epoch,
-                candidateKey,
+                expectedKey,
                 expectedVoters()
             ),
             quorumStateStore.readElectionState().get()

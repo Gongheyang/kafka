@@ -23,6 +23,7 @@ import org.apache.kafka.common.protocol.Errors;
 import org.apache.kafka.common.record.MemoryRecords;
 import org.apache.kafka.raft.RaftClientTestContext.RaftProtocol;
 import org.apache.kafka.server.common.KRaftVersion;
+
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.EnumSource;
@@ -124,9 +125,7 @@ public class KafkaRaftClientPreVoteTest {
 
         // follower can grant pre-votes if it has not fetched successfully from leader yet
         context.assertSentVoteResponse(Errors.NONE, epoch, OptionalInt.empty(), true);
-        ReplicaKey expectedVotedKey = kraftVersion == KRaftVersion.KRAFT_VERSION_1
-            ? votedCandidateKey : replicaKey(votedCandidateKey.id(), false);
-        context.assertVotedCandidate(epoch, expectedVotedKey);
+        context.assertVotedCandidate(epoch, votedCandidateKey);
     }
 
     @ParameterizedTest
@@ -153,9 +152,7 @@ public class KafkaRaftClientPreVoteTest {
         context.pollUntilResponse();
 
         context.assertSentVoteResponse(Errors.NONE, leaderEpoch, OptionalInt.empty(), true);
-        ReplicaKey expectedVotedKey = kraftVersion == KRaftVersion.KRAFT_VERSION_1
-            ? localKey : replicaKey(localId, false);
-        context.assertVotedCandidate(leaderEpoch, expectedVotedKey);
+        context.assertVotedCandidate(leaderEpoch, localKey);
         assertTrue(context.client.quorum().isCandidate());
 
         // if an observer sends a pre-vote request for the same epoch, it should also be granted
@@ -163,7 +160,7 @@ public class KafkaRaftClientPreVoteTest {
         context.pollUntilResponse();
 
         context.assertSentVoteResponse(Errors.NONE, leaderEpoch, OptionalInt.empty(), true);
-        context.assertVotedCandidate(leaderEpoch, expectedVotedKey);
+        context.assertVotedCandidate(leaderEpoch, localKey);
         assertTrue(context.client.quorum().isCandidate());
 
         // candidate will transition to unattached if pre-vote request has a higher epoch
@@ -1025,6 +1022,59 @@ public class KafkaRaftClientPreVoteTest {
         assertTrue(context.client.quorum().isFollower());
         assertEquals(leader.id(), context.client.quorum().leaderId().orElse(-1));
     }
+
+    @ParameterizedTest
+    @MethodSource("kraftVersionRaftProtocolCombinations")
+    public void testPreVoteRequestTimeout(
+        KRaftVersion kraftVersion,
+        RaftProtocol raftProtocol
+    ) throws Exception {
+        int localId = randomReplicaId();
+        int epoch = 1;
+        ReplicaKey local = replicaKey(localId, true);
+        ReplicaKey otherNode = replicaKey(localId + 1, true);
+        RaftClientTestContext context = new RaftClientTestContext.Builder(
+            Optional.of(local),
+            Optional.of(VoterSetTest.voterSet(Stream.of(local, otherNode))),
+            kraftVersion
+        )
+            .withUnknownLeader(epoch)
+            .withRaftProtocol(raftProtocol)
+            .build();
+
+        context.assertUnknownLeaderAndNoVotedCandidate(epoch);
+        context.time.sleep(context.electionTimeoutMs() * 2L);
+        context.client.poll();
+        assertTrue(context.client.quorum().isProspective());
+
+        context.pollUntilRequest();
+
+        RaftRequest.Outbound request = context.assertSentVoteRequest(epoch, 0, 0L, 1);
+
+        context.time.sleep(context.requestTimeoutMs());
+        context.client.poll();
+        RaftRequest.Outbound retryRequest = context.assertSentVoteRequest(epoch, 0, 0L, 1);
+
+        // We will ignore the timed out response if it arrives late
+        context.deliverResponse(
+            request.correlationId(),
+            request.destination(),
+            context.voteResponse(true, OptionalInt.empty(), epoch)
+        );
+        context.client.poll();
+        assertTrue(context.client.quorum().isProspective());
+
+        // Become candidate after receiving the retry response
+        context.deliverResponse(
+            retryRequest.correlationId(),
+            retryRequest.destination(),
+            context.voteResponse(true, OptionalInt.empty(), epoch)
+        );
+        context.client.poll();
+        assertTrue(context.client.quorum().isCandidate());
+        context.assertVotedCandidate(epoch + 1, local);
+    }
+
 
     static Stream<Arguments> kraftVersionRaftProtocolCombinations() {
         return Stream.of(KRaftVersion.values())

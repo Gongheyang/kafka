@@ -20,6 +20,7 @@ import org.apache.kafka.common.utils.LogContext;
 import org.apache.kafka.common.utils.Time;
 import org.apache.kafka.common.utils.Timer;
 import org.apache.kafka.raft.internals.EpochElection;
+
 import org.slf4j.Logger;
 
 import java.util.Optional;
@@ -113,6 +114,15 @@ public class ProspectiveState implements NomineeState {
                     "candidate ({}) in epoch {}",
                 replicaKey,
                 votedKey,
+                epoch
+            );
+            return false;
+        } else if (leaderId.isPresent()) {
+            // If the leader id is known it should behave similar to the follower state
+            log.debug(
+                "Rejecting Vote request (preVote=false) from candidate ({}) since we already have a leader {} in epoch {}",
+                replicaKey,
+                leaderId,
                 epoch
             );
             return false;

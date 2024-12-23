@@ -426,15 +426,16 @@ public class QuorumState {
         if (localId.isPresent() && candidateKey.id() == localId.getAsInt()) {
             throw new IllegalStateException(
                 String.format(
-                    "Cannot transition to Voted for %s and epoch %d since it matches the local " +
+                    "Cannot add voted key (%s) to current state (%s) in epoch %d since it matches the local " +
                     "broker.id",
                     candidateKey,
+                    state,
                     epoch
                 )
             );
         } else if (localId.isEmpty()) {
             throw new IllegalStateException("Cannot add voted state without a replica id");
-        } else if (epoch != currentEpoch || isUnattachedAndVoted()) {
+        } else if (epoch != currentEpoch || !isUnattachedNotVoted()) {
             throw new IllegalStateException(
                 String.format(
                     "Cannot add voted key (%s) to current state (%s) in epoch %d",
@@ -474,9 +475,10 @@ public class QuorumState {
         if (localId.isPresent() && candidateKey.id() == localId.getAsInt()) {
             throw new IllegalStateException(
                 String.format(
-                    "Cannot transition to Voted for %s and epoch %d since it matches the local " +
+                    "Cannot add voted key (%s) to current state (%s) in epoch %d since it matches the local " +
                         "broker.id",
                     candidateKey,
+                    state,
                     epoch
                 )
             );
@@ -788,11 +790,11 @@ public class QuorumState {
     }
 
     public boolean isProspectiveNotVoted() {
-        return maybeProspectiveState().filter(unattached -> unattached.votedKey().isEmpty()).isPresent();
+        return maybeProspectiveState().filter(prospective -> prospective.votedKey().isEmpty()).isPresent();
     }
 
     public boolean isProspectiveAndVoted() {
-        return maybeUnattachedState().flatMap(UnattachedState::votedKey).isPresent();
+        return maybeProspectiveState().flatMap(ProspectiveState::votedKey).isPresent();
     }
 
     public CandidateState candidateStateOrThrow() {

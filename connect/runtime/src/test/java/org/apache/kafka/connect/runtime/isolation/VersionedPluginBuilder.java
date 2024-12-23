@@ -1,51 +1,56 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package org.apache.kafka.connect.runtime.isolation;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
-import java.util.function.Predicate;
-import java.util.jar.JarOutputStream;
 
 public class VersionedPluginBuilder {
 
-    public static class VersionProvider {
-
-        private static String version;
-
-        protected static void setVersion(String version) {
-            VersionProvider.version = version;
-        }
-
-        public static String getVersion(String version) {
-            return VersionProvider.version;
-        }
-    }
+    private static final String VERSION_PLACEHOLDER = "PLACEHOLDER_FOR_VERSION";
 
     public enum VersionedTestPlugin {
 
-        SOURCE_CONNECTOR("", ""),
-        SINK_CONNECTOR("", ""),
-        CONVERTER("", ""),
-        HEADER_CONVERTER("", ""),
+        CONNECTOR("sampling-connector", "test.plugins.VersionedSamplingSinkConnector", "test.plugins.VersionedSamplingSourceConnector"),
+        CONVERTER("sampling-converter", "test.plugins.VersionedSamplingConverter"),
+        HEADER_CONVERTER("sampling-converter", "test.plugins.VersionedSamplingHeaderConnector"),
         TRANSFORMATION("", ""),
         PREDICATE("", "");
 
         private final String resourceDir;
-        private final String className;
+        private final List<String> classNames;
 
-        VersionedTestPlugin(String resourceDir, String className) {
+        VersionedTestPlugin(String resourceDir, String... className) {
             this.resourceDir = resourceDir;
-            this.className = className;
+            this.classNames = Arrays.asList(className);
         }
 
         public String resourceDir() {
             return resourceDir;
         }
 
-        public String className() {
-            return className;
+        public List<String> className() {
+            return classNames;
         }
 
     }
@@ -82,8 +87,7 @@ public class VersionedPluginBuilder {
     public synchronized Path build(String pluginDir) throws IOException {
         Path pluginDirPath = Files.createTempDirectory(pluginDir);
         for (BuildInfo buildInfo : pluginBuilds) {
-            VersionProvider.setVersion(buildInfo.version());
-            Path jarFile = TestPlugins.createPluginJar(buildInfo.plugin.resourceDir(), className -> false);
+            Path jarFile = TestPlugins.createPluginJar(buildInfo.plugin.resourceDir(), ignored -> false, Collections.singletonMap(VERSION_PLACEHOLDER, buildInfo.version));
             Path targetJar = pluginDirPath.resolve(jarFile.getFileName());
             Files.move(jarFile, targetJar);
         }

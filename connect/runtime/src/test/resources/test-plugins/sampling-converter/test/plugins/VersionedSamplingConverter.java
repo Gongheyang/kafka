@@ -35,62 +35,26 @@ import org.apache.kafka.connect.runtime.isolation.SamplingTestPlugin;
  * See {@link org.apache.kafka.connect.runtime.isolation.TestPlugins}.
  * <p>Samples data about its initialization environment for later analysis.
  */
-public class SamplingConverter implements SamplingTestPlugin, Converter {
+public class VersionedSamplingConverter extends SamplingConverter implements Versioned {
 
-  protected static final ClassLoader STATIC_CLASS_LOADER;
-  protected static List<SamplingTestPlugin> instances;
-  protected final ClassLoader classloader;
-  protected Map<String, SamplingTestPlugin> samples;
+    public VersionedSamplingConverter() {
+        super();
+    }
 
-  static {
-    STATIC_CLASS_LOADER = Thread.currentThread().getContextClassLoader();
-    instances = Collections.synchronizedList(new ArrayList<>());
-  }
+    @Override
+    public ConfigDef config() {
+        logMethodCall(samples);
+        return new ConfigDef()
+                // version specific config will have the defaul value (PLACEHOLDER_FOR_VERSION) replaced with the actual version during plugin compilation
+                // this will help with testing differnt configdef for different version of connector
+                .define("version-specific-config", ConfigDef.Type.STRING, "PLACEHOLDER_FOR_VERSION", ConfigDef.Importance.HIGH, "version specific docs")
+                .define("other-config", ConfigDef.Type.STRING, "defaultVal", ConfigDef.Importance.HIGH, "other docs");
+    }
 
-  {
-    samples = new HashMap<>();
-    classloader = Thread.currentThread().getContextClassLoader();
-  }
+    @Override
+    public String version() {
+        logMethodCall(samples);
+        return "PLACEHOLDER_FOR_VERSION";
+    }
 
-  public SamplingConverter() {
-    logMethodCall(samples);
-    instances.add(this);
-  }
-
-  @Override
-  public void configure(final Map<String, ?> configs, final boolean isKey) {
-    logMethodCall(samples);
-  }
-
-  @Override
-  public byte[] fromConnectData(final String topic, final Schema schema, final Object value) {
-    logMethodCall(samples);
-    return new byte[0];
-  }
-
-  @Override
-  public SchemaAndValue toConnectData(final String topic, final byte[] value) {
-    logMethodCall(samples);
-    return null;
-  }
-
-  @Override
-  public ClassLoader staticClassloader() {
-    return STATIC_CLASS_LOADER;
-  }
-
-  @Override
-  public ClassLoader classloader() {
-    return classloader;
-  }
-
-  @Override
-  public Map<String, SamplingTestPlugin> otherSamples() {
-    return samples;
-  }
-
-  @Override
-  public List<SamplingTestPlugin> allInstances() {
-    return instances;
-  }
 }

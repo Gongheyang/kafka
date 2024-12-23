@@ -73,7 +73,7 @@ public class CandidateState implements NomineeState {
         this.log = logContext.logger(CandidateState.class);
 
         this.epochElection = new EpochElection(voters.voterKeys());
-        epochElection.recordVote(localId, true); //voterStates().get(localId).setState(State.GRANTED);
+        epochElection.recordVote(localId, true);
     }
 
     public int localId() {

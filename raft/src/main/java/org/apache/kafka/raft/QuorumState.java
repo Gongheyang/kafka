@@ -69,7 +69,7 @@ import java.util.Random;
  *    Prospective: After expiration of the fetch timeout
  *    Follower:    After discovering a leader with a larger epoch
  *
- * Observers follow a simpler state machine. The Voted/Prospective/Candidate/Leader/Resigned
+ * Observers follow a simpler state machine. The Prospective/Candidate/Leader/Resigned
  * states are not possible for observers, so the only transitions that are possible
  * are between Unattached and Follower.
  *
@@ -373,6 +373,7 @@ public class QuorumState {
      * Note, if we are transitioning from unattached and there is no epoch change, we take the path of
      * unattachedAddVotedState instead.
      */
+    // Used in testing
     public void transitionToUnattached(int epoch) {
         transitionToUnattached(epoch, OptionalInt.empty());
     }

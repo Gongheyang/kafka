@@ -70,7 +70,7 @@ public class ProspectiveState implements NomineeState {
         this.log = logContext.logger(ProspectiveState.class);
 
         this.epochElection = new EpochElection(voters.voterKeys());
-        epochElection.recordVote(localId, true); //voterStates().get(localId).setState(State.GRANTED);
+        epochElection.recordVote(localId, true);
     }
 
     public int localId() {

@@ -675,7 +675,7 @@ public final class KafkaRaftClient<T> implements RaftClient<T> {
     }
 
     /**
-     * Only applies to VotingStates (Prospective or Candidate). If enough votes were granted
+     * Only applies to NomineeStates (Prospective or Candidate). If enough votes were granted
      * then this method is called to transition the state forward - either from Prospective to Candidate
      * or from Candidate to Leader.
      * @return true if the state transitioned forward, false otherwise
@@ -929,7 +929,7 @@ public final class KafkaRaftClient<T> implements RaftClient<T> {
         if (topLevelError != Errors.NONE) {
             if (topLevelError == Errors.UNSUPPORTED_VERSION && quorum.isProspective()) {
                 logger.info("Prospective received unsupported version error in vote response in epoch {}, " +
-                        "transitioning to Candidate state immediately since entire quorum does not support PreVote.",
+                        "transitioning to Candidate state immediately since entire quorum may not support PreVote.",
                     quorum.epoch());
                 transitionToCandidate(currentTimeMs);
                 return true;

@@ -19,6 +19,7 @@ package org.apache.kafka.raft;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.Uuid;
 import org.apache.kafka.common.compress.Compression;
+import org.apache.kafka.common.message.AddRaftVoterResponseData;
 import org.apache.kafka.common.message.BeginQuorumEpochRequestData;
 import org.apache.kafka.common.message.BeginQuorumEpochRequestDataJsonConverter;
 import org.apache.kafka.common.message.BeginQuorumEpochResponseData;
@@ -39,6 +40,7 @@ import org.apache.kafka.common.message.FetchSnapshotRequestData;
 import org.apache.kafka.common.message.FetchSnapshotRequestDataJsonConverter;
 import org.apache.kafka.common.message.FetchSnapshotResponseData;
 import org.apache.kafka.common.message.FetchSnapshotResponseDataJsonConverter;
+import org.apache.kafka.common.message.RemoveRaftVoterResponseData;
 import org.apache.kafka.common.message.VoteRequestData;
 import org.apache.kafka.common.message.VoteRequestDataJsonConverter;
 import org.apache.kafka.common.message.VoteResponseData;
@@ -567,6 +569,24 @@ public class RaftUtilTest {
         );
         JsonNode json = DescribeQuorumResponseDataJsonConverter.write(describeQuorumResponseData, version);
         assertEquals(expectedJson, json.toString());
+    }
+
+    @Test
+    public void testAddVoterResponse() {
+        for (Errors value : Errors.values()) {
+            AddRaftVoterResponseData addRaftVoterResponseData = RaftUtil.addVoterResponse(value, value.message());
+            assertEquals(value.code(), addRaftVoterResponseData.errorCode());
+            assertEquals(value.message(), addRaftVoterResponseData.errorMessage());
+        }
+    }
+
+    @Test
+    public void testRemoveVoterResponse() {
+        for (Errors value : Errors.values()) {
+            RemoveRaftVoterResponseData removeRaftVoterResponseData = RaftUtil.removeVoterResponse(value, value.message());
+            assertEquals(value.code(), removeRaftVoterResponseData.errorCode());
+            assertEquals(value.message(), removeRaftVoterResponseData.errorMessage());
+        }
     }
 
     private Records createRecords() {

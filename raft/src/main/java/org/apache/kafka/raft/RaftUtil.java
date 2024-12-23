@@ -50,7 +50,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.UnaryOperator;
-import java.util.stream.Collectors;
 
 @SuppressWarnings({ "ClassDataAbstractionCoupling", "ClassFanOutComplexity" })
 public class RaftUtil {
@@ -396,7 +395,7 @@ public class RaftUtil {
         List<Integer> preferredSuccessors = preferredReplicaKeys
                 .stream()
                 .map(ReplicaKey::id)
-                .collect(Collectors.toList());
+                .toList();
 
         List<EndQuorumEpochRequestData.ReplicaInfo> preferredCandidates = preferredReplicaKeys
                 .stream()
@@ -404,7 +403,7 @@ public class RaftUtil {
                     .setCandidateId(replicaKey.id())
                     .setCandidateDirectoryId(replicaKey.directoryId().orElse(ReplicaKey.NO_DIRECTORY_ID))
                 )
-                .collect(Collectors.toList());
+                .toList();
 
         return new EndQuorumEpochRequestData()
             .setClusterId(clusterId)
@@ -627,7 +626,7 @@ public class RaftUtil {
         return states
             .stream()
             .map(replicaState -> toReplicaState(apiVersion, leaderId, replicaState, currentTimeMs))
-            .collect(Collectors.toList());
+            .toList();
     }
 
     private static DescribeQuorumResponseData.ReplicaState toReplicaState(

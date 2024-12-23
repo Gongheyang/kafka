@@ -55,7 +55,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 
 import static java.lang.String.format;
 import static java.nio.ByteBuffer.wrap;
@@ -651,7 +650,7 @@ public final class LocalTieredStorageTest {
         }
 
         void deleteAll() throws IOException {
-            List<Path> paths = Files.list(segmentPath).collect(Collectors.toList());
+            List<Path> paths = Files.list(segmentPath).toList();
             for (final Path path : paths) {
                 Files.delete(path);
             }

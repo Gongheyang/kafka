@@ -61,7 +61,6 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
@@ -125,7 +124,7 @@ public class LogValidatorTest {
                 ValidationResult result = validateMessages(invalidRecords, version.value, CompressionType.GZIP, compression);
                 List<Long> recordsResult = new ArrayList<>();
                 result.validatedRecords.records().forEach(s -> recordsResult.add(s.offset()));
-                assertEquals(LongStream.range(0, numRecords).boxed().collect(Collectors.toList()), recordsResult);
+                assertEquals(LongStream.range(0, numRecords).boxed().toList(), recordsResult);
             }
         });
     }
@@ -425,7 +424,7 @@ public class LogValidatorTest {
     private MemoryRecords recordsWithNonSequentialInnerOffsets(Byte magicValue, Compression compression, int numRecords) {
         List<SimpleRecord> records = IntStream.range(0, numRecords)
                 .mapToObj(id -> new SimpleRecord(String.valueOf(id).getBytes()))
-                .collect(Collectors.toList());
+                .toList();
 
         ByteBuffer buffer = ByteBuffer.allocate(1024);
         MemoryRecordsBuilder builder = MemoryRecords.builder(buffer, magicValue, compression, TimestampType.CREATE_TIME, 0L);

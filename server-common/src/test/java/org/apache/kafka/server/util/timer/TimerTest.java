@@ -30,7 +30,6 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -89,7 +88,7 @@ public class TimerTest {
             CountDownLatch latch = new CountDownLatch(1);
             timer.add(new TestTask(i, i, latch, output));
             return latch;
-        }).collect(Collectors.toList());
+        }).toList();
 
         timer.advanceClock(0L);
 
@@ -149,7 +148,7 @@ public class TimerTest {
             }
         });
 
-        assertEquals(ids, output.stream().sorted().collect(Collectors.toList()),
+        assertEquals(ids, output.stream().sorted().toList(),
             "output should match");
     }
 }

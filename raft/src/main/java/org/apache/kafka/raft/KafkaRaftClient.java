@@ -319,7 +319,7 @@ public final class KafkaRaftClient<T> implements RaftClient<T> {
                         address.getPort()
                     )
                 )
-                .collect(Collectors.toList());
+                .toList();
 
             logger.info("Starting request manager with bootstrap servers: {}", bootstrapNodes);
 
@@ -507,7 +507,7 @@ public final class KafkaRaftClient<T> implements RaftClient<T> {
                         entry.getValue().getPort()
                     )
                 )
-                .collect(Collectors.toList());
+                .toList();
 
             logger.info("Starting request manager with static voters: {}", bootstrapNodes);
 
@@ -1209,7 +1209,7 @@ public final class KafkaRaftClient<T> implements RaftClient<T> {
                     .preferredCandidates(partitionRequest)
                     .stream()
                     .map(replica -> ReplicaKey.of(replica.candidateId(), replica.candidateDirectoryId()))
-                    .collect(Collectors.toList());
+                    .toList();
                 long electionBackoffMs = endEpochElectionBackoff(preferredCandidates);
                 logger.debug(
                     "Overriding follower fetch timeout to {} after receiving EndQuorumEpoch " +

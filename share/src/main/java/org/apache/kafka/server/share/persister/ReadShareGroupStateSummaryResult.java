@@ -20,7 +20,6 @@ package org.apache.kafka.server.share.persister;
 import org.apache.kafka.common.message.ReadShareGroupStateSummaryResponseData;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * This class contains the result from {@link Persister#readSummary(ReadShareGroupStateSummaryParameters)}.
@@ -39,8 +38,8 @@ public class ReadShareGroupStateSummaryResult implements PersisterResult {
                                 readStateSummaryResult.partitions().stream()
                                         .map(partitionResult -> PartitionFactory.newPartitionStateErrorData(
                                                 partitionResult.partition(), partitionResult.stateEpoch(), partitionResult.startOffset(), partitionResult.errorCode(), partitionResult.errorMessage()))
-                                        .collect(Collectors.toList())))
-                        .collect(Collectors.toList()))
+                                        .toList()))
+                        .toList())
                 .build();
     }
 

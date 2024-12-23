@@ -43,7 +43,6 @@ import java.nio.ByteBuffer
 import java.util.Collections
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.atomic.AtomicInteger
-import java.util.stream.Collectors
 
 class KafkaRequestHandlerTest {
   val brokerTopicStats = new BrokerTopicStats(true)
@@ -682,10 +681,10 @@ class KafkaRequestHandlerTest {
     val brokerTopicStats = new BrokerTopicStats(true)
     val topic = "close-test-topic"
     val brokerTopicMetrics: BrokerTopicMetrics = brokerTopicStats.topicStats(topic)
-    assertEquals(7, KafkaYammerMetrics.defaultRegistry.allMetrics().keySet().stream().filter(metricName => metricName.getMBeanName.contains(s"topic=$topic")).collect(Collectors.toList()).size())
+    assertEquals(7, KafkaYammerMetrics.defaultRegistry.allMetrics().keySet().stream().filter(metricName => metricName.getMBeanName.contains(s"topic=$topic")).toList().size())
 
     brokerTopicMetrics.close()
-    assertEquals(0, KafkaYammerMetrics.defaultRegistry.allMetrics().keySet().stream().filter(metricName => metricName.getMBeanName.contains(s"topic=$topic")).collect(Collectors.toList()).size())
+    assertEquals(0, KafkaYammerMetrics.defaultRegistry.allMetrics().keySet().stream().filter(metricName => metricName.getMBeanName.contains(s"topic=$topic")).toList().size())
 
     brokerTopicStats.recordRemoteCopyLagBytes(topic, 0, 1)
     brokerTopicStats.recordRemoteCopyLagSegments(topic, 0, 1)
@@ -694,7 +693,7 @@ class KafkaRequestHandlerTest {
     brokerTopicStats.recordRemoteLogMetadataCount(topic, 0, 1)
     brokerTopicStats.recordRemoteLogSizeComputationTime(topic, 0, 1)
     brokerTopicStats.recordRemoteLogSizeBytes(topic, 0, 1)
-    assertEquals(7, KafkaYammerMetrics.defaultRegistry.allMetrics().keySet().stream().filter(metricName => metricName.getMBeanName.contains(s"topic=$topic")).collect(Collectors.toList()).size())
+    assertEquals(7, KafkaYammerMetrics.defaultRegistry.allMetrics().keySet().stream().filter(metricName => metricName.getMBeanName.contains(s"topic=$topic")).toList().size())
 
     // cleanup
     brokerTopicStats.close()

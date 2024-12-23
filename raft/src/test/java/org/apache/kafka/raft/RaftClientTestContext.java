@@ -401,7 +401,7 @@ public final class RaftClientTestContext {
                         .voterNodes(startingVoters.voterIds().stream(), channel.listenerName())
                         .stream()
                         .map(node -> InetSocketAddress.createUnresolved(node.host(), node.port()))
-                        .collect(Collectors.toList());
+                        .toList();
                 }
             });
 
@@ -730,7 +730,7 @@ public final class RaftClientTestContext {
             .currentVoters()
             .stream()
             .sorted(Comparator.comparingInt(ReplicaState::replicaId))
-            .collect(Collectors.toList());
+            .toList();
         response.topics().get(0).partitions().get(0).setCurrentVoters(sortedVoters);
         response.nodes().sort(Comparator.comparingInt(DescribeQuorumResponseData.Node::nodeId));
 
@@ -1244,7 +1244,7 @@ public final class RaftClientTestContext {
         Set<Integer> collectedDestinationIdSet = new HashSet<>();
 
         Optional<List<Integer>> preferredSuccessorsOpt = preferredCandidates
-            .map(list -> list.stream().map(ReplicaKey::id).collect(Collectors.toList()));
+            .map(list -> list.stream().map(ReplicaKey::id).toList());
 
         for (RaftRequest.Outbound raftMessage : channel.drainSendQueue()) {
             if (raftMessage.data() instanceof EndQuorumEpochRequestData) {
@@ -1265,7 +1265,7 @@ public final class RaftClientTestContext {
                             .preferredCandidates()
                             .stream()
                             .map(replica -> ReplicaKey.of(replica.candidateId(), replica.candidateDirectoryId()))
-                            .collect(Collectors.toList())
+                            .toList()
                     )
                 );
 

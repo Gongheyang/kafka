@@ -19,7 +19,6 @@ package org.apache.kafka.server.share.persister;
 
 import org.apache.kafka.common.message.InitializeShareGroupStateRequestData;
 
-import java.util.stream.Collectors;
 
 /**
  * This class contains the parameters for {@link Persister#initializeState(InitializeShareGroupStateParameters)}.
@@ -41,8 +40,8 @@ public class InitializeShareGroupStateParameters implements PersisterParameters 
                         .map(readStateData -> new TopicData<>(readStateData.topicId(),
                                 readStateData.partitions().stream()
                                         .map(partitionData -> PartitionFactory.newPartitionStateData(partitionData.partition(), partitionData.stateEpoch(), partitionData.startOffset()))
-                                        .collect(Collectors.toList())))
-                        .collect(Collectors.toList())))
+                                        .toList()))
+                        .toList()))
                 .build();
     }
 

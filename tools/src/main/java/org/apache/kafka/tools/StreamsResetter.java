@@ -55,7 +55,6 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 import joptsimple.OptionException;
 import joptsimple.OptionSpec;
@@ -274,7 +273,7 @@ public class StreamsResetter {
             final Collection<TopicPartition> partitions = topicsToSubscribe.stream().map(client::partitionsFor)
                     .flatMap(Collection::stream)
                     .map(info -> new TopicPartition(info.topic(), info.partition()))
-                    .collect(Collectors.toList());
+                    .toList();
             client.assign(partitions);
 
             final Set<TopicPartition> inputTopicPartitions = new HashSet<>();
@@ -503,7 +502,7 @@ public class StreamsResetter {
     private int maybeDeleteInternalTopics(final Admin adminClient, final StreamsResetterOptions options) {
         final List<String> inferredInternalTopics = allTopics.stream()
                 .filter(options::isInferredInternalTopic)
-                .collect(Collectors.toList());
+                .toList();
         final List<String> specifiedInternalTopics = options.internalTopics();
         final List<String> topicsToDelete;
 

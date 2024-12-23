@@ -67,7 +67,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 
 /**
  * This class encapsulates various handler classes corresponding to share
@@ -935,7 +934,7 @@ public class PersisterStateManager {
                                     .setLastOffset(batch.lastOffset())
                                     .setDeliveryState(batch.deliveryState())
                                     .setDeliveryCount(batch.deliveryCount()))
-                                .collect(Collectors.toList()))
+                                .toList())
                     );
             });
 
@@ -945,7 +944,7 @@ public class PersisterStateManager {
                     .map(entry -> new WriteShareGroupStateRequestData.WriteStateData()
                         .setTopicId(entry.getKey())
                         .setPartitions(entry.getValue()))
-                    .collect(Collectors.toList())));
+                    .toList()));
         }
 
         private static AbstractRequest.Builder<? extends AbstractRequest> coalesceReads(String groupId, List<? extends PersisterStateManagerHandler> handlers) {
@@ -967,7 +966,7 @@ public class PersisterStateManager {
                     .map(entry -> new ReadShareGroupStateRequestData.ReadStateData()
                         .setTopicId(entry.getKey())
                         .setPartitions(entry.getValue()))
-                    .collect(Collectors.toList())));
+                    .toList()));
         }
     }
 }

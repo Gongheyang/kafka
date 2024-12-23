@@ -29,7 +29,6 @@ import java.util.OptionalLong;
 import java.util.concurrent.ConcurrentNavigableMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 /**
  * This class encapsulates a thread-safe navigable map of LogSegment instances and provides the
@@ -143,7 +142,7 @@ public class LogSegments implements Closeable {
      * @return the base offsets of all segments
      */
     public Collection<Long> baseOffsets() {
-        return values().stream().map(LogSegment::baseOffset).collect(Collectors.toList());
+        return values().stream().map(LogSegment::baseOffset).toList();
     }
 
     /**
@@ -336,7 +335,7 @@ public class LogSegments implements Closeable {
      * @param predicate the predicate to be used for filtering segments.
      */
     public Collection<LogSegment> filter(Predicate<LogSegment> predicate) {
-        return values().stream().filter(predicate).collect(Collectors.toList());
+        return values().stream().filter(predicate).toList();
     }
 
     /**

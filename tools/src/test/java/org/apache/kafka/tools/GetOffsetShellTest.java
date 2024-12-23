@@ -243,7 +243,7 @@ public class GetOffsetShellTest {
         setUp();
 
         List<Row> offsets = executeAndParse("--partitions", "0,1");
-        assertEquals(expectedTestTopicOffsets().stream().filter(r -> r.partition <= 1).collect(Collectors.toList()), offsets);
+        assertEquals(expectedTestTopicOffsets().stream().filter(r -> r.partition <= 1).toList(), offsets);
     }
 
     @ClusterTest
@@ -252,7 +252,7 @@ public class GetOffsetShellTest {
 
         List<Row> offsets = executeAndParse("--topic", "topic.*", "--partitions", "0,1");
 
-        assertEquals(expectedTestTopicOffsets().stream().filter(r -> r.partition <= 1).collect(Collectors.toList()), offsets);
+        assertEquals(expectedTestTopicOffsets().stream().filter(r -> r.partition <= 1).toList(), offsets);
     }
 
     @ClusterTest
@@ -492,9 +492,9 @@ public class GetOffsetShellTest {
     private List<Row> expectedOffsetsWithInternal() {
         List<Row> consOffsets = IntStream.range(0, 4)
                 .mapToObj(i -> new Row("__consumer_offsets", i, 0L))
-                .collect(Collectors.toList());
+                .toList();
 
-        return Stream.concat(consOffsets.stream(), expectedTestTopicOffsets().stream()).collect(Collectors.toList());
+        return Stream.concat(consOffsets.stream(), expectedTestTopicOffsets().stream()).toList();
     }
 
     private List<Row> expectedTestTopicOffsets() {
@@ -510,7 +510,7 @@ public class GetOffsetShellTest {
     private List<Row> expectedOffsetsForTopic(int i) {
         String name = getTopicName(i);
 
-        return IntStream.range(0, i).mapToObj(p -> new Row(name, p, (long) i)).collect(Collectors.toList());
+        return IntStream.range(0, i).mapToObj(p -> new Row(name, p, (long) i)).toList();
     }
 
     private List<Row> executeAndParse(String... args) {
@@ -520,7 +520,7 @@ public class GetOffsetShellTest {
                 .map(i -> i.split(":"))
                 .filter(i -> i.length >= 2)
                 .map(line -> new Row(line[0], Integer.parseInt(line[1]), (line.length == 2 || line[2].isEmpty()) ? null : Long.parseLong(line[2])))
-                .collect(Collectors.toList());
+                .toList();
     }
 
     private String[] addBootstrapServer(String... args) {

@@ -30,7 +30,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 public class AdminUtils {
     static final Random RAND = new Random();
@@ -127,7 +126,7 @@ public class AdminUtils {
         if (replicationFactor > brokerMetadatas.size())
             throw new InvalidReplicationFactorException("Replication factor: " + replicationFactor + " larger than available brokers: " + brokerMetadatas.size() + ".");
         if (brokerMetadatas.stream().noneMatch(b -> b.rack.isPresent()))
-            return assignReplicasToBrokersRackUnaware(nPartitions, replicationFactor, brokerMetadatas.stream().map(b -> b.id).collect(Collectors.toList()), fixedStartIndex,
+            return assignReplicasToBrokersRackUnaware(nPartitions, replicationFactor, brokerMetadatas.stream().map(b -> b.id).toList(), fixedStartIndex,
                 startPartitionId);
         else {
             return assignReplicasToBrokersRackAware(nPartitions, replicationFactor, brokerMetadatas, fixedStartIndex,

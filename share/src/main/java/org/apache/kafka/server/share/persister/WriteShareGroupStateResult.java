@@ -20,7 +20,6 @@ package org.apache.kafka.server.share.persister;
 import org.apache.kafka.common.message.WriteShareGroupStateResponseData;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * This class contains the result from {@link Persister#writeState(WriteShareGroupStateParameters)}.
@@ -42,8 +41,8 @@ public class WriteShareGroupStateResult implements PersisterResult {
                         .map(writeStateResult -> new TopicData<>(writeStateResult.topicId(),
                                 writeStateResult.partitions().stream()
                                         .map(partitionResult -> PartitionFactory.newPartitionErrorData(partitionResult.partition(), partitionResult.errorCode(), partitionResult.errorMessage()))
-                                        .collect(Collectors.toList())))
-                        .collect(Collectors.toList()))
+                                        .toList()))
+                        .toList())
                 .build();
     }
 

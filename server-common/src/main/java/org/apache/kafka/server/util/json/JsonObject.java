@@ -27,7 +27,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Spliterator;
 import java.util.Spliterators;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
@@ -59,7 +58,7 @@ public class JsonObject implements JsonValue {
         Stream<Map.Entry<String, JsonValue>> results = stream.map(entry ->
                 new AbstractMap.SimpleEntry<>(entry.getKey(), JsonValue.apply(entry.getValue()))
         );
-        return results.collect(Collectors.toList()).iterator();
+        return results.toList().iterator();
     }
 
     @Override

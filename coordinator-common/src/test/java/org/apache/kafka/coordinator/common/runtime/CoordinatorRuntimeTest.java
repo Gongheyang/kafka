@@ -458,7 +458,7 @@ public class CoordinatorRuntimeTest {
             return records
                 .stream()
                 .sorted(Comparator.comparingLong(record -> record.offset))
-                .collect(Collectors.toList());
+                .toList();
         }
     }
 
@@ -544,7 +544,7 @@ public class CoordinatorRuntimeTest {
         long timestamp,
         String... records
     ) {
-        return records(timestamp, Arrays.stream(records).collect(Collectors.toList()));
+        return records(timestamp, Arrays.stream(records).toList());
     }
 
     private static MemoryRecords records(
@@ -556,7 +556,7 @@ public class CoordinatorRuntimeTest {
 
         List<SimpleRecord> simpleRecords = records.stream().map(record ->
             new SimpleRecord(timestamp, record.getBytes(Charset.defaultCharset()))
-        ).collect(Collectors.toList());
+        ).toList();
 
         int sizeEstimate = AbstractRecords.estimateSizeInBytes(
             RecordVersion.current().value,
@@ -595,7 +595,7 @@ public class CoordinatorRuntimeTest {
             producerId,
             producerEpoch,
             timestamp,
-            Arrays.stream(records).collect(Collectors.toList())
+            Arrays.stream(records).toList()
         );
     }
 
@@ -610,7 +610,7 @@ public class CoordinatorRuntimeTest {
 
         List<SimpleRecord> simpleRecords = records.stream().map(record ->
             new SimpleRecord(timestamp, record.getBytes(Charset.defaultCharset()))
-        ).collect(Collectors.toList());
+        ).toList();
 
         int sizeEstimate = AbstractRecords.estimateSizeInBytes(
             RecordVersion.current().value,
@@ -3318,7 +3318,7 @@ public class CoordinatorRuntimeTest {
             char[] payload = new char[maxBatchSize / 4];
             Arrays.fill(payload, c);
             return new String(payload);
-        }).collect(Collectors.toList());
+        }).toList();
 
         // Write #1 with two records.
         CompletableFuture<String> write1 = runtime.scheduleWriteOperation("write#1", TP, Duration.ofMillis(20),
@@ -3453,7 +3453,7 @@ public class CoordinatorRuntimeTest {
             char[] payload = new char[maxBatchSize / 4];
             Arrays.fill(payload, c);
             return new String(payload);
-        }).collect(Collectors.toList());
+        }).toList();
 
         // Write all the records.
         CompletableFuture<String> write = runtime.scheduleWriteOperation("write#1", TP, Duration.ofMillis(20),
@@ -3505,7 +3505,7 @@ public class CoordinatorRuntimeTest {
             char[] payload = new char[maxBatchSize / 4];
             Arrays.fill(payload, c);
             return new String(payload);
-        }).collect(Collectors.toList());
+        }).toList();
 
         // Write #1.
         CompletableFuture<String> write1 = runtime.scheduleWriteOperation("write#1", TP, Duration.ofMillis(20),
@@ -3617,7 +3617,7 @@ public class CoordinatorRuntimeTest {
             char[] payload = new char[maxBatchSize / 4];
             Arrays.fill(payload, c);
             return new String(payload);
-        }).collect(Collectors.toList());
+        }).toList();
 
         // Write #1.
         CompletableFuture<String> write1 = runtime.scheduleWriteOperation("write#1", TP, Duration.ofMillis(20),
@@ -3836,7 +3836,7 @@ public class CoordinatorRuntimeTest {
             char[] payload = new char[maxBatchSize / 4];
             Arrays.fill(payload, c);
             return new String(payload);
-        }).collect(Collectors.toList());
+        }).toList();
 
         // Write #1.
         CompletableFuture<String> write1 = runtime.scheduleWriteOperation("write#1", TP, Duration.ofMillis(20),
@@ -3996,7 +3996,7 @@ public class CoordinatorRuntimeTest {
             char[] payload = new char[maxBatchSize / 4];
             Arrays.fill(payload, c);
             return new String(payload);
-        }).collect(Collectors.toList());
+        }).toList();
 
         // Let's try to write all the records atomically (the default) to ensure
         // that it fails.
@@ -4105,7 +4105,7 @@ public class CoordinatorRuntimeTest {
             char[] payload = new char[maxBatchSize / 4];
             Arrays.fill(payload, c);
             return new String(payload);
-        }).collect(Collectors.toList());
+        }).toList();
 
         // Create another record larger than the max batch size.
         char[] payload = new char[maxBatchSize];
@@ -4201,7 +4201,7 @@ public class CoordinatorRuntimeTest {
             char[] payload = new char[maxBatchSize / 4];
             Arrays.fill(payload, c);
             return new String(payload);
-        }).collect(Collectors.toList());
+        }).toList();
 
         // Write #1.
         CompletableFuture<String> write1 = runtime.scheduleWriteOperation("write#1", TP, Duration.ofMillis(20),
@@ -4354,7 +4354,7 @@ public class CoordinatorRuntimeTest {
             char[] payload = new char[maxBatchSize / 4];
             Arrays.fill(payload, c);
             return new String(payload);
-        }).collect(Collectors.toList());
+        }).toList();
 
         // Write #1 with two records.
         long firstBatchTimestamp = timer.time().milliseconds();

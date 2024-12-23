@@ -21,7 +21,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.stream.Collectors;
 
 /**
  * A no-op singleton implementation of {@link Persister} interface.
@@ -38,7 +37,7 @@ public class NoOpShareStatePersister implements Persister {
         for (TopicData<PartitionStateData> topicData : reqData.topicsData()) {
             resultArgs.add(new TopicData<>(topicData.topicId(), topicData.partitions().stream()
                 .map(partStateData -> PartitionFactory.newPartitionErrorData(partStateData.partition(), PartitionFactory.DEFAULT_ERROR_CODE, PartitionFactory.DEFAULT_ERR_MESSAGE))
-                .collect(Collectors.toList())));
+                .toList()));
         }
         return CompletableFuture.completedFuture(new InitializeShareGroupStateResult.Builder().setTopicsData(resultArgs).build());
     }
@@ -54,7 +53,7 @@ public class NoOpShareStatePersister implements Persister {
             resultArgs.add(new TopicData<>(topicData.topicId(), topicData.partitions().stream().
                 map(partitionIdData -> PartitionFactory.newPartitionAllData(
                     partitionIdData.partition(), PartitionFactory.DEFAULT_STATE_EPOCH, PartitionFactory.UNINITIALIZED_START_OFFSET, PartitionFactory.DEFAULT_ERROR_CODE, PartitionFactory.DEFAULT_ERR_MESSAGE, Collections.emptyList()))
-                .collect(Collectors.toList())));
+                .toList()));
         }
         return CompletableFuture.completedFuture(new ReadShareGroupStateResult.Builder().setTopicsData(resultArgs).build());
     }
@@ -66,7 +65,7 @@ public class NoOpShareStatePersister implements Persister {
         for (TopicData<PartitionStateBatchData> topicData : reqData.topicsData()) {
             resultArgs.add(new TopicData<>(topicData.topicId(), topicData.partitions().stream()
                 .map(batch -> PartitionFactory.newPartitionErrorData(batch.partition(), PartitionFactory.DEFAULT_ERROR_CODE, PartitionFactory.DEFAULT_ERR_MESSAGE))
-                .collect(Collectors.toList())));
+                .toList()));
         }
         return CompletableFuture.completedFuture(new WriteShareGroupStateResult.Builder().setTopicsData(resultArgs).build());
     }
@@ -78,7 +77,7 @@ public class NoOpShareStatePersister implements Persister {
         for (TopicData<PartitionIdData> topicData : reqData.topicsData()) {
             resultArgs.add(new TopicData<>(topicData.topicId(), topicData.partitions().stream()
                 .map(batch -> PartitionFactory.newPartitionErrorData(batch.partition(), PartitionFactory.DEFAULT_ERROR_CODE, PartitionFactory.DEFAULT_ERR_MESSAGE))
-                .collect(Collectors.toList())));
+                .toList()));
         }
         return CompletableFuture.completedFuture(new DeleteShareGroupStateResult.Builder().setTopicsData(resultArgs).build());
     }
@@ -94,7 +93,7 @@ public class NoOpShareStatePersister implements Persister {
             resultArgs.add(new TopicData<>(topicData.topicId(), topicData.partitions().stream().
                 map(partitionIdData -> PartitionFactory.newPartitionStateErrorData(
                     partitionIdData.partition(), PartitionFactory.DEFAULT_STATE_EPOCH, PartitionFactory.UNINITIALIZED_START_OFFSET, PartitionFactory.DEFAULT_ERROR_CODE, PartitionFactory.DEFAULT_ERR_MESSAGE))
-                .collect(Collectors.toList())));
+                .toList()));
         }
         return CompletableFuture.completedFuture(new ReadShareGroupStateSummaryResult.Builder().setTopicsData(resultArgs).build());
     }

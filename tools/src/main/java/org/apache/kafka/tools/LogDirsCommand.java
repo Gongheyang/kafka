@@ -141,7 +141,7 @@ public class LogDirsCommand {
                             put("broker", broker);
                             put("logDirs", fromLogDirInfosToPrintableRepresentation(logDirInfos, topicSet));
                         }};
-                }).collect(Collectors.toList()));
+                }).toList());
             }});
     }
 

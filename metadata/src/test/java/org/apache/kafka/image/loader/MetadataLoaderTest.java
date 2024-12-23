@@ -61,7 +61,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.singletonList;
@@ -178,7 +177,7 @@ public class MetadataLoaderTest {
             List<Batch<ApiMessageAndVersion>> batches = lists
                 .stream()
                 .map(records -> Batch.data(0, 0, 0, 0, records))
-                .collect(Collectors.toList());
+                .toList();
 
             return new MockSnapshotReader(provenance, batches);
         }

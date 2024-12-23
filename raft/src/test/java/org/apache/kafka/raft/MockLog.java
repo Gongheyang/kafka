@@ -52,7 +52,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 public class MockLog implements ReplicatedLog {
     private static final AtomicLong ID_GENERATOR = new AtomicLong();
@@ -380,7 +379,7 @@ public class MockLog implements ReplicatedLog {
 
         return batches.stream()
             .filter(batch -> batch.lastOffset() >= startOffset && batch.lastOffset() < maxOffset)
-            .collect(Collectors.toList());
+            .toList();
     }
 
     private void verifyOffsetInRange(long offset) {

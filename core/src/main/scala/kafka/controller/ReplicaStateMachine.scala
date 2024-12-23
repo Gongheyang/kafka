@@ -27,7 +27,6 @@ import org.apache.kafka.common.errors.ControllerMovedException
 import org.apache.kafka.metadata.LeaderAndIsr
 import org.apache.zookeeper.KeeperException.Code
 
-import java.util.stream.Collectors
 import scala.collection.{Seq, mutable}
 
 abstract class ReplicaStateMachine(controllerContext: ControllerContext) extends Logging {
@@ -345,7 +344,7 @@ class ZkReplicaStateMachine(config: KafkaConfig,
           val newLeader = if (replicaId == leaderAndIsr.leader) LeaderAndIsr.NO_LEADER else leaderAndIsr.leader
           val adjustedIsr =
             if (leaderAndIsr.isr.size == 1) leaderAndIsr.isr
-            else leaderAndIsr.isr.stream().filter(_ != replicaId).collect(Collectors.toList[Integer])
+            else leaderAndIsr.isr.stream().filter(_ != replicaId).toList
           partition -> leaderAndIsr.newLeaderAndIsr(newLeader, adjustedIsr)
         }
     }

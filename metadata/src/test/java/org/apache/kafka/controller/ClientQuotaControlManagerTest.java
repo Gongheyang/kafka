@@ -40,7 +40,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -253,7 +252,7 @@ public class ClientQuotaControlManagerTest {
                                           Consumer<ClientQuotaAlteration> acceptor) {
         Collection<ClientQuotaAlteration.Op> ops = quota.entrySet().stream()
                 .map(quotaEntry -> new ClientQuotaAlteration.Op(quotaEntry.getKey(), quotaEntry.getValue()))
-                .collect(Collectors.toList());
+                .toList();
         acceptor.accept(new ClientQuotaAlteration(entity, ops));
     }
 

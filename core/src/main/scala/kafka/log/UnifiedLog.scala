@@ -46,7 +46,6 @@ import java.lang.{Long => JLong}
 import java.nio.file.{Files, Path}
 import java.util
 import java.util.concurrent.{ConcurrentHashMap, ConcurrentMap, ScheduledFuture}
-import java.util.stream.Collectors
 import java.util.{Collections, Optional, OptionalInt, OptionalLong}
 import scala.collection.mutable.{ArrayBuffer, ListBuffer}
 import scala.collection.{Seq, mutable}
@@ -1619,7 +1618,7 @@ class UnifiedLog(@volatile var logStartOffset: Long,
    * The log size in bytes for all segments that are only in local log but not yet in remote log.
    */
   def onlyLocalLogSegmentsSize: Long =
-    UnifiedLog.sizeInBytes(logSegments.stream.filter(_.baseOffset >= highestOffsetInRemoteStorage()).collect(Collectors.toList[LogSegment]))
+    UnifiedLog.sizeInBytes(logSegments.stream.filter(_.baseOffset >= highestOffsetInRemoteStorage()).toList)
 
   /**
    * The number of segments that are only in local log but not yet in remote log.
@@ -1926,7 +1925,7 @@ class UnifiedLog(@volatile var logStartOffset: Long,
    * to ensure no other logcleaner threads and retention thread can work on the same segment.
    */
   private[log] def getFirstBatchTimestampForSegments(segments: util.Collection[LogSegment]): util.Collection[JLong] = {
-    segments.stream().map[JLong](s => s.getFirstBatchTimestamp).collect(Collectors.toList())
+    segments.stream().map[JLong](s => s.getFirstBatchTimestamp).toList
   }
 
   /**

@@ -1311,7 +1311,7 @@ public class ClassicGroup implements Group {
                 .setMemberId(member.memberId())
                 .setGroupInstanceId(member.groupInstanceId().orElse(null))
                 .setMetadata(member.metadata(protocolName.orElse(null))))
-            .collect(Collectors.toList());
+            .toList();
     }
 
     /**

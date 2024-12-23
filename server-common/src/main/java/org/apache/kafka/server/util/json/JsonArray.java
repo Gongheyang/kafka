@@ -23,7 +23,6 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import java.util.Iterator;
 import java.util.Spliterator;
 import java.util.Spliterators;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
@@ -44,7 +43,7 @@ public class JsonArray implements JsonValue {
                 Spliterators.spliteratorUnknownSize(node.elements(), Spliterator.ORDERED),
                 false);
         Stream<JsonValue> results = nodeStream.map(JsonValue::apply);
-        return results.collect(Collectors.toList()).iterator();
+        return results.toList().iterator();
     }
 
     @Override

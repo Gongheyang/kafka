@@ -20,7 +20,6 @@ package org.apache.kafka.server.share.persister;
 import org.apache.kafka.common.message.DeleteShareGroupStateResponseData;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * This class contains the result from {@link Persister#deleteState(DeleteShareGroupStateParameters)}.
@@ -41,8 +40,8 @@ public class DeleteShareGroupStateResult implements PersisterResult {
                 .setTopicsData(data.results().stream()
                         .map(deleteStateResult -> new TopicData<>(deleteStateResult.topicId(), deleteStateResult.partitions().stream()
                                 .map(partitionResult -> PartitionFactory.newPartitionErrorData(partitionResult.partition(), partitionResult.errorCode(), partitionResult.errorMessage()))
-                                .collect(Collectors.toList())))
-                        .collect(Collectors.toList()))
+                                .toList()))
+                        .toList())
                 .build();
     }
 

@@ -33,7 +33,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
-import java.util.stream.Collectors;
 
 import static org.apache.kafka.server.log.remote.storage.LocalTieredStorageEvent.EventType.FETCH_OFFSET_INDEX;
 import static org.apache.kafka.server.log.remote.storage.LocalTieredStorageEvent.EventType.FETCH_SEGMENT;
@@ -149,7 +148,7 @@ public final class ConsumeAction implements TieredStorageTestAction {
 
             List<LocalTieredStorageEvent> events = history.getEvents(eventType, topicPartition);
             List<LocalTieredStorageEvent> eventsInScope = latestEvent
-                    .map(e -> events.stream().filter(event -> event.isAfter(e)).collect(Collectors.toList()))
+                    .map(e -> events.stream().filter(event -> event.isAfter(e)).toList())
                     .orElse(events);
 
             RemoteFetchCount remoteFetchCount = remoteFetchSpec.getRemoteFetchCount();

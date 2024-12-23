@@ -47,7 +47,6 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 import static org.apache.kafka.server.common.MetadataVersion.IBP_2_1_IV0;
 
@@ -648,7 +647,7 @@ public class LogValidator {
 
     private static void processRecordErrors(List<ApiRecordError> recordErrors) {
         if (!recordErrors.isEmpty()) {
-            List<RecordError> errors = recordErrors.stream().map(e -> e.recordError).collect(Collectors.toList());
+            List<RecordError> errors = recordErrors.stream().map(e -> e.recordError).toList();
             if (recordErrors.stream().anyMatch(e -> e.apiError == Errors.INVALID_TIMESTAMP)) {
                 throw new RecordValidationException(new InvalidTimestampException(
                     "One or more records have been rejected due to invalid timestamp"), errors);

@@ -171,10 +171,10 @@ public class TestKitNodes {
             int controllerId = combined ? BROKER_ID_OFFSET : BROKER_ID_OFFSET + CONTROLLER_ID_OFFSET;
             List<Integer> controllerNodeIds = IntStream.range(controllerId, controllerId + numControllerNodes)
                 .boxed()
-                .collect(Collectors.toList());
+                .toList();
             List<Integer> brokerNodeIds = IntStream.range(BROKER_ID_OFFSET, BROKER_ID_OFFSET + numBrokerNodes)
                 .boxed()
-                .collect(Collectors.toList());
+                .toList();
 
             String unknownIds = perServerProperties.keySet().stream()
                     .filter(id -> !controllerNodeIds.contains(id))
@@ -312,7 +312,7 @@ public class TestKitNodes {
                 }
                 return new File(baseDirectory, logDir).getAbsolutePath();
             })
-            .collect(Collectors.toList());
+            .toList();
         MetaPropertiesEnsemble.Copier copier = new MetaPropertiesEnsemble.Copier(MetaPropertiesEnsemble.EMPTY);
 
         copier.setMetaLogDir(Optional.of(logDataDirectories.get(0)));

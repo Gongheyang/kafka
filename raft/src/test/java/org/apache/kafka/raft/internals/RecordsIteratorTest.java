@@ -71,7 +71,6 @@ import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
@@ -357,7 +356,7 @@ public final class RecordsIteratorTest {
             List<String> records = random
                 .ints(numberOfRecords, 0, 10)
                 .mapToObj(String::valueOf)
-                .collect(Collectors.toList());
+                .toList();
 
             batches.add(new TestBatch<>(baseOffset, epoch, appendTimestamp, records));
             baseOffset += records.size();

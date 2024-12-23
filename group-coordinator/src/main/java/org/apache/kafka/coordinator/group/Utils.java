@@ -28,7 +28,6 @@ import org.apache.kafka.image.TopicsImage;
 import org.apache.kafka.server.common.ApiMessageAndVersion;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -208,7 +207,7 @@ public class Utils {
     ) {
         return topicPartitionsList.stream().collect(Collectors.toMap(
             ConsumerGroupCurrentMemberAssignmentValue.TopicPartitions::topicId,
-            topicPartitions -> Collections.unmodifiableSet(new HashSet<>(topicPartitions.partitions()))));
+            topicPartitions -> Set.copyOf(topicPartitions.partitions())));
     }
 
     /**
@@ -222,7 +221,7 @@ public class Utils {
     ) {
         return topicPartitionsList.stream().collect(Collectors.toMap(
                 ShareGroupCurrentMemberAssignmentValue.TopicPartitions::topicId,
-                topicPartitions -> Collections.unmodifiableSet(new HashSet<>(topicPartitions.partitions()))));
+                topicPartitions -> Set.copyOf(topicPartitions.partitions())));
     }
 
     /**

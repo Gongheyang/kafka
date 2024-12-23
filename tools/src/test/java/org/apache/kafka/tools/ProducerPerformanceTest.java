@@ -93,6 +93,20 @@ public class ProducerPerformanceTest {
     }
 
     @Test
+    public void testReadPayloadFileWithAlternateDelimiter() throws Exception {
+        File payloadFile = createTempFile("Hello~~Kafka");
+        String payloadFilePath = payloadFile.getAbsolutePath();
+        String payloadDelimiter = "~~";
+
+        List<byte[]> payloadByteList = ProducerPerformance.readPayloadFile(payloadFilePath, payloadDelimiter);
+
+        assertEquals(2, payloadByteList.size());
+        assertEquals("Hello", new String(payloadByteList.get(0)));
+        assertEquals("Kafka", new String(payloadByteList.get(1)));
+        Utils.delete(payloadFile);
+    }
+
+    @Test
     public void testReadProps() throws Exception {
         List<String> producerProps = Collections.singletonList("bootstrap.servers=localhost:9000");
         File producerConfig = createTempFile("acks=1");

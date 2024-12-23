@@ -143,8 +143,7 @@ public class KafkaRaftMetrics implements AutoCloseable {
         metrics.addMetric(this.numUnknownVoterConnectionsMetricName, (mConfig, currentTimeMs) -> numUnknownVoterConnections);
 
         this.numVotersMetricName = metrics.metricName("number-of-voters", metricGroupName, "Number of voters for a KRaft topic partition.");
-        Gauge<Integer> numVotersProvider = (mConfig, currentTimestamp) -> state.numVoters();
-        metrics.addMetric(this.numVotersMetricName, numVotersProvider);
+        metrics.addMetric(this.numVotersMetricName, (Gauge<Integer>) (mConfig, currentTimestamp) -> state.numVoters());
 
         // These metrics should only be present on the leader, otherwise they do not make sense.
         // They should be added when a replica becomes leader and removed when it is no longer leader.
@@ -229,16 +228,14 @@ public class KafkaRaftMetrics implements AutoCloseable {
     }
 
     public <T> void addLeaderMetrics(LeaderState<T> leaderState) {
-        Gauge<Integer> numObservers = (mConfig, currentTimestamp) -> leaderState.numObservers();
-        Gauge<Integer> uncommittedVoterChangeGauge = (mConfig, currentTimestamp) -> {
+        metrics.addMetric(numObserversMetricName, (Gauge<Integer>) (config, now) -> leaderState.numObservers());
+        metrics.addMetric(uncommittedVoterChangeMetricName, (Gauge<Integer>) (config, now) -> {
             if (leaderState.addVoterHandlerState().isEmpty() && leaderState.removeVoterHandlerState().isEmpty()) {
                 return 0;
             } else {
                 return 1;
             }
-        };
-        metrics.addMetric(numObserversMetricName, numObservers);
-        metrics.addMetric(uncommittedVoterChangeMetricName, uncommittedVoterChangeGauge);
+        });
     }
 
     public void removeLeaderMetrics() {

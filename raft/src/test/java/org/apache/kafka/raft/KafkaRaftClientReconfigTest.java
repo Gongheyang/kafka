@@ -952,6 +952,11 @@ public class KafkaRaftClientReconfigTest {
         context.becomeLeader();
         int epoch = context.currentEpoch();
 
+        // Check expected metrics values for leader
+        assertEquals(2, getMetric(context.metrics, "number-of-voters").metricValue());
+        assertEquals(0, getMetric(context.metrics, "number-of-observers").metricValue());
+        assertEquals(0, getMetric(context.metrics, "uncommitted-voter-change").metricValue());
+
         ReplicaKey newVoter = replicaKey(local.id() + 2, true);
         InetSocketAddress newAddress = InetSocketAddress.createUnresolved(
             "localhost",
@@ -983,6 +988,10 @@ public class KafkaRaftClientReconfigTest {
         context.client.resign(epoch);
         context.pollUntilResponse();
         context.assertSentAddVoterResponse(Errors.NOT_LEADER_OR_FOLLOWER);
+
+        assertEquals(2, getMetric(context.metrics, "number-of-voters").metricValue());
+        assertNull(getMetric(context.metrics, "number-of-observers"));
+        assertNull(getMetric(context.metrics, "uncommitted-voter-change"));
     }
 
     @Test

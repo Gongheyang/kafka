@@ -3519,6 +3519,14 @@ public final class KafkaRaftClient<T> implements RaftClient<T> {
         return partitionState.lastVoterSet().voterNode(id, listenerName);
     }
 
+    public int ignoredStaticVoters() {
+        return partitionState.lastVoterSetOffset().isPresent() ? 1 : 0;
+    }
+
+    public int isObserver() {
+        return quorum.isObserver() ? 1 : 0;
+    }
+
     // Visible only for test
     QuorumState quorum() {
         // It's okay to return null since this method is only called by tests

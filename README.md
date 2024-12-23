@@ -171,7 +171,7 @@ Please note for this to work you should create/update user maven settings (typic
 
 ### Installing all projects to the local Maven repository ###
 
-    ./gradlew publishToMavenLocal
+    ./gradlew -PskipSigning=true publishToMavenLocal
 
 ### Installing specific projects to the local Maven repository ###
 

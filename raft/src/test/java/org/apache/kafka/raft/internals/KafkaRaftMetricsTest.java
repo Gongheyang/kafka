@@ -140,7 +140,7 @@ public class KafkaRaftMetricsTest {
             Uuid.ZERO_UUID.toString(),
             getMetric(metrics, "current-vote-directory-id").metricValue()
         );
-        assertEquals((double) 0L, getMetric(metrics, "current-epoch").metricValue());
+        assertEquals((double) 0, getMetric(metrics, "current-epoch").metricValue());
         assertEquals((double) -1, getMetric(metrics, "high-watermark").metricValue());
 
         // prospective
@@ -152,7 +152,7 @@ public class KafkaRaftMetricsTest {
             Uuid.ZERO_UUID.toString(),
             getMetric(metrics, "current-vote-directory-id").metricValue()
         );
-        assertEquals((double) 0L, getMetric(metrics, "current-epoch").metricValue());
+        assertEquals((double) 0, getMetric(metrics, "current-epoch").metricValue());
         assertEquals((double) -1L, getMetric(metrics, "high-watermark").metricValue());
 
         // prospective with votedKey
@@ -164,7 +164,7 @@ public class KafkaRaftMetricsTest {
             Uuid.ZERO_UUID.toString(),
             getMetric(metrics, "current-vote-directory-id").metricValue()
         );
-        assertEquals((double) 0L, getMetric(metrics, "current-epoch").metricValue());
+        assertEquals((double) 0, getMetric(metrics, "current-epoch").metricValue());
         assertEquals((double) -1L, getMetric(metrics, "high-watermark").metricValue());
 
         // follower with votedKey and leader
@@ -176,7 +176,7 @@ public class KafkaRaftMetricsTest {
             Uuid.ZERO_UUID.toString(),
             getMetric(metrics, "current-vote-directory-id").metricValue()
         );
-        assertEquals((double) 0L, getMetric(metrics, "current-epoch").metricValue());
+        assertEquals((double) 0, getMetric(metrics, "current-epoch").metricValue());
         assertEquals((double) -1L, getMetric(metrics, "high-watermark").metricValue());
 
         // follower with updated HW
@@ -192,7 +192,7 @@ public class KafkaRaftMetricsTest {
             Uuid.ZERO_UUID.toString(),
             getMetric(metrics, "current-vote-directory-id").metricValue()
         );
-        assertEquals((double) 0L, getMetric(metrics, "current-epoch").metricValue());
+        assertEquals((double) 0, getMetric(metrics, "current-epoch").metricValue());
         assertEquals((double) 5L, getMetric(metrics, "high-watermark").metricValue());
 
         // candidate
@@ -204,7 +204,7 @@ public class KafkaRaftMetricsTest {
             localDirectoryId.toString(),
             getMetric(metrics, "current-vote-directory-id").metricValue()
         );
-        assertEquals((double) 1L, getMetric(metrics, "current-epoch").metricValue());
+        assertEquals((double) 1, getMetric(metrics, "current-epoch").metricValue());
         assertEquals((double) 5L, getMetric(metrics, "high-watermark").metricValue());
 
         // leader
@@ -217,7 +217,7 @@ public class KafkaRaftMetricsTest {
             localDirectoryId.toString(),
             getMetric(metrics, "current-vote-directory-id").metricValue()
         );
-        assertEquals((double) 1L, getMetric(metrics, "current-epoch").metricValue());
+        assertEquals((double) 1, getMetric(metrics, "current-epoch").metricValue());
         assertEquals((double) -1L, getMetric(metrics, "high-watermark").metricValue()); // todo, bug fix
 
         // leader with updated HW
@@ -238,7 +238,7 @@ public class KafkaRaftMetricsTest {
             Uuid.ZERO_UUID.toString(),
             getMetric(metrics, "current-vote-directory-id").metricValue()
         );
-        assertEquals((double) 2L, getMetric(metrics, "current-epoch").metricValue());
+        assertEquals((double) 2, getMetric(metrics, "current-epoch").metricValue());
         assertEquals((double) 10L, getMetric(metrics, "high-watermark").metricValue());
 
         // unattached with votedKey
@@ -251,7 +251,7 @@ public class KafkaRaftMetricsTest {
             voter2DirectoryId.toString(),
             getMetric(metrics, "current-vote-directory-id").metricValue()
         );
-        assertEquals((double) 3L, getMetric(metrics, "current-epoch").metricValue());
+        assertEquals((double) 3, getMetric(metrics, "current-epoch").metricValue());
         assertEquals((double) 10L, getMetric(metrics, "high-watermark").metricValue());
 
         // unattached with leader without votedKey
@@ -263,7 +263,7 @@ public class KafkaRaftMetricsTest {
             Uuid.ZERO_UUID.toString(),
             getMetric(metrics, "current-vote-directory-id").metricValue()
         );
-        assertEquals((double) 4L, getMetric(metrics, "current-epoch").metricValue());
+        assertEquals((double) 4, getMetric(metrics, "current-epoch").metricValue());
         assertEquals((double) 10L, getMetric(metrics, "high-watermark").metricValue());
     }
 

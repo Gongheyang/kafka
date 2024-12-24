@@ -1595,16 +1595,20 @@ public final class RaftClientTestContext {
     }
 
     VoteResponseData voteResponse(boolean voteGranted, OptionalInt leaderId, int epoch) {
-        return voteResponse(voteGranted, leaderId, epoch, voteRpcVersion());
+        return voteResponse(Errors.NONE, voteGranted, leaderId, epoch, voteRpcVersion());
     }
 
-    VoteResponseData voteResponse(boolean voteGranted, OptionalInt leaderId, int epoch, short version) {
+    VoteResponseData voteResponse(Errors error, OptionalInt leaderId, int epoch) {
+        return voteResponse(error, false, leaderId, epoch, voteRpcVersion());
+    }
+
+    VoteResponseData voteResponse(Errors error, boolean voteGranted, OptionalInt leaderId, int epoch, short version) {
         return RaftUtil.singletonVoteResponse(
             channel.listenerName(),
             version,
             Errors.NONE,
             metadataPartition,
-            Errors.NONE,
+            error,
             epoch,
             leaderId.orElse(-1),
             voteGranted,

@@ -196,6 +196,7 @@ public class QuorumState {
                 election.epoch(),
                 partitionState.lastVoterSet(),
                 Optional.empty(),
+                1,
                 randomElectionTimeoutMs(),
                 logContext
             );
@@ -485,7 +486,7 @@ public class QuorumState {
             );
         } else if (localId.isEmpty()) {
             throw new IllegalStateException("Cannot add voted state without a replica id");
-        } else if (epoch != currentEpoch || isProspectiveAndVoted()) {
+        } else if (epoch != currentEpoch || !isProspectiveNotVoted()) {
             throw new IllegalStateException(
                 String.format(
                     "Cannot add voted key (%s) to current state (%s) in epoch %d",
@@ -496,6 +497,7 @@ public class QuorumState {
             );
         }
 
+        ProspectiveState prospectiveState = prospectiveStateOrThrow();
         // Note that we reset the election timeout after voting for a candidate because we
         // know that the candidate has at least as good of a chance of getting elected as us
         durableTransitionTo(
@@ -508,6 +510,7 @@ public class QuorumState {
                 Optional.of(candidateKey),
                 partitionState.lastVoterSet(),
                 state.highWatermark(),
+                prospectiveState.retries(),
                 randomElectionTimeoutMs(),
                 logContext
             )
@@ -602,6 +605,8 @@ public class QuorumState {
                 " is state " + state);
         }
 
+        int retries = isCandidate() ? candidateStateOrThrow().retries() + 1 : 1;
+
         durableTransitionTo(new ProspectiveState(
             time,
             localIdOrThrow(),
@@ -611,6 +616,7 @@ public class QuorumState {
             votedKey(),
             partitionState.lastVoterSet(),
             state.highWatermark(),
+            retries,
             randomElectionTimeoutMs(),
             logContext
         ));
@@ -622,6 +628,8 @@ public class QuorumState {
         int newEpoch = epoch() + 1;
         int electionTimeoutMs = randomElectionTimeoutMs();
 
+        int retries = isProspective() ? prospectiveStateOrThrow().retries() : 1;
+
         durableTransitionTo(new CandidateState(
             time,
             localIdOrThrow(),
@@ -629,6 +637,7 @@ public class QuorumState {
             newEpoch,
             partitionState.lastVoterSet(),
             state.highWatermark(),
+            retries,
             electionTimeoutMs,
             logContext
         ));
@@ -850,5 +859,54 @@ public class QuorumState {
 
     public boolean isNomineeState() {
         return state instanceof NomineeState;
+    }
+
+    public static boolean unattachedOrProspectiveCanGrantVote(
+        OptionalInt leaderId,
+        Optional<ReplicaKey> votedKey,
+        int epoch,
+        ReplicaKey replicaKey,
+        boolean isLogUpToDate,
+        boolean isPreVote,
+        Logger log
+    ) {
+        if (isPreVote) {
+            if (!isLogUpToDate) {
+                log.debug(
+                    "Rejecting Vote request (preVote=true) from prospective ({}) since prospective's log is not up to date with us",
+                    replicaKey
+                );
+            }
+            return isLogUpToDate;
+        } else if (votedKey.isPresent()) {
+            ReplicaKey votedReplicaKey = votedKey.get();
+            if (votedReplicaKey.id() == replicaKey.id()) {
+                return votedReplicaKey.directoryId().isEmpty() || votedReplicaKey.directoryId().equals(replicaKey.directoryId());
+            }
+            log.debug(
+                "Rejecting Vote request (preVote=false) from candidate ({}), already have voted for another " +
+                    "candidate ({}) in epoch {}",
+                replicaKey,
+                votedKey,
+                epoch
+            );
+            return false;
+        } else if (leaderId.isPresent()) {
+            // If the leader id is known it should behave similar to the follower state
+            log.debug(
+                "Rejecting Vote request (preVote=false) from candidate ({}) since we already have a leader {} in epoch {}",
+                replicaKey,
+                leaderId.getAsInt(),
+                epoch
+            );
+            return false;
+        } else if (!isLogUpToDate) {
+            log.debug(
+                "Rejecting Vote request (preVote=false) from candidate ({}) since candidate's log is not up to date with us",
+                replicaKey
+            );
+        }
+
+        return isLogUpToDate;
     }
 }

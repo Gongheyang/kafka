@@ -161,6 +161,7 @@ import static org.apache.kafka.snapshot.Snapshots.BOOTSTRAP_SNAPSHOT_ID;
  */
 @SuppressWarnings({ "ClassDataAbstractionCoupling", "ClassFanOutComplexity", "ParameterNumber", "NPathComplexity" })
 public final class KafkaRaftClient<T> implements RaftClient<T> {
+    private static final int RETRY_BACKOFF_BASE_MS = 100;
     private static final int MAX_NUMBER_OF_BATCHES = 10;
     public static final int MAX_FETCH_WAIT_MS = 500;
     public static final int MAX_BATCH_SIZE_BYTES = 8 * 1024 * 1024;
@@ -984,6 +985,7 @@ public final class KafkaRaftClient<T> implements RaftClient<T> {
                     maybeTransitionForward(state, currentTimeMs);
                 } else {
                     state.recordRejectedVote(remoteNodeId);
+                    maybeCandidateStartBackingOff(currentTimeMs);
                 }
             } else {
                 logger.debug("Ignoring vote response {} since we are no longer a VotingState " +
@@ -994,6 +996,35 @@ public final class KafkaRaftClient<T> implements RaftClient<T> {
         } else {
             return handleUnexpectedError(error, responseMetadata);
         }
+    }
+
+    private void maybeCandidateStartBackingOff(long currentTimeMs) {
+        // If in candidate state and vote is rejected, go immediately to a random, exponential backoff. The
+        // backoff starts low to prevent needing to wait the entire election timeout when the vote
+        // result has already been determined. The randomness prevents the next election from being
+        // gridlocked with another nominee due to timing. The exponential aspect limits epoch churn when
+        // the replica has failed multiple elections in succession.
+        if (quorum.isCandidate()) {
+            CandidateState candidate = quorum.candidateStateOrThrow();
+            if (candidate.epochElection().isVoteRejected() && !candidate.isBackingOff()) {
+                logger.info("Insufficient remaining votes to become leader (rejected by {}). " +
+                    "We will backoff before retrying election again", candidate.epochElection().rejectingVoters());
+
+                candidate.startBackingOff(
+                    currentTimeMs,
+                    binaryExponentialElectionBackoffMs(candidate.retries())
+                );
+            }
+        }
+    }
+
+    private int binaryExponentialElectionBackoffMs(int retries) {
+        if (retries <= 0) {
+            throw new IllegalArgumentException("Retries " + retries + " should be larger than zero");
+        }
+        // upper limit exponential co-efficients at 20 to avoid overflow
+        return Math.min(RETRY_BACKOFF_BASE_MS * random.nextInt(2 << Math.min(20, retries - 1)),
+            quorumConfig.electionBackoffMaxMs());
     }
 
     private int strictExponentialElectionBackoffMs(int positionInSuccessors, int totalNumSuccessors) {
@@ -3055,7 +3086,14 @@ public final class KafkaRaftClient<T> implements RaftClient<T> {
             //  3) the shutdown timer expires
             long minRequestBackoffMs = maybeSendVoteRequests(state, currentTimeMs);
             return Math.min(shutdown.remainingTimeMs(), minRequestBackoffMs);
-        } else if (state.epochElection().isVoteRejected() || state.hasElectionTimeoutExpired(currentTimeMs)) {
+        } else if (state.isBackingOff()) {
+            if (state.isBackoffComplete(currentTimeMs)) {
+                logger.info("Transition to prospective after election backoff has completed");
+                transitionToProspective(currentTimeMs);
+                return 0L;
+            }
+            return state.remainingBackoffMs(currentTimeMs);
+        } else if (state.hasElectionTimeoutExpired(currentTimeMs)) {
             logger.info("Election was not granted, transitioning to prospective");
             transitionToProspective(currentTimeMs);
             return 0L;

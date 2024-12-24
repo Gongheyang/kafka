@@ -34,7 +34,7 @@ interface NomineeState extends EpochState {
      * Record a rejected vote from one of the voters.
      *
      * @param remoteNodeId The id of the voter
-     * @return true if the rejected vote had not been previously recorded
+     * @return true if the voter had not been previously recorded
      * @throws IllegalArgumentException
      */
     boolean recordRejectedVote(int remoteNodeId);
@@ -47,8 +47,7 @@ interface NomineeState extends EpochState {
 
     /**
      * Returns the remaining time in milliseconds until the election timeout expires.
-     * @param currentTimeMs
-     * @return
+     * @param currentTimeMs The current time in milliseconds
      */
     long remainingElectionTimeMs(long currentTimeMs);
 }

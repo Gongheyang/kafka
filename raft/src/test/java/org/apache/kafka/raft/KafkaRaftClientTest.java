@@ -1777,7 +1777,7 @@ public class KafkaRaftClientTest {
 
     @ParameterizedTest
     @ValueSource(booleans = { true, false })
-    public void testRetryElection(boolean withKip853Rpc) throws Exception {
+    public void testCandidateBackoffElection(boolean withKip853Rpc) throws Exception {
         int localId = randomReplicaId();
         int otherNodeId = localId + 1;
         int epoch = 1;
@@ -1794,6 +1794,12 @@ public class KafkaRaftClientTest {
         context.unattachedToCandidate();
         context.pollUntilRequest();
         context.assertVotedCandidate(epoch, localId);
+        CandidateState candidate = context.client.quorum().candidateStateOrThrow();
+        assertEquals(1, candidate.retries());
+        assertEquals(
+            context.electionTimeoutMs() + exponentialFactor,
+            candidate.remainingElectionTimeMs(context.time.milliseconds()));
+        assertFalse(candidate.isBackingOff());
 
         // Quorum size is two. If the other member rejects, then we need to schedule a revote.
         RaftRequest.Outbound request = context.assertSentVoteRequest(epoch, 0, 0L, 1);
@@ -1804,6 +1810,10 @@ public class KafkaRaftClientTest {
         );
 
         context.client.poll();
+        assertTrue(candidate.isBackingOff());
+        assertEquals(
+            context.electionBackoffMaxMs,
+            candidate.remainingBackoffMs(context.time.milliseconds()));
 
         // All nodes have rejected our candidacy, but we should still remember that we had voted
         context.assertVotedCandidate(epoch, localId);
@@ -1818,8 +1828,67 @@ public class KafkaRaftClientTest {
         context.time.sleep(1);
         context.client.poll();
         assertTrue(context.client.quorum().isProspective());
+        ProspectiveState prospective = context.client.quorum().prospectiveStateOrThrow();
+        assertEquals(2, prospective.retries());
+        context.pollUntilRequest();
+        request = context.assertSentVoteRequest(epoch, 0, 0L, 1);
+        assertEquals(
+            context.electionTimeoutMs() + exponentialFactor,
+            prospective.remainingElectionTimeMs(context.time.milliseconds())
+        );
+
+        // If we become candidate again, retries should be 2
+        context.deliverResponse(
+            request.correlationId(),
+            request.destination(),
+            context.voteResponse(true, OptionalInt.empty(), 1)
+        );
+        context.client.poll();
+        context.assertVotedCandidate(epoch + 1, localId);
+        candidate = context.client.quorum().candidateStateOrThrow();
+        assertEquals(2, candidate.retries());
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = { true, false })
+    public void testCandidateElectionTimeout(boolean withKip853Rpc) throws Exception {
+        int localId = randomReplicaId();
+        int otherNodeId = localId + 1;
+        int epoch = 1;
+        int jitter = 100;
+        Set<Integer> voters = Set.of(localId, otherNodeId);
+
+        RaftClientTestContext context = new RaftClientTestContext.Builder(localId, voters)
+            .updateRandom(r -> r.mockNextInt(jitter))
+            .withKip853Rpc(withKip853Rpc)
+            .build();
+
+        context.assertUnknownLeaderAndNoVotedCandidate(0);
+
+        context.unattachedToCandidate();
+        context.pollUntilRequest();
+        context.assertVotedCandidate(epoch, localId);
+        context.assertSentVoteRequest(epoch, 0, 0L, 1);
+        CandidateState candidate = context.client.quorum().candidateStateOrThrow();
+        assertEquals(1, candidate.retries());
+        assertEquals(
+            context.electionTimeoutMs() + jitter,
+            candidate.remainingElectionTimeMs(context.time.milliseconds()));
+        assertFalse(candidate.isBackingOff());
+
+        // If election times out, we transition to prospective without any additional backoff
+        context.time.sleep(candidate.remainingElectionTimeMs(context.time.milliseconds()));
+        context.client.poll();
+        assertTrue(context.client.quorum().isProspective());
+
+        ProspectiveState prospective = context.client.quorum().prospectiveStateOrThrow();
+        assertEquals(2, prospective.retries());
         context.pollUntilRequest();
         context.assertSentVoteRequest(epoch, 0, 0L, 1);
+        assertEquals(
+            context.electionTimeoutMs() + jitter,
+            prospective.remainingElectionTimeMs(context.time.milliseconds())
+        );
     }
 
     @ParameterizedTest

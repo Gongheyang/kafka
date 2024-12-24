@@ -26,6 +26,8 @@ import org.slf4j.Logger;
 import java.util.Optional;
 import java.util.OptionalInt;
 
+import static org.apache.kafka.raft.QuorumState.unattachedOrProspectiveCanGrantVote;
+
 public class ProspectiveState implements NomineeState {
     private final int localId;
     private final int epoch;
@@ -35,17 +37,19 @@ public class ProspectiveState implements NomineeState {
     private final VoterSet voters;
     private final EpochElection epochElection;
     private final Optional<LogOffsetMetadata> highWatermark;
+    private final int retries;
+    private final long electionTimeoutMs;
     private final Timer electionTimer;
     private final Logger log;
 
     /**
      * The lifetime of a prospective state is the following.
      *
-     * 1. Once started, it will keep record of the received votes and continue to fetch from bootstrap voters.
-     * 2. If it receives a fetch response denoting a leader with a higher epoch, it will transition to follower state.
-     * 3. If majority votes granted, it will transition to leader state.
-     * 4. If majority votes rejected or election times out, it will enter a backing off phase;
-     *     after the backoff phase completes, it will send out another round of PreVote requests.
+     * 1. Once started, it will send prevote requests and keep record of the received vote responses
+     * 2. If it receives a message denoting a leader with a higher epoch, it will transition to follower state.
+     * 3. If majority votes granted, it will transition to candidate state.
+     * 4. If majority votes rejected or election times out, it will transition to unattached or follower state
+     *    depending on if it knows the leader id and endpoints or not
      */
     public ProspectiveState(
         Time time,
@@ -56,6 +60,7 @@ public class ProspectiveState implements NomineeState {
         Optional<ReplicaKey> votedKey,
         VoterSet voters,
         Optional<LogOffsetMetadata> highWatermark,
+        int retries,
         int electionTimeoutMs,
         LogContext logContext
     ) {
@@ -66,6 +71,8 @@ public class ProspectiveState implements NomineeState {
         this.votedKey = votedKey;
         this.voters = voters;
         this.highWatermark = highWatermark;
+        this.retries = retries;
+        this.electionTimeoutMs = electionTimeoutMs;
         this.electionTimer = time.timer(electionTimeoutMs);
         this.log = logContext.logger(ProspectiveState.class);
 
@@ -86,6 +93,10 @@ public class ProspectiveState implements NomineeState {
         return epochElection;
     }
 
+    public int retries() {
+        return retries;
+    }
+
     @Override
     public boolean recordGrantedVote(int remoteNodeId) {
         return epochElection().recordVote(remoteNodeId, true);
@@ -101,50 +112,15 @@ public class ProspectiveState implements NomineeState {
 
     @Override
     public boolean canGrantVote(ReplicaKey replicaKey, boolean isLogUpToDate, boolean isPreVote) {
-        if (isPreVote) {
-            return canGrantPreVote(replicaKey, isLogUpToDate);
-        }
-        if (votedKey.isPresent()) {
-            ReplicaKey votedReplicaKey = votedKey.get();
-            if (votedReplicaKey.id() == replicaKey.id()) {
-                return votedReplicaKey.directoryId().isEmpty() || votedReplicaKey.directoryId().equals(replicaKey.directoryId());
-            }
-            log.debug(
-                "Rejecting Vote request (preVote=false) from candidate ({}), already have voted for another " +
-                    "candidate ({}) in epoch {}",
-                replicaKey,
-                votedKey,
-                epoch
-            );
-            return false;
-        } else if (leaderId.isPresent()) {
-            // If the leader id is known it should behave similar to the follower state
-            log.debug(
-                "Rejecting Vote request (preVote=false) from candidate ({}) since we already have a leader {} in epoch {}",
-                replicaKey,
-                leaderId,
-                epoch
-            );
-            return false;
-        } else if (!isLogUpToDate) {
-            log.debug(
-                "Rejecting Vote request (preVote=false) from candidate ({}) since candidate's log is not up to date with us",
-                replicaKey
-            );
-        }
-
-        return isLogUpToDate;
-    }
-
-    private boolean canGrantPreVote(ReplicaKey replicaKey, boolean isLogUpToDate) {
-        if (!isLogUpToDate) {
-            log.debug(
-                "Rejecting Vote request (preVote=true) from prospective ({}) since prospective's log is not up to date with us",
-                replicaKey
-            );
-        }
-
-        return isLogUpToDate;
+        return unattachedOrProspectiveCanGrantVote(
+            leaderId,
+            votedKey,
+            epoch,
+            replicaKey,
+            isLogUpToDate,
+            isPreVote,
+            log
+        );
     }
 
     @Override
@@ -182,10 +158,12 @@ public class ProspectiveState implements NomineeState {
     @Override
     public String toString() {
         return String.format(
-            "ProspectiveState(epoch=%d, votedKey=%s, voters=%s, highWatermark=%s)",
+            "Prospective(epoch=%d, leaderId=%s, votedKey=%s, voters=%s, electionTimeoutMs=%s, highWatermark=%s)",
             epoch,
+            leaderId,
             votedKey,
             voters,
+            electionTimeoutMs,
             highWatermark
         );
     }

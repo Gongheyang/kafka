@@ -236,12 +236,13 @@ public class FollowerState implements EpochState {
     @Override
     public String toString() {
         return String.format(
-            "FollowerState(fetchTimeoutMs=%d, epoch=%d, leader=%d, leaderEndpoints=%s, " +
+            "FollowerState(fetchTimeoutMs=%d, epoch=%d, leader=%d, leaderEndpoints=%s, votedKey=%s, " +
             "voters=%s, highWatermark=%s, fetchingSnapshot=%s)",
             fetchTimeoutMs,
             epoch,
             leaderId,
             leaderEndpoints,
+            votedKey,
             voters,
             highWatermark,
             fetchingSnapshot

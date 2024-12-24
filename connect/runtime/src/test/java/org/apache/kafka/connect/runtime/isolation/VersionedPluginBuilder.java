@@ -21,7 +21,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -31,26 +30,27 @@ public class VersionedPluginBuilder {
 
     public enum VersionedTestPlugin {
 
-        CONNECTOR("sampling-connector", "test.plugins.VersionedSamplingSinkConnector", "test.plugins.VersionedSamplingSourceConnector"),
+        SINK_CONNECTOR("sampling-connector", "test.plugins.VersionedSamplingSinkConnector"),
+        SOURCE_CONNECTOR("versioned-source-connector", "test.plugins.VersionedSamplingSourceConnector"),
         CONVERTER("sampling-converter", "test.plugins.VersionedSamplingConverter"),
         HEADER_CONVERTER("sampling-header-converter", "test.plugins.VersionedSamplingHeaderConverter"),
         TRANSFORMATION("versioned-transformation", "test.plugins.VersionedTransformation"),
         PREDICATE("versioned-predicate", "test.plugins.VersionedPredicate");
 
         private final String resourceDir;
-        private final List<String> classNames;
+        private final String className;
 
-        VersionedTestPlugin(String resourceDir, String... className) {
+        VersionedTestPlugin(String resourceDir, String className) {
             this.resourceDir = resourceDir;
-            this.classNames = Arrays.asList(className);
+            this.className = className;
         }
 
         public String resourceDir() {
             return resourceDir;
         }
 
-        public List<String> classNames() {
-            return classNames;
+        public String className() {
+            return className;
         }
     }
 

@@ -20,6 +20,7 @@ package org.apache.kafka.connect.runtime.isolation;
 import org.apache.kafka.connect.components.Versioned;
 import org.apache.kafka.connect.runtime.WorkerConfig;
 import org.apache.maven.artifact.versioning.InvalidVersionSpecificationException;
+import org.apache.maven.artifact.versioning.VersionRange;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -29,8 +30,10 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 
@@ -173,6 +176,77 @@ public class MultiVersionTest {
             Object p = plugins.newPlugin(className, null, connectorLoader);
             Assertions.assertInstanceOf(Versioned.class, p);
             Assertions.assertEquals(versions.get(i), ((Versioned) p).version());
+
+            String latestVersion = plugins.latestVersion(className, ALL_PLUGIN_TYPES);
+            Assertions.assertEquals(defaultIsolatedArtifactsLatestVersion, latestVersion);
+        }
+    }
+
+    @Test
+    public void TestCorrectVersionRange() throws IOException, InvalidVersionSpecificationException, ClassNotFoundException {
+        Map<Path, List<VersionedPluginBuilder.BuildInfo>> artifacts = buildIsolatedArtifacts(
+            new String[]{"1.0.0", "1.1.0", "1.1.2", "2.0.0", "2.0.2", "3.0.0", "4.0.0"},
+            VersionedPluginBuilder.VersionedTestPlugin.values()
+        );
+
+        Plugins plugins = setUpPlugins(artifacts, PluginDiscoveryMode.SERVICE_LOAD);
+        Map<VersionRange, String> requiredVersions = new HashMap<>();
+        requiredVersions.put(PluginUtils.connectorVersionRequirement("latest"), "4.0.0");
+        requiredVersions.put(PluginUtils.connectorVersionRequirement(null), "4.0.0");
+        requiredVersions.put(PluginUtils.connectorVersionRequirement("1.0.0"), "1.0.0");
+        requiredVersions.put(PluginUtils.connectorVersionRequirement("[2.0.2]"), "2.0.2");
+        requiredVersions.put(PluginUtils.connectorVersionRequirement("[1.1.0,3.0.1]"), "3.0.0");
+        requiredVersions.put(PluginUtils.connectorVersionRequirement("(,2.0.0)"), "1.1.0");
+        requiredVersions.put(PluginUtils.connectorVersionRequirement("(,1.0.0]"), "1.0.0");
+        requiredVersions.put(PluginUtils.connectorVersionRequirement("[2.0.0,)"), "4.0.0");
+        requiredVersions.put(PluginUtils.connectorVersionRequirement("(,2.0.0],[2.0.3, 2.0.4)"), "2.0.0");
+        requiredVersions.put(PluginUtils.connectorVersionRequirement("(2.0.0,3.0.0)"), "2.0.2");
+        requiredVersions.put(PluginUtils.connectorVersionRequirement("(,1.1.0),[4.1.1,)"), "1.0.0");
+        requiredVersions.put(PluginUtils.connectorVersionRequirement("[1.1.0,1.1.0]"), "1.1.0");
+        requiredVersions.put(PluginUtils.connectorVersionRequirement("(,1.1.0),(2.0.0, 2.0.2]"), "2.0.2");
+        requiredVersions.put(PluginUtils.connectorVersionRequirement("[1.1.0,1.1.3)"), "1.1.2");
+
+        for (Map.Entry<VersionRange, String> entry : requiredVersions.entrySet()) {
+            for (VersionedPluginBuilder.VersionedTestPlugin pluginType: VersionedPluginBuilder.VersionedTestPlugin.values()) {
+                for (String classNames: pluginType.classNames()) {
+                    Object p = plugins.newPlugin(classNames, entry.getKey());
+                    Assertions.assertInstanceOf(Versioned.class, p);
+                    Assertions.assertEquals(entry.getValue(), ((Versioned) p).version(),
+                        String.format("Provided Version Range %s for class %s should return plugin version %s instead of %s",
+                            entry.getKey(), classNames, entry.getValue(), ((Versioned) p).version()));
+                }
+            }
+        }
+    }
+
+    @Test
+    public void TestInvalidVersionRange() throws IOException, InvalidVersionSpecificationException {
+        String[] validVersions = new String[]{"1.0.0", "1.1.0", "1.1.2", "2.0.0", "2.0.2", "3.0.0", "4.0.0"};
+        Map<Path, List<VersionedPluginBuilder.BuildInfo>> artifacts = buildIsolatedArtifacts(
+            validVersions,
+            VersionedPluginBuilder.VersionedTestPlugin.values()
+        );
+
+        Plugins plugins = setUpPlugins(artifacts, PluginDiscoveryMode.SERVICE_LOAD);
+        Set<VersionRange> invalidVersions = new HashSet<>();
+        invalidVersions.add(PluginUtils.connectorVersionRequirement("0.9.0"));
+        invalidVersions.add(PluginUtils.connectorVersionRequirement("[4.0.1,)"));
+        invalidVersions.add(PluginUtils.connectorVersionRequirement("(4.0.0,)"));
+        invalidVersions.add(PluginUtils.connectorVersionRequirement("[4.0.1]"));
+        invalidVersions.add(PluginUtils.connectorVersionRequirement("(2.0.0, 2.0.1)"));
+        invalidVersions.add(PluginUtils.connectorVersionRequirement("(,1.0.0)"));
+        invalidVersions.add(PluginUtils.connectorVersionRequirement("(1.1.0, 1.1.2)"));
+        invalidVersions.add(PluginUtils.connectorVersionRequirement("(1.1.0, 1.1.2),[1.1.3, 2.0.0)"));
+
+        for (VersionRange versionRange : invalidVersions) {
+            for (VersionedPluginBuilder.VersionedTestPlugin pluginType: VersionedPluginBuilder.VersionedTestPlugin.values()) {
+                for (String classNames: pluginType.classNames()) {
+                    VersionedPluginLoadingException e = Assertions.assertThrows(VersionedPluginLoadingException.class, () -> {
+                        plugins.newPlugin(classNames, versionRange);
+                    }, String.format("Provided Version Range %s for class %s should throw VersionedPluginLoadingException", versionRange, classNames));
+                    Assertions.assertEquals(e.availableVersions(), List.of(validVersions));
+                }
+            }
         }
     }
 }

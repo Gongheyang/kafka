@@ -27,6 +27,7 @@ import org.apache.kafka.streams.errors.TaskCorruptedException;
 import org.apache.kafka.streams.internals.StreamsConfigUtils;
 import org.apache.kafka.streams.processor.TaskId;
 import org.apache.kafka.streams.processor.internals.metrics.StreamsMetricsImpl;
+import org.apache.kafka.streams.state.internals.OffsetCheckpoint;
 import org.apache.kafka.streams.state.internals.ThreadCache;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
@@ -114,6 +115,7 @@ public class StateDirectory implements AutoCloseable {
 
     private final StreamsConfig config;
     private final ConcurrentMap<TaskId, Task> tasksForLocalState = new ConcurrentHashMap<>();
+    private final Map<TaskId, Long> taskOffsetSums = new ConcurrentHashMap<>();
 
     /**
      * Ensures that the state base directory as well as the application's sub-directory are created.
@@ -299,6 +301,46 @@ public class StateDirectory implements AutoCloseable {
                 task.closeClean();
             }
         }
+    }
+
+    public Map<TaskId, Long> taskOffsetSums(final Set<TaskId> tasks) {
+        return taskOffsetSums.entrySet().stream()
+                .filter(e -> tasks.contains(e.getKey()))
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+    }
+
+    public void updateTaskOffsets(final TaskId taskId, final Map<TopicPartition, Long> changelogOffsets) {
+        if (changelogOffsets.isEmpty()) {
+            return;
+        }
+
+        taskOffsetSums.put(taskId, sumOfChangelogOffsets(taskId, changelogOffsets));
+    }
+
+    public void removeTaskOffsets(final TaskId taskId) {
+        taskOffsetSums.remove(taskId);
+    }
+
+    private long sumOfChangelogOffsets(final TaskId taskId, final Map<TopicPartition, Long> changelogOffsets) {
+        long offsetSum = 0L;
+        for (final Map.Entry<TopicPartition, Long> changelogEntry : changelogOffsets.entrySet()) {
+            final long offset = changelogEntry.getValue();
+
+            if (offset != OffsetCheckpoint.OFFSET_UNKNOWN) {
+                if (offset < 0) {
+                    throw new StreamsException(
+                            new IllegalStateException("Expected not to get a sentinel offset, but got: " + changelogEntry),
+                            taskId);
+                }
+                offsetSum += offset;
+                if (offsetSum < 0) {
+                    log.warn("Sum of changelog offsets for task {} overflowed, pinning to Long.MAX_VALUE", taskId);
+                    return Long.MAX_VALUE;
+                }
+            }
+        }
+
+        return offsetSum;
     }
 
     public UUID initializeProcessId() {
@@ -509,6 +551,7 @@ public class StateDirectory implements AutoCloseable {
     public void close() {
         if (hasPersistentStores) {
             closeStartupTasks();
+            taskOffsetSums.clear();
             try {
                 stateDirLock.release();
                 stateDirLockChannel.close();
@@ -589,6 +632,7 @@ public class StateDirectory implements AutoCloseable {
                         final long now = time.milliseconds();
                         final long lastModifiedMs = taskDir.file().lastModified();
                         if (now - cleanupDelayMs > lastModifiedMs) {
+                            removeTaskOffsets(id);
                             log.info("{} Deleting obsolete state directory {} for task {} as {}ms has elapsed (cleanup delay is {}ms).",
                                 logPrefix(), dirName, id, now - lastModifiedMs, cleanupDelayMs);
                             Utils.delete(taskDir.file());
@@ -626,7 +670,10 @@ public class StateDirectory implements AutoCloseable {
         );
         if (namedTopologyDirs != null) {
             for (final File namedTopologyDir : namedTopologyDirs) {
-                closeStartupTasks(task -> task.id().topologyName().equals(parseNamedTopologyFromDirectory(namedTopologyDir.getName())));
+                final String topologyName = parseNamedTopologyFromDirectory(namedTopologyDir.getName());
+                closeStartupTasks(task -> task.id().topologyName().equals(topologyName));
+                final Set<TaskId> taskKeys = taskOffsetSums.keySet();
+                taskKeys.removeIf(taskId -> taskId.topologyName().equals(topologyName));
                 final File[] contents = namedTopologyDir.listFiles();
                 if (contents != null && contents.length == 0) {
                     try {
@@ -665,6 +712,8 @@ public class StateDirectory implements AutoCloseable {
         }
         try {
             closeStartupTasks(task -> task.id().topologyName().equals(topologyName));
+            final Set<TaskId> taskKeys = taskOffsetSums.keySet();
+            taskKeys.removeIf(taskId -> taskId.topologyName().equals(topologyName));
             Utils.delete(namedTopologyDir);
         } catch (final IOException e) {
             log.error("Hit an unexpected error while clearing local state for topology " + topologyName, e);
@@ -678,6 +727,7 @@ public class StateDirectory implements AutoCloseable {
             log.warn("Found some still-locked task directories when user requested to cleaning up the state, "
                 + "since Streams is not running any more these will be ignored to complete the cleanup");
         }
+        taskOffsetSums.clear();
         final AtomicReference<Exception> firstException = new AtomicReference<>();
         for (final TaskDirectory taskDir : listAllTaskDirectories()) {
             final String dirName = taskDir.file().getName();

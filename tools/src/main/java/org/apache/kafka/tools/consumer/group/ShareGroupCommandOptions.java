@@ -62,6 +62,8 @@ public class ShareGroupCommandOptions extends CommandDefaultOptions {
     public static final String STATE_DOC = "When specified with '--describe', includes the state of the group." + NL +
         "When specified with '--list', it displays the state of all groups. It can also be used to list groups with specific states. " +
         "Valid values are Empty, Stable and Dead.";
+    public static final String VERBOSE_DOC = "Provide additional information, if any, when describing the group. This option may be used " +
+        "with the '--describe --state' and '--describe --members' options only.";
     public static final String DELETE_OFFSETS_DOC = "Delete offsets of share group. Supports one share group at the time, and multiple topics.";
 
     public final OptionSpec<String> bootstrapServerOpt;
@@ -83,6 +85,7 @@ public class ShareGroupCommandOptions extends CommandDefaultOptions {
     public final OptionSpec<Void> membersOpt;
     public final OptionSpec<Void> offsetsOpt;
     public final OptionSpec<String> stateOpt;
+    public final OptionSpec<Void> verboseOpt;
 
     public final Set<OptionSpec<?>> allShareGroupLevelOpts;
     public final Set<OptionSpec<?>> allResetOffsetScenarioOpts;
@@ -134,6 +137,9 @@ public class ShareGroupCommandOptions extends CommandDefaultOptions {
             .availableIf(describeOpt, listOpt)
             .withOptionalArg()
             .ofType(String.class);
+        verboseOpt = parser.accepts("verbose", VERBOSE_DOC)
+            .availableIf(membersOpt, stateOpt)
+            .availableUnless(listOpt);
 
         allShareGroupLevelOpts = new HashSet<>(Arrays.asList(listOpt, describeOpt, deleteOpt, resetOffsetsOpt));
         allResetOffsetScenarioOpts = new HashSet<>(Arrays.asList(resetToDatetimeOpt, resetToEarliestOpt, resetToLatestOpt));

@@ -23,6 +23,7 @@ import org.apache.kafka.common.config.provider.ConfigProvider;
 import org.apache.kafka.common.utils.Utils;
 import org.apache.kafka.connect.runtime.Herder.ConfigReloadAction;
 import org.apache.kafka.connect.util.Callback;
+import org.apache.kafka.connect.util.ConnectorTaskId;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,7 +42,8 @@ public class WorkerConfigTransformer implements AutoCloseable {
 
     private final Worker worker;
     private final ConfigTransformer configTransformer;
-    private final ConcurrentMap<String, Map<String, HerderRequest>> requests = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, Map<String, HerderRequest>> connectorRequests = new ConcurrentHashMap<>();
+    private final ConcurrentMap<ConnectorTaskId, Map<String, HerderRequest>> taskRequests = new ConcurrentHashMap<>();
     private final Map<String, ConfigProvider> configProviders;
 
     public WorkerConfigTransformer(Worker worker, Map<String, ConfigProvider> configProviders) {
@@ -51,7 +53,7 @@ public class WorkerConfigTransformer implements AutoCloseable {
     }
 
     public Map<String, String> transform(Map<String, String> configs) {
-        return transform(null, configs);
+        return transform((String) null, configs);
     }
 
     public Map<String, String> transform(String connectorName, Map<String, String> configs) {
@@ -72,6 +74,47 @@ public class WorkerConfigTransformer implements AutoCloseable {
         return result.data();
     }
 
+    public Map<String, String> transform(ConnectorTaskId taskId, Map<String, String> configs) {
+        if (configs == null) return null;
+        ConfigTransformerResult result = configTransformer.transform(configs);
+        if (taskId != null) {
+            String key = ConnectorConfig.CONFIG_RELOAD_ACTION_CONFIG;
+            String action = (String) ConfigDef.parseType(key, configs.get(key), ConfigDef.Type.STRING);
+            if (action == null) {
+                // The default action is "restart".
+                action = ConnectorConfig.CONFIG_RELOAD_ACTION_RESTART;
+            }
+            ConfigReloadAction reloadAction = ConfigReloadAction.valueOf(action.toUpperCase(Locale.ROOT));
+            if (reloadAction == ConfigReloadAction.RESTART) {
+                scheduleReload(taskId, result.ttls());
+            }
+        }
+        return result.data();
+    }
+
+    private void scheduleReload(ConnectorTaskId taskId, Map<String, Long> ttls) {
+        for (Map.Entry<String, Long> entry : ttls.entrySet()) {
+            scheduleReload(taskId, entry.getKey(), entry.getValue());
+        }
+    }
+
+    private void scheduleReload(ConnectorTaskId taskId, String path, long ttl) {
+        Map<String, HerderRequest> requests = this.taskRequests.computeIfAbsent(taskId, s -> new ConcurrentHashMap<>());
+        requests.compute(path, (s, previousRequest) -> {
+            if (previousRequest != null) {
+                // Delete previous request for ttl which is now stale
+                previousRequest.cancel();
+            }
+            log.info("Scheduling a restart of task {} in {} ms", taskId, ttl);
+            Callback<Void> cb = (error, result) -> {
+                if (error != null) {
+                    log.error("Unexpected error during connector restart: ", error);
+                }
+            };
+            return worker.herder().restartTask(ttl, taskId, cb);
+        });
+    }
+
     private void scheduleReload(String connectorName, Map<String, Long> ttls) {
         for (Map.Entry<String, Long> entry : ttls.entrySet()) {
             scheduleReload(connectorName, entry.getKey(), entry.getValue());
@@ -79,8 +122,8 @@ public class WorkerConfigTransformer implements AutoCloseable {
     }
 
     private void scheduleReload(String connectorName, String path, long ttl) {
-        Map<String, HerderRequest> connectorRequests = requests.computeIfAbsent(connectorName, s -> new ConcurrentHashMap<>());
-        connectorRequests.compute(path, (s, previousRequest) -> {
+        Map<String, HerderRequest> requests = this.connectorRequests.computeIfAbsent(connectorName, s -> new ConcurrentHashMap<>());
+        requests.compute(path, (s, previousRequest) -> {
             if (previousRequest != null) {
                 // Delete previous request for ttl which is now stale
                 previousRequest.cancel();

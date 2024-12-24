@@ -346,6 +346,14 @@ public final class StandaloneHerder extends AbstractHerder {
     }
 
     @Override
+    public synchronized HerderRequest restartTask(long delayMs, ConnectorTaskId taskId, Callback<Void> cb) {
+        ScheduledFuture<?> future = requestExecutorService.schedule(
+                () -> restartTask(taskId, cb), delayMs, TimeUnit.MILLISECONDS);
+
+        return new StandaloneHerderRequest(requestSeqNum.incrementAndGet(), future);
+    }
+
+    @Override
     public synchronized void restartConnector(String connName, Callback<Void> cb) {
         if (!configState.contains(connName))
             cb.onCompletion(new NotFoundException("Connector " + connName + " not found", null), null);

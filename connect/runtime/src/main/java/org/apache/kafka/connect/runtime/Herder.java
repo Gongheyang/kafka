@@ -253,6 +253,15 @@ public interface Herder {
     void restartTask(ConnectorTaskId id, Callback<Void> cb);
 
     /**
+     * Restart the task with the given id.
+     * @param delayMs delay before restart
+     * @param id id of the task
+     * @param cb callback to invoke upon completion
+     * @return The id of the request
+     */
+    HerderRequest restartTask(long delayMs, ConnectorTaskId id, Callback<Void> cb);
+
+    /**
      * Restart the connector.
      * @param connName name of the connector
      * @param cb callback to invoke upon completion

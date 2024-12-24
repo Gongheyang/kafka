@@ -197,7 +197,7 @@ public class ClusterConfigState {
     public Map<String, String> taskConfig(ConnectorTaskId task) {
         Map<String, String> configs = taskConfigs.get(task);
         if (configTransformer != null) {
-            configs = configTransformer.transform(task.connector(), configs);
+            configs = configTransformer.transform(task, configs);
         }
         return configs;
     }

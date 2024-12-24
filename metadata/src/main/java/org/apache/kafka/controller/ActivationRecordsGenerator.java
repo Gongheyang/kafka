@@ -22,6 +22,7 @@ import org.apache.kafka.common.metadata.BeginTransactionRecord;
 import org.apache.kafka.common.metadata.EndTransactionRecord;
 import org.apache.kafka.metadata.bootstrap.BootstrapMetadata;
 import org.apache.kafka.server.common.ApiMessageAndVersion;
+import org.apache.kafka.server.common.EligibleLeaderReplicasVersion;
 import org.apache.kafka.server.common.MetadataVersion;
 
 import java.util.ArrayList;
@@ -35,7 +36,9 @@ public class ActivationRecordsGenerator {
         Consumer<String> activationMessageConsumer,
         long transactionStartOffset,
         BootstrapMetadata bootstrapMetadata,
-        MetadataVersion metadataVersion
+        MetadataVersion metadataVersion,
+        boolean isElrEnabled,
+        ConfigurationControlManager configurationControl
     ) {
         StringBuilder logMessageBuilder = new StringBuilder("Performing controller activation. ");
         List<ApiMessageAndVersion> records = new ArrayList<>();
@@ -86,6 +89,10 @@ public class ActivationRecordsGenerator {
         // This will include the new metadata.version, as well as things like SCRAM
         // initialization, etc.
         records.addAll(bootstrapMetadata.records());
+
+        if (isElrEnabled) {
+            configurationControl.maybeResetMinIsrConfig(records);
+        }
 
         activationMessageConsumer.accept(logMessageBuilder.toString().trim());
         if (metadataVersion.isMetadataTransactionSupported()) {
@@ -148,11 +155,13 @@ public class ActivationRecordsGenerator {
         boolean isEmpty,
         long transactionStartOffset,
         BootstrapMetadata bootstrapMetadata,
-        MetadataVersion curMetadataVersion
-    ) {
+        MetadataVersion curMetadataVersion,
+        ConfigurationControlManager configurationControl) {
         if (isEmpty) {
             return recordsForEmptyLog(activationMessageConsumer, transactionStartOffset,
-                    bootstrapMetadata, bootstrapMetadata.metadataVersion());
+                    bootstrapMetadata, bootstrapMetadata.metadataVersion(),
+                    bootstrapMetadata.isElrEnabled(),
+                    configurationControl);
         } else {
             return recordsForNonEmptyLog(activationMessageConsumer, transactionStartOffset, curMetadataVersion);
         }

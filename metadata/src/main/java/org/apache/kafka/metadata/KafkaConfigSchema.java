@@ -224,6 +224,24 @@ public class KafkaConfigSchema {
             ConfigSource.DEFAULT_CONFIG, Function.identity());
     }
 
+    public String getStaticOrDefaultConfig(
+        String configName,
+        Map<String, ?> staticNodeConfig
+    ) {
+        ConfigDef configDef = configDefs.getOrDefault(ConfigResource.Type.BROKER, EMPTY_CONFIG_DEF);
+        ConfigDef.ConfigKey configKey = configDef.configKeys().get(configName);
+        if (configKey == null) return null;
+        List<ConfigSynonym> synonyms = logConfigSynonyms.getOrDefault(configKey.name, emptyList());
+        for (ConfigSynonym synonym : synonyms) {
+            if (staticNodeConfig.containsKey(synonym.name())) {
+                return toConfigEntry(configKey, staticNodeConfig.get(synonym.name()),
+                    ConfigSource.STATIC_BROKER_CONFIG, synonym.converter()).value();
+            }
+        }
+        return toConfigEntry(configKey, configKey.hasDefault() ? configKey.defaultValue : null,
+            ConfigSource.DEFAULT_CONFIG, Function.identity()).value();
+    }
+
     private ConfigEntry toConfigEntry(ConfigDef.ConfigKey configKey,
                                       Object value,
                                       ConfigSource source,

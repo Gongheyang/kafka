@@ -119,6 +119,7 @@ import org.apache.kafka.server.common.KRaftVersion;
 import org.apache.kafka.server.common.MetadataVersion;
 import org.apache.kafka.server.fault.FaultHandler;
 import org.apache.kafka.server.fault.FaultHandlerException;
+import org.apache.kafka.server.mutable.BoundedList;
 import org.apache.kafka.server.policy.AlterConfigPolicy;
 import org.apache.kafka.server.policy.CreateTopicPolicy;
 import org.apache.kafka.snapshot.SnapshotReader;
@@ -1124,6 +1125,18 @@ public final class QuorumController implements Controller {
                 EnumSet.of(DOES_NOT_UPDATE_QUEUE_TIME)
             );
             queue.prepend(activationEvent);
+
+            // Also, checking whether the configuration for min ISR should be reset.
+            if (featureControl.isElrFeatureEnabled()) {
+                appendWriteEvent("maybeResetMinIsrConfig", OptionalLong.empty(),
+                    () -> {
+                        List<ApiMessageAndVersion> outputRecords =
+                            BoundedList.newArrayBacked(MAX_RECORDS_PER_USER_OP);
+                        configurationControl.maybeResetMinIsrConfig(outputRecords);
+                        return ControllerResult.atomicOf(outputRecords, ApiError.NONE);
+                    }
+                );
+            }
         } catch (Throwable e) {
             fatalFaultHandler.handleFault("exception while claiming leadership", e);
         }
@@ -1138,7 +1151,8 @@ public final class QuorumController implements Controller {
                     logReplayTracker.empty(),
                     offsetControl.transactionStartOffset(),
                     bootstrapMetadata,
-                    featureControl.metadataVersion());
+                    featureControl.metadataVersion(),
+                    configurationControl);
             } catch (Throwable t) {
                 throw fatalFaultHandler.handleFault("exception while completing controller " +
                     "activation", t);
@@ -1490,16 +1504,6 @@ public final class QuorumController implements Controller {
         this.snapshotRegistry = new SnapshotRegistry(logContext);
         this.deferredEventQueue = new DeferredEventQueue(logContext);
         this.resourceExists = new ConfigResourceExistenceChecker();
-        this.configurationControl = new ConfigurationControlManager.Builder().
-            setLogContext(logContext).
-            setSnapshotRegistry(snapshotRegistry).
-            setKafkaConfigSchema(configSchema).
-            setExistenceChecker(resourceExists).
-            setAlterConfigPolicy(alterConfigPolicy).
-            setValidator(configurationValidator).
-            setStaticConfig(staticConfig).
-            setNodeId(nodeId).
-            build();
         this.clientQuotaControlManager = new ClientQuotaControlManager.Builder().
             setLogContext(logContext).
             setSnapshotRegistry(snapshotRegistry).
@@ -1533,6 +1537,17 @@ public final class QuorumController implements Controller {
             setFeatureControlManager(featureControl).
             setBrokerUncleanShutdownHandler(this::handleUncleanBrokerShutdown).
             setInterBrokerListenerName(interBrokerListenerName).
+            build();
+        this.configurationControl = new ConfigurationControlManager.Builder().
+            setLogContext(logContext).
+            setSnapshotRegistry(snapshotRegistry).
+            setKafkaConfigSchema(configSchema).
+            setExistenceChecker(resourceExists).
+            setAlterConfigPolicy(alterConfigPolicy).
+            setValidator(configurationValidator).
+            setStaticConfig(staticConfig).
+            setNodeId(nodeId).
+            setFeatureControl(featureControl).
             build();
         this.producerIdControlManager = new ProducerIdControlManager.Builder().
             setLogContext(logContext).
@@ -2020,7 +2035,7 @@ public final class QuorumController implements Controller {
                 upgradeTypes.put(featureName, FeatureUpdate.UpgradeType.fromCode(featureUpdate.upgradeType()));
                 updates.put(featureName, featureUpdate.maxVersionLevel());
             });
-            return featureControl.updateFeatures(updates, upgradeTypes, request.validateOnly());
+            return configurationControl.updateFeatures(updates, upgradeTypes, request.validateOnly());
         }).thenApply(result -> {
             UpdateFeaturesResponseData responseData = new UpdateFeaturesResponseData();
 

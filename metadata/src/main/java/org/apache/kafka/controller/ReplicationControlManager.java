@@ -121,6 +121,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.IntPredicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -1934,6 +1935,16 @@ public class ReplicationControlManager {
         }
     }
 
+    void generateLeaderAndIsrUpdates(String context,
+                                     int brokerToRemove,
+                                     int brokerToAdd,
+                                     int brokerWithUncleanShutdown,
+                                     List<ApiMessageAndVersion> records,
+                                     Iterator<TopicIdPartition> iterator) {
+        generateLeaderAndIsrUpdates(context, brokerToRemove, brokerToAdd, brokerWithUncleanShutdown, records, iterator,
+            topicName -> getTopicEffectiveMinIsr(topicName));
+    }
+
     /**
      * Iterate over a sequence of partitions and generate ISR/ELR changes and/or leader
      * changes if necessary.
@@ -1949,13 +1960,15 @@ public class ReplicationControlManager {
      *                          leadership, otherwise.
      * @param records           A list of records which we will append to.
      * @param iterator          The iterator containing the partitions to examine.
+     * @param getTopicMinIsr    The helper function to get the min ISR config for the topic
      */
     void generateLeaderAndIsrUpdates(String context,
                                      int brokerToRemove,
                                      int brokerToAdd,
                                      int brokerWithUncleanShutdown,
                                      List<ApiMessageAndVersion> records,
-                                     Iterator<TopicIdPartition> iterator) {
+                                     Iterator<TopicIdPartition> iterator,
+                                     Function<String, Integer> getTopicMinIsr) {
         int oldSize = records.size();
 
         // If the caller passed a valid broker ID for brokerToAdd, rather than passing
@@ -1996,7 +2009,7 @@ public class ReplicationControlManager {
                 topicIdPart.partitionId(),
                 new LeaderAcceptor(clusterControl, partition, isAcceptableLeader),
                 featureControl.metadataVersion(),
-                getTopicEffectiveMinIsr(topic.name)
+                getTopicEffectiveMinIsr(topic.name, getTopicMinIsr)
             );
             builder.setEligibleLeaderReplicasEnabled(isElrEnabled());
             if (configurationControl.uncleanLeaderElectionEnabledForTopic(topic.name)) {
@@ -2325,6 +2338,36 @@ public class ReplicationControlManager {
         Uuid topicId = topicsByName.get(topicName);
         int replicationFactor = topics.get(topicId).parts.get(0).replicas.length;
         return Math.min(currentMinIsr, replicationFactor);
+    }
+
+    int getTopicEffectiveMinIsr(String topicName, Function<String, Integer> getTopicMinIsrConfig) {
+        int currentMinIsr = getTopicMinIsrConfig.apply(topicName);
+        Uuid topicId = topicsByName.get(topicName);
+        int replicationFactor = topics.get(topicId).parts.get(0).replicas.length;
+        return Math.min(currentMinIsr, replicationFactor);
+    }
+
+    List<ApiMessageAndVersion> getPartitionElrUpdatesForConfigChanges(
+        List<String> topicNames,
+        Function<String, Integer> getTopicMinIsrConfig
+    ) {
+        if (!isElrEnabled()) return Collections.emptyList();
+
+        List<ApiMessageAndVersion> records = new ArrayList<>();
+        if (!topicNames.isEmpty()) {
+            topicNames.forEach(topic -> {
+                Uuid topicId = getTopicId(topic);
+                TopicControlInfo topicInfo = getTopic(topicId);
+                generateLeaderAndIsrUpdates("handleMinIsrUpdate", NO_LEADER, NO_LEADER, NO_LEADER, records,
+                    topicInfo.parts.keySet().stream().map(partitionId -> new TopicIdPartition(topicId, partitionId)).iterator(),
+                    getTopicMinIsrConfig);
+            });
+        } else {
+            generateLeaderAndIsrUpdates("handleMinIsrUpdate", NO_LEADER, NO_LEADER, NO_LEADER, records,
+                brokersToElrs.partitionsWithElr(),
+                getTopicMinIsrConfig);
+        }
+        return records;
     }
 
     /**

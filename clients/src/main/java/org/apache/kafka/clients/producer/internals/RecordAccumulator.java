@@ -277,8 +277,6 @@ public class RecordAccumulator {
      * @param headers the Headers for the record
      * @param callbacks The callbacks to execute
      * @param maxTimeToBlock The maximum time in milliseconds to block for buffer memory to be available
-     * @param abortOnNewBatch A boolean that indicates returning before a new batch is created and
-     *                        running the partitioner's onNewBatch method before trying to append again
      * @param nowMs The current time, in milliseconds
      * @param cluster The cluster metadata
      */
@@ -290,7 +288,6 @@ public class RecordAccumulator {
                                      Header[] headers,
                                      AppendCallbacks callbacks,
                                      long maxTimeToBlock,
-                                     boolean abortOnNewBatch,
                                      long nowMs,
                                      Cluster cluster) throws InterruptedException {
         TopicInfo topicInfo = topicInfoMap.computeIfAbsent(topic, k -> new TopicInfo(createBuiltInPartitioner(logContext, k, batchSize)));
@@ -334,12 +331,6 @@ public class RecordAccumulator {
                         topicInfo.builtInPartitioner.updatePartitionInfo(partitionInfo, appendResult.appendedBytes, cluster, enableSwitch);
                         return appendResult;
                     }
-                }
-
-                // we don't have an in-progress record batch try to allocate a new batch
-                if (abortOnNewBatch) {
-                    // Return a result that will cause another call to append.
-                    return new RecordAppendResult(null, false, false, true, 0);
                 }
 
                 if (buffer == null) {

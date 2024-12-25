@@ -2343,7 +2343,6 @@ public class KafkaProducerTest {
         try (KafkaProducer<String, String> producer = ctx.newKafkaProducer()) {
             assertEquals(future, producer.send(record));
             assertFalse(future.isDone());
-            verify(ctx.partitioner).onNewBatch(topic, cluster, 0);
             verify(ctx.transactionManager, never()).maybeAddPartition(topicPartition0);
             verify(ctx.transactionManager).maybeAddPartition(topicPartition1);
         }

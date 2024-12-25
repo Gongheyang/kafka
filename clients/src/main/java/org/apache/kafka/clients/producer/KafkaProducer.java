@@ -947,15 +947,6 @@ public class KafkaProducer<K, V> implements Producer<K, V> {
     }
 
     /**
-     * Call deprecated {@link Partitioner#onNewBatch}
-     */
-    @SuppressWarnings("deprecation")
-    private void onNewBatch(String topic, Cluster cluster, int prevPartition) {
-        assert partitioner != null;
-        partitioner.onNewBatch(topic, cluster, prevPartition);
-    }
-
-    /**
      * Implementation of asynchronously send a record to a topic.
      */
     private Future<RecordMetadata> doSend(ProducerRecord<K, V> record, Callback callback) {
@@ -1020,9 +1011,6 @@ public class KafkaProducer<K, V> implements Producer<K, V> {
 
             if (result.abortForNewBatch) {
                 int prevPartition = partition;
-                // IMPORTANT NOTE: the following onNewBatch and partition calls should not interrupted to allow
-                // the custom partitioner to correctly track its state
-                onNewBatch(record.topic(), cluster, prevPartition);
                 partition = partition(record, serializedKey, serializedValue, cluster);
                 if (log.isTraceEnabled()) {
                     log.trace("Retrying append due to new batch creation for topic {} partition {}. The old partition was {}", record.topic(), partition, prevPartition);

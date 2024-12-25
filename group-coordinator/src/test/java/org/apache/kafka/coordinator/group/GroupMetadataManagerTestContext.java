@@ -72,6 +72,7 @@ import org.apache.kafka.coordinator.group.generated.ConsumerGroupTargetAssignmen
 import org.apache.kafka.coordinator.group.generated.ConsumerGroupTargetAssignmentMemberValue;
 import org.apache.kafka.coordinator.group.generated.ConsumerGroupTargetAssignmentMetadataKey;
 import org.apache.kafka.coordinator.group.generated.ConsumerGroupTargetAssignmentMetadataValue;
+import org.apache.kafka.coordinator.group.generated.CoordinatorRecordType;
 import org.apache.kafka.coordinator.group.generated.GroupMetadataKey;
 import org.apache.kafka.coordinator.group.generated.GroupMetadataValue;
 import org.apache.kafka.coordinator.group.generated.ShareGroupCurrentMemberAssignmentKey;
@@ -1270,7 +1271,43 @@ public class GroupMetadataManagerTestContext {
     }
 
     public List<DescribeGroupsResponseData.DescribedGroup> describeGroups(List<String> groupIds) {
-        return groupMetadataManager.describeGroups(groupIds, lastCommittedOffset);
+        RequestContext context = new RequestContext(
+            new RequestHeader(
+                ApiKeys.DESCRIBE_GROUPS,
+                ApiKeys.DESCRIBE_GROUPS.latestVersion(),
+                DEFAULT_CLIENT_ID,
+                0
+            ),
+            "1",
+            DEFAULT_CLIENT_ADDRESS,
+            KafkaPrincipal.ANONYMOUS,
+            ListenerName.forSecurityProtocol(SecurityProtocol.PLAINTEXT),
+            SecurityProtocol.PLAINTEXT,
+            ClientInformation.EMPTY,
+            false
+        );
+
+        return groupMetadataManager.describeGroups(context, groupIds, lastCommittedOffset);
+    }
+
+    public List<DescribeGroupsResponseData.DescribedGroup> describeGroups(List<String> groupIds, short apiVersion) {
+        RequestContext context = new RequestContext(
+            new RequestHeader(
+                ApiKeys.DESCRIBE_GROUPS,
+                apiVersion,
+                DEFAULT_CLIENT_ID,
+                0
+            ),
+            "1",
+            DEFAULT_CLIENT_ADDRESS,
+            KafkaPrincipal.ANONYMOUS,
+            ListenerName.forSecurityProtocol(SecurityProtocol.PLAINTEXT),
+            SecurityProtocol.PLAINTEXT,
+            ClientInformation.EMPTY,
+            false
+        );
+
+        return groupMetadataManager.describeGroups(context, groupIds, lastCommittedOffset);
     }
 
     public List<ShareGroupDescribeResponseData.DescribedGroup> sendShareGroupDescribe(List<String> groupIds) {
@@ -1390,6 +1427,21 @@ public class GroupMetadataManagerTestContext {
             List.of(new DescribeGroupsResponseData.DescribedGroup()
                 .setGroupId(groupId)
                 .setGroupState(DEAD.toString())
+                .setErrorCode(Errors.GROUP_ID_NOT_FOUND.code())
+                .setErrorMessage("Group " + groupId + " not found.")
+            ),
+            describedGroups
+        );
+    }
+
+    public void verifyDescribeGroupsBeforeV6ReturnsDeadGroup(String groupId) {
+        List<DescribeGroupsResponseData.DescribedGroup> describedGroups =
+            describeGroups(Collections.singletonList(groupId), (short) 5);
+
+        assertEquals(
+            Collections.singletonList(new DescribeGroupsResponseData.DescribedGroup()
+                .setGroupId(groupId)
+                .setGroupState(DEAD.toString())
             ),
             describedGroups
         );
@@ -1469,99 +1521,99 @@ public class GroupMetadataManagerTestContext {
             throw new IllegalStateException("Received a null key in " + record);
         }
 
-        switch (key.version()) {
-            case GroupMetadataKey.HIGHEST_SUPPORTED_VERSION:
+        switch (CoordinatorRecordType.fromId(key.version())) {
+            case GROUP_METADATA:
                 groupMetadataManager.replay(
                     (GroupMetadataKey) key.message(),
                     (GroupMetadataValue) messageOrNull(value)
                 );
                 break;
 
-            case ConsumerGroupMemberMetadataKey.HIGHEST_SUPPORTED_VERSION:
+            case CONSUMER_GROUP_MEMBER_METADATA:
                 groupMetadataManager.replay(
                     (ConsumerGroupMemberMetadataKey) key.message(),
                     (ConsumerGroupMemberMetadataValue) messageOrNull(value)
                 );
                 break;
 
-            case ConsumerGroupMetadataKey.HIGHEST_SUPPORTED_VERSION:
+            case CONSUMER_GROUP_METADATA:
                 groupMetadataManager.replay(
                     (ConsumerGroupMetadataKey) key.message(),
                     (ConsumerGroupMetadataValue) messageOrNull(value)
                 );
                 break;
 
-            case ConsumerGroupPartitionMetadataKey.HIGHEST_SUPPORTED_VERSION:
+            case CONSUMER_GROUP_PARTITION_METADATA:
                 groupMetadataManager.replay(
                     (ConsumerGroupPartitionMetadataKey) key.message(),
                     (ConsumerGroupPartitionMetadataValue) messageOrNull(value)
                 );
                 break;
 
-            case ConsumerGroupTargetAssignmentMemberKey.HIGHEST_SUPPORTED_VERSION:
+            case CONSUMER_GROUP_TARGET_ASSIGNMENT_MEMBER:
                 groupMetadataManager.replay(
                     (ConsumerGroupTargetAssignmentMemberKey) key.message(),
                     (ConsumerGroupTargetAssignmentMemberValue) messageOrNull(value)
                 );
                 break;
 
-            case ConsumerGroupTargetAssignmentMetadataKey.HIGHEST_SUPPORTED_VERSION:
+            case CONSUMER_GROUP_TARGET_ASSIGNMENT_METADATA:
                 groupMetadataManager.replay(
                     (ConsumerGroupTargetAssignmentMetadataKey) key.message(),
                     (ConsumerGroupTargetAssignmentMetadataValue) messageOrNull(value)
                 );
                 break;
 
-            case ConsumerGroupCurrentMemberAssignmentKey.HIGHEST_SUPPORTED_VERSION:
+            case CONSUMER_GROUP_CURRENT_MEMBER_ASSIGNMENT:
                 groupMetadataManager.replay(
                     (ConsumerGroupCurrentMemberAssignmentKey) key.message(),
                     (ConsumerGroupCurrentMemberAssignmentValue) messageOrNull(value)
                 );
                 break;
 
-            case ShareGroupMemberMetadataKey.HIGHEST_SUPPORTED_VERSION:
+            case SHARE_GROUP_MEMBER_METADATA:
                 groupMetadataManager.replay(
                     (ShareGroupMemberMetadataKey) key.message(),
                     (ShareGroupMemberMetadataValue) messageOrNull(value)
                 );
                 break;
 
-            case ShareGroupMetadataKey.HIGHEST_SUPPORTED_VERSION:
+            case SHARE_GROUP_METADATA:
                 groupMetadataManager.replay(
                     (ShareGroupMetadataKey) key.message(),
                     (ShareGroupMetadataValue) messageOrNull(value)
                 );
                 break;
 
-            case ShareGroupPartitionMetadataKey.HIGHEST_SUPPORTED_VERSION:
+            case SHARE_GROUP_PARTITION_METADATA:
                 groupMetadataManager.replay(
                     (ShareGroupPartitionMetadataKey) key.message(),
                     (ShareGroupPartitionMetadataValue) messageOrNull(value)
                 );
                 break;
 
-            case ShareGroupTargetAssignmentMemberKey.HIGHEST_SUPPORTED_VERSION:
+            case SHARE_GROUP_TARGET_ASSIGNMENT_MEMBER:
                 groupMetadataManager.replay(
                     (ShareGroupTargetAssignmentMemberKey) key.message(),
                     (ShareGroupTargetAssignmentMemberValue) messageOrNull(value)
                 );
                 break;
 
-            case ShareGroupTargetAssignmentMetadataKey.HIGHEST_SUPPORTED_VERSION:
+            case SHARE_GROUP_TARGET_ASSIGNMENT_METADATA:
                 groupMetadataManager.replay(
                     (ShareGroupTargetAssignmentMetadataKey) key.message(),
                     (ShareGroupTargetAssignmentMetadataValue) messageOrNull(value)
                 );
                 break;
 
-            case ShareGroupCurrentMemberAssignmentKey.HIGHEST_SUPPORTED_VERSION:
+            case SHARE_GROUP_CURRENT_MEMBER_ASSIGNMENT:
                 groupMetadataManager.replay(
                     (ShareGroupCurrentMemberAssignmentKey) key.message(),
                     (ShareGroupCurrentMemberAssignmentValue) messageOrNull(value)
                 );
                 break;
 
-            case ConsumerGroupRegularExpressionKey.HIGHEST_SUPPORTED_VERSION:
+            case CONSUMER_GROUP_REGULAR_EXPRESSION:
                 groupMetadataManager.replay(
                     (ConsumerGroupRegularExpressionKey) key.message(),
                     (ConsumerGroupRegularExpressionValue) messageOrNull(value)

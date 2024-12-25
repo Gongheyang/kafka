@@ -18,7 +18,6 @@ package kafka.cluster
 
 import java.net.InetAddress
 import com.yammer.metrics.core.Metric
-import kafka.common.UnexpectedAppendOffsetException
 import kafka.log._
 import kafka.server._
 import kafka.utils._
@@ -60,7 +59,7 @@ import org.apache.kafka.server.common.MetadataVersion.IBP_2_6_IV0
 import org.apache.kafka.server.metrics.KafkaYammerMetrics
 import org.apache.kafka.server.purgatory.{DelayedOperationPurgatory, TopicPartitionOperationKey}
 import org.apache.kafka.server.share.fetch.DelayedShareFetchPartitionKey
-import org.apache.kafka.server.storage.log.{FetchIsolation, FetchParams}
+import org.apache.kafka.server.storage.log.{FetchIsolation, FetchParams, UnexpectedAppendOffsetException}
 import org.apache.kafka.server.util.{KafkaScheduler, MockTime}
 import org.apache.kafka.storage.internals.checkpoint.OffsetCheckpoints
 import org.apache.kafka.storage.internals.epoch.LeaderEpochFileCache
@@ -449,7 +448,7 @@ class PartitionTest extends AbstractPartitionTest {
         val logDirFailureChannel = new LogDirFailureChannel(1)
         val segments = new LogSegments(log.topicPartition)
         val leaderEpochCache = UnifiedLog.maybeCreateLeaderEpochCache(
-          log.dir, log.topicPartition, logDirFailureChannel, log.config.recordVersion, "", None, time.scheduler)
+          log.dir, log.topicPartition, logDirFailureChannel, "", None, time.scheduler)
         val maxTransactionTimeoutMs = 5 * 60 * 1000
         val producerStateManagerConfig = new ProducerStateManagerConfig(TransactionLogConfig.PRODUCER_ID_EXPIRATION_MS_DEFAULT, true)
         val producerStateManager = new ProducerStateManager(
@@ -765,7 +764,7 @@ class PartitionTest extends AbstractPartitionTest {
       currentLeaderEpoch = Optional.empty(),
       fetchOnlyFromLeader = true).timestampAndOffsetOpt
 
-    assertTrue(timestampAndOffsetOpt.isDefined)
+    assertTrue(timestampAndOffsetOpt.isPresent)
 
     val timestampAndOffset = timestampAndOffsetOpt.get
     assertEquals(leaderEpoch, timestampAndOffset.leaderEpoch.get)
@@ -824,11 +823,11 @@ class PartitionTest extends AbstractPartitionTest {
           fetchOnlyFromLeader = true
         )
         val timestampAndOffsetOpt = offsetResultHolder.timestampAndOffsetOpt
-        if (timestampAndOffsetOpt.isEmpty || offsetResultHolder.lastFetchableOffset.isDefined &&
+        if (timestampAndOffsetOpt.isEmpty || offsetResultHolder.lastFetchableOffset.isPresent &&
           timestampAndOffsetOpt.get.offset >= offsetResultHolder.lastFetchableOffset.get) {
           offsetResultHolder.maybeOffsetsError.map(e => throw e)
         }
-        Right(timestampAndOffsetOpt)
+        Right(if (timestampAndOffsetOpt.isPresent) Some(timestampAndOffsetOpt.get) else None)
       } catch {
         case e: ApiException => Left(e)
       }
@@ -1034,7 +1033,7 @@ class PartitionTest extends AbstractPartitionTest {
         isolationLevel = isolationLevel,
         currentLeaderEpoch = Optional.empty(),
         fetchOnlyFromLeader = true).timestampAndOffsetOpt
-      assertTrue(res.isDefined)
+      assertTrue(res.isPresent)
       res.get
     }
 

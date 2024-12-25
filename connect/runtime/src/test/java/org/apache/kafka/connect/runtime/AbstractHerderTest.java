@@ -34,9 +34,12 @@ import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.errors.NotFoundException;
 import org.apache.kafka.connect.runtime.distributed.SampleConnectorClientConfigOverridePolicy;
 import org.apache.kafka.connect.runtime.isolation.LoaderSwap;
+import org.apache.kafka.connect.runtime.isolation.MultiVersionTest;
 import org.apache.kafka.connect.runtime.isolation.PluginDesc;
 import org.apache.kafka.connect.runtime.isolation.PluginType;
+import org.apache.kafka.connect.runtime.isolation.PluginUtils;
 import org.apache.kafka.connect.runtime.isolation.Plugins;
+import org.apache.kafka.connect.runtime.isolation.VersionedPluginBuilder;
 import org.apache.kafka.connect.runtime.rest.entities.ConfigInfo;
 import org.apache.kafka.connect.runtime.rest.entities.ConfigInfos;
 import org.apache.kafka.connect.runtime.rest.entities.ConfigKeyInfo;
@@ -58,6 +61,8 @@ import org.apache.kafka.connect.util.Callback;
 import org.apache.kafka.connect.util.ConnectorTaskId;
 import org.apache.kafka.connect.util.FutureCallback;
 
+import org.apache.maven.artifact.versioning.InvalidVersionSpecificationException;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -122,6 +127,9 @@ public class AbstractHerderTest {
     private static final String TEST_REF2 = "${file:/tmp/somefile2.txt:somevar2}";
     private static final String TEST_REF3 = "${file:/tmp/somefile3.txt:somevar3}";
     static {
+
+        Assertions.assertNotNull(MultiVersionTest.MULTI_VERSION_PLUGINS, "Required plugins instance MultiVersionTest.MULTI_VERSION_PLUGINS is null");
+
         CONN1_CONFIG.put(ConnectorConfig.NAME_CONFIG, CONN1);
         CONN1_CONFIG.put(ConnectorConfig.TASKS_MAX_CONFIG, MAX_TASKS.toString());
         CONN1_CONFIG.put(SinkConnectorConfig.TOPICS_CONFIG, "foo,bar");
@@ -1198,6 +1206,24 @@ public class AbstractHerderTest {
                 Collections.emptySet()
         );
         assertTrue(AbstractHerder.taskConfigsChanged(snapshotWithDifferentAppliedConfig, CONN1, TASK_CONFIGS));
+    }
+
+    @Test
+    public void testVersionedPluginConfigDef() throws InvalidVersionSpecificationException {
+        assertNotNull(MultiVersionTest.MULTI_VERSION_PLUGINS, "Plugins with multiple plugin artifacts is not initialized in MultiVersionTest.MULTI_VERSION_PLUGINS");
+        AbstractHerder herder = testHerder();
+        when(herder.plugins()).thenReturn(MultiVersionTest.MULTI_VERSION_PLUGINS);
+        List<VersionedPluginBuilder.BuildInfo> pluginArtifacts = MultiVersionTest.DEFAULT_ISOLATED_ARTIFACTS.values().stream().flatMap(Collection::stream).toList();
+        for (VersionedPluginBuilder.BuildInfo buildInfo : pluginArtifacts) {
+            List<ConfigKeyInfo> configs = herder.connectorPluginConfig(buildInfo.plugin().className(), PluginUtils.connectorVersionRequirement(buildInfo.version()));
+            Optional<ConfigKeyInfo> requiredConfig = configs.stream()
+                .filter(config -> config.name().equals(VersionedPluginBuilder.VERSION_SPECIFIC_CONFIG_IN_PLUGIN))
+                .findAny();
+            assertTrue(requiredConfig.isPresent(), "Required config (" + VersionedPluginBuilder.VERSION_SPECIFIC_CONFIG_IN_PLUGIN + ") "
+                + "is not found in the plugin config. It is possible that plugin creation was not correct in VersionedPluginBuilder.");
+            // the version specific config will have the default value as the version of the plugin
+            assertEquals(requiredConfig.get().defaultValue(), buildInfo.version());
+        }
     }
 
     protected void addConfigKey(Map<String, ConfigDef.ConfigKey> keys, String name, String group) {

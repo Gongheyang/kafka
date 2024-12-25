@@ -1336,12 +1336,11 @@ public class ClassicGroup implements Group {
 
     /**
      * Convert the given ConsumerGroup to a corresponding ClassicGroup.
-     * The member with leavingMemberId will not be converted to the new ClassicGroup as it's the last
-     * member using new consumer protocol that left and triggered the downgrade.
      *
      * @param consumerGroup                 The converted ConsumerGroup.
-     * @param leavingMemberId               The member that will not be converted in the ClassicGroup.
-     * @param joiningMember                 The member that needs to be converted and added to the ClassicGroup.
+     * @param leavingMemberIds              The members that will not be converted in the ClassicGroup.
+     * @param replacedMemberId              The member that will be replaced by replacingMember in the ClassicGroup.
+     * @param replacingMember               The member that needs to be converted and added to the ClassicGroup.
      * @param logContext                    The logContext to create the ClassicGroup.
      * @param time                          The time to create the ClassicGroup.
      * @param metadataImage                 The MetadataImage.
@@ -1349,8 +1348,9 @@ public class ClassicGroup implements Group {
      */
     public static ClassicGroup fromConsumerGroup(
         ConsumerGroup consumerGroup,
-        String leavingMemberId,
-        ConsumerGroupMember joiningMember,
+        Set<String> leavingMemberIds,
+        String replacedMemberId,
+        ConsumerGroupMember replacingMember,
         LogContext logContext,
         Time time,
         MetadataImage metadataImage
@@ -1368,7 +1368,7 @@ public class ClassicGroup implements Group {
         );
 
         consumerGroup.members().forEach((memberId, member) -> {
-            if (!memberId.equals(leavingMemberId)) {
+            if (!leavingMemberIds.contains(memberId) && !memberId.equals(replacedMemberId)) {
                 classicGroup.add(
                     new ClassicGroupMember(
                         memberId,
@@ -1385,17 +1385,17 @@ public class ClassicGroup implements Group {
             }
         });
 
-        if (joiningMember != null) {
+        if (replacingMember != null) {
             classicGroup.add(
                 new ClassicGroupMember(
-                    joiningMember.memberId(),
-                    Optional.ofNullable(joiningMember.instanceId()),
-                    joiningMember.clientId(),
-                    joiningMember.clientHost(),
-                    joiningMember.rebalanceTimeoutMs(),
-                    joiningMember.classicProtocolSessionTimeout().get(),
+                    replacingMember.memberId(),
+                    Optional.ofNullable(replacingMember.instanceId()),
+                    replacingMember.clientId(),
+                    replacingMember.clientHost(),
+                    replacingMember.rebalanceTimeoutMs(),
+                    replacingMember.classicProtocolSessionTimeout().get(),
                     ConsumerProtocol.PROTOCOL_TYPE,
-                    joiningMember.supportedJoinGroupRequestProtocols(),
+                    replacingMember.supportedJoinGroupRequestProtocols(),
                     null
                 )
             );
@@ -1408,11 +1408,11 @@ public class ClassicGroup implements Group {
             // Set the assignment with serializing the ConsumerGroup's targetAssignment.
             // The serializing version should align with that of the member's JoinGroupRequestProtocol.
             String memberId = classicGroupMember.memberId();
-            if (joiningMember != null && memberId.equals(joiningMember.memberId())) {
+            if (replacingMember != null && memberId.equals(replacingMember.memberId())) {
                 // If the downgraded is triggered by the joining static member replacing
                 // the leaving static member, the joining member should take the assignment
                 // of the leaving one.
-                memberId = leavingMemberId;
+                memberId = replacedMemberId;
             }
             byte[] assignment = Utils.toArray(ConsumerProtocol.serializeAssignment(
                 toConsumerProtocolAssignment(

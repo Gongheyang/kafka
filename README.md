@@ -1,7 +1,7 @@
 <a href="https://kafka.apache.org/">
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/images/kafka-logo-readme-dark.svg">
-  <source media="(prefers-color-scheme: light)" srcset="docs/images/kafka-logo-readme-light.svg">
+  <source media="(prefers-color-scheme: light)" src="docs/images/kafka-logo-readme-light.svg">
+  <source media="(prefers-color-scheme: dark)" src="docs/images/kafka-logo-readme-dark.svg">
   <img src="docs/images/kafka-logo-readme-light.svg" alt="Kafka Logo"> 
 </picture>
 </a>

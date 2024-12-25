@@ -65,6 +65,13 @@ import org.apache.kafka.common.utils.MockTime;
 import org.apache.kafka.common.utils.Utils;
 import org.apache.kafka.raft.internals.BatchBuilder;
 import org.apache.kafka.raft.internals.StringSerde;
+import org.apache.kafka.raft.utils.BeginQuorumEpochRpc;
+import org.apache.kafka.raft.utils.DescribeQuorumRpc;
+import org.apache.kafka.raft.utils.DynamicReconfigRpc;
+import org.apache.kafka.raft.utils.EndQuorumEpochRpc;
+import org.apache.kafka.raft.utils.FetchRpc;
+import org.apache.kafka.raft.utils.FetchSnapshotRpc;
+import org.apache.kafka.raft.utils.VoteRpc;
 import org.apache.kafka.server.common.Feature;
 import org.apache.kafka.server.common.KRaftVersion;
 import org.apache.kafka.server.common.serialization.RecordSerde;
@@ -99,7 +106,6 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.apache.kafka.raft.LeaderState.CHECK_QUORUM_TIMEOUT_FACTOR;
-import static org.apache.kafka.raft.RaftUtil.hasValidTopicPartition;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -764,7 +770,7 @@ public final class RaftClientTestContext {
         RaftMessage raftMessage = sentMessages.get(0);
         assertInstanceOf(VoteResponseData.class, raftMessage.data());
         VoteResponseData response = (VoteResponseData) raftMessage.data();
-        assertTrue(hasValidTopicPartition(response, metadataPartition));
+        assertTrue(VoteRpc.hasValidTopicPartition(response, metadataPartition));
 
         VoteResponseData.PartitionData partitionResponse = response.topics().get(0).partitions().get(0);
 
@@ -1324,7 +1330,7 @@ public final class RaftClientTestContext {
         int epoch,
         OptionalInt leaderId
     ) {
-        return RaftUtil.singletonEndQuorumEpochResponse(
+        return EndQuorumEpochRpc.singletonEndQuorumEpochResponse(
             channel.listenerName(),
             endQuorumEpochRpcVersion(),
             Errors.NONE,
@@ -1355,7 +1361,7 @@ public final class RaftClientTestContext {
         int leaderId,
         List<ReplicaKey> preferredCandidates
     ) {
-        return RaftUtil.singletonEndQuorumEpochRequest(
+        return EndQuorumEpochRpc.singletonEndQuorumEpochRequest(
             metadataPartition,
             clusterId,
             epoch,
@@ -1406,7 +1412,7 @@ public final class RaftClientTestContext {
         Endpoints endpoints,
         ReplicaKey voterKey
     ) {
-        return RaftUtil.singletonBeginQuorumEpochRequest(
+        return BeginQuorumEpochRpc.singletonBeginQuorumEpochRequest(
             metadataPartition,
             clusterId,
             epoch,
@@ -1417,7 +1423,7 @@ public final class RaftClientTestContext {
     }
 
     BeginQuorumEpochResponseData beginEpochResponse(int epoch, int leaderId) {
-        return RaftUtil.singletonBeginQuorumEpochResponse(
+        return BeginQuorumEpochRpc.singletonBeginQuorumEpochResponse(
             channel.listenerName(),
             beginQuorumEpochRpcVersion(),
             Errors.NONE,
@@ -1493,7 +1499,7 @@ public final class RaftClientTestContext {
         long lastEpochOffset,
         boolean preVote
     ) {
-        return RaftUtil.singletonVoteRequest(
+        return VoteRpc.singletonVoteRequest(
                 metadataPartition,
                 clusterId,
                 epoch,
@@ -1506,7 +1512,7 @@ public final class RaftClientTestContext {
     }
 
     VoteResponseData voteResponse(boolean voteGranted, OptionalInt leaderId, int epoch) {
-        return RaftUtil.singletonVoteResponse(
+        return VoteRpc.singletonVoteResponse(
             channel.listenerName(),
             voteRpcVersion(),
             Errors.NONE,
@@ -1520,7 +1526,7 @@ public final class RaftClientTestContext {
     }
 
     private VoteRequestData.PartitionData unwrap(VoteRequestData voteRequest) {
-        assertTrue(RaftUtil.hasValidTopicPartition(voteRequest, metadataPartition));
+        assertTrue(VoteRpc.hasValidTopicPartition(voteRequest, metadataPartition));
         return voteRequest.topics().get(0).partitions().get(0);
     }
 
@@ -1631,7 +1637,7 @@ public final class RaftClientTestContext {
         int lastFetchedEpoch,
         int maxWaitTimeMs
     ) {
-        FetchRequestData request = RaftUtil.singletonFetchRequest(
+        FetchRequestData request = FetchRpc.singletonFetchRequest(
             metadataPartition,
             metadataTopicId,
             fetchPartition -> {
@@ -1660,7 +1666,7 @@ public final class RaftClientTestContext {
         long highWatermark,
         Errors error
     ) {
-        return RaftUtil.singletonFetchResponse(
+        return FetchRpc.singletonFetchResponse(
             channel.listenerName(),
             fetchRpcVersion(),
             metadataPartition,
@@ -1688,7 +1694,7 @@ public final class RaftClientTestContext {
         int divergingEpoch,
         long highWatermark
     ) {
-        return RaftUtil.singletonFetchResponse(
+        return FetchRpc.singletonFetchResponse(
             channel.listenerName(),
             fetchRpcVersion(),
             metadataPartition,
@@ -1716,7 +1722,7 @@ public final class RaftClientTestContext {
         OffsetAndEpoch snapshotId,
         long highWatermark
     ) {
-        return RaftUtil.singletonFetchResponse(
+        return FetchRpc.singletonFetchResponse(
             channel.listenerName(),
             fetchRpcVersion(),
             metadataPartition,
@@ -1742,7 +1748,7 @@ public final class RaftClientTestContext {
         int leaderId,
         UnaryOperator<FetchSnapshotResponseData.PartitionSnapshot> operator
     ) {
-        return RaftUtil.singletonFetchSnapshotResponse(
+        return FetchSnapshotRpc.singletonFetchSnapshotResponse(
             channel.listenerName(),
             fetchSnapshotRpcVersion(),
             metadataPartition,
@@ -1753,7 +1759,7 @@ public final class RaftClientTestContext {
     }
 
     DescribeQuorumRequestData describeQuorumRequest() {
-        return RaftUtil.singletonDescribeQuorumRequest(metadataPartition);
+        return DescribeQuorumRpc.singletonDescribeQuorumRequest(metadataPartition);
     }
 
     AddRaftVoterRequestData addVoterRequest(
@@ -1775,7 +1781,7 @@ public final class RaftClientTestContext {
         ReplicaKey voter,
         Endpoints endpoints
     ) {
-        return RaftUtil.addVoterRequest(
+        return DynamicReconfigRpc.addVoterRequest(
             clusterId,
             timeoutMs,
             voter,
@@ -1788,7 +1794,7 @@ public final class RaftClientTestContext {
     }
 
     RemoveRaftVoterRequestData removeVoterRequest(String cluster, ReplicaKey voter) {
-        return RaftUtil.removeVoterRequest(cluster, voter);
+        return DynamicReconfigRpc.removeVoterRequest(cluster, voter);
     }
 
     UpdateRaftVoterRequestData updateVoterRequest(
@@ -1806,14 +1812,14 @@ public final class RaftClientTestContext {
         SupportedVersionRange supportedVersions,
         Endpoints endpoints
     ) {
-        return RaftUtil.updateVoterRequest(clusterId, voter, epoch, supportedVersions, endpoints);
+        return DynamicReconfigRpc.updateVoterRequest(clusterId, voter, epoch, supportedVersions, endpoints);
     }
 
     UpdateRaftVoterResponseData updateVoterResponse(
         Errors error,
         LeaderAndEpoch leaderAndEpoch
     ) {
-        return RaftUtil.updateVoterResponse(
+        return DynamicReconfigRpc.updateVoterResponse(
             error,
             channel.listenerName(),
             leaderAndEpoch,

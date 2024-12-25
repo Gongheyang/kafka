@@ -51,6 +51,13 @@ import org.apache.kafka.common.record.MemoryRecordsBuilder;
 import org.apache.kafka.common.record.Records;
 import org.apache.kafka.common.record.TimestampType;
 import org.apache.kafka.common.security.auth.SecurityProtocol;
+import org.apache.kafka.raft.utils.ApiMessageUtils;
+import org.apache.kafka.raft.utils.BeginQuorumEpochRpc;
+import org.apache.kafka.raft.utils.DescribeQuorumRpc;
+import org.apache.kafka.raft.utils.EndQuorumEpochRpc;
+import org.apache.kafka.raft.utils.FetchRpc;
+import org.apache.kafka.raft.utils.FetchSnapshotRpc;
+import org.apache.kafka.raft.utils.VoteRpc;
 
 import com.fasterxml.jackson.databind.JsonNode;
 
@@ -81,16 +88,16 @@ public class RaftUtilTest {
     @Test
     public void testErrorResponse() {
         assertEquals(new VoteResponseData().setErrorCode(Errors.NONE.code()),
-                RaftUtil.errorResponse(ApiKeys.VOTE, Errors.NONE));
+                ApiMessageUtils.parseErrorResponse(ApiKeys.VOTE, Errors.NONE));
         assertEquals(new BeginQuorumEpochResponseData().setErrorCode(Errors.NONE.code()),
-                RaftUtil.errorResponse(ApiKeys.BEGIN_QUORUM_EPOCH, Errors.NONE));
+                ApiMessageUtils.parseErrorResponse(ApiKeys.BEGIN_QUORUM_EPOCH, Errors.NONE));
         assertEquals(new EndQuorumEpochResponseData().setErrorCode(Errors.NONE.code()),
-                RaftUtil.errorResponse(ApiKeys.END_QUORUM_EPOCH, Errors.NONE));
+                ApiMessageUtils.parseErrorResponse(ApiKeys.END_QUORUM_EPOCH, Errors.NONE));
         assertEquals(new FetchResponseData().setErrorCode(Errors.NONE.code()),
-                RaftUtil.errorResponse(ApiKeys.FETCH, Errors.NONE));
+                ApiMessageUtils.parseErrorResponse(ApiKeys.FETCH, Errors.NONE));
         assertEquals(new FetchSnapshotResponseData().setErrorCode(Errors.NONE.code()),
-                RaftUtil.errorResponse(ApiKeys.FETCH_SNAPSHOT, Errors.NONE));
-        assertThrows(IllegalArgumentException.class, () -> RaftUtil.errorResponse(ApiKeys.PRODUCE, Errors.NONE));
+                ApiMessageUtils.parseErrorResponse(ApiKeys.FETCH_SNAPSHOT, Errors.NONE));
+        assertThrows(IllegalArgumentException.class, () -> ApiMessageUtils.parseErrorResponse(ApiKeys.PRODUCE, Errors.NONE));
     }
 
     private static Stream<Arguments> singletonFetchRequestTestCases() {
@@ -327,7 +334,7 @@ public class RaftUtilTest {
     @ParameterizedTest
     @MethodSource("singletonFetchRequestTestCases")
     public void testSingletonFetchRequestForAllVersion(final FetchRequestTestCase testCase) {
-        FetchRequestData fetchRequestData = RaftUtil.singletonFetchRequest(topicPartition, Uuid.ONE_UUID,
+        FetchRequestData fetchRequestData = FetchRpc.singletonFetchRequest(topicPartition, Uuid.ONE_UUID,
                 partition -> partition
                         .setPartitionMaxBytes(10)
                         .setCurrentLeaderEpoch(5)
@@ -351,7 +358,7 @@ public class RaftUtilTest {
         final int producerId = 1;
         final int firstOffset = 10;
 
-        FetchResponseData fetchResponseData = RaftUtil.singletonFetchResponse(
+        FetchResponseData fetchResponseData = FetchRpc.singletonFetchResponse(
                 listenerName,
                 testCase.version,
                 topicPartition,
@@ -387,7 +394,7 @@ public class RaftUtilTest {
         int lastEpoch = 1000;
         long lastEpochOffset = 1000;
 
-        VoteRequestData voteRequestData = RaftUtil.singletonVoteRequest(
+        VoteRequestData voteRequestData = VoteRpc.singletonVoteRequest(
             topicPartition,
             clusterId,
             replicaEpoch,
@@ -407,7 +414,7 @@ public class RaftUtilTest {
         int leaderEpoch = 1;
         int leaderId = 1;
 
-        VoteResponseData voteResponseData = RaftUtil.singletonVoteResponse(
+        VoteResponseData voteResponseData = VoteRpc.singletonVoteResponse(
                 listenerName,
                 version,
                 Errors.NONE,
@@ -431,7 +438,7 @@ public class RaftUtilTest {
         int maxBytes = 1000;
         int position = 10;
 
-        FetchSnapshotRequestData fetchSnapshotRequestData = RaftUtil.singletonFetchSnapshotRequest(
+        FetchSnapshotRequestData fetchSnapshotRequestData = FetchSnapshotRpc.singletonFetchSnapshotRequest(
                 clusterId,
                 ReplicaKey.of(1, directoryId),
                 topicPartition,
@@ -449,7 +456,7 @@ public class RaftUtilTest {
     public void testSingletonFetchSnapshotResponseForAllVersion(final short version, final String expectedJson) {
         int leaderId = 1;
 
-        FetchSnapshotResponseData fetchSnapshotResponseData = RaftUtil.singletonFetchSnapshotResponse(
+        FetchSnapshotResponseData fetchSnapshotResponseData = FetchSnapshotRpc.singletonFetchSnapshotResponse(
                 listenerName,
                 version,
                 topicPartition,
@@ -468,7 +475,7 @@ public class RaftUtilTest {
         int leaderEpoch = 1;
         int leaderId = 1;
 
-        BeginQuorumEpochRequestData beginQuorumEpochRequestData = RaftUtil.singletonBeginQuorumEpochRequest(
+        BeginQuorumEpochRequestData beginQuorumEpochRequestData = BeginQuorumEpochRpc.singletonBeginQuorumEpochRequest(
                 topicPartition,
                 clusterId,
                 leaderEpoch,
@@ -486,7 +493,7 @@ public class RaftUtilTest {
         int leaderEpoch = 1;
         int leaderId = 1;
 
-        BeginQuorumEpochResponseData beginQuorumEpochResponseData = RaftUtil.singletonBeginQuorumEpochResponse(
+        BeginQuorumEpochResponseData beginQuorumEpochResponseData = BeginQuorumEpochRpc.singletonBeginQuorumEpochResponse(
                 listenerName,
                 version,
                 Errors.NONE,
@@ -506,7 +513,7 @@ public class RaftUtilTest {
         int leaderEpoch = 1;
         int leaderId = 1;
 
-        EndQuorumEpochRequestData endQuorumEpochRequestData = RaftUtil.singletonEndQuorumEpochRequest(
+        EndQuorumEpochRequestData endQuorumEpochRequestData = EndQuorumEpochRpc.singletonEndQuorumEpochRequest(
                 topicPartition,
                 clusterId,
                 leaderEpoch,
@@ -523,7 +530,7 @@ public class RaftUtilTest {
         int leaderEpoch = 1;
         int leaderId = 1;
 
-        EndQuorumEpochResponseData endQuorumEpochResponseData = RaftUtil.singletonEndQuorumEpochResponse(
+        EndQuorumEpochResponseData endQuorumEpochResponseData = EndQuorumEpochRpc.singletonEndQuorumEpochResponse(
                 listenerName,
                 version,
                 Errors.NONE,
@@ -540,7 +547,7 @@ public class RaftUtilTest {
     @ParameterizedTest
     @MethodSource("describeQuorumRequestTestCases")
     public void testSingletonDescribeQuorumRequestForAllVersion(final short version, final String expectedJson) {
-        DescribeQuorumRequestData describeQuorumRequestData = RaftUtil.singletonDescribeQuorumRequest(topicPartition);
+        DescribeQuorumRequestData describeQuorumRequestData = DescribeQuorumRpc.singletonDescribeQuorumRequest(topicPartition);
         JsonNode json = DescribeQuorumRequestDataJsonConverter.write(describeQuorumRequestData, version);
         assertEquals(expectedJson, json.toString());
     }
@@ -555,7 +562,7 @@ public class RaftUtilTest {
         LeaderState.ReplicaState replicaState =
                 new LeaderState.ReplicaState(replicaKey, true, Endpoints.empty());
 
-        DescribeQuorumResponseData describeQuorumResponseData = RaftUtil.singletonDescribeQuorumResponse(
+        DescribeQuorumResponseData describeQuorumResponseData = DescribeQuorumRpc.singletonDescribeQuorumResponse(
                 version,
                 topicPartition,
                 leaderId,

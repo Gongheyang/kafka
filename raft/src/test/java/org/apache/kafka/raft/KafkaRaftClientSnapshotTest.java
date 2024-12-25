@@ -26,6 +26,7 @@ import org.apache.kafka.common.record.MemoryRecords;
 import org.apache.kafka.common.record.UnalignedMemoryRecords;
 import org.apache.kafka.common.requests.FetchSnapshotRequest;
 import org.apache.kafka.raft.internals.StringSerde;
+import org.apache.kafka.raft.utils.FetchSnapshotRpc;
 import org.apache.kafka.snapshot.RawSnapshotReader;
 import org.apache.kafka.snapshot.RawSnapshotWriter;
 import org.apache.kafka.snapshot.RecordsSnapshotWriter;
@@ -2112,7 +2113,7 @@ public final class KafkaRaftClientSnapshotTest {
             int maxBytes,
             long position
     ) {
-        return RaftUtil.singletonFetchSnapshotRequest(
+        return FetchSnapshotRpc.singletonFetchSnapshotRequest(
             null,
             ReplicaKey.of(-1, ReplicaKey.NO_DIRECTORY_ID),
             topicPartition,
@@ -2132,7 +2133,7 @@ public final class KafkaRaftClientSnapshotTest {
         int maxBytes,
         long position
     ) {
-        return RaftUtil.singletonFetchSnapshotRequest(
+        return FetchSnapshotRpc.singletonFetchSnapshotRequest(
             clusterId,
             replicaKey,
             topicPartition,

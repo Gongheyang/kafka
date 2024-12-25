@@ -57,6 +57,7 @@ import org.apache.kafka.clients.admin.internals.DescribeTransactionsHandler;
 import org.apache.kafka.clients.admin.internals.FenceProducersHandler;
 import org.apache.kafka.clients.admin.internals.ListConsumerGroupOffsetsHandler;
 import org.apache.kafka.clients.admin.internals.ListOffsetsHandler;
+import org.apache.kafka.clients.admin.internals.ListShareGroupOffsetsHandler;
 import org.apache.kafka.clients.admin.internals.ListTransactionsHandler;
 import org.apache.kafka.clients.admin.internals.PartitionLeaderStrategy;
 import org.apache.kafka.clients.admin.internals.RemoveMembersFromConsumerGroupHandler;
@@ -3794,6 +3795,17 @@ public class KafkaAdminClient extends AdminClient {
         invokeDriver(handler, future, options.timeoutMs);
         return new DescribeShareGroupsResult(future.all().entrySet().stream()
                 .collect(Collectors.toMap(entry -> entry.getKey().idValue, Map.Entry::getValue)));
+    }
+
+    @Override
+    public ListShareGroupOffsetsResult listShareGroupOffsets(Map<String, ListShareGroupOffsetsSpec> groupSpecs,
+                                                             ListShareGroupOffsetsOptions options) {
+        SimpleAdminApiFuture<CoordinatorKey, Map<TopicPartition, Long>> future =
+            ListShareGroupOffsetsHandler.newFuture(groupSpecs.keySet());
+        ListShareGroupOffsetsHandler handler =
+            new ListShareGroupOffsetsHandler(groupSpecs, logContext);
+        invokeDriver(handler, future, options.timeoutMs);
+        return new ListShareGroupOffsetsResult(future.all());
     }
 
     @Override

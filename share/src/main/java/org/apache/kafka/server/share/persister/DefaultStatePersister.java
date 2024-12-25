@@ -20,6 +20,7 @@ package org.apache.kafka.server.share.persister;
 import org.apache.kafka.common.Uuid;
 import org.apache.kafka.common.protocol.Errors;
 import org.apache.kafka.common.requests.ReadShareGroupStateResponse;
+import org.apache.kafka.common.requests.ReadShareGroupStateSummaryResponse;
 import org.apache.kafka.common.requests.WriteShareGroupStateResponse;
 
 import org.slf4j.Logger;
@@ -288,7 +289,97 @@ public class DefaultStatePersister implements Persister {
      * @return A completable future of  ReadShareGroupStateSummaryResult
      */
     public CompletableFuture<ReadShareGroupStateSummaryResult> readSummary(ReadShareGroupStateSummaryParameters request) {
-        throw new RuntimeException("not implemented");
+        try {
+            validate(request);
+        } catch (Exception e) {
+            log.error("Unable to validate read state summary request", e);
+            return CompletableFuture.failedFuture(e);
+        }
+        GroupTopicPartitionData<PartitionIdLeaderEpochData> gtp = request.groupTopicPartitionData();
+        String groupId = gtp.groupId();
+        Map<Uuid, Map<Integer, CompletableFuture<ReadShareGroupStateSummaryResponse>>> futureMap = new HashMap<>();
+        List<PersisterStateManager.ReadStateSummaryHandler> handlers = new ArrayList<>();
+
+        gtp.topicsData().forEach(topicData -> {
+            topicData.partitions().forEach(partitionData -> {
+                CompletableFuture<ReadShareGroupStateSummaryResponse> future = futureMap
+                    .computeIfAbsent(topicData.topicId(), k -> new HashMap<>())
+                    .computeIfAbsent(partitionData.partition(), k -> new CompletableFuture<>());
+
+                handlers.add(
+                    stateManager.new ReadStateSummaryHandler(
+                        groupId,
+                        topicData.topicId(),
+                        partitionData.partition(),
+                        partitionData.leaderEpoch(),
+                        future,
+                        null)
+                );
+            });
+        });
+
+        for (PersisterStateManager.PersisterStateManagerHandler handler : handlers) {
+            stateManager.enqueue(handler);
+        }
+
+        // Combine all futures into a single CompletableFuture<Void>
+        CompletableFuture<Void> combinedFuture = CompletableFuture.allOf(
+            handlers.stream()
+                .map(PersisterStateManager.ReadStateSummaryHandler::result)
+                .toArray(CompletableFuture[]::new));
+
+        // Transform the combined CompletableFuture<Void> into CompletableFuture<ReadShareGroupStateResult>
+        return combinedFuture.thenApply(v -> readSummaryResponsesToResult(futureMap));
+    }
+
+    /**
+     * Takes in a list of COMPLETED futures and combines the results,
+     * taking care of errors if any, into a single ReadShareGroupStateSummaryResult
+     *
+     * @param futureMap - HashMap of {topic -> {part -> future}}
+     * @return Object representing combined result of type ReadShareGroupStateSummaryResult
+     */
+    // visible for testing
+    ReadShareGroupStateSummaryResult readSummaryResponsesToResult(
+        Map<Uuid, Map<Integer, CompletableFuture<ReadShareGroupStateSummaryResponse>>> futureMap
+    ) {
+        List<TopicData<PartitionStateErrorData>> topicsData = futureMap.keySet().stream()
+            .map(topicId -> {
+                List<PartitionStateErrorData> partitionAllData = futureMap.get(topicId).entrySet().stream()
+                    .map(partitionFuture -> {
+                        int partition = partitionFuture.getKey();
+                        CompletableFuture<ReadShareGroupStateSummaryResponse> future = partitionFuture.getValue();
+                        try {
+                            // already completed because of allOf call in the caller
+                            ReadShareGroupStateSummaryResponse partitionResponse = future.join();
+                            return partitionResponse.data().results().get(0).partitions().stream()
+                                .map(partitionResult -> PartitionFactory.newPartitionStateErrorData(
+                                    partitionResult.partition(),
+                                    partitionResult.stateEpoch(),
+                                    partitionResult.startOffset(),
+                                    partitionResult.errorCode(),
+                                    partitionResult.errorMessage()
+                                ))
+                                .collect(Collectors.toList());
+                        } catch (Exception e) {
+                            log.error("Unexpected exception while getting data from share coordinator", e);
+                            return Collections.singletonList(PartitionFactory.newPartitionStateErrorData(
+                                partition,
+                                -1,
+                                -1,
+                                Errors.UNKNOWN_SERVER_ERROR.code(),   // No specific public error code exists for InterruptedException / ExecutionException
+                                "Error reading state from share coordinator: " + e.getMessage())
+                            );
+                        }
+                    })
+                    .flatMap(List::stream)
+                    .collect(Collectors.toList());
+                return new TopicData<>(topicId, partitionAllData);
+            })
+            .collect(Collectors.toList());
+        return new ReadShareGroupStateSummaryResult.Builder()
+            .setTopicsData(topicsData)
+            .build();
     }
 
     private static void validate(WriteShareGroupStateParameters params) {
@@ -305,6 +396,18 @@ public class DefaultStatePersister implements Persister {
 
     private static void validate(ReadShareGroupStateParameters params) {
         String prefix = "Read share group parameters";
+        if (params == null) {
+            throw new IllegalArgumentException(prefix + " cannot be null.");
+        }
+        if (params.groupTopicPartitionData() == null) {
+            throw new IllegalArgumentException(prefix + " data cannot be null.");
+        }
+
+        validateGroupTopicPartitionData(prefix, params.groupTopicPartitionData());
+    }
+
+    private static void validate(ReadShareGroupStateSummaryParameters params) {
+        String prefix = "Read share group summary parameters";
         if (params == null) {
             throw new IllegalArgumentException(prefix + " cannot be null.");
         }

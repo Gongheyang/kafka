@@ -275,6 +275,81 @@ class DefaultStatePersisterTest {
     }
 
     @Test
+    public void testReadSummaryValidate() {
+
+        String groupId = "group1";
+        Uuid topicId = Uuid.randomUuid();
+        int partition = 0;
+        int incorrectPartition = -1;
+
+        // Request Parameters are null
+        DefaultStatePersister defaultStatePersister = DefaultStatePersisterBuilder.builder().build();
+        CompletableFuture<ReadShareGroupStateSummaryResult> result = defaultStatePersister.readSummary(null);
+        assertTrue(result.isDone());
+        assertTrue(result.isCompletedExceptionally());
+        assertFutureThrows(result, IllegalArgumentException.class);
+
+        // groupTopicPartitionData is null
+        defaultStatePersister = DefaultStatePersisterBuilder.builder().build();
+        result = defaultStatePersister.readSummary(new ReadShareGroupStateSummaryParameters.Builder().setGroupTopicPartitionData(null).build());
+        assertTrue(result.isDone());
+        assertTrue(result.isCompletedExceptionally());
+        assertFutureThrows(result, IllegalArgumentException.class);
+
+        // groupId is null
+        defaultStatePersister = DefaultStatePersisterBuilder.builder().build();
+        result = defaultStatePersister.readSummary(new ReadShareGroupStateSummaryParameters.Builder()
+            .setGroupTopicPartitionData(new GroupTopicPartitionData.Builder<PartitionIdLeaderEpochData>()
+                .setGroupId(null).build()).build());
+        assertTrue(result.isDone());
+        assertTrue(result.isCompletedExceptionally());
+        assertFutureThrows(result, IllegalArgumentException.class);
+
+        // topicsData is empty
+        defaultStatePersister = DefaultStatePersisterBuilder.builder().build();
+        result = defaultStatePersister.readSummary(new ReadShareGroupStateSummaryParameters.Builder()
+            .setGroupTopicPartitionData(new GroupTopicPartitionData.Builder<PartitionIdLeaderEpochData>()
+                .setGroupId(groupId)
+                .setTopicsData(Collections.emptyList()).build()).build());
+        assertTrue(result.isDone());
+        assertTrue(result.isCompletedExceptionally());
+        assertFutureThrows(result, IllegalArgumentException.class);
+
+        // topicId is null
+        defaultStatePersister = DefaultStatePersisterBuilder.builder().build();
+        result = defaultStatePersister.readSummary(new ReadShareGroupStateSummaryParameters.Builder()
+            .setGroupTopicPartitionData(new GroupTopicPartitionData.Builder<PartitionIdLeaderEpochData>()
+                .setGroupId(groupId)
+                .setTopicsData(Collections.singletonList(new TopicData<>(null,
+                    Collections.singletonList(PartitionFactory.newPartitionIdLeaderEpochData(partition, 1))))
+                ).build()).build());
+        assertTrue(result.isDone());
+        assertTrue(result.isCompletedExceptionally());
+        assertFutureThrows(result, IllegalArgumentException.class);
+
+        // partitionData is empty
+        defaultStatePersister = DefaultStatePersisterBuilder.builder().build();
+        result = defaultStatePersister.readSummary(new ReadShareGroupStateSummaryParameters.Builder()
+            .setGroupTopicPartitionData(new GroupTopicPartitionData.Builder<PartitionIdLeaderEpochData>()
+                .setGroupId(groupId)
+                .setTopicsData(Collections.singletonList(new TopicData<>(topicId, Collections.emptyList()))).build()).build());
+        assertTrue(result.isDone());
+        assertTrue(result.isCompletedExceptionally());
+        assertFutureThrows(result, IllegalArgumentException.class);
+
+        // partition value is incorrect
+        defaultStatePersister = DefaultStatePersisterBuilder.builder().build();
+        result = defaultStatePersister.readSummary(new ReadShareGroupStateSummaryParameters.Builder()
+            .setGroupTopicPartitionData(new GroupTopicPartitionData.Builder<PartitionIdLeaderEpochData>()
+                .setGroupId(groupId)
+                .setTopicsData(Collections.singletonList(new TopicData<>(topicId,
+                    Collections.singletonList(PartitionFactory.newPartitionIdLeaderEpochData(incorrectPartition, 1))))).build()).build());
+        assertTrue(result.isDone());
+        assertTrue(result.isCompletedExceptionally());
+        assertFutureThrows(result, IllegalArgumentException.class);
+    }
+
+    @Test
     public void testWriteStateSuccess() {
 
         MockClient client = new MockClient(MOCK_TIME);
@@ -575,6 +650,139 @@ class DefaultStatePersisterTest {
         assertEquals(2, result.topicsData().size());
         assertEquals(expectedResultMap, resultMap);
     }
+
+//    @Test
+//    public void testReadSummarySuccess() {
+//
+//        MockClient client = new MockClient(MOCK_TIME);
+//
+//        String groupId = "group1";
+//        Uuid topicId1 = Uuid.randomUuid();
+//        int partition1 = 10;
+//
+//        Uuid topicId2 = Uuid.randomUuid();
+//        int partition2 = 8;
+//
+//        Node suppliedNode = new Node(0, HOST, PORT);
+//        Node coordinatorNode1 = new Node(5, HOST, PORT);
+//        Node coordinatorNode2 = new Node(6, HOST, PORT);
+//
+//        String coordinatorKey1 = SharePartitionKey.asCoordinatorKey(groupId, topicId1, partition1);
+//        String coordinatorKey2 = SharePartitionKey.asCoordinatorKey(groupId, topicId2, partition2);
+//
+//        client.prepareResponseFrom(body -> body instanceof FindCoordinatorRequest
+//                        && ((FindCoordinatorRequest) body).data().keyType() == FindCoordinatorRequest.CoordinatorType.SHARE.id()
+//                        && ((FindCoordinatorRequest) body).data().coordinatorKeys().get(0).equals(coordinatorKey1),
+//                new FindCoordinatorResponse(
+//                        new FindCoordinatorResponseData()
+//                                .setCoordinators(Collections.singletonList(
+//                                        new FindCoordinatorResponseData.Coordinator()
+//                                                .setNodeId(5)
+//                                                .setHost(HOST)
+//                                                .setPort(PORT)
+//                                                .setErrorCode(Errors.NONE.code())
+//                                ))
+//                ),
+//                suppliedNode
+//        );
+//
+//        client.prepareResponseFrom(body -> body instanceof FindCoordinatorRequest
+//                        && ((FindCoordinatorRequest) body).data().keyType() == FindCoordinatorRequest.CoordinatorType.SHARE.id()
+//                        && ((FindCoordinatorRequest) body).data().coordinatorKeys().get(0).equals(coordinatorKey2),
+//                new FindCoordinatorResponse(
+//                        new FindCoordinatorResponseData()
+//                                .setCoordinators(Collections.singletonList(
+//                                        new FindCoordinatorResponseData.Coordinator()
+//                                                .setNodeId(6)
+//                                                .setHost(HOST)
+//                                                .setPort(PORT)
+//                                                .setErrorCode(Errors.NONE.code())
+//                                ))
+//                ),
+//                suppliedNode
+//        );
+//
+//        client.prepareResponseFrom(
+//                body -> {
+//                    ReadShareGroupStateSummaryRequest request = (ReadShareGroupStateSummaryRequest) body;
+//                    String requestGroupId = request.data().groupId();
+//                    Uuid requestTopicId = request.data().topics().get(0).topicId();
+//                    int requestPartition = request.data().topics().get(0).partitions().get(0).partition();
+//
+//                    return requestGroupId.equals(groupId) && requestTopicId == topicId1 && requestPartition == partition1;
+//                },
+//                new ReadShareGroupStateSummaryResponse(ReadShareGroupStateSummaryResponse.toResponseData(topicId1, partition1, 0, 1)),
+//                coordinatorNode1);
+//
+//        client.prepareResponseFrom(
+//                body -> {
+//                    ReadShareGroupStateSummaryRequest request = (ReadShareGroupStateSummaryRequest) body;
+//                    String requestGroupId = request.data().groupId();
+//                    Uuid requestTopicId = request.data().topics().get(0).topicId();
+//                    int requestPartition = request.data().topics().get(0).partitions().get(0).partition();
+//
+//                    return requestGroupId.equals(groupId) && requestTopicId == topicId2 && requestPartition == partition2;
+//                },
+//                new ReadShareGroupStateSummaryResponse(ReadShareGroupStateSummaryResponse.toResponseData(topicId2, partition2, 0, 1)),
+//                coordinatorNode2);
+//
+//        ShareCoordinatorMetadataCacheHelper cacheHelper = getDefaultCacheHelper(suppliedNode);
+//
+//        DefaultStatePersister defaultStatePersister = DefaultStatePersisterBuilder.builder()
+//                .withKafkaClient(client)
+//                .withCacheHelper(cacheHelper)
+//                .build();
+//
+//        ReadShareGroupStateSummaryParameters request = ReadShareGroupStateSummaryParameters.from(
+//                new ReadShareGroupStateSummaryRequestData()
+//                        .setGroupId(groupId)
+//                        .setTopics(Arrays.asList(
+//                                new ReadShareGroupStateSummaryRequestData.ReadStateSummaryData()
+//                                        .setTopicId(topicId1)
+//                                        .setPartitions(Collections.singletonList(
+//                                                new ReadShareGroupStateSummaryRequestData.PartitionData()
+//                                                        .setPartition(partition1)
+//                                                        .setLeaderEpoch(1)
+//                                        )),
+//                                new ReadShareGroupStateSummaryRequestData.ReadStateSummaryData()
+//                                        .setTopicId(topicId2)
+//                                        .setPartitions(Collections.singletonList(
+//                                                new ReadShareGroupStateSummaryRequestData.PartitionData()
+//                                                        .setPartition(partition2)
+//                                                        .setLeaderEpoch(1)
+//                                        ))
+//                        ))
+//        );
+//
+//        CompletableFuture<ReadShareGroupStateSummaryResult> resultFuture = defaultStatePersister.readSummary(request);
+//
+//        ReadShareGroupStateSummaryResult result = null;
+//        try {
+//            // adding long delay to allow for environment/GC issues
+//            result = resultFuture.get(10L, TimeUnit.SECONDS);
+//        } catch (Exception e) {
+//            fail("Unexpected exception", e);
+//        }
+//
+//        HashSet<PartitionData> resultMap = new HashSet<>();
+//        result.topicsData().forEach(
+//                topicData -> topicData.partitions().forEach(
+//                        partitionData -> resultMap.add((PartitionData) partitionData)
+//                )
+//        );
+//
+//        HashSet<PartitionData> expectedResultMap = new HashSet<>();
+//        expectedResultMap.add(
+//                (PartitionData) PartitionFactory.newPartitionStateErrorData(partition1, 1, 0, Errors.NONE.code(),
+//                        null));
+//
+//        expectedResultMap.add(
+//                (PartitionData) PartitionFactory.newPartitionStateErrorData(partition2, 1, 0, Errors.NONE.code(),
+//                        null));
+//
+//        assertEquals(2, result.topicsData().size());
+//        assertEquals(expectedResultMap, resultMap);
+//    }
 
     @Test
     public void testWriteStateResponseToResultPartialResults() {

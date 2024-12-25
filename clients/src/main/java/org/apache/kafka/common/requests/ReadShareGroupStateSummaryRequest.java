@@ -17,6 +17,7 @@
 
 package org.apache.kafka.common.requests;
 
+import org.apache.kafka.common.Uuid;
 import org.apache.kafka.common.message.ReadShareGroupStateSummaryRequestData;
 import org.apache.kafka.common.message.ReadShareGroupStateSummaryResponseData;
 import org.apache.kafka.common.protocol.ApiKeys;
@@ -86,5 +87,21 @@ public class ReadShareGroupStateSummaryRequest extends AbstractRequest {
                 new ReadShareGroupStateSummaryRequestData(new ByteBufferAccessor(buffer), version),
                 version
         );
+    }
+
+    public static List<ReadShareGroupStateSummaryResponseData.ReadStateSummaryResult> getErrorList(
+        List<Uuid> topicIds,
+        Errors error
+    ) {
+        return topicIds.stream()
+            .map(topicId ->
+                new ReadShareGroupStateSummaryResponseData.ReadStateSummaryResult()
+                    .setTopicId(topicId)
+                    .setPartitions(List.of(
+                        new ReadShareGroupStateSummaryResponseData.PartitionResult()
+                            .setErrorCode(error.code())
+                            .setErrorMessage(error.exceptionName())
+                    )
+            )).collect(Collectors.toList());
     }
 }

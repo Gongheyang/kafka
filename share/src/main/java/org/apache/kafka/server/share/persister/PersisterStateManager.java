@@ -28,6 +28,8 @@ import org.apache.kafka.common.message.FindCoordinatorRequestData;
 import org.apache.kafka.common.message.FindCoordinatorResponseData;
 import org.apache.kafka.common.message.ReadShareGroupStateRequestData;
 import org.apache.kafka.common.message.ReadShareGroupStateResponseData;
+import org.apache.kafka.common.message.ReadShareGroupStateSummaryRequestData;
+import org.apache.kafka.common.message.ReadShareGroupStateSummaryResponseData;
 import org.apache.kafka.common.message.WriteShareGroupStateRequestData;
 import org.apache.kafka.common.message.WriteShareGroupStateResponseData;
 import org.apache.kafka.common.protocol.ApiKeys;
@@ -38,6 +40,8 @@ import org.apache.kafka.common.requests.FindCoordinatorRequest;
 import org.apache.kafka.common.requests.FindCoordinatorResponse;
 import org.apache.kafka.common.requests.ReadShareGroupStateRequest;
 import org.apache.kafka.common.requests.ReadShareGroupStateResponse;
+import org.apache.kafka.common.requests.ReadShareGroupStateSummaryRequest;
+import org.apache.kafka.common.requests.ReadShareGroupStateSummaryResponse;
 import org.apache.kafka.common.requests.WriteShareGroupStateRequest;
 import org.apache.kafka.common.requests.WriteShareGroupStateResponse;
 import org.apache.kafka.common.utils.ExponentialBackoff;
@@ -730,6 +734,147 @@ public class PersisterStateManager {
         }
     }
 
+    public class ReadStateSummaryHandler extends PersisterStateManagerHandler {
+        private final int leaderEpoch;
+        private final CompletableFuture<ReadShareGroupStateSummaryResponse> result;
+        private final BackoffManager readStateBackoff;
+
+        public ReadStateSummaryHandler(
+                String groupId,
+                Uuid topicId,
+                int partition,
+                int leaderEpoch,
+                CompletableFuture<ReadShareGroupStateSummaryResponse> result,
+                long backoffMs,
+                long backoffMaxMs,
+                int maxRPCRetryAttempts,
+                Consumer<ClientResponse> onCompleteCallback
+        ) {
+            super(groupId, topicId, partition, backoffMs, backoffMaxMs, maxRPCRetryAttempts);
+            this.leaderEpoch = leaderEpoch;
+            this.result = result;
+            this.readStateBackoff = new BackoffManager(maxRPCRetryAttempts, backoffMs, backoffMaxMs);
+        }
+
+        public ReadStateSummaryHandler(
+                String groupId,
+                Uuid topicId,
+                int partition,
+                int leaderEpoch,
+                CompletableFuture<ReadShareGroupStateSummaryResponse> result,
+                Consumer<ClientResponse> onCompleteCallback
+        ) {
+            this(
+                    groupId,
+                    topicId,
+                    partition,
+                    leaderEpoch,
+                    result,
+                    REQUEST_BACKOFF_MS,
+                    REQUEST_BACKOFF_MAX_MS,
+                    MAX_FIND_COORD_ATTEMPTS,
+                    onCompleteCallback
+            );
+        }
+
+        @Override
+        protected String name() {
+            return "ReadStateSummaryHandler";
+        }
+
+        @Override
+        protected AbstractRequest.Builder<ReadShareGroupStateSummaryRequest> requestBuilder() {
+            throw new RuntimeException("Read Summary requests are batchable, hence individual requests not needed.");
+        }
+
+        @Override
+        protected boolean isResponseForRequest(ClientResponse response) {
+            return response.requestHeader().apiKey() == ApiKeys.READ_SHARE_GROUP_STATE_SUMMARY;
+        }
+
+        @Override
+        protected void handleRequestResponse(ClientResponse response) {
+            log.debug("Read state summary response received - {}", response);
+            readStateBackoff.incrementAttempt();
+
+            ReadShareGroupStateSummaryResponse combinedResponse = (ReadShareGroupStateSummaryResponse) response.responseBody();
+            for (ReadShareGroupStateSummaryResponseData.ReadStateSummaryResult readStateResult : combinedResponse.data().results()) {
+                if (readStateResult.topicId().equals(partitionKey().topicId())) {
+                    Optional<ReadShareGroupStateSummaryResponseData.PartitionResult> partitionStateData =
+                            readStateResult.partitions().stream().filter(partitionResult -> partitionResult.partition() == partitionKey().partition())
+                                    .findFirst();
+
+                    if (partitionStateData.isPresent()) {
+                        Errors error = Errors.forCode(partitionStateData.get().errorCode());
+                        switch (error) {
+                            case NONE:
+                                readStateBackoff.resetAttempts();
+                                ReadShareGroupStateSummaryResponseData.ReadStateSummaryResult result = ReadShareGroupStateSummaryResponse.toResponseReadStateSummaryResult(
+                                        partitionKey().topicId(),
+                                        List.of(partitionStateData.get())
+                                );
+                                this.result.complete(new ReadShareGroupStateSummaryResponse(new ReadShareGroupStateSummaryResponseData()
+                                        .setResults(Collections.singletonList(result))));
+                                return;
+
+                            // check retriable errors
+                            case COORDINATOR_NOT_AVAILABLE:
+                            case COORDINATOR_LOAD_IN_PROGRESS:
+                            case NOT_COORDINATOR:
+                                log.warn("Received retriable error in read state summary RPC for key {}: {}", partitionKey(), error.message());
+                                if (!readStateBackoff.canAttempt()) {
+                                    log.error("Exhausted max retries for read state summary RPC for key {} without success.", partitionKey());
+                                    readStateSummaryErrorReponse(error, new Exception("Exhausted max retries to complete read state RPC without success."));
+                                    return;
+                                }
+                                super.resetCoordinatorNode();
+                                timer.add(new PersisterTimerTask(readStateBackoff.backOff(), this));
+                                return;
+
+                            default:
+                                log.error("Unable to perform read state summary RPC for key {}: {}", partitionKey(), error.message());
+                                readStateSummaryErrorReponse(error, null);
+                                return;
+                        }
+                    }
+                }
+            }
+
+            // no response found specific topic partition
+            IllegalStateException exception = new IllegalStateException(
+                    "Failed to read state for share partition " + partitionKey()
+            );
+            readStateSummaryErrorReponse(Errors.forException(exception), exception);
+        }
+
+        protected void readStateSummaryErrorReponse(Errors error, Exception exception) {
+            this.result.complete(new ReadShareGroupStateSummaryResponse(
+                    ReadShareGroupStateSummaryResponse.toErrorResponseData(partitionKey().topicId(), partitionKey().partition(), error, "Error in find coordinator. " +
+                            (exception == null ? error.message() : exception.getMessage()))));
+        }
+
+        @Override
+        protected void findCoordinatorErrorResponse(Errors error, Exception exception) {
+            this.result.complete(new ReadShareGroupStateSummaryResponse(
+                    ReadShareGroupStateSummaryResponse.toErrorResponseData(partitionKey().topicId(), partitionKey().partition(), error, "Error in read state summary RPC. " +
+                            (exception == null ? error.message() : exception.getMessage()))));
+        }
+
+        protected CompletableFuture<ReadShareGroupStateSummaryResponse> result() {
+            return result;
+        }
+
+        @Override
+        protected boolean isBatchable() {
+            return true;
+        }
+
+        @Override
+        protected RPCType rpcType() {
+            return RPCType.SUMMARY;
+        }
+    }
+
     private class SendThread extends InterBrokerSendThread {
         private final ConcurrentLinkedQueue<PersisterStateManagerHandler> queue = new ConcurrentLinkedQueue<>();
         private final Random random;
@@ -912,6 +1057,8 @@ public class PersisterStateManager {
                     return coalesceWrites(groupId, handlers);
                 case READ:
                     return coalesceReads(groupId, handlers);
+                case SUMMARY:
+                    return coalesceReadSummarys(groupId, handlers);
                 default:
                     throw new RuntimeException("Unknown rpc type: " + rpcType);
             }
@@ -967,6 +1114,28 @@ public class PersisterStateManager {
                     .map(entry -> new ReadShareGroupStateRequestData.ReadStateData()
                         .setTopicId(entry.getKey())
                         .setPartitions(entry.getValue()))
+                    .collect(Collectors.toList())));
+        }
+
+        private static AbstractRequest.Builder<? extends AbstractRequest> coalesceReadSummarys(String groupId, List<? extends PersisterStateManagerHandler> handlers) {
+            Map<Uuid, List<ReadShareGroupStateSummaryRequestData.PartitionData>> partitionData = new HashMap<>();
+            handlers.forEach(persHandler -> {
+                assert persHandler instanceof ReadStateSummaryHandler;
+                ReadStateSummaryHandler handler = (ReadStateSummaryHandler) persHandler;
+                partitionData.computeIfAbsent(handler.partitionKey().topicId(), topicId -> new LinkedList<>())
+                    .add(
+                        new ReadShareGroupStateSummaryRequestData.PartitionData()
+                            .setPartition(handler.partitionKey().partition())
+                            .setLeaderEpoch(handler.leaderEpoch)
+                    );
+            });
+
+            return new ReadShareGroupStateSummaryRequest.Builder(new ReadShareGroupStateSummaryRequestData()
+                .setGroupId(groupId)
+                .setTopics(partitionData.entrySet().stream()
+                    .map(entry -> new ReadShareGroupStateSummaryRequestData.ReadStateSummaryData()
+                         .setTopicId(entry.getKey())
+                         .setPartitions(entry.getValue()))
                     .collect(Collectors.toList())));
         }
     }

@@ -32,6 +32,10 @@ public class ReadShareGroupStateSummaryResult implements PersisterResult {
         this.topicsData = topicsData;
     }
 
+    public List<TopicData<PartitionStateErrorData>> topicsData() {
+        return topicsData;
+    }
+
     public static ReadShareGroupStateSummaryResult from(ReadShareGroupStateSummaryResponseData data) {
         return new Builder()
                 .setTopicsData(data.results().stream()

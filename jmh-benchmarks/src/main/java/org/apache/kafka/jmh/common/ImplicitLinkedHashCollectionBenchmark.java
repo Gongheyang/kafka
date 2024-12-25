@@ -32,8 +32,11 @@ import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
+import org.openjdk.jmh.infra.Blackhole;
 
+import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 @State(Scope.Benchmark)
@@ -102,12 +105,15 @@ public class ImplicitLinkedHashCollectionBenchmark {
     private int size;
 
     private ImplicitLinkedHashCollection<TestElement> coll;
+    private List<TestElement> elements;
 
     @Setup(Level.Trial)
     public void setup() {
         coll = new ImplicitLinkedHashCollection<>();
+        elements = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             coll.add(new TestElement(Uuid.randomUuid().toString()));
+            elements.add(new TestElement("TestElement-" + i));
         }
     }
 
@@ -118,5 +124,27 @@ public class ImplicitLinkedHashCollectionBenchmark {
     public ImplicitLinkedHashCollection<TestElement> testCollectionSort() {
         coll.sort(TestElementComparator.INSTANCE);
         return coll;
+    }
+
+    @Benchmark
+    public void testCreateFromExpectedNumElements(Blackhole blackhole) {
+        ImplicitLinkedHashCollection<TestElement> sets = new ImplicitLinkedHashCollection<>(elements.size());
+        for (TestElement element : elements) {
+            element.setPrev(ImplicitLinkedHashCollection.INVALID_INDEX);
+            element.setNext(ImplicitLinkedHashCollection.INVALID_INDEX);
+            sets.mustAdd(element);
+        }
+        blackhole.consume(sets);
+    }
+
+    @Benchmark
+    public void testCreateFromEmpty(Blackhole blackhole) {
+        ImplicitLinkedHashCollection<TestElement> sets = new ImplicitLinkedHashCollection<>();
+        for (TestElement element : elements) {
+            element.setPrev(ImplicitLinkedHashCollection.INVALID_INDEX);
+            element.setNext(ImplicitLinkedHashCollection.INVALID_INDEX);
+            sets.mustAdd(element);
+        }
+        blackhole.consume(sets);
     }
 }

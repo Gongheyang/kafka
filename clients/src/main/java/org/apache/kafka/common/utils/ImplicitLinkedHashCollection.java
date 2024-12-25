@@ -397,7 +397,7 @@ public class ImplicitLinkedHashCollection<E extends ImplicitLinkedHashCollection
         if (newElement.prev() != INVALID_INDEX || newElement.next() != INVALID_INDEX) {
             return false;
         }
-        if ((size + 1) >= elements.length / 2) {
+        if (size >= elements.length / 2) {
             changeCapacity(calculateCapacity(elements.length));
         }
         int slot = addInternal(newElement, elements);
@@ -443,9 +443,7 @@ public class ImplicitLinkedHashCollection<E extends ImplicitLinkedHashCollection
         Element[] newElements = new Element[newCapacity];
         HeadElement newHead = new HeadElement();
         int oldSize = size;
-        for (Iterator<E> iter = iterator(); iter.hasNext(); ) {
-            Element element = iter.next();
-            iter.remove();
+        for (Element element : this) {
             int newSlot = addInternal(element, newElements);
             addToListTail(newHead, newElements, newSlot);
         }

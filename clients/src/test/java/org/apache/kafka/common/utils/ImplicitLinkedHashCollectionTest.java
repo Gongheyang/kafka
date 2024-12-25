@@ -475,13 +475,17 @@ public class ImplicitLinkedHashCollectionTest {
 
     @Test
     public void testEnlargement() {
-        ImplicitLinkedHashCollection<TestElement> coll = new ImplicitLinkedHashCollection<>(5);
+        int expectedNumElements = 5;
+        ImplicitLinkedHashCollection<TestElement> coll = new ImplicitLinkedHashCollection<>(expectedNumElements);
         assertEquals(11, coll.numSlots());
-        for (int i = 0; i < 6; i++) {
+        for (int i = 0; i < expectedNumElements; i++) {
             assertTrue(coll.add(new TestElement(i)));
         }
+        assertEquals(11, coll.numSlots());
+        assertEquals(expectedNumElements, coll.size());
+        assertTrue(coll.add(new TestElement(expectedNumElements)));
         assertEquals(23, coll.numSlots());
-        assertEquals(6, coll.size());
+        assertEquals(expectedNumElements + 1, coll.size());
         expectTraversal(coll.iterator(), 0, 1, 2, 3, 4, 5);
         for (int i = 0; i < 6; i++) {
             assertTrue(coll.contains(new TestElement(i)), "Failed to find element " + i);

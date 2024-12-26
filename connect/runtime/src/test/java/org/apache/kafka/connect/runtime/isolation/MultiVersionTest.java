@@ -107,6 +107,7 @@ public class MultiVersionTest {
     }
 
     public static final String DEFAULT_ISOLATED_ARTIFACTS_LATEST_VERSION;
+    public static final Set<String> DEFAULT_ISOLATED_ARTIFACTS_VERSIONS;
     public static final Map<Path, List<VersionedPluginBuilder.BuildInfo>> DEFAULT_ISOLATED_ARTIFACTS;
     public static final Map<Path, List<VersionedPluginBuilder.BuildInfo>> DEFAULT_COMBINED_ARTIFACT;
     public static final Plugins MULTI_VERSION_PLUGINS;
@@ -115,6 +116,7 @@ public class MultiVersionTest {
     static {
 
         String[] defaultIsolatedArtifactsVersions = new String[]{"1.1.0", "2.3.0", "4.3.0"};
+        DEFAULT_ISOLATED_ARTIFACTS_VERSIONS = new HashSet<>(Arrays.asList(defaultIsolatedArtifactsVersions));
         try {
             DEFAULT_ISOLATED_ARTIFACTS = buildIsolatedArtifacts(
                 defaultIsolatedArtifactsVersions, VersionedPluginBuilder.VersionedTestPlugin.values()

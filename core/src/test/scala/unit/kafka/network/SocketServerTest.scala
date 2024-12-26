@@ -85,6 +85,8 @@ class SocketServerTest {
 
   private val apiVersionManager = new SimpleApiVersionManager(ListenerType.BROKER, true,
     () => new FinalizedFeatures(MetadataVersion.latestTesting(), Collections.emptyMap[String, java.lang.Short], 0, true))
+  private val controllerApiVersionManager = new SimpleApiVersionManager(ListenerType.CONTROLLER, true,
+    () => new FinalizedFeatures(MetadataVersion.latestTesting(), Collections.emptyMap[String, java.lang.Short], 0, true))
   var server: SocketServer = _
   val sockets = new ArrayBuffer[Socket]
 
@@ -1882,7 +1884,9 @@ class SocketServerTest {
   def testControlPlaneTakePrecedenceOverInterBrokerListenerAsPrivilegedListener(): Unit = {
     val testProps = new Properties
     testProps ++= props
-    testProps.put("listeners", "EXTERNAL://localhost:0,INTERNAL://localhost:0")
+    testProps.put("process.roles", "broker,controller")
+    testProps.put("controller.quorum.voters", "0@localhost:0")
+    testProps.put("listeners", "EXTERNAL://localhost:0,INTERNAL://localhost:0,CONTROLLER://localhost:0")
     testProps.put("advertised.listeners", "EXTERNAL://localhost:0,INTERNAL://localhost:0")
     testProps.put("listener.security.protocol.map", "EXTERNAL:PLAINTEXT,INTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT")
     testProps.put("controller.listener.names", "CONTROLLER")
@@ -1903,7 +1907,7 @@ class SocketServerTest {
         localAddr = InetAddress.getLocalHost)
       val externalRequest = sendAndReceiveRequest(externalSocket, testableServer)
       assertFalse(externalRequest.context.fromPrivilegedListener)
-    })
+    }, startAsController = true)
   }
 
   @Test
@@ -2046,9 +2050,10 @@ class SocketServerTest {
   private def withTestableServer(config : KafkaConfig = KafkaConfig.fromProps(props),
                                  testWithServer: TestableSocketServer => Unit,
                                  startProcessingRequests: Boolean = true,
+                                 startAsController: Boolean = false,
                                  connectionDisconnectListeners: Seq[ConnectionDisconnectListener] = Seq.empty): Unit = {
     shutdownServerAndMetrics(server)
-    val testableServer = new TestableSocketServer(config, connectionDisconnectListeners = connectionDisconnectListeners)
+    val testableServer = new TestableSocketServer(config, startAsController=startAsController, connectionDisconnectListeners = connectionDisconnectListeners)
     if (startProcessingRequests) {
       testableServer.enableRequestProcessing(Map.empty).get(1, TimeUnit.MINUTES)
     }
@@ -2062,7 +2067,7 @@ class SocketServerTest {
 
   def sendAndReceiveControllerRequest(socket: Socket, server: SocketServer): RequestChannel.Request = {
     sendRequest(socket, producerRequestBytes())
-    receiveRequest(server.controlPlaneRequestChannelOpt.get)
+    receiveRequest(server.dataPlaneRequestChannel)
   }
 
   private def assertProcessorHealthy(testableServer: TestableSocketServer, healthySockets: Seq[Socket] = Seq.empty): Unit = {
@@ -2207,10 +2212,12 @@ class SocketServerTest {
   class TestableSocketServer(
     config : KafkaConfig = KafkaConfig.fromProps(props),
     connectionQueueSize: Int = 20,
+    startAsController: Boolean = false,
     time: Time = Time.SYSTEM,
     connectionDisconnectListeners: Seq[ConnectionDisconnectListener] = Seq.empty
   ) extends SocketServer(
-    config, new Metrics, time, credentialProvider, apiVersionManager, connectionDisconnectListeners = connectionDisconnectListeners
+    config, new Metrics, time, credentialProvider, if(startAsController) controllerApiVersionManager else apiVersionManager,
+    connectionDisconnectListeners = connectionDisconnectListeners
   ) {
 
     override def createDataPlaneAcceptor(endPoint: EndPoint, isPrivilegedListener: Boolean, requestChannel: RequestChannel) : DataPlaneAcceptor = {

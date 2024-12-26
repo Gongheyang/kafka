@@ -92,6 +92,7 @@ import static org.apache.kafka.clients.consumer.internals.ConsumerUtils.configur
 import static org.apache.kafka.clients.consumer.internals.ConsumerUtils.createConsumerNetworkClient;
 import static org.apache.kafka.clients.consumer.internals.ConsumerUtils.createFetchMetricsManager;
 import static org.apache.kafka.clients.consumer.internals.ConsumerUtils.createLogContext;
+import static org.apache.kafka.clients.consumer.internals.ConsumerUtils.createMetricConfigWithoutTags;
 import static org.apache.kafka.clients.consumer.internals.ConsumerUtils.createMetrics;
 import static org.apache.kafka.clients.consumer.internals.ConsumerUtils.createSubscriptionState;
 import static org.apache.kafka.common.utils.Utils.closeQuietly;
@@ -286,7 +287,7 @@ public class ClassicKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
         this.time = time;
         this.subscriptions = subscriptions;
         this.metadata = metadata;
-        this.metrics = new Metrics(time);
+        this.metrics = new Metrics(createMetricConfigWithoutTags(config), time);
         this.clientId = config.getString(ConsumerConfig.CLIENT_ID_CONFIG);
         this.groupId = Optional.ofNullable(config.getString(ConsumerConfig.GROUP_ID_CONFIG));
         this.deserializers = new Deserializers<>(keyDeserializer, valueDeserializer);

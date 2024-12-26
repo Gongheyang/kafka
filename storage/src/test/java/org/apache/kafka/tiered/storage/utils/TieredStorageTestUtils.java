@@ -105,7 +105,7 @@ public class TieredStorageTestUtils {
                 .collect(Collectors.toList());
     }
 
-    public static Properties createPropsForRemoteStorage(String testClassName,
+    public static Properties createPropsForRemoteStorage(String randomString,
                                                          String storageDirPath,
                                                          int brokerCount,
                                                          int numRemoteLogMetadataPartitions,
@@ -128,16 +128,16 @@ public class TieredStorageTestUtils {
         overridingProps.setProperty(REMOTE_LOG_METADATA_MANAGER_CLASS_NAME_PROP,
                 TopicBasedRemoteLogMetadataManager.class.getName());
         overridingProps.setProperty(REMOTE_LOG_MANAGER_TASK_INTERVAL_MS_PROP, RLM_TASK_INTERVAL_MS.toString());
-        overridingProps.setProperty(REMOTE_LOG_METADATA_MANAGER_LISTENER_NAME_PROP, "PLAINTEXT");
+        overridingProps.setProperty(REMOTE_LOG_METADATA_MANAGER_LISTENER_NAME_PROP, "EXTERNAL");
 
-        overridingProps.setProperty(REMOTE_STORAGE_MANAGER_CONFIG_PREFIX_PROP, storageConfigPrefix(testClassName, ""));
-        overridingProps.setProperty(REMOTE_LOG_METADATA_MANAGER_CONFIG_PREFIX_PROP, metadataConfigPrefix(testClassName, ""));
+        overridingProps.setProperty(REMOTE_STORAGE_MANAGER_CONFIG_PREFIX_PROP, storageConfigPrefix(randomString, ""));
+        overridingProps.setProperty(REMOTE_LOG_METADATA_MANAGER_CONFIG_PREFIX_PROP, metadataConfigPrefix(randomString, ""));
 
         overridingProps.setProperty(
-                metadataConfigPrefix(testClassName, TopicBasedRemoteLogMetadataManagerConfig.REMOTE_LOG_METADATA_TOPIC_PARTITIONS_PROP),
+                metadataConfigPrefix(randomString, TopicBasedRemoteLogMetadataManagerConfig.REMOTE_LOG_METADATA_TOPIC_PARTITIONS_PROP),
                 String.valueOf(numRemoteLogMetadataPartitions));
         overridingProps.setProperty(
-                metadataConfigPrefix(testClassName, TopicBasedRemoteLogMetadataManagerConfig.REMOTE_LOG_METADATA_TOPIC_REPLICATION_FACTOR_PROP),
+                metadataConfigPrefix(randomString, TopicBasedRemoteLogMetadataManagerConfig.REMOTE_LOG_METADATA_TOPIC_REPLICATION_FACTOR_PROP),
                 String.valueOf(brokerCount));
         // The below two configurations ensures inactive log segments are deleted fast enough so that
         // the integration tests can confirm a given log segment is present only in the second-tier storage.
@@ -149,14 +149,14 @@ public class TieredStorageTestUtils {
         // in every broker and throughout the test. Indeed, as brokers are restarted during the test.
         // You can override this property with a fixed path of your choice if you wish to use a non-temporary
         // directory to access its content after a test terminated.
-        overridingProps.setProperty(storageConfigPrefix(testClassName, STORAGE_DIR_CONFIG), storageDirPath);
+        overridingProps.setProperty(storageConfigPrefix(randomString, STORAGE_DIR_CONFIG), storageDirPath);
         // This configuration will remove all the remote files when close is called in remote storage manager.
         // Storage manager close is being called while the server is actively processing the socket requests,
         // so enabling this config can break the existing tests.
         // NOTE: When using TestUtils#tempDir(), the folder gets deleted when VM terminates.
-        overridingProps.setProperty(storageConfigPrefix(testClassName, DELETE_ON_CLOSE_CONFIG), "false");
+        overridingProps.setProperty(storageConfigPrefix(randomString, DELETE_ON_CLOSE_CONFIG), "false");
         // Set a small number of retry interval for retrying RemoteLogMetadataManager resources initialization to speed up the test
-        overridingProps.setProperty(metadataConfigPrefix(testClassName, REMOTE_LOG_METADATA_INITIALIZATION_RETRY_INTERVAL_MS_PROP), RLMM_INIT_RETRY_INTERVAL_MS.toString());
+        overridingProps.setProperty(metadataConfigPrefix(randomString, REMOTE_LOG_METADATA_INITIALIZATION_RETRY_INTERVAL_MS_PROP), RLMM_INIT_RETRY_INTERVAL_MS.toString());
         // Set 2 log dirs to make sure JBOD feature is working correctly
         overridingProps.setProperty(ServerLogConfigs.LOG_DIRS_CONFIG, TestUtils.tempDir().getAbsolutePath() + "," + TestUtils.tempDir().getAbsolutePath());
         // Disable unnecessary log cleaner

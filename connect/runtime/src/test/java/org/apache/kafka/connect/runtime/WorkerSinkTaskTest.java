@@ -46,6 +46,7 @@ import org.apache.kafka.connect.runtime.errors.ProcessingContext;
 import org.apache.kafka.connect.runtime.errors.RetryWithToleranceOperator;
 import org.apache.kafka.connect.runtime.errors.RetryWithToleranceOperatorTest;
 import org.apache.kafka.connect.runtime.isolation.PluginClassLoader;
+import org.apache.kafka.connect.runtime.isolation.PluginUtils;
 import org.apache.kafka.connect.runtime.standalone.StandaloneConfig;
 import org.apache.kafka.connect.sink.SinkConnector;
 import org.apache.kafka.connect.sink.SinkRecord;
@@ -203,7 +204,7 @@ public class WorkerSinkTaskTest {
                 taskId, sinkTask, statusListener, initialState, workerConfig, ClusterConfigState.EMPTY, metrics,
                 keyConverter, valueConverter, errorHandlingMetrics, headerConverter,
                 transformationChain, consumer, pluginLoader, time,
-                retryWithToleranceOperator, null, statusBackingStore, errorReportersSupplier);
+                retryWithToleranceOperator, null, statusBackingStore, errorReportersSupplier, PluginUtils.noOpLoaderSwap());
     }
 
     @AfterEach
@@ -1758,7 +1759,7 @@ public class WorkerSinkTaskTest {
                 taskId, sinkTask, statusListener, TargetState.PAUSED, workerConfig, ClusterConfigState.EMPTY, metrics,
                 keyConverter, valueConverter, errorHandlingMetrics, headerConverter,
                 transformationChain, mockConsumer, pluginLoader, time,
-                RetryWithToleranceOperatorTest.noopOperator(), null, statusBackingStore, Collections::emptyList);
+                RetryWithToleranceOperatorTest.noopOperator(), null, statusBackingStore, Collections::emptyList, PluginUtils.noOpLoaderSwap());
         mockConsumer.updateBeginningOffsets(
                 new HashMap<>() {{
                     put(TOPIC_PARTITION, 0L);

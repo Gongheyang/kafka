@@ -46,6 +46,8 @@ import org.apache.kafka.connect.runtime.errors.ProcessingContext;
 import org.apache.kafka.connect.runtime.errors.RetryWithToleranceOperator;
 import org.apache.kafka.connect.runtime.errors.Stage;
 import org.apache.kafka.connect.runtime.errors.WorkerErrantRecordReporter;
+import org.apache.kafka.connect.runtime.isolation.LoaderSwap;
+import org.apache.kafka.connect.runtime.isolation.Plugins;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.apache.kafka.connect.sink.SinkTask;
 import org.apache.kafka.connect.storage.ClusterConfigState;
@@ -65,6 +67,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -121,9 +124,10 @@ class WorkerSinkTask extends WorkerTask<ConsumerRecord<byte[], byte[]>, SinkReco
                           RetryWithToleranceOperator<ConsumerRecord<byte[], byte[]>> retryWithToleranceOperator,
                           WorkerErrantRecordReporter workerErrantRecordReporter,
                           StatusBackingStore statusBackingStore,
-                          Supplier<List<ErrorReporter<ConsumerRecord<byte[], byte[]>>>> errorReportersSupplier) {
+                          Supplier<List<ErrorReporter<ConsumerRecord<byte[], byte[]>>>> errorReportersSupplier,
+                          Function<ClassLoader, LoaderSwap> pluginLoaderSwapper) {
         super(id, statusListener, initialState, loader, connectMetrics, errorMetrics,
-                retryWithToleranceOperator, transformationChain, errorReportersSupplier, time, statusBackingStore);
+                retryWithToleranceOperator, transformationChain, errorReportersSupplier, time, statusBackingStore, pluginLoaderSwapper);
 
         this.workerConfig = workerConfig;
         this.task = task;
@@ -535,11 +539,15 @@ class WorkerSinkTask extends WorkerTask<ConsumerRecord<byte[], byte[]>, SinkReco
     }
 
     private SinkRecord convertAndTransformRecord(ProcessingContext<ConsumerRecord<byte[], byte[]>> context, final ConsumerRecord<byte[], byte[]> msg) {
-        SchemaAndValue keyAndSchema = retryWithToleranceOperator.execute(context, () -> keyConverter.toConnectData(msg.topic(), msg.headers(), msg.key()),
-                Stage.KEY_CONVERTER, keyConverter.getClass());
+        SchemaAndValue keyAndSchema = retryWithToleranceOperator.execute(context, () -> {
+            try (LoaderSwap swap = pluginLoaderSwapper.apply(keyConverter.getClass().getClassLoader())) {
+                return keyConverter.toConnectData(msg.topic(), msg.headers(), msg.key());
+            }}, Stage.KEY_CONVERTER, keyConverter.getClass());
 
-        SchemaAndValue valueAndSchema = retryWithToleranceOperator.execute(context, () -> valueConverter.toConnectData(msg.topic(), msg.headers(), msg.value()),
-                Stage.VALUE_CONVERTER, valueConverter.getClass());
+        SchemaAndValue valueAndSchema = retryWithToleranceOperator.execute(context, () -> {
+            try(LoaderSwap swap = pluginLoaderSwapper.apply(valueConverter.getClass().getClassLoader())) {
+                    return valueConverter.toConnectData(msg.topic(), msg.headers(), msg.value());
+            }}, Stage.VALUE_CONVERTER, valueConverter.getClass());
 
         Headers headers = retryWithToleranceOperator.execute(context, () -> convertHeadersFor(msg), Stage.HEADER_CONVERTER, headerConverter.getClass());
 
@@ -576,8 +584,10 @@ class WorkerSinkTask extends WorkerTask<ConsumerRecord<byte[], byte[]>, SinkReco
         if (recordHeaders != null) {
             String topic = record.topic();
             for (org.apache.kafka.common.header.Header recordHeader : recordHeaders) {
-                SchemaAndValue schemaAndValue = headerConverter.toConnectHeader(topic, recordHeader.key(), recordHeader.value());
-                result.add(recordHeader.key(), schemaAndValue);
+                try (LoaderSwap swap = pluginLoaderSwapper.apply(headerConverter.getClass().getClassLoader())) {
+                    SchemaAndValue schemaAndValue = headerConverter.toConnectHeader(topic, recordHeader.key(), recordHeader.value());
+                    result.add(recordHeader.key(), schemaAndValue);
+                }
             }
         }
         return result;

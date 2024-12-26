@@ -42,6 +42,8 @@ import org.apache.kafka.connect.runtime.errors.ProcessingContext;
 import org.apache.kafka.connect.runtime.errors.RetryWithToleranceOperator;
 import org.apache.kafka.connect.runtime.errors.Stage;
 import org.apache.kafka.connect.runtime.errors.ToleranceType;
+import org.apache.kafka.connect.runtime.isolation.LoaderSwap;
+import org.apache.kafka.connect.runtime.isolation.Plugins;
 import org.apache.kafka.connect.source.SourceRecord;
 import org.apache.kafka.connect.source.SourceTask;
 import org.apache.kafka.connect.source.SourceTaskContext;
@@ -68,6 +70,7 @@ import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.apache.kafka.connect.runtime.WorkerConfig.TOPIC_TRACKING_ENABLE_CONFIG;
@@ -230,11 +233,12 @@ public abstract class AbstractWorkerSourceTask extends WorkerTask<SourceRecord, 
                                        RetryWithToleranceOperator<SourceRecord> retryWithToleranceOperator,
                                        StatusBackingStore statusBackingStore,
                                        Executor closeExecutor,
-                                       Supplier<List<ErrorReporter<SourceRecord>>> errorReportersSupplier) {
+                                       Supplier<List<ErrorReporter<SourceRecord>>> errorReportersSupplier,
+                                       Function<ClassLoader, LoaderSwap> pluginLoaderSwapper) {
 
         super(id, statusListener, initialState, loader, connectMetrics, errorMetrics,
                 retryWithToleranceOperator, transformationChain, errorReportersSupplier,
-                time, statusBackingStore);
+                time, statusBackingStore, pluginLoaderSwapper);
 
         this.workerConfig = workerConfig;
         this.task = task;
@@ -485,11 +489,15 @@ public abstract class AbstractWorkerSourceTask extends WorkerTask<SourceRecord, 
 
         RecordHeaders headers = retryWithToleranceOperator.execute(context, () -> convertHeaderFor(record), Stage.HEADER_CONVERTER, headerConverter.getClass());
 
-        byte[] key = retryWithToleranceOperator.execute(context, () -> keyConverter.fromConnectData(record.topic(), headers, record.keySchema(), record.key()),
-                Stage.KEY_CONVERTER, keyConverter.getClass());
+        byte[] key = retryWithToleranceOperator.execute(context, () -> {
+            try (LoaderSwap swap = pluginLoaderSwapper.apply(keyConverter.getClass().getClassLoader())) {
+                return keyConverter.fromConnectData(record.topic(), headers, record.keySchema(), record.key());
+            }}, Stage.KEY_CONVERTER, keyConverter.getClass());
 
-        byte[] value = retryWithToleranceOperator.execute(context, () -> valueConverter.fromConnectData(record.topic(), headers, record.valueSchema(), record.value()),
-                Stage.VALUE_CONVERTER, valueConverter.getClass());
+        byte[] value = retryWithToleranceOperator.execute(context, () -> {
+            try (LoaderSwap swap = pluginLoaderSwapper.apply(valueConverter.getClass().getClassLoader())) {
+                return valueConverter.fromConnectData(record.topic(), headers, record.valueSchema(), record.value());
+            }}, Stage.VALUE_CONVERTER, valueConverter.getClass());
 
         if (context.failed()) {
             return null;
@@ -545,8 +553,11 @@ public abstract class AbstractWorkerSourceTask extends WorkerTask<SourceRecord, 
             String topic = record.topic();
             for (Header header : headers) {
                 String key = header.key();
-                byte[] rawHeader = headerConverter.fromConnectHeader(topic, key, header.schema(), header.value());
-                result.add(key, rawHeader);
+                try (LoaderSwap swap = pluginLoaderSwapper.apply(headerConverter.getClass().getClassLoader())) {
+                    byte[] rawHeader = headerConverter.fromConnectHeader(topic, key, header.schema(), header.value());
+                    result.add(key, rawHeader);
+                }
+
             }
         }
         return result;

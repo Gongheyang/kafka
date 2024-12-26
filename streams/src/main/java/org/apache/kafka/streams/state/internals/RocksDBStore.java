@@ -90,7 +90,7 @@ import static org.apache.kafka.streams.processor.internals.ProcessorContextUtils
  * A persistent key-value store based on RocksDB.
  */
 public class RocksDBStore implements KeyValueStore<Bytes, byte[]>, BatchWritingStore {
-    private static final Logger log = LoggerFactory.getLogger(RocksDBStore.class);
+    protected static final Logger log = LoggerFactory.getLogger(RocksDBStore.class);
 
     private static final CompressionType COMPRESSION_TYPE = CompressionType.NO_COMPRESSION;
     private static final CompactionStyle COMPACTION_STYLE = CompactionStyle.UNIVERSAL;

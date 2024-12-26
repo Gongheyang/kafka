@@ -110,6 +110,7 @@ public class MultiVersionTest {
     public static final Map<Path, List<VersionedPluginBuilder.BuildInfo>> DEFAULT_ISOLATED_ARTIFACTS;
     public static final Map<Path, List<VersionedPluginBuilder.BuildInfo>> DEFAULT_COMBINED_ARTIFACT;
     public static final Plugins MULTI_VERSION_PLUGINS;
+    public static final Map<VersionedPluginBuilder.VersionedTestPlugin, String> DEFAULT_COMBINED_ARTIFACT_VERSIONS;
 
     static {
 
@@ -119,14 +120,21 @@ public class MultiVersionTest {
                 defaultIsolatedArtifactsVersions, VersionedPluginBuilder.VersionedTestPlugin.values()
             );
             DEFAULT_ISOLATED_ARTIFACTS_LATEST_VERSION = "4.3.0";
+            DEFAULT_COMBINED_ARTIFACT_VERSIONS = new HashMap<>();
 
             VersionedPluginBuilder builder = new VersionedPluginBuilder();
-            builder.include(VersionedPluginBuilder.VersionedTestPlugin.SOURCE_CONNECTOR, "0.0.0");
-            builder.include(VersionedPluginBuilder.VersionedTestPlugin.SINK_CONNECTOR, "0.1.0");
-            builder.include(VersionedPluginBuilder.VersionedTestPlugin.CONVERTER, "0.2.0");
-            builder.include(VersionedPluginBuilder.VersionedTestPlugin.HEADER_CONVERTER, "0.3.0");
-            builder.include(VersionedPluginBuilder.VersionedTestPlugin.TRANSFORMATION, "0.4.0");
-            builder.include(VersionedPluginBuilder.VersionedTestPlugin.PREDICATE, "0.5.0");
+            builder.include(VersionedPluginBuilder.VersionedTestPlugin.SOURCE_CONNECTOR,
+                DEFAULT_COMBINED_ARTIFACT_VERSIONS.computeIfAbsent(VersionedPluginBuilder.VersionedTestPlugin.SOURCE_CONNECTOR, k -> "0.0.0"));
+            builder.include(VersionedPluginBuilder.VersionedTestPlugin.SINK_CONNECTOR,
+                DEFAULT_COMBINED_ARTIFACT_VERSIONS.computeIfAbsent(VersionedPluginBuilder.VersionedTestPlugin.SINK_CONNECTOR, k -> "0.1.0"));
+            builder.include(VersionedPluginBuilder.VersionedTestPlugin.CONVERTER,
+                DEFAULT_COMBINED_ARTIFACT_VERSIONS.computeIfAbsent(VersionedPluginBuilder.VersionedTestPlugin.CONVERTER, k -> "0.2.0"));
+            builder.include(VersionedPluginBuilder.VersionedTestPlugin.HEADER_CONVERTER,
+                DEFAULT_COMBINED_ARTIFACT_VERSIONS.computeIfAbsent(VersionedPluginBuilder.VersionedTestPlugin.HEADER_CONVERTER, k -> "0.3.0"));
+            builder.include(VersionedPluginBuilder.VersionedTestPlugin.TRANSFORMATION,
+                DEFAULT_COMBINED_ARTIFACT_VERSIONS.computeIfAbsent(VersionedPluginBuilder.VersionedTestPlugin.TRANSFORMATION, k -> "0.4.0"));
+            builder.include(VersionedPluginBuilder.VersionedTestPlugin.PREDICATE,
+                DEFAULT_COMBINED_ARTIFACT_VERSIONS.computeIfAbsent(VersionedPluginBuilder.VersionedTestPlugin.PREDICATE, k -> "0.5.0"));
             DEFAULT_COMBINED_ARTIFACT = Collections.singletonMap(builder.build("all_versioned_artifact"), builder.buildInfos());
 
             Map<Path, List<VersionedPluginBuilder.BuildInfo>> artifacts = new HashMap<>();

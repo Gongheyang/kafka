@@ -3005,7 +3005,7 @@ public class KafkaConsumerTest {
             autoCommitEnabled,
             groupId,
             groupInstanceId,
-            Optional.of(new StringDeserializer()),
+            Optional.empty(),
             throwOnStableOffsetNotSupported
         );
     }
@@ -3021,36 +3021,52 @@ public class KafkaConsumerTest {
                                                       Optional<String> groupInstanceId,
                                                       Optional<Deserializer<String>> valueDeserializerOpt,
                                                       boolean throwOnStableOffsetNotSupported) {
-        Deserializer<String> keyDeserializer = new StringDeserializer();
-        Deserializer<String> valueDeserializer = valueDeserializerOpt.orElse(new StringDeserializer());
-        LogContext logContext = new LogContext();
-        List<ConsumerPartitionAssignor> assignors = singletonList(assignor);
-        ConsumerConfig config = newConsumerConfig(
+        Map<String, Object> config = newConsumerConfig(
             groupProtocol,
             autoCommitEnabled,
             groupId,
             groupInstanceId,
-            valueDeserializer,
             throwOnStableOffsetNotSupported
         );
-        return new KafkaConsumer<>(
-            logContext,
-            time,
-            config,
-            keyDeserializer,
-            valueDeserializer,
-            client,
-            subscriptions,
-            metadata,
-            assignors
+        return newConsumer(
+                time,
+                client,
+                subscriptions,
+                metadata,
+                assignor,
+                valueDeserializerOpt,
+                config
         );
     }
 
-    private ConsumerConfig newConsumerConfig(GroupProtocol groupProtocol,
+    private KafkaConsumer<String, String> newConsumer(Time time,
+                                                      KafkaClient client,
+                                                      SubscriptionState subscriptions,
+                                                      ConsumerMetadata metadata,
+                                                      ConsumerPartitionAssignor assignor,
+                                                      Optional<Deserializer<String>> valueDeserializerOpt,
+                                                      Map<String, Object> consumerConfig) {
+        Deserializer<String> keyDeserializer = new StringDeserializer();
+        Deserializer<String> valueDeserializer = valueDeserializerOpt.orElse(new StringDeserializer());
+        LogContext logContext = new LogContext();
+        List<ConsumerPartitionAssignor> assignors = singletonList(assignor);
+        return new KafkaConsumer<>(
+                logContext,
+                time,
+                new ConsumerConfig(ConsumerConfig.appendDeserializerToConfig(consumerConfig, keyDeserializer, valueDeserializer)),
+                keyDeserializer,
+                valueDeserializer,
+                client,
+                subscriptions,
+                metadata,
+                assignors
+        );
+    }
+
+    private Map<String, Object> newConsumerConfig(GroupProtocol groupProtocol,
                                              boolean autoCommitEnabled,
                                              String groupId,
                                              Optional<String> groupInstanceId,
-                                             Deserializer<String> valueDeserializer,
                                              boolean throwOnStableOffsetNotSupported) {
         String clientId = "mock-consumer";
         long retryBackoffMs = 100;
@@ -3089,10 +3105,9 @@ public class KafkaConsumerTest {
         configs.put(ConsumerConfig.RETRY_BACKOFF_MAX_MS_CONFIG, retryBackoffMaxMs);
         configs.put(ConsumerConfig.RETRY_BACKOFF_MS_CONFIG, retryBackoffMs);
         configs.put(ConsumerConfig.THROW_ON_FETCH_STABLE_OFFSET_UNSUPPORTED, throwOnStableOffsetNotSupported);
-        configs.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, valueDeserializer.getClass());
         groupInstanceId.ifPresent(gi -> configs.put(ConsumerConfig.GROUP_INSTANCE_ID_CONFIG, gi));
 
-        return new ConsumerConfig(configs);
+        return configs;
     }
 
     private static class FetchInfo {
@@ -3207,44 +3222,111 @@ public class KafkaConsumerTest {
 
     @ParameterizedTest
     @EnumSource(GroupProtocol.class)
-public void testPollIdleRatio(GroupProtocol groupProtocol) {
+    public void testPollIdleRatio(GroupProtocol groupProtocol) {
         ConsumerMetadata metadata = createMetadata(subscription);
         MockClient client = new MockClient(time, metadata);
         initMetadata(client, Collections.singletonMap(topic, 1));
 
-        KafkaConsumer<String, String> consumer = newConsumer(groupProtocol, time, client, subscription, metadata, assignor, true, groupInstanceId);
+        Map<String, Object> config = newConsumerConfig(
+                groupProtocol,
+                true,
+                groupId,
+                groupInstanceId,
+                false
+        );
+        config.put(ConsumerConfig.METRICS_SAMPLE_WINDOW_MS_CONFIG, 100);
+        config.put(ConsumerConfig.METRICS_NUM_SAMPLES_CONFIG, 100);
+        KafkaConsumer<String, String> consumer = newConsumer(time, client, subscription, metadata, assignor, Optional.empty(), config);
         // MetricName object to check
         Metrics metrics = consumer.metricsRegistry();
         MetricName pollIdleRatio = metrics.metricName("poll-idle-ratio-avg", "consumer-metrics");
         // Test default value
         assertEquals(Double.NaN, consumer.metrics().get(pollIdleRatio).metricValue());
 
-        // 1st poll
-        // Spend 50ms in poll so value = 1.0
+        // The metric measures the fraction of time spent inside poll for each sampling window.
+        // Windows are closed every 100ms, and the metric is evaluated when a poll starts.
+        // This means the metric is NaN until we have covered 100ms of time and we begin the next poll.
+        // For each polling interval, the time spent outside of poll is considered to be the time after the poll completes, until the next poll begins.
+        // Given a sequence of completed polls, the last poll creates an interval start point, but no endpoint.
+        // This means the last poll is not covered by the metric, i.e. the metric value "lags" the polls by one call.
+
+        time.sleep(50);
+
+        // Spend 50ms in poll and 50ms after poll.
         consumer.kafkaConsumerMetrics().recordPollStart(time.milliseconds());
         time.sleep(50);
         consumer.kafkaConsumerMetrics().recordPollEnd(time.milliseconds());
-
-        assertEquals(1.0d, consumer.metrics().get(pollIdleRatio).metricValue());
-
-        // 2nd poll
-        // Spend 50m outside poll and 0ms in poll so value = 0.0
         time.sleep(50);
+
+        // value=NaN because we've only called poll once.
+        assertEquals(Double.NaN, consumer.metrics().get(pollIdleRatio).metricValue());
+
+        // Spend 0ms in poll and 25ms after poll.
+        consumer.kafkaConsumerMetrics().recordPollStart(time.milliseconds());
+        // The first 100ms window is complete, and we spent half the time inside poll
+        assertEquals(0.5, consumer.metrics().get(pollIdleRatio).metricValue());
+        consumer.kafkaConsumerMetrics().recordPollEnd(time.milliseconds());
+        time.sleep(25);
+
+        // The value stays as is until the next 100ms window is complete
+        assertEquals(0.5, consumer.metrics().get(pollIdleRatio).metricValue());
+
+        // Spend 25ms in poll and 0ms after.
+        consumer.kafkaConsumerMetrics().recordPollStart(time.milliseconds());
+        time.sleep(25);
+        consumer.kafkaConsumerMetrics().recordPollEnd(time.milliseconds());
+
+        // The value stays as is until the next 100ms window is complete
+        assertEquals(0.5, consumer.metrics().get(pollIdleRatio).metricValue());
+
+        // Spend 0ms inside and 50ms outside poll.
+        consumer.kafkaConsumerMetrics().recordPollStart(time.milliseconds());
+        consumer.kafkaConsumerMetrics().recordPollEnd(time.milliseconds());
+        time.sleep(50);
+
+        // The value stays as is, the window isn't closed until we start the next poll
+        assertEquals(0.5, consumer.metrics().get(pollIdleRatio).metricValue());
+
+        // Do another poll, which should close the current window
         consumer.kafkaConsumerMetrics().recordPollStart(time.milliseconds());
         consumer.kafkaConsumerMetrics().recordPollEnd(time.milliseconds());
 
-        // Avg of first two data points
-        assertEquals((1.0d + 0.0d) / 2, consumer.metrics().get(pollIdleRatio).metricValue());
+        // Avg of the first two windows
+        assertEquals((0.5 + 0.25) / 2, consumer.metrics().get(pollIdleRatio).metricValue());
 
-        // 3rd poll
-        // Spend 25ms outside poll and 25ms in poll so value = 0.5
-        time.sleep(25);
+        // Spend 10ms inside and outside poll 10 times.
+        for (int i = 0; i < 5; i++) {
+            consumer.kafkaConsumerMetrics().recordPollStart(time.milliseconds());
+            time.sleep(10);
+            consumer.kafkaConsumerMetrics().recordPollEnd(time.milliseconds());
+            time.sleep(10);
+        }
+
+        // Even though the window time has elapsed, the window doesn't close until the next time we call poll, so we should have kept the old value
+        assertEquals((0.5 + 0.25) / 2, consumer.metrics().get(pollIdleRatio).metricValue());
+
+        // Do another poll, which should close the current window
         consumer.kafkaConsumerMetrics().recordPollStart(time.milliseconds());
-        time.sleep(25);
         consumer.kafkaConsumerMetrics().recordPollEnd(time.milliseconds());
 
-        // Avg of three data points
-        assertEquals((1.0d + 0.0d + 0.5d) / 3, consumer.metrics().get(pollIdleRatio).metricValue());
+        // Avg of the 3 windows
+        assertEquals((0.5 + 0.25 + 0.5) / 3, consumer.metrics().get(pollIdleRatio).metricValue());
+
+        // Check that we handle very short polls correctly
+        for (int i = 0; i < 5; i++) {
+            consumer.kafkaConsumerMetrics().recordPollStart(time.milliseconds());
+            consumer.kafkaConsumerMetrics().recordPollEnd(time.milliseconds());
+        }
+        time.sleep(100);
+
+        // Same as before, the window isn't closed until we call poll again
+        assertEquals((0.5 + 0.25 + 0.5) / 3, consumer.metrics().get(pollIdleRatio).metricValue());
+
+        consumer.kafkaConsumerMetrics().recordPollStart(time.milliseconds());
+        consumer.kafkaConsumerMetrics().recordPollEnd(time.milliseconds());
+
+        // Avg of the 4 windows
+        assertEquals((0.5 + 0.25 + 0.5 + 0) / 4, consumer.metrics().get(pollIdleRatio).metricValue());
     }
 
     private static boolean consumerMetricPresent(KafkaConsumer<String, String> consumer, String name) {

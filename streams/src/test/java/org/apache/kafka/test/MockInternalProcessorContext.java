@@ -23,7 +23,6 @@ import org.apache.kafka.streams.processor.CommitCallback;
 import org.apache.kafka.streams.processor.StateRestoreCallback;
 import org.apache.kafka.streams.processor.StateStore;
 import org.apache.kafka.streams.processor.TaskId;
-import org.apache.kafka.streams.processor.To;
 import org.apache.kafka.streams.processor.api.FixedKeyRecord;
 import org.apache.kafka.streams.processor.api.MockProcessorContext;
 import org.apache.kafka.streams.processor.api.Record;
@@ -89,7 +88,8 @@ public class MockInternalProcessorContext<KOut, VOut> extends MockProcessorConte
 
     @Override
     public ProcessorRecordContext recordContext() {
-        return new ProcessorRecordContext(timestamp(), offset(), partition(), topic(), headers());
+        //return new ProcessorRecordContext(timestamp(), offset(), partition(), topic(), headers());
+        return null;
     }
 
     @Override
@@ -160,43 +160,43 @@ public class MockInternalProcessorContext<KOut, VOut> extends MockProcessorConte
         return restoreCallbacks.get(storeName);
     }
 
-    @Override
-    public <K, V> void forward(K key, V value) {
-        throw new UnsupportedOperationException("Migrate to new implementation");
-    }
-
-    @Override
-    public <K, V> void forward(K key, V value, To to) {
-        throw new UnsupportedOperationException("Migrate to new implementation");
-    }
-
-    @Override
-    public String topic() {
-        if (recordMetadata().isPresent()) return recordMetadata().get().topic();
-        else return null;
-    }
-
-    @Override
-    public int partition() {
-        if (recordMetadata().isPresent()) return recordMetadata().get().partition();
-        else return 0;
-    }
-
-    @Override
-    public long offset() {
-        if (recordMetadata().isPresent()) return recordMetadata().get().offset();
-        else return 0;
-    }
-
-    @Override
-    public Headers headers() {
-        return headers;
-    }
-
-    @Override
-    public long timestamp() {
-        return timestamp;
-    }
+//    @Override
+//    public <K, V> void forward(K key, V value) {
+//        throw new UnsupportedOperationException("Migrate to new implementation");
+//    }
+//
+//    @Override
+//    public <K, V> void forward(K key, V value, To to) {
+//        throw new UnsupportedOperationException("Migrate to new implementation");
+//    }
+//
+//    @Override
+//    public String topic() {
+//        if (recordMetadata().isPresent()) return recordMetadata().get().topic();
+//        else return null;
+//    }
+//
+//    @Override
+//    public int partition() {
+//        if (recordMetadata().isPresent()) return recordMetadata().get().partition();
+//        else return 0;
+//    }
+//
+//    @Override
+//    public long offset() {
+//        if (recordMetadata().isPresent()) return recordMetadata().get().offset();
+//        else return 0;
+//    }
+//
+//    @Override
+//    public Headers headers() {
+//        return headers;
+//    }
+//
+//    @Override
+//    public long timestamp() {
+//        return timestamp;
+//    }
 
     @Override
     public TaskType taskType() {

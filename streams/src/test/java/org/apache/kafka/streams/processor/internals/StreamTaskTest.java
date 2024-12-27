@@ -1716,13 +1716,13 @@ public class StreamTaskTest {
             processorSystemTime,
             1L,
             PunctuationType.WALL_CLOCK_TIME,
-            timestamp -> task.processorContext().headers().add("dummy", null)
+            timestamp -> task.processorContext().recordContext().headers().add("dummy", null)
         );
         task.punctuate(
             processorSystemTime,
             1L,
             PunctuationType.WALL_CLOCK_TIME,
-            timestamp -> assertFalse(task.processorContext().headers().iterator().hasNext())
+            timestamp -> assertFalse(task.processorContext().recordContext().headers().iterator().hasNext())
         );
     }
 

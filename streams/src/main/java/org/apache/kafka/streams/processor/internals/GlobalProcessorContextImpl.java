@@ -24,7 +24,6 @@ import org.apache.kafka.streams.processor.PunctuationType;
 import org.apache.kafka.streams.processor.Punctuator;
 import org.apache.kafka.streams.processor.StateStore;
 import org.apache.kafka.streams.processor.TaskId;
-import org.apache.kafka.streams.processor.To;
 import org.apache.kafka.streams.processor.api.FixedKeyRecord;
 import org.apache.kafka.streams.processor.api.Record;
 import org.apache.kafka.streams.processor.internals.metrics.StreamsMetricsImpl;
@@ -82,20 +81,20 @@ public class GlobalProcessorContextImpl extends AbstractProcessorContext<Object,
         throw new UnsupportedOperationException("this should not happen: forward() not supported in global processor context.");
     }
 
-    @Override
-    public <KIn, VIn> void forward(final KIn key, final VIn value) {
-        forward(new Record<>(key, value, timestamp(), headers()));
-    }
-
-    /**
-     * No-op. This should only be called on GlobalStateStore#flush and there should be no child nodes
-     */
-    @Override
-    public <K, V> void forward(final K key, final V value, final To to) {
-        if (!currentNode().children().isEmpty()) {
-            throw new IllegalStateException("This method should only be called on 'GlobalStateStore.flush' that should not have any children.");
-        }
-    }
+//    @Override
+//    public <KIn, VIn> void forward(final KIn key, final VIn value) {
+//        forward(new Record<>(key, value, recordContext().timestamp(), headers()));
+//    }
+//
+//    /**
+//     * No-op. This should only be called on GlobalStateStore#flush and there should be no child nodes
+//     */
+//    @Override
+//    public <K, V> void forward(final K key, final V value, final To to) {
+//        if (!currentNode().children().isEmpty()) {
+//            throw new IllegalStateException("This method should only be called on 'GlobalStateStore.flush' that should not have any children.");
+//        }
+//    }
 
     @Override
     public <K, V> void forward(final FixedKeyRecord<K, V> record) {

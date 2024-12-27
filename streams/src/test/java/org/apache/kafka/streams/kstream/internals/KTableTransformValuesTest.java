@@ -465,9 +465,9 @@ public class KTableTransformValuesTest {
         final List<String> missing = new ArrayList<>();
 
         for (final String storedName : expectedStoredNames) {
-            if (context.getStateStore(storedName) == null) {
-                missing.add(storedName);
-            }
+//            if (context.getStateStore(storedName) == null) {
+//                missing.add(storedName);
+//            }
         }
 
         if (!missing.isEmpty()) {

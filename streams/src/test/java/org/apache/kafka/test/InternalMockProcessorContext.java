@@ -34,7 +34,6 @@ import org.apache.kafka.streams.processor.Punctuator;
 import org.apache.kafka.streams.processor.StateRestoreCallback;
 import org.apache.kafka.streams.processor.StateStore;
 import org.apache.kafka.streams.processor.TaskId;
-import org.apache.kafka.streams.processor.To;
 import org.apache.kafka.streams.processor.api.FixedKeyRecord;
 import org.apache.kafka.streams.processor.api.Record;
 import org.apache.kafka.streams.processor.internals.AbstractProcessorContext;
@@ -344,33 +343,33 @@ public class InternalMockProcessorContext<KOut, VOut>
         }
     }
 
-    @Override
-    public void forward(final Object key, final Object value) {
-        forward(key, value, To.all());
-    }
-
-    @SuppressWarnings("unchecked")
-    @Override
-    public void forward(final Object key, final Object value, final To to) {
-        toInternal.update(to);
-        if (toInternal.hasTimestamp()) {
-            setTime(toInternal.timestamp());
-        }
-        final ProcessorNode<?, ?, ?, ?> thisNode = currentNode;
-        try {
-            for (final ProcessorNode<?, ?, ?, ?> childNode : thisNode.children()) {
-                if (toInternal.child() == null || toInternal.child().equals(childNode.name())) {
-                    currentNode = childNode;
-                    final Record<Object, Object> record = new Record<>(key, value, toInternal.timestamp(), headers());
-                    ((ProcessorNode<Object, Object, ?, ?>) childNode).process(record);
-                    toInternal.update(to); // need to reset because MockProcessorContext is shared over multiple
-                                           // Processors and toInternal might have been modified
-                }
-            }
-        } finally {
-            currentNode = thisNode;
-        }
-    }
+//    @Override
+//    public void forward(final Object key, final Object value) {
+//        forward(key, value, To.all());
+//    }
+//
+//    @SuppressWarnings("unchecked")
+//    @Override
+//    public void forward(final Object key, final Object value, final To to) {
+//        toInternal.update(to);
+//        if (toInternal.hasTimestamp()) {
+//            setTime(toInternal.timestamp());
+//        }
+//        final ProcessorNode<?, ?, ?, ?> thisNode = currentNode;
+//        try {
+//            for (final ProcessorNode<?, ?, ?, ?> childNode : thisNode.children()) {
+//                if (toInternal.child() == null || toInternal.child().equals(childNode.name())) {
+//                    currentNode = childNode;
+//                    final Record<Object, Object> record = new Record<>(key, value, toInternal.timestamp(), headers());
+//                    ((ProcessorNode<Object, Object, ?, ?>) childNode).process(record);
+//                    toInternal.update(to); // need to reset because MockProcessorContext is shared over multiple
+//                                           // Processors and toInternal might have been modified
+//                }
+//            }
+//        } finally {
+//            currentNode = thisNode;
+//        }
+//    }
 
     // allow only setting time but not other fields in for record context,
     // and also not throwing exceptions if record context is not available.
@@ -387,13 +386,13 @@ public class InternalMockProcessorContext<KOut, VOut>
         this.timestamp = timestamp;
     }
 
-    @Override
-    public long timestamp() {
-        if (recordContext == null) {
-            return timestamp;
-        }
-        return recordContext.timestamp();
-    }
+//    @Override
+//    public long timestamp() {
+//        if (recordContext == null) {
+//            return timestamp;
+//        }
+//        return recordContext.timestamp();
+//    }
 
     @Override
     public long currentSystemTimeMs() {
@@ -405,37 +404,37 @@ public class InternalMockProcessorContext<KOut, VOut>
         throw new UnsupportedOperationException("this method is not supported in InternalMockProcessorContext");
     }
 
-    @Override
-    public String topic() {
-        if (recordContext == null) {
-            return null;
-        }
-        return recordContext.topic();
-    }
-
-    @Override
-    public int partition() {
-        if (recordContext == null) {
-            return -1;
-        }
-        return recordContext.partition();
-    }
-
-    @Override
-    public long offset() {
-        if (recordContext == null) {
-            return -1L;
-        }
-        return recordContext.offset();
-    }
-
-    @Override
-    public Headers headers() {
-        if (recordContext == null) {
-            return new RecordHeaders();
-        }
-        return recordContext.headers();
-    }
+//    @Override
+//    public String topic() {
+//        if (recordContext == null) {
+//            return null;
+//        }
+//        return recordContext.topic();
+//    }
+//
+//    @Override
+//    public int partition() {
+//        if (recordContext == null) {
+//            return -1;
+//        }
+//        return recordContext.partition();
+//    }
+//
+//    @Override
+//    public long offset() {
+//        if (recordContext == null) {
+//            return -1L;
+//        }
+//        return recordContext.offset();
+//    }
+//
+//    @Override
+//    public Headers headers() {
+//        if (recordContext == null) {
+//            return new RecordHeaders();
+//        }
+//        return recordContext.headers();
+//    }
 
     @Override
     public TaskType taskType() {

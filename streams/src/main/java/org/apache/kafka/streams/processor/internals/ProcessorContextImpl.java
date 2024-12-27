@@ -28,7 +28,6 @@ import org.apache.kafka.streams.processor.PunctuationType;
 import org.apache.kafka.streams.processor.Punctuator;
 import org.apache.kafka.streams.processor.StateStore;
 import org.apache.kafka.streams.processor.TaskId;
-import org.apache.kafka.streams.processor.To;
 import org.apache.kafka.streams.processor.api.FixedKeyRecord;
 import org.apache.kafka.streams.processor.api.Record;
 import org.apache.kafka.streams.processor.internals.Task.TaskType;
@@ -184,31 +183,31 @@ public final class ProcessorContextImpl extends AbstractProcessorContext<Object,
         return (S) wrapWithReadWriteStore(store);
     }
 
-    @Override
-    public <K, V> void forward(final K key,
-                               final V value) {
-        final Record<K, V> toForward = new Record<>(
-            key,
-            value,
-            timestamp(),
-            headers()
-        );
-        forward(toForward);
-    }
-
-    @Override
-    public <K, V> void forward(final K key,
-                               final V value,
-                               final To to) {
-        final ToInternal toInternal = new ToInternal(to);
-        final Record<K, V> toForward = new Record<>(
-            key,
-            value,
-            toInternal.hasTimestamp() ? toInternal.timestamp() : timestamp(),
-            headers()
-        );
-        forward(toForward, toInternal.child());
-    }
+//    @Override
+//    public <K, V> void forward(final K key,
+//                               final V value) {
+//        final Record<K, V> toForward = new Record<>(
+//            key,
+//            value,
+//            recordContext.timestamp(),
+//            headers()
+//        );
+//        forward(toForward);
+//    }
+//
+//    @Override
+//    public <K, V> void forward(final K key,
+//                               final V value,
+//                               final To to) {
+//        final ToInternal toInternal = new ToInternal(to);
+//        final Record<K, V> toForward = new Record<>(
+//            key,
+//            value,
+//            toInternal.hasTimestamp() ? toInternal.timestamp() : recordContext.timestamp(),
+//            headers()
+//        );
+//        forward(toForward, toInternal.child());
+//    }
 
     @Override
     public <K, V> void forward(final FixedKeyRecord<K, V> record) {
@@ -250,11 +249,11 @@ public final class ProcessorContextImpl extends AbstractProcessorContext<Object,
             // old API processors wouldn't see the timestamps or headers of upstream
             // new API processors. But then again, from the perspective of those old-API
             // processors, even consulting the timestamp or headers when the record context
-            // is undefined is itself not well defined. Plus, I don't think we need to worry
+            // is undefined is itself not well-defined. Plus, I don't think we need to worry
             // too much about heterogeneous applications, in which the upstream processor is
             // implementing the new API and the downstream one is implementing the old API.
             // So, this seems like a fine compromise for now.
-            if (recordContext != null && (record.timestamp() != timestamp() || record.headers() != headers())) {
+            if (recordContext != null && (record.timestamp() != recordContext.timestamp() || record.headers() != recordContext.headers())) {
                 recordContext = new ProcessorRecordContext(
                     record.timestamp(),
                     recordContext.offset(),
@@ -313,29 +312,29 @@ public final class ProcessorContextImpl extends AbstractProcessorContext<Object,
         return streamTask.schedule(intervalMs, type, callback);
     }
 
-    @Override
-    public String topic() {
-        throwUnsupportedOperationExceptionIfStandby("topic");
-        return super.topic();
-    }
-
-    @Override
-    public int partition() {
-        throwUnsupportedOperationExceptionIfStandby("partition");
-        return super.partition();
-    }
-
-    @Override
-    public long offset() {
-        throwUnsupportedOperationExceptionIfStandby("offset");
-        return super.offset();
-    }
-
-    @Override
-    public long timestamp() {
-        throwUnsupportedOperationExceptionIfStandby("timestamp");
-        return super.timestamp();
-    }
+//    @Override
+//    public String topic() {
+//        throwUnsupportedOperationExceptionIfStandby("topic");
+//        return super.topic();
+//    }
+//
+//    @Override
+//    public int partition() {
+//        throwUnsupportedOperationExceptionIfStandby("partition");
+//        return super.partition();
+//    }
+//
+//    @Override
+//    public long offset() {
+//        throwUnsupportedOperationExceptionIfStandby("offset");
+//        return super.offset();
+//    }
+//
+//    @Override
+//    public long timestamp() {
+//        throwUnsupportedOperationExceptionIfStandby("timestamp");
+//        return super.timestamp();
+//    }
 
     @Override
     public long currentStreamTimeMs() {

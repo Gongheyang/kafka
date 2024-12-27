@@ -55,6 +55,7 @@ buildCache {
 
 include 'clients',
     'connect:api',
+    'connect:data',
     'connect:basic-auth-extension',
     'connect:file',
     'connect:json',

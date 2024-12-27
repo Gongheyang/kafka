@@ -17,7 +17,7 @@
 package org.apache.kafka.connect.storage;
 
 import org.apache.kafka.common.utils.LogCaptureAppender;
-import org.apache.kafka.connect.errors.DataException;
+import org.apache.kafka.connect.data.errors.DataException;
 import org.apache.kafka.connect.json.JsonConverter;
 import org.apache.kafka.connect.json.JsonConverterConfig;
 

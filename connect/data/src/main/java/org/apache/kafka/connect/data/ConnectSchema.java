@@ -16,7 +16,7 @@
  */
 package org.apache.kafka.connect.data;
 
-import org.apache.kafka.connect.errors.DataException;
+import org.apache.kafka.connect.data.errors.DataException;
 
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
@@ -30,7 +30,7 @@ import java.util.Objects;
 
 public class ConnectSchema implements Schema {
     /**
-     * Maps {@link Schema.Type}s to a list of Java classes that can be used to represent them.
+     * Maps {@link Type}s to a list of Java classes that can be used to represent them.
      */
     private static final Map<Type, List<Class<?>>> SCHEMA_TYPE_CLASSES = new EnumMap<>(Type.class);
     /**
@@ -39,7 +39,7 @@ public class ConnectSchema implements Schema {
     private static final Map<String, List<Class<?>>> LOGICAL_TYPE_CLASSES = new HashMap<>();
 
     /**
-     * Maps the Java classes to the corresponding {@link Schema.Type}.
+     * Maps the Java classes to the corresponding {@link Type}.
      */
     private static final Map<Class<?>, Type> JAVA_CLASS_SCHEMA_TYPES = new HashMap<>();
 
@@ -340,7 +340,7 @@ public class ConnectSchema implements Schema {
 
 
     /**
-     * Get the {@link Schema.Type} associated with the given class.
+     * Get the {@link Type} associated with the given class.
      *
      * @param klass the Class whose associated schema type is to be returned
      * @return the corresponding type, or null if there is no matching type

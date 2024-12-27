@@ -14,21 +14,21 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.kafka.connect.errors;
+package org.apache.kafka.connect.data.errors;
 
 /**
- * Base class for all Kafka Connect data API exceptions.
+ * Indicates an error while projecting a schema via {@link org.apache.kafka.connect.data.SchemaProjector}
  */
-public class DataException extends ConnectException {
-    public DataException(String s) {
+public class SchemaProjectorException extends DataException {
+    public SchemaProjectorException(String s) {
         super(s);
     }
 
-    public DataException(String s, Throwable throwable) {
+    public SchemaProjectorException(String s, Throwable throwable) {
         super(s, throwable);
     }
 
-    public DataException(Throwable throwable) {
+    public SchemaProjectorException(Throwable throwable) {
         super(throwable);
     }
 }

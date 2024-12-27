@@ -16,7 +16,7 @@
  */
 package org.apache.kafka.connect.data;
 
-import org.apache.kafka.connect.errors.DataException;
+import org.apache.kafka.connect.data.errors.DataException;
 
 import java.util.List;
 import java.util.Locale;
@@ -205,7 +205,7 @@ public interface Schema {
 
     /**
      * Get the list of Fields for this Schema. Throws a {@link DataException} if this schema is not a
-     * {@link Schema.Type#STRUCT}.
+     * {@link Type#STRUCT}.
      *
      * @return the list of fields for this Schema
      */
@@ -213,7 +213,7 @@ public interface Schema {
 
     /**
      * Get a {@link Field} for this Schema by name. Throws a {@link DataException} if this schema is not a
-     * {@link Schema.Type#STRUCT}.
+     * {@link Type#STRUCT}.
      *
      * @param fieldName the name of the field to look up
      * @return the Field object for the specified field, or null if there is no field with the given name

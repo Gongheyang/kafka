@@ -41,7 +41,6 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 import static org.apache.kafka.server.config.ServerLogConfigs.LOG_CLEANUP_INTERVAL_MS_CONFIG;
 import static org.apache.kafka.server.config.ServerLogConfigs.LOG_INITIAL_TASK_DELAY_MS_CONFIG;
@@ -102,7 +101,7 @@ public class TieredStorageTestUtils {
                 })
                 .sorted(Comparator.comparingLong(records -> records.get(0).offset()))
                 .flatMap(Collection::stream)
-                .collect(Collectors.toList());
+                .toList();
     }
 
     public static Properties createPropsForRemoteStorage(String testClassName,

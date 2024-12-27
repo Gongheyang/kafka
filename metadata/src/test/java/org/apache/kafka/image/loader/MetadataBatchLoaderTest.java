@@ -42,7 +42,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.OptionalInt;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -111,7 +110,7 @@ public class MetadataBatchLoaderTest {
     static List<ApiMessageAndVersion> noOpRecords(int n) {
         return IntStream.range(0, n)
                 .mapToObj(__ -> new ApiMessageAndVersion(new NoOpRecord(), (short) 0))
-                .collect(Collectors.toList());
+                .toList();
     }
 
 

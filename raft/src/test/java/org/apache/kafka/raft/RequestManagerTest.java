@@ -24,7 +24,6 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 import java.util.Optional;
 import java.util.Random;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -281,6 +280,6 @@ public class RequestManagerTest {
         return IntStream.iterate(-2, id -> id - 1)
             .limit(numberOfNodes)
             .mapToObj(id -> new Node(id, String.format("mock-boot-host%d", id), 1234))
-            .collect(Collectors.toList());
+            .toList();
     }
 }

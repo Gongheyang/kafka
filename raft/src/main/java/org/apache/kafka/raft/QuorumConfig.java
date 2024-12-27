@@ -30,7 +30,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import static org.apache.kafka.common.config.ConfigDef.Importance.HIGH;
 import static org.apache.kafka.common.config.ConfigDef.Importance.LOW;
@@ -221,7 +220,7 @@ public class QuorumConfig {
         return bootstrapServers
             .stream()
             .map(QuorumConfig::parseBootstrapServer)
-            .collect(Collectors.toList());
+            .toList();
     }
 
     private static InetSocketAddress parseBootstrapServer(String bootstrapServer) {
@@ -262,7 +261,7 @@ public class QuorumConfig {
             .stream()
             .filter(Objects::nonNull)
             .map(entry -> new Node(entry.getKey(), entry.getValue().getHostString(), entry.getValue().getPort()))
-            .collect(Collectors.toList());
+            .toList();
     }
 
     public static class ControllerQuorumVotersValidator implements ConfigDef.Validator {

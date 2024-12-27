@@ -59,7 +59,6 @@ import org.slf4j.Logger;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 public class ShareCoordinatorShard implements CoordinatorShard<CoordinatorRecord> {
     private final Logger log;
@@ -358,7 +357,7 @@ public class ShareCoordinatorShard implements CoordinatorShard<CoordinatorRecord
                             .setLastOffset(stateBatch.lastOffset())
                             .setDeliveryState(stateBatch.deliveryState())
                             .setDeliveryCount(stateBatch.deliveryCount())
-                    ).collect(Collectors.toList()) : Collections.emptyList();
+                    ).toList() : Collections.emptyList();
 
             responseData = ReadShareGroupStateResponse.toResponseData(
                 topicId,
@@ -481,7 +480,7 @@ public class ShareCoordinatorShard implements CoordinatorShard<CoordinatorRecord
             soFar,
             partitionData.stateBatches().stream()
                 .map(PersisterStateBatch::from)
-                .collect(Collectors.toList()),
+                .toList(),
             startOffset
         )
             .combineStateBatches();
@@ -612,7 +611,7 @@ public class ShareCoordinatorShard implements CoordinatorShard<CoordinatorRecord
             .setLeaderEpoch(newLeaderEpoch)
             .setStateBatches(new PersisterStateBatchCombiner(currentBatches, newData.stateBatches().stream()
                 .map(ShareCoordinatorShard::toPersisterStateBatch)
-                .collect(Collectors.toList()), newStartOffset)
+                .toList(), newStartOffset)
                 .combineStateBatches())
             .build();
     }

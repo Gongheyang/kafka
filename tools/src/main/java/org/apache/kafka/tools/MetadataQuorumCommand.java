@@ -216,10 +216,10 @@ public class MetadataQuorumCommand {
                                                        String status,
                                                        boolean humanReadable) {
         return infos.map(info -> {
-            String lastFetchTimestamp = !info.lastFetchTimestamp().isPresent() ? "-1" :
+            String lastFetchTimestamp = info.lastFetchTimestamp().isEmpty() ? "-1" :
                 humanReadable ? format("%d ms ago", relativeTimeMs(info.lastFetchTimestamp().getAsLong(), "last fetch")) :
                     valueOf(info.lastFetchTimestamp().getAsLong());
-            String lastCaughtUpTimestamp = !info.lastCaughtUpTimestamp().isPresent() ? "-1" :
+            String lastCaughtUpTimestamp = info.lastCaughtUpTimestamp().isEmpty() ? "-1" :
                 humanReadable ? format("%d ms ago", relativeTimeMs(info.lastCaughtUpTimestamp().getAsLong(), "last caught up")) :
                     valueOf(info.lastCaughtUpTimestamp().getAsLong());
             return Stream.of(
@@ -230,8 +230,8 @@ public class MetadataQuorumCommand {
                 lastFetchTimestamp,
                 lastCaughtUpTimestamp,
                 status
-            ).map(r -> r.toString()).collect(Collectors.toList());
-        }).collect(Collectors.toList());
+            ).map(r -> r.toString()).toList();
+        }).toList();
     }
 
     // visible for testing
@@ -291,7 +291,7 @@ public class MetadataQuorumCommand {
         List<Node> currentVoterList = replicas.stream().map(voter -> new Node(
             voter.replicaId(),
             voter.replicaDirectoryId(),
-            getEndpoints(quorumInfo.nodes().get(voter.replicaId())))).collect(Collectors.toList());
+            getEndpoints(quorumInfo.nodes().get(voter.replicaId())))).toList();
         return currentVoterList.stream().map(Objects::toString).collect(Collectors.joining(", ", "[", "]"));
     }
 
@@ -382,7 +382,7 @@ public class MetadataQuorumCommand {
         if (metaProperties == null) {
             throw new TerseException("Unable to read meta.properties from " + metadataDirectory);
         }
-        if (!metaProperties.directoryId().isPresent()) {
+        if (metaProperties.directoryId().isEmpty()) {
             throw new TerseException("No directory id found in " + metadataDirectory);
         }
         return metaProperties.directoryId().get();

@@ -33,7 +33,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
-import java.util.stream.Collectors;
 
 import static org.apache.kafka.server.log.remote.storage.LocalTieredStorageEvent.EventType.FETCH_OFFSET_INDEX;
 import static org.apache.kafka.server.log.remote.storage.LocalTieredStorageEvent.EventType.FETCH_SEGMENT;
@@ -100,7 +99,7 @@ public final class ConsumeAction implements TieredStorageTestAction {
                 .filter(record -> record.offset() >= fetchOffset)
                 .findFirst();
 
-        if (!firstExpectedRecordOpt.isPresent()) {
+        if (firstExpectedRecordOpt.isEmpty()) {
             // If no records could be found in the second-tier storage, no record would be consumed from that storage.
             if (expectedFromSecondTierCount > 0) {
                 fail("Could not find any record with offset >= " + fetchOffset + " from tier storage.");
@@ -149,7 +148,7 @@ public final class ConsumeAction implements TieredStorageTestAction {
 
             List<LocalTieredStorageEvent> events = history.getEvents(eventType, topicPartition);
             List<LocalTieredStorageEvent> eventsInScope = latestEvent
-                    .map(e -> events.stream().filter(event -> event.isAfter(e)).collect(Collectors.toList()))
+                    .map(e -> events.stream().filter(event -> event.isAfter(e)).toList())
                     .orElse(events);
 
             RemoteFetchCount remoteFetchCount = remoteFetchSpec.getRemoteFetchCount();

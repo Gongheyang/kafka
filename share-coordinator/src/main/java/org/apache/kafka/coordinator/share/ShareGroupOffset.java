@@ -26,7 +26,6 @@ import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 /**
  * Container class to represent data encapsulated in {@link ShareSnapshotValue} and {@link ShareUpdateValue}
@@ -81,12 +80,12 @@ public class ShareGroupOffset {
 
     public static ShareGroupOffset fromRecord(ShareSnapshotValue record) {
         return new ShareGroupOffset(record.snapshotEpoch(), record.stateEpoch(), record.leaderEpoch(), record.startOffset(), record.stateBatches().stream()
-            .map(ShareGroupOffset::toPersisterOffsetsStateBatch).collect(Collectors.toList()));
+            .map(ShareGroupOffset::toPersisterOffsetsStateBatch).toList());
     }
 
     public static ShareGroupOffset fromRecord(ShareUpdateValue record) {
         return new ShareGroupOffset(record.snapshotEpoch(), -1, record.leaderEpoch(), record.startOffset(), record.stateBatches().stream()
-            .map(ShareGroupOffset::toPersisterOffsetsStateBatch).collect(Collectors.toList()));
+            .map(ShareGroupOffset::toPersisterOffsetsStateBatch).toList());
     }
 
     public static ShareGroupOffset fromRequest(WriteShareGroupStateRequestData.PartitionData data) {
@@ -100,7 +99,7 @@ public class ShareGroupOffset {
             data.startOffset(),
             data.stateBatches().stream()
                 .map(PersisterStateBatch::from)
-                .collect(Collectors.toList()));
+                .toList());
     }
 
     public LinkedHashSet<PersisterStateBatch> stateBatchAsSet() {

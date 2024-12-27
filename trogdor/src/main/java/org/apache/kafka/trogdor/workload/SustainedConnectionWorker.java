@@ -58,7 +58,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.stream.Collectors;
 
 public class SustainedConnectionWorker implements TaskWorker {
     private static final Logger log = LoggerFactory.getLogger(SustainedConnectionWorker.class);
@@ -265,7 +264,7 @@ public class SustainedConnectionWorker implements TaskWorker {
                     this.producer = new KafkaProducer<>(this.props, new ByteArraySerializer(), new ByteArraySerializer());
                     this.partitions = this.producer.partitionsFor(this.topicName).stream()
                              .map(partitionInfo -> new TopicPartition(partitionInfo.topic(), partitionInfo.partition()))
-                             .collect(Collectors.toList());
+                             .toList();
                     Collections.shuffle(this.partitions);
                 }
 
@@ -343,7 +342,7 @@ public class SustainedConnectionWorker implements TaskWorker {
                     this.consumer = new KafkaConsumer<>(this.props, new ByteArrayDeserializer(), new ByteArrayDeserializer());
                     List<TopicPartition> partitions = this.consumer.partitionsFor(this.topicName).stream()
                             .map(partitionInfo -> new TopicPartition(partitionInfo.topic(), partitionInfo.partition()))
-                            .collect(Collectors.toList());
+                            .toList();
 
                     // Select a random partition and assign it.
                     this.activePartition = partitions.get(this.rand.nextInt(partitions.size()));

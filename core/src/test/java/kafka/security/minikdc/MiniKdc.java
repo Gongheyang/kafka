@@ -74,7 +74,6 @@ import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 /**
  * Mini KDC based on Apache Directory Server that can be embedded in tests or used from command line as a standalone
@@ -304,7 +303,7 @@ public class MiniKdc {
                 byte keyVersion = (byte) encryptionKey.getKeyVersion();
                 return new KeytabEntry(principalWithRealm, 1, timestamp, keyVersion, encryptionKey);
             });
-        }).collect(Collectors.toList());
+        }).toList();
         keytab.setEntries(entries);
         keytab.write(keytabFile);
     }

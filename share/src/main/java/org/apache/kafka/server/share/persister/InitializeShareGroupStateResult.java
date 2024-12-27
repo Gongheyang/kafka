@@ -20,7 +20,6 @@ package org.apache.kafka.server.share.persister;
 import org.apache.kafka.common.message.InitializeShareGroupStateResponseData;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * This class contains the result from {@link Persister#initializeState(InitializeShareGroupStateParameters)}.
@@ -42,8 +41,8 @@ public class InitializeShareGroupStateResult implements PersisterResult {
                         .map(initializeStateResult -> new TopicData<>(initializeStateResult.topicId(),
                                 initializeStateResult.partitions().stream()
                                         .map(partitionResult -> PartitionFactory.newPartitionErrorData(partitionResult.partition(), partitionResult.errorCode(), partitionResult.errorMessage()))
-                                        .collect(Collectors.toList())))
-                        .collect(Collectors.toList()))
+                                        .toList()))
+                        .toList())
                 .build();
     }
 

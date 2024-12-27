@@ -30,7 +30,6 @@ import java.io.File;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -119,7 +118,7 @@ public class TestKitNodes {
         public Builder setPerServerProperties(Map<Integer, Map<String, String>> perServerProperties) {
             this.perServerProperties = Collections.unmodifiableMap(
                 perServerProperties.entrySet().stream()
-                    .collect(Collectors.toMap(Map.Entry::getKey, e -> Collections.unmodifiableMap(new HashMap<>(e.getValue())))));
+                    .collect(Collectors.toMap(Map.Entry::getKey, e -> Map.copyOf(e.getValue()))));
             return this;
         }
 
@@ -172,10 +171,10 @@ public class TestKitNodes {
             int controllerId = combined ? BROKER_ID_OFFSET : BROKER_ID_OFFSET + CONTROLLER_ID_OFFSET;
             List<Integer> controllerNodeIds = IntStream.range(controllerId, controllerId + numControllerNodes)
                 .boxed()
-                .collect(Collectors.toList());
+                .toList();
             List<Integer> brokerNodeIds = IntStream.range(BROKER_ID_OFFSET, BROKER_ID_OFFSET + numBrokerNodes)
                 .boxed()
-                .collect(Collectors.toList());
+                .toList();
 
             String unknownIds = perServerProperties.keySet().stream()
                     .filter(id -> !controllerNodeIds.contains(id))
@@ -313,7 +312,7 @@ public class TestKitNodes {
                 }
                 return new File(baseDirectory, logDir).getAbsolutePath();
             })
-            .collect(Collectors.toList());
+            .toList();
         MetaPropertiesEnsemble.Copier copier = new MetaPropertiesEnsemble.Copier(MetaPropertiesEnsemble.EMPTY);
 
         copier.setMetaLogDir(Optional.of(logDataDirectories.get(0)));

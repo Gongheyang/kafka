@@ -65,7 +65,6 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeoutException;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.singletonList;
@@ -1908,7 +1907,7 @@ public class KafkaRaftClientTest {
         List<InetSocketAddress> bootstrapServers = voters
             .stream()
             .map(RaftClientTestContext::mockAddress)
-            .collect(Collectors.toList());
+            .toList();
 
         RaftClientTestContext context = new RaftClientTestContext.Builder(localId, voters)
             .withBootstrapServers(Optional.of(bootstrapServers))
@@ -1955,7 +1954,7 @@ public class KafkaRaftClientTest {
         List<InetSocketAddress> bootstrapServers = voters
             .stream()
             .map(RaftClientTestContext::mockAddress)
-            .collect(Collectors.toList());
+            .toList();
 
         RaftClientTestContext context = new RaftClientTestContext.Builder(localId, voters)
             .withBootstrapServers(Optional.of(bootstrapServers))
@@ -1998,7 +1997,7 @@ public class KafkaRaftClientTest {
         List<InetSocketAddress> bootstrapServers = voters
             .stream()
             .map(RaftClientTestContext::mockAddress)
-            .collect(Collectors.toList());
+            .toList();
 
         RaftClientTestContext context = new RaftClientTestContext.Builder(localId, voters)
             .withBootstrapServers(Optional.of(bootstrapServers))
@@ -2072,7 +2071,7 @@ public class KafkaRaftClientTest {
         List<InetSocketAddress> bootstrapServers = voters
             .stream()
             .map(RaftClientTestContext::mockAddress)
-            .collect(Collectors.toList());
+            .toList();
 
         RaftClientTestContext context = new RaftClientTestContext.Builder(localId, voters)
             .withBootstrapServers(Optional.of(bootstrapServers))
@@ -2731,7 +2730,7 @@ public class KafkaRaftClientTest {
         List<InetSocketAddress> bootstrapServers = voters
             .stream()
             .map(RaftClientTestContext::mockAddress)
-            .collect(Collectors.toList());
+            .toList();
 
         RaftClientTestContext context = new RaftClientTestContext.Builder(localId, voters)
             .withBootstrapServers(Optional.of(bootstrapServers))
@@ -2770,7 +2769,7 @@ public class KafkaRaftClientTest {
         List<InetSocketAddress> bootstrapServers = voters
             .stream()
             .map(RaftClientTestContext::mockAddress)
-            .collect(Collectors.toList());
+            .toList();
 
         RaftClientTestContext context = new RaftClientTestContext.Builder(localId, voters)
             .withBootstrapServers(Optional.of(bootstrapServers))
@@ -2805,7 +2804,7 @@ public class KafkaRaftClientTest {
         List<InetSocketAddress> bootstrapServers = voters
             .stream()
             .map(RaftClientTestContext::mockAddress)
-            .collect(Collectors.toList());
+            .toList();
 
         RaftClientTestContext context = new RaftClientTestContext.Builder(localId, voters)
             .withBootstrapServers(Optional.of(bootstrapServers))
@@ -2854,7 +2853,7 @@ public class KafkaRaftClientTest {
         List<InetSocketAddress> bootstrapServers = voters
             .stream()
             .map(RaftClientTestContext::mockAddress)
-            .collect(Collectors.toList());
+            .toList();
 
         RaftClientTestContext context = new RaftClientTestContext.Builder(localId, voters)
             .withBootstrapServers(Optional.of(bootstrapServers))
@@ -4442,7 +4441,7 @@ public class KafkaRaftClientTest {
         List<InetSocketAddress> bootstrapServers = voters
             .stream()
             .map(RaftClientTestContext::mockAddress)
-            .collect(Collectors.toList());
+            .toList();
 
         RaftClientTestContext context = new RaftClientTestContext.Builder(OptionalInt.empty(), voters)
             .withBootstrapServers(Optional.of(bootstrapServers))

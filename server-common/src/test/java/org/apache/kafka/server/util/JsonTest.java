@@ -35,7 +35,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -126,7 +125,7 @@ public class JsonTest {
 
         List<JsonValue> expected = Stream.of("4.0", "11.1", "44.5")
                 .map(this::parse)
-                .collect(Collectors.toList());
+                .toList();
         assertEquals(expected, results);
     }
 

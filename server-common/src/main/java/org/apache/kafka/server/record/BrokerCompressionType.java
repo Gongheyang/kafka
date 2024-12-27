@@ -22,7 +22,6 @@ import org.apache.kafka.common.record.CompressionType;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 import static java.util.Arrays.asList;
 
@@ -47,7 +46,7 @@ public enum BrokerCompressionType {
     }
 
     public static List<String> names() {
-        return VALUES.stream().map(v -> v.name).collect(Collectors.toList());
+        return VALUES.stream().map(v -> v.name).toList();
     }
 
     public static BrokerCompressionType forName(String n) {

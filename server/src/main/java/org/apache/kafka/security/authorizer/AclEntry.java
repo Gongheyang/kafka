@@ -115,7 +115,7 @@ public class AclEntry extends AccessControlEntry {
             return Collections.emptySet();
 
         Optional<JsonValue> jsonValue = Json.parseBytes(bytes);
-        if (!jsonValue.isPresent())
+        if (jsonValue.isEmpty())
             return Collections.emptySet();
 
         JsonObject js = jsonValue.get().asJsonObject();
@@ -143,7 +143,7 @@ public class AclEntry extends AccessControlEntry {
     public static Map<String, Object> toJsonCompatibleMap(Set<AclEntry> acls) {
         Map<String, Object> res = new HashMap<>();
         res.put(AclEntry.VERSION_KEY, AclEntry.CURRENT_VERSION);
-        res.put(AclEntry.ACLS_KEY, acls.stream().map(AclEntry::toMap).collect(Collectors.toList()));
+        res.put(AclEntry.ACLS_KEY, acls.stream().map(AclEntry::toMap).toList());
         return res;
     }
 

@@ -65,7 +65,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.IntSupplier;
-import java.util.stream.Collectors;
 
 import static org.apache.kafka.coordinator.common.runtime.CoordinatorOperationExceptionHelper.handleOperationException;
 
@@ -590,9 +589,9 @@ public class ShareCoordinatorService implements ShareCoordinator {
                 resultData.setPartitions(topicData.partitions().stream()
                     .map(partitionData -> ReadShareGroupStateResponse.toErrorResponsePartitionResult(
                         partitionData.partition(), error, errorMessage
-                    )).collect(Collectors.toList()));
+                    )).toList());
                 return resultData;
-            }).collect(Collectors.toList()));
+            }).toList());
     }
 
     private WriteShareGroupStateResponseData generateErrorWriteStateResponse(
@@ -608,9 +607,9 @@ public class ShareCoordinatorService implements ShareCoordinator {
                     resultData.setPartitions(topicData.partitions().stream()
                         .map(partitionData -> WriteShareGroupStateResponse.toErrorResponsePartitionResult(
                             partitionData.partition(), error, errorMessage
-                        )).collect(Collectors.toList()));
+                        )).toList());
                     return resultData;
-                }).collect(Collectors.toList()));
+                }).toList());
     }
 
     private static boolean isGroupIdEmpty(String groupId) {

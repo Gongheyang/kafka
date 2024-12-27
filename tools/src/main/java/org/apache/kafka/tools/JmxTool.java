@@ -208,7 +208,7 @@ public class JmxTool {
                                                                       List<ObjectName> queries,
                                                                       Set<ObjectName> found) throws Exception {
         Map<ObjectName, Integer> result = new HashMap<>();
-        if (!attributesInclude.isPresent()) {
+        if (attributesInclude.isEmpty()) {
             found.forEach(objectName -> {
                 try {
                     MBeanInfo mBeanInfo = conn.getMBeanInfo(objectName);
@@ -419,7 +419,7 @@ public class JmxTool {
                             } catch (MalformedObjectNameException e) {
                                 throw new RuntimeException(e);
                             }
-                        }).collect(Collectors.toList());
+                        }).toList();
             } else {
                 List<ObjectName> listWithNull = new ArrayList<>();
                 listWithNull.add(null);

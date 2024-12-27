@@ -194,7 +194,7 @@ public class ConfigCommandIntegrationTest {
     public void testGroupConfigUpdateUsingKraft() throws Exception {
         List<String> alterOpts = Stream.concat(entityOp(Optional.of(defaultGroupName)).stream(),
                         Stream.of("--entity-type", "groups", "--alter"))
-                .collect(Collectors.toList());
+                .toList();
         verifyGroupConfigUpdate(alterOpts);
 
         // Test for the --group alias
@@ -224,7 +224,7 @@ public class ConfigCommandIntegrationTest {
     public void testClientMetricsConfigUpdate() throws Exception {
         List<String> alterOpts = Stream.concat(entityOp(Optional.of(defaultClientMetricsName)).stream(),
                         Stream.of("--entity-type", "client-metrics", "--alter"))
-            .collect(Collectors.toList());
+            .toList();
         verifyClientMetricsConfigUpdate(alterOpts);
 
         // Test for the --client-metrics alias
@@ -468,7 +468,7 @@ public class ConfigCommandIntegrationTest {
 
     private void alterConfigWithAdmin(Admin client, Optional<String> resourceName, Map<String, String> config, List<String> alterOpts) {
         String configStr = transferConfigMapToString(config);
-        List<String> bootstrapOpts = quorumArgs().collect(Collectors.toList());
+        List<String> bootstrapOpts = quorumArgs().toList();
         ConfigCommand.ConfigCommandOptions addOpts =
                 new ConfigCommand.ConfigCommandOptions(toArray(bootstrapOpts,
                         entityOp(resourceName),
@@ -480,7 +480,7 @@ public class ConfigCommandIntegrationTest {
 
     private void alterConfigWithAdmin(Admin client, Map<String, String> config, List<String> alterOpts) {
         String configStr = transferConfigMapToString(config);
-        List<String> bootstrapOpts = quorumArgs().collect(Collectors.toList());
+        List<String> bootstrapOpts = quorumArgs().toList();
         ConfigCommand.ConfigCommandOptions addOpts =
                 new ConfigCommand.ConfigCommandOptions(toArray(bootstrapOpts,
                         alterOpts,
@@ -548,7 +548,7 @@ public class ConfigCommandIntegrationTest {
                                                  String groupName,
                                                  Map<String, String> defaultConfigs,
                                                  List<String> alterOpts) throws Exception {
-        List<String> bootstrapOpts = quorumArgs().collect(Collectors.toList());
+        List<String> bootstrapOpts = quorumArgs().toList();
         ConfigCommand.ConfigCommandOptions deleteOpts =
             new ConfigCommand.ConfigCommandOptions(toArray(bootstrapOpts,
                     alterOpts,
@@ -562,7 +562,7 @@ public class ConfigCommandIntegrationTest {
                                                          String clientMetricsName,
                                                          Set<String> defaultConfigs,
                                                          List<String> alterOpts) throws Exception {
-        List<String> bootstrapOpts = quorumArgs().collect(Collectors.toList());
+        List<String> bootstrapOpts = quorumArgs().toList();
         ConfigCommand.ConfigCommandOptions deleteOpts =
             new ConfigCommand.ConfigCommandOptions(toArray(bootstrapOpts,
                     alterOpts,

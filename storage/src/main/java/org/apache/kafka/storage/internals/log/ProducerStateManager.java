@@ -49,7 +49,6 @@ import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentSkipListMap;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -248,9 +247,9 @@ public class ProducerStateManager {
         Optional<LogOffsetMetadata> unreplicatedFirstOffset = Optional.ofNullable(unreplicatedTxns.firstEntry()).map(e -> e.getValue().firstOffset);
         Optional<LogOffsetMetadata> undecidedFirstOffset = Optional.ofNullable(ongoingTxns.firstEntry()).map(e -> e.getValue().firstOffset);
 
-        if (!unreplicatedFirstOffset.isPresent())
+        if (unreplicatedFirstOffset.isEmpty())
             return undecidedFirstOffset;
-        else if (!undecidedFirstOffset.isPresent())
+        else if (undecidedFirstOffset.isEmpty())
             return unreplicatedFirstOffset;
         else if (undecidedFirstOffset.get().messageOffset < unreplicatedFirstOffset.get().messageOffset)
             return undecidedFirstOffset;
@@ -328,7 +327,7 @@ public class ProducerStateManager {
     }
 
     private boolean isProducerExpired(long currentTimeMs, ProducerStateEntry producerState) {
-        return !producerState.currentTxnFirstOffset().isPresent() && currentTimeMs - producerState.lastTimestamp() >= producerStateManagerConfig.producerIdExpirationMs();
+        return producerState.currentTxnFirstOffset().isEmpty() && currentTimeMs - producerState.lastTimestamp() >= producerStateManagerConfig.producerIdExpirationMs();
     }
 
     /**
@@ -701,7 +700,7 @@ public class ProducerStateManager {
         if (dir.exists() && dir.isDirectory()) {
             try (Stream<Path> paths = Files.list(dir.toPath())) {
                 return paths.filter(ProducerStateManager::isSnapshotFile)
-                        .map(path -> new SnapshotFile(path.toFile())).collect(Collectors.toList());
+                        .map(path -> new SnapshotFile(path.toFile())).toList();
             }
         } else {
             return Collections.emptyList();

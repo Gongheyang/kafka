@@ -39,7 +39,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.util.Arrays;
 import java.util.Optional;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
@@ -110,7 +109,7 @@ public class ShareGroupStateMessageFormatterTest {
                     .setLastOffset(batch.lastOffset())
                     .setDeliveryState(batch.deliveryState())
                     .setDeliveryCount(batch.deliveryCount()))
-                .collect(Collectors.toList())
+                .toList()
         );
 
     private static final ShareUpdateKey SHARE_UPDATE_KEY = new ShareUpdateKey()
@@ -129,7 +128,7 @@ public class ShareGroupStateMessageFormatterTest {
                     .setLastOffset(batch.lastOffset())
                     .setDeliveryState(batch.deliveryState())
                     .setDeliveryCount(batch.deliveryCount()))
-                .collect(Collectors.toList())
+                .toList()
         );
 
     private static Stream<Arguments> parameters() {

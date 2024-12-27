@@ -68,7 +68,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 
 import static org.apache.kafka.coordinator.common.runtime.CoordinatorRuntime.CoordinatorWriteEvent.NOT_QUEUED;
 
@@ -2155,7 +2154,7 @@ public class CoordinatorRuntime<S extends CoordinatorShard<U>, U> implements Aut
             .keySet()
             .stream()
             .map(tp -> scheduleWriteOperation(name, tp, timeout, op))
-            .collect(Collectors.toList());
+            .toList();
     }
 
     /**
@@ -2292,7 +2291,7 @@ public class CoordinatorRuntime<S extends CoordinatorShard<U>, U> implements Aut
             .keySet()
             .stream()
             .map(tp -> scheduleReadOperation(name, tp, op))
-            .collect(Collectors.toList());
+            .toList();
     }
 
     /**

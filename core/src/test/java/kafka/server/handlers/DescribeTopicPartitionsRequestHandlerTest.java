@@ -79,7 +79,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
-import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -137,7 +136,7 @@ class DescribeTopicPartitionsRequestHandlerTest {
                         return AuthorizationResult.ALLOWED;
                     else
                         return AuthorizationResult.DENIED;
-                }).collect(Collectors.toList());
+                }).toList();
             });
 
         // 2. Set up MetadataCache
@@ -339,7 +338,7 @@ class DescribeTopicPartitionsRequestHandlerTest {
                         return AuthorizationResult.ALLOWED;
                     else
                         return AuthorizationResult.DENIED;
-                }).collect(Collectors.toList());
+                }).toList();
             });
 
         // 2. Set up MetadataCache

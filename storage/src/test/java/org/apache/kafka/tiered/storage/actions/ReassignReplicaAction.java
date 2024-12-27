@@ -31,7 +31,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
-import java.util.stream.Collectors;
 
 import static org.apache.kafka.tiered.storage.utils.TieredStorageTestUtils.describeTopic;
 
@@ -60,7 +59,7 @@ public final class ReassignReplicaAction implements TieredStorageTestAction {
                 List<Integer> actualReplicaIds = description.partitions().get(partition).replicas()
                         .stream()
                         .map(Node::id)
-                        .collect(Collectors.toList());
+                        .toList();
                 return replicaIds.equals(actualReplicaIds);
             } catch (ExecutionException e) {
                 if (e.getCause() instanceof UnknownTopicOrPartitionException) {

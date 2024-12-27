@@ -3880,7 +3880,7 @@ public class GroupMetadataManagerTest {
         List<GroupMetadataManagerTestContext.JoinResult> firstRoundJoinResults = IntStream.range(0, groupMaxSize + 1).mapToObj(i -> context.sendClassicGroupJoin(
             request,
             requiredKnownMemberId
-        )).collect(Collectors.toList());
+        )).toList();
 
         List<String> memberIds = verifyClassicGroupJoinResponses(firstRoundJoinResults, 0, Errors.MEMBER_ID_REQUIRED);
         assertEquals(groupMaxSize + 1, memberIds.size());
@@ -3893,7 +3893,7 @@ public class GroupMetadataManagerTest {
         List<GroupMetadataManagerTestContext.JoinResult> secondRoundJoinResults = memberIds.stream().map(memberId -> context.sendClassicGroupJoin(
             request.setMemberId(memberId),
             requiredKnownMemberId
-        )).collect(Collectors.toList());
+        )).toList();
 
         // Advance clock by group initial rebalance delay to complete first inital delayed join.
         // This will extend the initial rebalance as new members have joined.
@@ -3912,7 +3912,7 @@ public class GroupMetadataManagerTest {
         List<GroupMetadataManagerTestContext.JoinResult> thirdRoundJoinResults = memberIds.stream().map(memberId -> context.sendClassicGroupJoin(
             request.setMemberId(memberId),
             requiredKnownMemberId
-        )).collect(Collectors.toList());
+        )).toList();
 
         verifyClassicGroupJoinResponses(thirdRoundJoinResults, groupMaxSize, Errors.GROUP_MAX_SIZE_REACHED);
     }
@@ -3938,7 +3938,7 @@ public class GroupMetadataManagerTest {
         List<GroupMetadataManagerTestContext.JoinResult> firstRoundJoinResults = IntStream.range(0, groupMaxSize + 1).mapToObj(i -> context.sendClassicGroupJoin(
             request,
             requiredKnownMemberId
-        )).collect(Collectors.toList());
+        )).toList();
 
         assertEquals(groupMaxSize, group.numMembers());
         assertEquals(groupMaxSize, group.numAwaitingJoinResponse());
@@ -3958,7 +3958,7 @@ public class GroupMetadataManagerTest {
         List<GroupMetadataManagerTestContext.JoinResult> secondRoundJoinResults = memberIds.stream().map(memberId -> context.sendClassicGroupJoin(
             request.setMemberId(memberId),
             requiredKnownMemberId
-        )).collect(Collectors.toList());
+        )).toList();
 
         verifyClassicGroupJoinResponses(secondRoundJoinResults, 10, Errors.GROUP_MAX_SIZE_REACHED);
         assertEquals(groupMaxSize, group.numMembers());
@@ -3972,7 +3972,7 @@ public class GroupMetadataManagerTest {
 
         List<String> groupInstanceIds = IntStream.range(0, groupMaxSize + 1)
             .mapToObj(i -> "instance-id-" + i)
-            .collect(Collectors.toList());
+            .toList();
 
         GroupMetadataManagerTestContext context = new GroupMetadataManagerTestContext.Builder()
             .withConfig(GroupCoordinatorConfig.GROUP_MAX_SIZE_CONFIG, groupMaxSize)
@@ -3990,7 +3990,7 @@ public class GroupMetadataManagerTest {
         // First round of join requests. This will trigger a rebalance.
         List<GroupMetadataManagerTestContext.JoinResult> firstRoundJoinResults = groupInstanceIds.stream()
                                                                                                  .map(instanceId -> context.sendClassicGroupJoin(request.setGroupInstanceId(instanceId)))
-                                                                                                 .collect(Collectors.toList());
+                                                                                                 .toList();
 
         assertEquals(groupMaxSize, group.numMembers());
         assertEquals(groupMaxSize, group.numAwaitingJoinResponse());
@@ -4012,7 +4012,7 @@ public class GroupMetadataManagerTest {
             request
                 .setMemberId(memberIds.get(i))
                 .setGroupInstanceId(groupInstanceIds.get(i))
-        )).collect(Collectors.toList());
+        )).toList();
 
         verifyClassicGroupJoinResponses(secondRoundJoinResults, groupMaxSize, Errors.GROUP_MAX_SIZE_REACHED);
         assertEquals(groupMaxSize, group.numMembers());
@@ -4040,7 +4040,7 @@ public class GroupMetadataManagerTest {
         // First round of join requests. Generate member ids.
         List<GroupMetadataManagerTestContext.JoinResult> firstRoundJoinResults =  IntStream.range(0, groupMaxSize + 1)
                                                                                            .mapToObj(__ -> context.sendClassicGroupJoin(request, requiredKnownMemberId))
-                                                                                           .collect(Collectors.toList());
+                                                                                           .toList();
 
         assertEquals(0, group.numMembers());
         assertEquals(groupMaxSize + 1, group.numPendingJoinMembers());
@@ -4067,7 +4067,7 @@ public class GroupMetadataManagerTest {
         List<GroupMetadataManagerTestContext.JoinResult> thirdRoundJoinResults = memberIds.stream().map(memberId -> context.sendClassicGroupJoin(
             request.setMemberId(memberId),
             requiredKnownMemberId
-        )).collect(Collectors.toList());
+        )).toList();
 
         // Advance clock by group initial rebalance delay to complete first inital delayed join.
         // This will extend the initial rebalance as new members have joined.
@@ -4097,7 +4097,7 @@ public class GroupMetadataManagerTest {
 
         List<String> memberIds = IntStream.range(0, groupMaxSize + 2)
             .mapToObj(i -> group.generateMemberId("client-id", Optional.empty()))
-            .collect(Collectors.toList());
+            .toList();
 
         memberIds.forEach(memberId -> group.add(
             new ClassicGroupMember(
@@ -4121,7 +4121,7 @@ public class GroupMetadataManagerTest {
                 .withDefaultProtocolTypeAndProtocols()
                 .withRebalanceTimeoutMs(10000)
                 .build()
-        )).collect(Collectors.toList());
+        )).toList();
 
         assertEquals(groupMaxSize, group.numMembers());
         assertEquals(groupMaxSize, group.numAwaitingJoinResponse());
@@ -8343,7 +8343,7 @@ public class GroupMetadataManagerTest {
                 assertTrue(syncResult.records.isEmpty());
                 assertFalse(syncResult.syncFuture.isDone());
                 return syncResult.syncFuture;
-            }).collect(Collectors.toList());
+            }).toList();
 
         // Advance clock by 1/2 rebalance timeout to expire the pending sync. Leader should be kicked out.
         List<ExpiredTimeout<Void, CoordinatorRecord>> timeouts = context.sleep(rebalanceTimeoutMs / 2);
@@ -8413,7 +8413,7 @@ public class GroupMetadataManagerTest {
             }
             assertTrue(syncResult.syncFuture.isDone());
             return syncResult.syncFuture;
-        }).collect(Collectors.toList());
+        }).toList();
 
         for (CompletableFuture<SyncGroupResponseData> syncFuture : syncFutures) {
             assertEquals(Errors.NONE.code(), syncFuture.get().errorCode());

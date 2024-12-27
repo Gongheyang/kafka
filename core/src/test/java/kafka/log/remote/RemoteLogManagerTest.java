@@ -2299,7 +2299,7 @@ public class RemoteLogManagerTest {
                             }
                             return m;
                         })
-                        .collect(Collectors.toList());
+                        .toList();
                 return CompletableFuture.runAsync(() -> { });
             }
 

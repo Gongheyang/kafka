@@ -30,7 +30,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import static org.apache.kafka.common.config.ConfigResource.Type.BROKER;
 import static org.apache.kafka.common.config.ConfigResource.Type.TOPIC;
@@ -75,7 +74,7 @@ public class ConfigurationsImageNodeTest {
         List<ConfigResource> childResources = NODE.childNames().stream().
             sorted().
             map(ConfigurationsImageNode::resourceFromName).
-            collect(Collectors.toList());
+            toList();
         assertEquals(Arrays.asList(
             new ConfigResource(BROKER, ""),
             new ConfigResource(BROKER, "0"),

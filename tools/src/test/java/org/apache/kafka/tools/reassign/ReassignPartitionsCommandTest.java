@@ -437,7 +437,7 @@ public class ReassignPartitionsCommandTest {
                             new CompletedMoveState(reassignment.targetDir)
                     ), false));
 
-            BrokerDirs info1 = new BrokerDirs(admin.describeLogDirs(IntStream.range(0, 4).boxed().collect(Collectors.toList())), 0);
+            BrokerDirs info1 = new BrokerDirs(admin.describeLogDirs(IntStream.range(0, 4).boxed().toList()), 0);
             assertEquals(reassignment.targetDir, info1.curLogDirs.getOrDefault(topicPartition, ""));
         }
     }
@@ -634,7 +634,7 @@ public class ReassignPartitionsCommandTest {
                                                        List<Integer> replicas) throws ExecutionException, InterruptedException {
         try (Admin admin = Admin.create(Collections.singletonMap(CommonClientConfigs.BOOTSTRAP_SERVERS_CONFIG, clusterInstance.bootstrapServers()))) {
             DescribeLogDirsResult describeLogDirsResult = admin.describeLogDirs(
-                    IntStream.range(0, 4).boxed().collect(Collectors.toList()));
+                    IntStream.range(0, 4).boxed().toList());
 
             BrokerDirs logDirInfo = new BrokerDirs(describeLogDirsResult, brokerId);
             assertTrue(logDirInfo.futureLogDirs.isEmpty());
@@ -647,7 +647,7 @@ public class ReassignPartitionsCommandTest {
                     return "\"" + newDir + "\"";
                 else
                     return "\"any\"";
-            }).collect(Collectors.toList());
+            }).toList();
 
             String reassignmentJson =
                     " { \"version\": 1," +

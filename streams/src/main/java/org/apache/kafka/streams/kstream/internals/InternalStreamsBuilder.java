@@ -328,6 +328,9 @@ public class InternalStreamsBuilder implements InternalNameProvider {
             }
         }
         internalTopologyBuilder.validateCopartition();
+
+        internalTopologyBuilder.checkUnprovidedNames();
+
     }
 
     /**
@@ -489,7 +492,8 @@ public class InternalStreamsBuilder implements InternalNameProvider {
             //passing in the name of the first repartition topic, re-used to create the optimized repartition topic
             final GraphNode optimizedSingleRepartition = createRepartitionNode(repartitionTopicName,
                                                                                groupedInternal.keySerde(),
-                                                                               groupedInternal.valueSerde());
+                                                                               groupedInternal.valueSerde(),
+                                                                               true);
 
             // re-use parent buildPriority to make sure the single repartition graph node is evaluated before downstream nodes
             optimizedSingleRepartition.setBuildPriority(keyChangingNode.buildPriority());
@@ -579,7 +583,8 @@ public class InternalStreamsBuilder implements InternalNameProvider {
 
     private <K, V> OptimizableRepartitionNode<K, V> createRepartitionNode(final String repartitionTopicName,
                                                                           final Serde<K> keySerde,
-                                                                          final Serde<V> valueSerde) {
+                                                                          final Serde<V> valueSerde,
+                                                                          final boolean isRepartitionTopicNameProvidedByUser) {
 
         final OptimizableRepartitionNode.OptimizableRepartitionNodeBuilder<K, V> repartitionNodeBuilder =
             OptimizableRepartitionNode.optimizableRepartitionNodeBuilder();
@@ -589,7 +594,8 @@ public class InternalStreamsBuilder implements InternalNameProvider {
                 valueSerde,
                 repartitionTopicName,
                 null,
-                repartitionNodeBuilder
+                repartitionNodeBuilder,
+                isRepartitionTopicNameProvidedByUser
         );
 
         // ensures setting the repartition topic to the name of the

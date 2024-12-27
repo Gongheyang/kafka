@@ -22,9 +22,11 @@ import org.apache.kafka.common.serialization.StringSerializer;
 import org.apache.kafka.common.utils.Bytes;
 import org.apache.kafka.streams.Topology.AutoOffsetReset;
 import org.apache.kafka.streams.errors.TopologyException;
+import org.apache.kafka.streams.kstream.Aggregator;
 import org.apache.kafka.streams.kstream.Branched;
 import org.apache.kafka.streams.kstream.Consumed;
 import org.apache.kafka.streams.kstream.ForeachAction;
+import org.apache.kafka.streams.kstream.GlobalKTable;
 import org.apache.kafka.streams.kstream.Grouped;
 import org.apache.kafka.streams.kstream.JoinWindows;
 import org.apache.kafka.streams.kstream.Joined;
@@ -35,12 +37,14 @@ import org.apache.kafka.streams.kstream.Materialized;
 import org.apache.kafka.streams.kstream.Named;
 import org.apache.kafka.streams.kstream.Printed;
 import org.apache.kafka.streams.kstream.Produced;
+import org.apache.kafka.streams.kstream.Repartitioned;
 import org.apache.kafka.streams.kstream.SessionWindows;
 import org.apache.kafka.streams.kstream.SlidingWindows;
 import org.apache.kafka.streams.kstream.StreamJoined;
 import org.apache.kafka.streams.kstream.Suppressed;
 import org.apache.kafka.streams.kstream.TableJoined;
 import org.apache.kafka.streams.kstream.TimeWindows;
+import org.apache.kafka.streams.kstream.Windowed;
 import org.apache.kafka.streams.processor.StateStore;
 import org.apache.kafka.streams.processor.api.Processor;
 import org.apache.kafka.streams.processor.api.ProcessorContext;
@@ -54,6 +58,7 @@ import org.apache.kafka.streams.state.KeyValueStore;
 import org.apache.kafka.streams.state.SessionStore;
 import org.apache.kafka.streams.state.StoreBuilder;
 import org.apache.kafka.streams.state.Stores;
+import org.apache.kafka.streams.state.VersionedBytesStoreSupplier;
 import org.apache.kafka.streams.state.WindowStore;
 import org.apache.kafka.streams.state.internals.InMemoryKeyValueStore;
 import org.apache.kafka.streams.state.internals.InMemorySessionStore;
@@ -75,6 +80,8 @@ import org.hamcrest.Matchers;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -90,6 +97,7 @@ import java.util.Set;
 import java.util.regex.Pattern;
 
 import static java.util.Arrays.asList;
+import static org.apache.kafka.streams.StreamsConfig.ENSURE_EXPLICIT_INTERNAL_RESOURCE_NAMING_CONFIG;
 import static org.apache.kafka.streams.StreamsConfig.PROCESSOR_WRAPPER_CLASS_CONFIG;
 import static org.apache.kafka.streams.StreamsConfig.TOPOLOGY_OPTIMIZATION_CONFIG;
 import static org.apache.kafka.streams.processor.internals.assignment.AssignmentTestUtils.SUBTOPOLOGY_0;
@@ -102,6 +110,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.core.Is.is;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -2352,6 +2361,419 @@ public class StreamsBuilderTest {
         builder.stream("topic");
         builder.table("topic");
         assertThrows(TopologyException.class, builder::build);
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+        "true, false, true, false",
+        "false, true, true, true",
+        "true, true, true, true",
+        "false, false, false, false"
+    })
+    public void groupByWithAggregationTest(final boolean isGroupByKeyNamed,
+                                           final boolean isMaterializedNamed,
+                                           final boolean isLoggingEnabled,
+                                           final boolean isValid) {
+        final Map<Object, Object> props = dummyStreamsConfigMap();
+        props.put(ENSURE_EXPLICIT_INTERNAL_RESOURCE_NAMING_CONFIG, true);
+
+        final Grouped<String, String> grouped;
+        final Materialized<String, Long, KeyValueStore<Bytes, byte[]>> materialized;
+        if (isGroupByKeyNamed) {
+            grouped = Grouped.with("repartition-name", Serdes.String(), Serdes.String());
+        } else {
+            grouped = Grouped.with(Serdes.String(), Serdes.String());
+        }
+        if (isMaterializedNamed) {
+            materialized = Materialized.<String, Long, KeyValueStore<Bytes, byte[]>>as("materialized-name")
+                .withKeySerde(Serdes.String()).withValueSerde(Serdes.Long());
+        } else {
+            if (isLoggingEnabled) {
+                materialized = Materialized.with(Serdes.String(), Serdes.Long());
+            } else {
+                materialized = Materialized.<String, Long, KeyValueStore<Bytes, byte[]>>with(Serdes.String(), Serdes.Long())
+                    .withLoggingDisabled();
+            }
+        }
+
+        final StreamsBuilder builder = new StreamsBuilder(new TopologyConfig(new StreamsConfig(props)));
+        final KStream<String, String> stream = builder.stream("input1");
+        stream
+            .groupBy((k, v) -> v, grouped)
+            .count(materialized)
+            .toStream()
+            .to("output", Produced.as("sink"));
+
+        if (isValid) {
+            assertDoesNotThrow(() -> builder.build());
+        } else {
+            final TopologyException e = assertThrows(TopologyException.class, () -> builder.build());
+            // TODO check the error with loggingDisabled
+        }
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+        "true, false, true, false",
+        "false, true, true, true",
+        "true, true, true, true",
+        "false, false, false, false"
+    })
+    public void groupByKeyWithAggregationTest(final boolean isGroupByKeyNamed,
+                                              final boolean isMaterializedNamed,
+                                              final boolean isLoggingEnabled,
+                                              final boolean isValid) {
+        final Map<Object, Object> props = dummyStreamsConfigMap();
+        props.put(ENSURE_EXPLICIT_INTERNAL_RESOURCE_NAMING_CONFIG, true);
+
+        final Grouped<String, String> grouped;
+        final Materialized<String, Long, KeyValueStore<Bytes, byte[]>> materialized;
+        if (isGroupByKeyNamed) {
+            grouped = Grouped.with("repartition-name", Serdes.String(), Serdes.String());
+        } else {
+            grouped = Grouped.with(Serdes.String(), Serdes.String());
+        }
+        if (isMaterializedNamed) {
+            materialized = Materialized.<String, Long, KeyValueStore<Bytes, byte[]>>as("materialized-name")
+                .withKeySerde(Serdes.String()).withValueSerde(Serdes.Long());
+        } else {
+            if (isLoggingEnabled) {
+                materialized = Materialized.with(Serdes.String(), Serdes.Long());
+            } else {
+                materialized = Materialized.<String, Long, KeyValueStore<Bytes, byte[]>>with(Serdes.String(), Serdes.Long())
+                    .withLoggingDisabled();
+            }
+        }
+
+        final StreamsBuilder builder = new StreamsBuilder(new TopologyConfig(new StreamsConfig(props)));
+        final KStream<String, String> stream = builder.stream("input1");
+        stream
+            .selectKey((k, v) -> v)
+            .groupByKey(grouped)
+            .count(materialized)
+            .toStream()
+            .to("output", Produced.as("sink"));
+
+        if (isValid) {
+            assertDoesNotThrow(() -> builder.build());
+        } else {
+            final TopologyException e = assertThrows(TopologyException.class, () -> builder.build());
+            // TODO check the error with loggingDisabled
+        }
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+        "true, true",
+        "false, false"
+    })
+    public void aggregationWithSuppressTest(final boolean isSuppressNamed, final boolean isValid) {
+        final Map<Object, Object> props = dummyStreamsConfigMap();
+        props.put(ENSURE_EXPLICIT_INTERNAL_RESOURCE_NAMING_CONFIG, true);
+
+        final Suppressed<Windowed> suppressed;
+        if (isSuppressNamed) {
+            suppressed = Suppressed.untilWindowCloses(Suppressed.BufferConfig.unbounded())
+                .withName("suppressed-name");
+        } else {
+            suppressed = Suppressed.untilWindowCloses(Suppressed.BufferConfig.unbounded());
+        }
+
+        final StreamsBuilder builder = new StreamsBuilder(new TopologyConfig(new StreamsConfig(props)));
+        final KStream<String, String> stream = builder.stream("input1");
+        stream
+            .groupByKey()
+            .windowedBy(TimeWindows.ofSizeWithNoGrace(Duration.ofHours(1)))
+            .count(Materialized.as("materialized-name"))
+            .suppress(suppressed)
+            .toStream()
+            .to("output", Produced.as("sink"));
+
+        if (isValid) {
+            assertDoesNotThrow(() -> builder.build());
+        } else {
+            final TopologyException e = assertThrows(TopologyException.class, () -> builder.build());
+        }
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+        "true, false, true, false",
+        "false, true, true, false",
+        "true, true, true, true",
+        "false, false, false, false"
+    })
+    public void joinKStreamKStreamTest(final boolean isRepartitionNamed,
+                                       final boolean isStateStoreNamed,
+                                       final boolean isLoggingEnabled,
+                                       final boolean isValid) {
+        final Map<Object, Object> props = dummyStreamsConfigMap();
+        props.put(ENSURE_EXPLICIT_INTERNAL_RESOURCE_NAMING_CONFIG, true);
+
+        final StreamJoined<String, String, String> streamJoined;
+        if (isRepartitionNamed && isStateStoreNamed) {
+            streamJoined = StreamJoined.with(Serdes.String(), Serdes.String(), Serdes.String())
+                .withName("repartition-name")
+                .withStoreName("store-name");
+        } else if (isRepartitionNamed) {
+            streamJoined = StreamJoined.with(Serdes.String(), Serdes.String(), Serdes.String())
+                .withName("repartition-name");
+        } else if (isStateStoreNamed) {
+            streamJoined = StreamJoined.with(Serdes.String(), Serdes.String(), Serdes.String())
+                .withStoreName("store-name");
+        } else {
+            if (isLoggingEnabled) {
+                streamJoined = StreamJoined.with(Serdes.String(), Serdes.String(), Serdes.String());
+            } else {
+                streamJoined = StreamJoined.with(Serdes.String(), Serdes.String(), Serdes.String()).withLoggingDisabled();
+            }
+        }
+
+        final StreamsBuilder builder = new StreamsBuilder(new TopologyConfig(new StreamsConfig(props)));
+        final KStream<String, String> streamOne = builder.stream(STREAM_TOPIC);
+        final KStream<String, String> streamTwo = builder.stream(STREAM_TOPIC_TWO);
+        streamOne
+            .selectKey((k, v) -> v)
+            .leftJoin(
+                streamTwo.selectKey((k, v) -> v),
+                (value1, value2) -> value1,
+                JoinWindows.ofTimeDifferenceWithNoGrace(Duration.ofHours(1)),
+                streamJoined
+            );
+
+        if (isValid) {
+            assertDoesNotThrow(() -> builder.build());
+        } else {
+            final TopologyException e = assertThrows(TopologyException.class, () -> builder.build());
+            // TODO check the error with loggingDisabled
+        }
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+        "true, false, true, false",
+        "false, true, true, false",
+        "true, true, true, true",
+        "false, false, false, false"
+    })
+    public void joinKStreamKTableTest(final boolean isRepartitionNamed,
+                                      final boolean isMaterializedNamed,
+                                      final boolean isLoggingEnabled,
+                                      final boolean isValid) {
+        final Map<Object, Object> props = dummyStreamsConfigMap();
+        props.put(ENSURE_EXPLICIT_INTERNAL_RESOURCE_NAMING_CONFIG, true);
+
+        final Joined<String, String, String> joined;
+        final Materialized<String, String, KeyValueStore<Bytes, byte[]>> materialized;
+        if (isRepartitionNamed) {
+            joined = Joined.with(Serdes.String(), Serdes.String(), Serdes.String())
+                .withName("repartition-name");
+        } else {
+            joined = Joined.with(Serdes.String(), Serdes.String(), Serdes.String());
+        }
+        if (isMaterializedNamed) {
+            materialized = Materialized.<String, String, KeyValueStore<Bytes, byte[]>>as("materialized-name")
+                .withKeySerde(Serdes.String()).withValueSerde(Serdes.String());
+        } else {
+            if (isLoggingEnabled) {
+                materialized = Materialized.with(Serdes.String(), Serdes.String());
+            } else {
+                materialized = Materialized.<String, String, KeyValueStore<Bytes, byte[]>>with(Serdes.String(), Serdes.String())
+                    .withLoggingDisabled();
+            }
+        }
+        final StreamsBuilder builder = new StreamsBuilder(new TopologyConfig(new StreamsConfig(props)));
+        final KStream<String, String> stream = builder.stream(STREAM_TOPIC);
+        final KTable<String, String> table = builder.table(STREAM_TOPIC_TWO, materialized);
+        stream
+            .selectKey((k, v) -> v)
+            .join(
+                table,
+                (value1, value2) -> value1,
+                joined
+            );
+
+        if (isValid) {
+            assertDoesNotThrow(() -> builder.build());
+        } else {
+            final TopologyException e = assertThrows(TopologyException.class, () -> builder.build());
+            // TODO check the error with loggingDisabled
+        }
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+        "true, true, true",
+        "false, true, false",
+        "false, false, false"
+    })
+    public void joinKStreamVersionedKTableAndGracePeriodTest(final boolean isRepartitionNamed,
+                                                             final boolean isLoggingEnabled,
+                                                             final boolean isValid) {
+        final Map<Object, Object> props = dummyStreamsConfigMap();
+        props.put(ENSURE_EXPLICIT_INTERNAL_RESOURCE_NAMING_CONFIG, true);
+
+        final Joined<String, String, String> joined;
+        final Materialized<String, String, KeyValueStore<Bytes, byte[]>> materialized;
+        if (isRepartitionNamed) {
+            joined = Joined.with(Serdes.String(), Serdes.String(), Serdes.String())
+                .withName("repartition-name");
+        } else {
+            joined = Joined.with(Serdes.String(), Serdes.String(), Serdes.String());
+        }
+        final VersionedBytesStoreSupplier versionedStoreSupplier =
+            Stores.persistentVersionedKeyValueStore("versioned-ktable-store",
+                Duration.ofDays(1));
+        if (isLoggingEnabled) {
+            materialized = Materialized.<String, String>as(versionedStoreSupplier)
+                .withKeySerde(Serdes.String()).withValueSerde(Serdes.String());
+        } else {
+            materialized = Materialized.<String, String>as(versionedStoreSupplier)
+                .withKeySerde(Serdes.String()).withValueSerde(Serdes.String())
+                .withLoggingDisabled();
+        }
+
+        final StreamsBuilder builder = new StreamsBuilder(new TopologyConfig(new StreamsConfig(props)));
+        final KStream<String, String> stream = builder.stream(STREAM_TOPIC);
+        final KTable<String, String> table = builder.table(STREAM_TOPIC_TWO, materialized);
+        stream
+            .selectKey((k, v) -> v)
+            .join(
+                table,
+                (value1, value2) -> value1,
+                joined.withGracePeriod(Duration.ofHours(1))
+            );
+
+        if (isValid) {
+            assertDoesNotThrow(() -> builder.build());
+        } else {
+            final TopologyException e = assertThrows(TopologyException.class, () -> builder.build());
+            // TODO check the error with loggingDisabled
+        }
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+        "false, false",
+        "true, true"
+    })
+    public void joinKStreamGlobalKTableTest(final boolean isMaterializedNamed,
+                                            final boolean isValid) {
+        final Map<Object, Object> props = dummyStreamsConfigMap();
+        props.put(ENSURE_EXPLICIT_INTERNAL_RESOURCE_NAMING_CONFIG, true);
+
+        final StreamsBuilder builder = new StreamsBuilder(new TopologyConfig(new StreamsConfig(props)));
+        final KStream<String, String> stream = builder.stream(STREAM_TOPIC);
+        final GlobalKTable<String, String> globalTable;
+        final Materialized<String, String, KeyValueStore<Bytes, byte[]>> materialized;
+        if (isMaterializedNamed) {
+            materialized = Materialized.<String, String, KeyValueStore<Bytes, byte[]>>as("materialized-name")
+                .withKeySerde(Serdes.String()).withValueSerde(Serdes.String());
+            globalTable = builder.globalTable(STREAM_TOPIC_TWO, materialized);
+        } else {
+            globalTable = builder.globalTable(STREAM_TOPIC_TWO);
+        }
+        stream
+            .selectKey((k, v) -> v)
+            .join(
+                globalTable,
+                (k, v) -> k,
+                (value1, value2) -> value1
+            );
+        if (isValid) {
+            assertDoesNotThrow(() -> builder.build());
+        } else {
+            final TopologyException e = assertThrows(TopologyException.class, () -> builder.build());
+        }
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+        "false, false",
+        "true, true"
+    })
+    public void repartitionTest(final boolean isRepartitionNamed,
+                                final boolean isValid) {
+        final Map<Object, Object> props = dummyStreamsConfigMap();
+        props.put(ENSURE_EXPLICIT_INTERNAL_RESOURCE_NAMING_CONFIG, true);
+
+        final Repartitioned<String, String> repartitioned;
+        if (isRepartitionNamed) {
+            repartitioned = Repartitioned.with(Serdes.String(), Serdes.String())
+                .withName("repartition-name");
+        } else {
+            repartitioned = Repartitioned.with(Serdes.String(), Serdes.String());
+        }
+
+        final StreamsBuilder builder = new StreamsBuilder(new TopologyConfig(new StreamsConfig(props)));
+        final KStream<String, String> stream = builder.stream("input1");
+        stream
+            .repartition(repartitioned)
+            .to("output", Produced.as("sink"));
+
+        if (isValid) {
+            assertDoesNotThrow(() -> builder.build());
+        } else {
+            final TopologyException e = assertThrows(TopologyException.class, () -> builder.build());
+        }
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+        "true, false, true, false",
+        "false, true, true, false",
+        "true, true, true, true",
+        "false, false, false, false"
+    })
+    public void coGroupTest(final boolean isRepartitionNamed,
+                            final boolean isMaterializedNamed,
+                            final boolean isLoggingEnabled,
+                            final boolean isValid) {
+        final Map<Object, Object> props = dummyStreamsConfigMap();
+        props.put(ENSURE_EXPLICIT_INTERNAL_RESOURCE_NAMING_CONFIG, true);
+
+        final StreamsBuilder builder = new StreamsBuilder(new TopologyConfig(new StreamsConfig(props)));
+
+        final KStream<String, String> streamOne = builder.stream(STREAM_TOPIC);
+        final KStream<String, String> streamTwo = builder.stream(STREAM_TOPIC_TWO);
+
+        // only one KGroupedStream can be unamed, KAFKA-10659 Cogroup topology generation fails if input streams are repartitioned
+        final Grouped<String, String> grouped;
+        final Materialized<String, String, KeyValueStore<Bytes, byte[]>> materialized;
+        if (isRepartitionNamed) {
+            grouped = Grouped.with("repartition-name", Serdes.String(), Serdes.String());
+        } else {
+            grouped = Grouped.with(Serdes.String(), Serdes.String());
+        }
+        if (isMaterializedNamed) {
+            materialized = Materialized.<String, String, KeyValueStore<Bytes, byte[]>>as("materialized-name")
+                .withKeySerde(Serdes.String()).withValueSerde(Serdes.String());
+        } else {
+            if (isLoggingEnabled) {
+                materialized = Materialized.with(Serdes.String(), Serdes.String());
+            } else {
+                materialized = Materialized.<String, String, KeyValueStore<Bytes, byte[]>>with(Serdes.String(), Serdes.String())
+                    .withLoggingDisabled();
+            }
+        }
+        final KGroupedStream<String, String> groupedOne = streamOne.groupBy((k, v) -> v, grouped);
+        final KGroupedStream<String, String> groupedTwo = streamTwo.groupBy((k, v) -> v);
+
+        final Aggregator<String, String, String> agg1 = (key, value, aggregate) -> aggregate + value;
+        final Aggregator<String, String, String> agg2 = (key, value, aggregate) -> aggregate + value;
+
+        final KTable<String, String> coGroupedStream = groupedOne
+            .cogroup(agg1)
+            .cogroup(groupedTwo, agg2)
+            .aggregate(() -> "", materialized);
+
+        coGroupedStream.toStream().to("output");
+
+        if (isValid) {
+            assertDoesNotThrow(() -> builder.build());
+        } else {
+            final TopologyException e = assertThrows(TopologyException.class, () -> builder.build());
+        }
     }
 
     private static void assertBuildDoesNotThrow(final StreamsBuilder builder) {

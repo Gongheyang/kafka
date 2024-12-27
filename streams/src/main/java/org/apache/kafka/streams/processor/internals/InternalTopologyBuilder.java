@@ -21,6 +21,7 @@ import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.config.ConfigException;
 import org.apache.kafka.common.serialization.Deserializer;
 import org.apache.kafka.common.serialization.Serializer;
+import org.apache.kafka.common.utils.Utils;
 import org.apache.kafka.streams.StreamsConfig;
 import org.apache.kafka.streams.TopologyConfig;
 import org.apache.kafka.streams.errors.TopologyException;
@@ -53,6 +54,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -64,7 +66,9 @@ import java.util.TreeSet;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import static org.apache.kafka.streams.StreamsConfig.ENSURE_EXPLICIT_INTERNAL_RESOURCE_NAMING_CONFIG;
 import static org.apache.kafka.streams.StreamsConfig.PROCESSOR_WRAPPER_CLASS_CONFIG;
+
 
 public class InternalTopologyBuilder {
 
@@ -76,7 +80,7 @@ public class InternalTopologyBuilder {
     public InternalTopologyBuilder(final TopologyConfig topologyConfigs) {
         this.topologyConfigs = topologyConfigs;
         this.topologyName = topologyConfigs.topologyName;
-
+        this.ensureExplicitInternalResourceNaming = topologyConfigs.ensureExplicitInternalResourceNaming;
         try {
             processorWrapper = topologyConfigs.getConfiguredInstance(
                 PROCESSOR_WRAPPER_CLASS_CONFIG,
@@ -191,6 +195,10 @@ public class InternalTopologyBuilder {
     private TopologyConfig topologyConfigs;  // the configs for this topology, including overrides and global defaults
 
     private boolean hasPersistentStores = false;
+
+    private boolean ensureExplicitInternalResourceNaming;
+
+    private Set<InternalResourcesNaming> unprovidedInternalNames = new LinkedHashSet<>();
 
     public static class ReprocessFactory<KIn, VIn, KOut, VOut> {
 
@@ -2333,4 +2341,33 @@ public class InternalTopologyBuilder {
             processorWrapper.wrapProcessorSupplier(name, processorSupplier)
         );
     }
+
+    public void addUnprovidedInternalTopics(final InternalResourcesNaming internalResourcesNaming) {
+        unprovidedInternalNames.add(internalResourcesNaming);
+    }
+
+    public void checkUnprovidedNames() {
+        if (!unprovidedInternalNames.isEmpty()) {
+            final StringBuilder result = new StringBuilder();
+            for (final InternalResourcesNaming internalResourcesNaming : unprovidedInternalNames) {
+                if (!Utils.isBlank(internalResourcesNaming.changelogTopic())) {
+                    result.append(String.format("Following changelog topic has not been named: %s%n", internalResourcesNaming.changelogTopic()));
+                }
+                if (!Utils.isBlank(internalResourcesNaming.stateStore())) {
+                    result.append(String.format("Following state store has not been named: %s%n", internalResourcesNaming.stateStore()));
+                }
+                if (!Utils.isBlank(internalResourcesNaming.repartitionTopic())) {
+                    result.append(String.format("Following repartition topic has not been named: %s%n", internalResourcesNaming.repartitionTopic()));
+                }
+            }
+            if (ensureExplicitInternalResourceNaming) {
+                throw new TopologyException(result.toString());
+            } else {
+                log.warn("Enforce explicit naming for all internal resources is set to false. If you want" +
+                    " to ensure that no internal resources have auto-generated names, please set the " +
+                    ENSURE_EXPLICIT_INTERNAL_RESOURCE_NAMING_CONFIG + " configuration to true. {}", result);
+            }
+        }
+    }
+
 }

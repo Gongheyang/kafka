@@ -581,7 +581,6 @@ class KafkaConfig private(doLog: Boolean, val props: util.Map[_, _])
   def interBrokerSecurityProtocol = getInterBrokerListenerNameAndSecurityProtocol._2
   def controlPlaneListenerName = getControlPlaneListenerNameAndSecurityProtocol.map { case (listenerName, _) => listenerName }
   def controlPlaneSecurityProtocol = getControlPlaneListenerNameAndSecurityProtocol.map { case (_, securityProtocol) => securityProtocol }
-  def controlListenerName = getControlListenerNameAndSecurityProtocol.map {case (listenerName, _) => listenerName}
   def saslMechanismInterBrokerProtocol = getString(BrokerSecurityConfigs.SASL_MECHANISM_INTER_BROKER_PROTOCOL_CONFIG)
   val saslInterBrokerHandshakeRequestEnable = interBrokerProtocolVersion.isSaslInterBrokerHandshakeRequestEnabled
 
@@ -735,19 +734,6 @@ class KafkaConfig private(doLog: Boolean, val props: util.Map[_, _])
 
       case None => None
    }
-  }
-
-  private def getControlListenerNameAndSecurityProtocol: Option[(ListenerName, SecurityProtocol)] = {
-    Option(getString(KRaftConfigs.CONTROLLER_LISTENER_NAMES_CONFIG)) match {
-      case Some(name) =>
-        val listenerName = ListenerName.normalised(name)
-        val securityProtocol = effectiveListenerSecurityProtocolMap.getOrElse(listenerName,
-          throw new ConfigException(s"Listener with ${listenerName.value} defined in " +
-            s"${KRaftConfigs.CONTROLLER_LISTENER_NAMES_CONFIG} not found in ${SocketServerConfigs.LISTENER_SECURITY_PROTOCOL_MAP_CONFIG}."))
-        Some(listenerName, securityProtocol)
-
-      case None => None
-    }
   }
 
   private def getSecurityProtocol(protocolName: String, configName: String): SecurityProtocol = {

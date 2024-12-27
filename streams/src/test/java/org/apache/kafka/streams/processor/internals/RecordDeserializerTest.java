@@ -23,18 +23,25 @@ import org.apache.kafka.common.header.internals.RecordHeader;
 import org.apache.kafka.common.header.internals.RecordHeaders;
 import org.apache.kafka.common.metrics.Metrics;
 import org.apache.kafka.common.record.TimestampType;
+import org.apache.kafka.common.serialization.Serdes;
 import org.apache.kafka.common.utils.LogContext;
+import org.apache.kafka.streams.StreamsConfig;
 import org.apache.kafka.streams.errors.DeserializationExceptionHandler;
-import org.apache.kafka.streams.errors.DeserializationExceptionHandler.DeserializationHandlerResponse;
 import org.apache.kafka.streams.errors.ErrorHandlerContext;
+import org.apache.kafka.streams.errors.LogAndContinueExceptionHandler;
+import org.apache.kafka.streams.errors.LogAndFailExceptionHandler;
 import org.apache.kafka.streams.errors.StreamsException;
 import org.apache.kafka.streams.processor.TaskId;
+import org.apache.kafka.streams.state.StateSerdes;
 import org.apache.kafka.test.InternalMockProcessorContext;
+import org.apache.kafka.test.MockRecordCollector;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
+import java.nio.charset.StandardCharsets;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
 
@@ -108,7 +115,7 @@ public class RecordDeserializerTest {
                             "value"
                     ),
                     new DeserializationExceptionHandlerMock(
-                            Optional.of(DeserializationHandlerResponse.FAIL),
+                            Optional.of(DeserializationExceptionHandler.Response.fail()),
                             rawRecord,
                             sourceNodeName,
                             taskId
@@ -147,7 +154,7 @@ public class RecordDeserializerTest {
                             "value"
                     ),
                     new DeserializationExceptionHandlerMock(
-                            Optional.of(DeserializationHandlerResponse.CONTINUE),
+                            Optional.of(DeserializationExceptionHandler.Response.resume()),
                             rawRecord,
                             sourceNodeName,
                             taskId
@@ -188,7 +195,7 @@ public class RecordDeserializerTest {
             );
             assertEquals("Fatal user code error in deserialization error callback", exception.getMessage());
             assertInstanceOf(NullPointerException.class, exception.getCause());
-            assertEquals("Invalid DeserializationExceptionHandler response.", exception.getCause().getMessage());
+            assertEquals("Invalid DeserializationExceptionResponse response.", exception.getCause().getMessage());
         }
     }
 
@@ -219,6 +226,82 @@ public class RecordDeserializerTest {
             );
             assertEquals("Fatal user code error in deserialization error callback", exception.getMessage());
             assertEquals("CRASH", exception.getCause().getMessage());
+        }
+    }
+
+
+    @Test
+    public void shouldBuildDeadLetterQueueRecordsInDefaultDeserializationException() {
+        try (Metrics metrics = new Metrics()) {
+            final MockRecordCollector collector = new MockRecordCollector();
+            final InternalProcessorContext<Object, Object> internalProcessorContext =
+                    new InternalMockProcessorContext<>(
+                            new StateSerdes<>("sink", Serdes.ByteArray(), Serdes.ByteArray()),
+                            collector
+                    );
+            final DeserializationExceptionHandler deserializationExceptionHandler = new LogAndFailExceptionHandler();
+            deserializationExceptionHandler.configure(Collections.singletonMap(StreamsConfig.ERRORS_DEAD_LETTER_QUEUE_TOPIC_NAME_CONFIG, "dlq"));
+
+            assertThrows(StreamsException.class, () -> RecordDeserializer.handleDeserializationFailure(
+                    deserializationExceptionHandler,
+                    internalProcessorContext,
+                    new RuntimeException(new NullPointerException("Oopsie")),
+                    new ConsumerRecord<>("source",
+                            0,
+                            0,
+                            123,
+                            TimestampType.CREATE_TIME,
+                            -1,
+                            -1,
+                            "hello".getBytes(StandardCharsets.UTF_8),
+                            "world".getBytes(StandardCharsets.UTF_8),
+                            new RecordHeaders(),
+                            Optional.empty()),
+                    new LogContext().logger(this.getClass()),
+                    metrics.sensor("dropped-records"),
+                    "sourceNode"
+            ));
+
+            assertEquals(1, collector.collected().size());
+            assertEquals("dlq", collector.collected().get(0).topic());
+        }
+    }
+
+
+    @Test
+    public void shouldBuildDeadLetterQueueRecordsInLogAndContinueDeserializationException() {
+        try (Metrics metrics = new Metrics()) {
+            final MockRecordCollector collector = new MockRecordCollector();
+            final InternalProcessorContext<Object, Object> internalProcessorContext =
+                    new InternalMockProcessorContext<>(
+                            new StateSerdes<>("sink", Serdes.ByteArray(), Serdes.ByteArray()),
+                            collector
+                    );
+            final DeserializationExceptionHandler deserializationExceptionHandler = new LogAndContinueExceptionHandler();
+            deserializationExceptionHandler.configure(Collections.singletonMap(StreamsConfig.ERRORS_DEAD_LETTER_QUEUE_TOPIC_NAME_CONFIG, "dlq"));
+
+            RecordDeserializer.handleDeserializationFailure(
+                    deserializationExceptionHandler,
+                    internalProcessorContext,
+                    new RuntimeException(new NullPointerException("Oopsie")),
+                    new ConsumerRecord<>("source",
+                            0,
+                            0,
+                            123,
+                            TimestampType.CREATE_TIME,
+                            -1,
+                            -1,
+                            "hello".getBytes(StandardCharsets.UTF_8),
+                            "world".getBytes(StandardCharsets.UTF_8),
+                            new RecordHeaders(),
+                            Optional.empty()),
+                    new LogContext().logger(this.getClass()),
+                    metrics.sensor("dropped-records"),
+                    "sourceNode"
+            );
+
+            assertEquals(1, collector.collected().size());
+            assertEquals("dlq", collector.collected().get(0).topic());
         }
     }
 
@@ -258,12 +341,12 @@ public class RecordDeserializerTest {
     }
 
     public static class DeserializationExceptionHandlerMock implements DeserializationExceptionHandler {
-        private final Optional<DeserializationHandlerResponse> response;
+        private final Optional<Response> response;
         private final ConsumerRecord<byte[], byte[]> expectedRecord;
         private final String expectedProcessorNodeId;
         private final TaskId expectedTaskId;
 
-        public DeserializationExceptionHandlerMock(final Optional<DeserializationHandlerResponse> response,
+        public DeserializationExceptionHandlerMock(final Optional<Response> response,
                                                    final ConsumerRecord<byte[], byte[]> record,
                                                    final String processorNodeId,
                                                    final TaskId taskId) {
@@ -274,9 +357,9 @@ public class RecordDeserializerTest {
         }
 
         @Override
-        public DeserializationHandlerResponse handle(final ErrorHandlerContext context,
-                                                     final ConsumerRecord<byte[], byte[]> record,
-                                                     final Exception exception) {
+        public Response handleError(final ErrorHandlerContext context,
+                                    final ConsumerRecord<byte[], byte[]> record,
+                                    final Exception exception) {
             assertEquals(expectedRecord.topic(), context.topic());
             assertEquals(expectedRecord.partition(), context.partition());
             assertEquals(expectedRecord.offset(), context.offset());

@@ -17,6 +17,7 @@
 package org.apache.kafka.streams.errors;
 
 import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.streams.StreamsConfig;
 import org.apache.kafka.streams.processor.ProcessorContext;
 
 import org.slf4j.Logger;
@@ -24,12 +25,15 @@ import org.slf4j.LoggerFactory;
 
 import java.util.Map;
 
+import static org.apache.kafka.streams.errors.ExceptionHandlerUtils.maybeBuildDeadLetterQueueRecords;
+
 /**
  * Deserialization handler that logs a deserialization exception and then
  * signals the processing pipeline to stop processing more records and fail.
  */
 public class LogAndFailExceptionHandler implements DeserializationExceptionHandler {
     private static final Logger log = LoggerFactory.getLogger(LogAndFailExceptionHandler.class);
+    private String deadLetterQueueTopic = null;
 
     @SuppressWarnings("deprecation")
     @Deprecated
@@ -50,6 +54,8 @@ public class LogAndFailExceptionHandler implements DeserializationExceptionHandl
         return DeserializationHandlerResponse.FAIL;
     }
 
+    @SuppressWarnings("deprecation")
+    @Deprecated
     @Override
     public DeserializationHandlerResponse handle(final ErrorHandlerContext context,
                                                  final ConsumerRecord<byte[], byte[]> record,
@@ -68,7 +74,24 @@ public class LogAndFailExceptionHandler implements DeserializationExceptionHandl
     }
 
     @Override
+    public Response handleError(final ErrorHandlerContext context,
+                                final ConsumerRecord<byte[], byte[]> record,
+                                final Exception exception) {
+        log.warn(
+            "Exception caught during Deserialization, taskId: {}, topic: {}, partition: {}, offset: {}",
+            context.taskId(),
+            record.topic(),
+            record.partition(),
+            record.offset(),
+            exception
+        );
+
+        return Response.fail(maybeBuildDeadLetterQueueRecords(deadLetterQueueTopic, null, null, context, exception));
+    }
+
+    @Override
     public void configure(final Map<String, ?> configs) {
-        // ignore
+        if (configs.get(StreamsConfig.ERRORS_DEAD_LETTER_QUEUE_TOPIC_NAME_CONFIG) != null)
+            deadLetterQueueTopic = String.valueOf(configs.get(StreamsConfig.ERRORS_DEAD_LETTER_QUEUE_TOPIC_NAME_CONFIG));
     }
 }

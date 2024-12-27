@@ -588,6 +588,10 @@ public class StreamsConfig extends AbstractConfig {
     public static final String ENABLE_METRICS_PUSH_DOC = "Whether to enable pushing of internal client metrics for (main, restore, and global) consumers, producers, and admin clients." +
         " The cluster must have a client metrics subscription which corresponds to a client.";
 
+    public static final String ERRORS_DEAD_LETTER_QUEUE_TOPIC_NAME_CONFIG = "errors.dead.letter.queue.topic.name";
+    public static final String ERRORS_DEAD_LETTER_QUEUE_TOPIC_NAME_DOC = "If not null, the default exception handler will build and send a Dead Letter Queue record in the provided topic name if an error occurs.\n" +
+            "If a custom deserialization/production or processing exception handler is set, this parameter is ignored for this handler.";
+
     /** {@code log.summary.interval.ms} */
     public static final String LOG_SUMMARY_INTERVAL_MS_CONFIG = "log.summary.interval.ms";
     private static final String LOG_SUMMARY_INTERVAL_MS_DOC = "The output interval in milliseconds for logging summary information.\n" +
@@ -942,6 +946,11 @@ public class StreamsConfig extends AbstractConfig {
                     LogAndFailExceptionHandler.class.getName(),
                     Importance.MEDIUM,
                     DESERIALIZATION_EXCEPTION_HANDLER_CLASS_DOC)
+            .define(ERRORS_DEAD_LETTER_QUEUE_TOPIC_NAME_CONFIG,
+                    Type.STRING,
+                    null,
+                    Importance.MEDIUM,
+                    ERRORS_DEAD_LETTER_QUEUE_TOPIC_NAME_DOC)
             .define(MAX_TASK_IDLE_MS_CONFIG,
                     Type.LONG,
                     0L,

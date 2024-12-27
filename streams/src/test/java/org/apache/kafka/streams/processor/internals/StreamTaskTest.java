@@ -3016,7 +3016,7 @@ public class StreamTaskTest {
 
     public static class CrashingProcessingExceptionHandler implements ProcessingExceptionHandler {
         @Override
-        public ProcessingHandlerResponse handle(final ErrorHandlerContext context, final Record<?, ?> record, final Exception exception) {
+        public Response handleError(final ErrorHandlerContext context, final Record<?, ?> record, final Exception exception) {
             throw new RuntimeException("KABOOM from ProcessingExceptionHandlerMock!");
         }
 
@@ -3028,7 +3028,7 @@ public class StreamTaskTest {
 
     public static class NullProcessingExceptionHandler implements ProcessingExceptionHandler {
         @Override
-        public ProcessingHandlerResponse handle(final ErrorHandlerContext context, final Record<?, ?> record, final Exception exception) {
+        public Response handleError(final ErrorHandlerContext context, final Record<?, ?> record, final Exception exception) {
             return null;
         }
 

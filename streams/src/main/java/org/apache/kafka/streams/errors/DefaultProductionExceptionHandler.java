@@ -18,35 +18,72 @@ package org.apache.kafka.streams.errors;
 
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.errors.RetriableException;
+import org.apache.kafka.streams.StreamsConfig;
 
 import java.util.Map;
+
+import static org.apache.kafka.streams.errors.ExceptionHandlerUtils.maybeBuildDeadLetterQueueRecords;
 
 /**
  * {@code ProductionExceptionHandler} that always instructs streams to fail when an exception
  * happens while attempting to produce result records.
  */
 public class DefaultProductionExceptionHandler implements ProductionExceptionHandler {
+    private String deadLetterQueueTopic = null;
+
     @SuppressWarnings("deprecation")
     @Deprecated
     @Override
     public ProductionExceptionHandlerResponse handle(final ProducerRecord<byte[], byte[]> record,
                                                      final Exception exception) {
         return exception instanceof RetriableException ?
-            ProductionExceptionHandlerResponse.RETRY :
-            ProductionExceptionHandlerResponse.FAIL;
+            ProductionExceptionHandler.ProductionExceptionHandlerResponse.RETRY :
+            ProductionExceptionHandler.ProductionExceptionHandlerResponse.FAIL;
     }
 
+    @SuppressWarnings("deprecation")
+    @Deprecated
     @Override
     public ProductionExceptionHandlerResponse handle(final ErrorHandlerContext context,
                                                      final ProducerRecord<byte[], byte[]> record,
                                                      final Exception exception) {
         return exception instanceof RetriableException ?
-            ProductionExceptionHandlerResponse.RETRY :
-            ProductionExceptionHandlerResponse.FAIL;
+                ProductionExceptionHandler.ProductionExceptionHandlerResponse.RETRY :
+                ProductionExceptionHandler.ProductionExceptionHandlerResponse.FAIL;
     }
 
     @Override
+    public Response handleError(final ErrorHandlerContext context,
+                                final ProducerRecord<byte[], byte[]> record,
+                                final Exception exception) {
+        return exception instanceof RetriableException ?
+            Response.retry() :
+            Response.fail(maybeBuildDeadLetterQueueRecords(deadLetterQueueTopic, null, null, context, exception));
+    }
+
+
+    @SuppressWarnings("deprecation")
+    @Deprecated
+    @Override
+    public ProductionExceptionHandlerResponse handleSerializationException(final ErrorHandlerContext context,
+                                                                           final ProducerRecord record,
+                                                                           final Exception exception,
+                                                                           final SerializationExceptionOrigin origin) {
+        return ProductionExceptionHandler.ProductionExceptionHandlerResponse.FAIL;
+    }
+
+    @Override
+    public Response handleSerializationError(final ErrorHandlerContext context,
+                                             final ProducerRecord record,
+                                             final Exception exception,
+                                             final SerializationExceptionOrigin origin) {
+        return Response.fail(maybeBuildDeadLetterQueueRecords(deadLetterQueueTopic, null, null, context, exception));
+    }
+
+
+    @Override
     public void configure(final Map<String, ?> configs) {
-        // ignore
+        if (configs.get(StreamsConfig.ERRORS_DEAD_LETTER_QUEUE_TOPIC_NAME_CONFIG) != null)
+            deadLetterQueueTopic = String.valueOf(configs.get(StreamsConfig.ERRORS_DEAD_LETTER_QUEUE_TOPIC_NAME_CONFIG));
     }
 }

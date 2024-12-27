@@ -345,7 +345,7 @@ public class ProcessingExceptionHandlerIntegrationTest {
             final StreamsException e = assertThrows(StreamsException.class, () -> inputTopic.pipeInput(eventError.key, eventError.value, Instant.EPOCH));
             assertEquals("Fatal user code error in processing error callback", e.getMessage());
             assertInstanceOf(NullPointerException.class, e.getCause());
-            assertEquals("Invalid ProductionExceptionHandler response.", e.getCause().getMessage());
+            assertEquals("Invalid ProcessingExceptionResponse response.", e.getCause().getMessage());
             assertFalse(isExecuted.get());
         }
     }
@@ -387,7 +387,7 @@ public class ProcessingExceptionHandlerIntegrationTest {
 
     public static class ContinueProcessingExceptionHandlerMockTest implements ProcessingExceptionHandler {
         @Override
-        public ProcessingExceptionHandler.ProcessingHandlerResponse handle(final ErrorHandlerContext context, final Record<?, ?> record, final Exception exception) {
+        public Response handleError(final ErrorHandlerContext context, final Record<?, ?> record, final Exception exception) {
             if (((String) record.key()).contains("FATAL")) {
                 throw new RuntimeException("KABOOM!");
             }
@@ -395,7 +395,7 @@ public class ProcessingExceptionHandlerIntegrationTest {
                 return null;
             }
             assertProcessingExceptionHandlerInputs(context, record, exception);
-            return ProcessingExceptionHandler.ProcessingHandlerResponse.CONTINUE;
+            return Response.resume();
         }
 
         @Override
@@ -406,9 +406,9 @@ public class ProcessingExceptionHandlerIntegrationTest {
 
     public static class FailProcessingExceptionHandlerMockTest implements ProcessingExceptionHandler {
         @Override
-        public ProcessingExceptionHandler.ProcessingHandlerResponse handle(final ErrorHandlerContext context, final Record<?, ?> record, final Exception exception) {
+        public Response handleError(final ErrorHandlerContext context, final Record<?, ?> record, final Exception exception) {
             assertProcessingExceptionHandlerInputs(context, record, exception);
-            return ProcessingExceptionHandler.ProcessingHandlerResponse.FAIL;
+            return Response.fail();
         }
 
         @Override

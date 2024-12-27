@@ -85,8 +85,6 @@ class SocketServerTest {
 
   private val apiVersionManager = new SimpleApiVersionManager(ListenerType.BROKER, true,
     () => new FinalizedFeatures(MetadataVersion.latestTesting(), Collections.emptyMap[String, java.lang.Short], 0, true))
-  private val controllerApiVersionManager = new SimpleApiVersionManager(ListenerType.CONTROLLER, true,
-    () => new FinalizedFeatures(MetadataVersion.latestTesting(), Collections.emptyMap[String, java.lang.Short], 0, true))
   var server: SocketServer = _
   val sockets = new ArrayBuffer[Socket]
 
@@ -1939,10 +1937,9 @@ class SocketServerTest {
   private def withTestableServer(config : KafkaConfig = KafkaConfig.fromProps(props),
                                  testWithServer: TestableSocketServer => Unit,
                                  startProcessingRequests: Boolean = true,
-                                 startAsController: Boolean = false,
                                  connectionDisconnectListeners: Seq[ConnectionDisconnectListener] = Seq.empty): Unit = {
     shutdownServerAndMetrics(server)
-    val testableServer = new TestableSocketServer(config, startAsController=startAsController, connectionDisconnectListeners = connectionDisconnectListeners)
+    val testableServer = new TestableSocketServer(config, connectionDisconnectListeners = connectionDisconnectListeners)
     if (startProcessingRequests) {
       testableServer.enableRequestProcessing(Map.empty).get(1, TimeUnit.MINUTES)
     }
@@ -1952,11 +1949,6 @@ class SocketServerTest {
       shutdownServerAndMetrics(testableServer)
       assertEquals(0, uncaughtExceptions.get)
     }
-  }
-
-  def sendAndReceiveControllerRequest(socket: Socket, server: SocketServer): RequestChannel.Request = {
-    sendRequest(socket, producerRequestBytes())
-    receiveRequest(server.dataPlaneRequestChannel)
   }
 
   private def assertProcessorHealthy(testableServer: TestableSocketServer, healthySockets: Seq[Socket] = Seq.empty): Unit = {
@@ -2101,11 +2093,10 @@ class SocketServerTest {
   class TestableSocketServer(
     config : KafkaConfig = KafkaConfig.fromProps(props),
     connectionQueueSize: Int = 20,
-    startAsController: Boolean = false,
     time: Time = Time.SYSTEM,
     connectionDisconnectListeners: Seq[ConnectionDisconnectListener] = Seq.empty
   ) extends SocketServer(
-    config, new Metrics, time, credentialProvider, if(startAsController) controllerApiVersionManager else apiVersionManager,
+    config, new Metrics, time, credentialProvider, apiVersionManager,
     connectionDisconnectListeners = connectionDisconnectListeners
   ) {
 

@@ -17,7 +17,6 @@
 package kafka.coordinator.transaction
 
 import java.nio.ByteBuffer
-import org.apache.kafka.common.compress.Compression
 import org.apache.kafka.common.protocol.{ByteBufferAccessor, MessageUtil}
 import org.apache.kafka.common.record.RecordBatch
 import org.apache.kafka.common.TopicPartition
@@ -36,14 +35,6 @@ import scala.jdk.CollectionConverters._
  *    -> value version 0:       [producer_id, producer_epoch, expire_timestamp, status, [topic, [partition] ], timestamp]
  */
 object TransactionLog {
-
-  // enforce always using
-  //  1. cleanup policy = compact
-  //  2. compression = none
-  //  3. unclean leader election = disabled
-  //  4. required acks = -1 when writing
-  val EnforcedCompression: Compression = Compression.NONE
-  val EnforcedRequiredAcks: Short = (-1).toShort
 
   /**
     * Generates the bytes for transaction log message key

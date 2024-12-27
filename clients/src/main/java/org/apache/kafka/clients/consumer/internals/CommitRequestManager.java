@@ -176,9 +176,11 @@ public class CommitRequestManager implements RequestManager, MemberStateListener
      */
     @Override
     public NetworkClientDelegate.PollResult poll(final long currentTimeMs) {
-        // poll only when the coordinator node is known.
-        if (coordinatorRequestManager.coordinator().isEmpty())
+        // poll when the coordinator node is known and fatal error is not present
+        if (coordinatorRequestManager.coordinator().isEmpty()) {
+            maybeFailPendingRequestsOnCoordinatorFatalError();
             return EMPTY;
+        }
 
         if (closing) {
             return drainPendingOffsetCommitRequests();
@@ -194,6 +196,14 @@ public class CommitRequestManager implements RequestManager, MemberStateListener
             findMinTime(unsentOffsetCommitRequests(), currentTimeMs),
             findMinTime(unsentOffsetFetchRequests(), currentTimeMs));
         return new NetworkClientDelegate.PollResult(timeUntilNextPoll, requests);
+    }
+
+    private void maybeFailPendingRequestsOnCoordinatorFatalError() {
+        Optional<Throwable> fatalError = coordinatorRequestManager.fatalError();
+        if (fatalError.isPresent()) {
+            pendingRequests.unsentOffsetCommits.forEach(request -> request.future.completeExceptionally(fatalError.get()));
+            pendingRequests.unsentOffsetFetches.forEach(request -> request.future.completeExceptionally(fatalError.get()));
+        }
     }
 
     @Override

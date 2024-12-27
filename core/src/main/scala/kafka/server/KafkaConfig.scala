@@ -821,7 +821,7 @@ class KafkaConfig private(doLog: Boolean, val props: util.Map[_, _])
 
     def validateControlPlaneListenerEmptyForKRaft(): Unit = {
       require(controlPlaneListenerName.isEmpty,
-        s"${SocketServerConfigs.CONTROL_PLANE_LISTENER_NAME_CONFIG} is not supported in KRaft mode use ${KRaftConfigs.CONTROLLER_LISTENER_NAMES_CONFIG} instead.")
+        s"${SocketServerConfigs.CONTROL_PLANE_LISTENER_NAME_CONFIG} is not supported in KRaft mode.")
     }
     def validateControllerQuorumVotersMustContainNodeIdForKRaftController(): Unit = {
       require(voterIds.isEmpty || voterIds.contains(nodeId),

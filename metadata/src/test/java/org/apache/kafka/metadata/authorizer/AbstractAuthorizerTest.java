@@ -1076,5 +1076,4 @@ public abstract class AbstractAuthorizerTest<T extends Authorizer> {
         result = builder.get().getAuthorizer().authorizeByResourceType(requestContext, WRITE, TOPIC);
         assertEquals(DENIED, result);
     }
-
 }

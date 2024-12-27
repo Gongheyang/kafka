@@ -73,7 +73,7 @@ public interface AuthorizerData {
      * @param action the action to attempt.
      * @param requestContext the context for the request.
      * @param acl the ACL to search for.
-     * @return
+     * @return The authorization result for the arguments.
      */
     static AuthorizationResult findResult(Action action,
                                           AuthorizableRequestContext requestContext,
@@ -94,11 +94,7 @@ public interface AuthorizerData {
     }
 
     static Set<KafkaPrincipal> matchingPrincipals(AuthorizableRequestContext context) {
-        KafkaPrincipal sessionPrincipal = context.principal();
-        KafkaPrincipal basePrincipal = sessionPrincipal.getClass().equals(KafkaPrincipal.class)
-                ? sessionPrincipal
-                : new KafkaPrincipal(sessionPrincipal.getPrincipalType(), sessionPrincipal.getName());
-        return Utils.mkSet(basePrincipal, WILDCARD_KAFKA_PRINCIPAL);
+        return Utils.mkSet(baseKafkaPrincipal(context), WILDCARD_KAFKA_PRINCIPAL);
     }
 
 
@@ -303,7 +299,7 @@ public interface AuthorizerData {
 
         private SuperUserRule() {
             // do not allow other instances.
-        };
+        }
 
         @Override
         public AuthorizationResult result() {

@@ -139,8 +139,6 @@
         More details about the new config <code>StreamsConfig#TOPOLOGY_OPTIMIZATION_CONFIG</code> can be found in <a href="https://cwiki.apache.org/confluence/display/KAFKA/KIP-295%3A+Add+Streams+Configuration+Allowing+for+Optional+Topology+Optimization">KIP-295</a>.
     </p>
 
-    <h3><a id="streams_api_changes_400" href="#streams_api_changes_400">Streams API changes in 4.0.0</a></h3>
-
     <p>
         In this release the <code>ClientInstanceIds</code> instance stores the global consumer<code>Uuid</code> for the
         <a href="https://cwiki.apache.org/confluence/display/KAFKA/KIP-714%3A+Client+metrics+and+observability#KIP714:Clientmetricsandobservability-Clientidentificationandtheclientinstanceid">KIP-714</a>
@@ -171,6 +169,22 @@
       the StreamsBuilder (DSL) or Topology(PAPI) objects. You MUST use the StreamsBuilder/Topology constructor overload that
       accepts a TopologyConfig parameter for the <code>StreamsConfig#PROCESSOR_WRAPPER_CLASS_CONFIG</code> to be picked up.
       See <a href="https://cwiki.apache.org/confluence/x/TZCMEw">KIP-1112</a> for more details.
+    </p>
+
+    <h3><a id="streams_api_changes_400" href="#streams_api_changes_390">Streams API changes in 4.0.0</a></h3>
+
+    <p>
+        * Upgraded RocksDB dependency to version 9.7.3 (from 7.9.2). This upgrade incorporates various improvements and optimizations within RocksDB. However, it also introduces some API changes.
+        * API Changes in the RocksDB class:
+        * Removed Class: The org.rocksdb.AccessHint class, along with its associated methods, has been removed.
+        * New Methods:
+        * org.rocksdb.Options.setMemtableMaxRangeDeletions(int p1): ColumnFamilyOptionsInterface has been added, providing control over the maximum number of range deletions in the memtable.
+        * org.rocksdb.Options.memtableMaxRangeDeletions(): int has been added, allowing retrieval of the configured maximum number of range deletions in the memtable.
+        * Modified Methods:
+        * The org.rocksdb.Options.setLogger() method now accepts a LoggerInterface as a parameter instead of the previous Logger.
+        * Removed Field: The NO_FILE_CLOSES field has been removed from the org.rocksdb.TickerTypeenum.
+        * Changes in data types: Some data types used in RocksDB's Java API have been modified. These changes, along with the removed class, field, and new methods, are primarily relevant to users implementing custom RocksDB configurations.
+        * These changes are expected to be largely transparent to most Kafka Streams users. However, those employing advanced RocksDB customizations within their Streams applications, particularly through the rocksdb.config.setter, are advised to consult the detailed RocksDB 9.7.3 changelog to ensure a smooth transition and adapt their configurations as needed. Specifically, users leveraging the removed AccessHintclass, the NO_FILE_CLOSES field from TickerType, or relying on the previous signature of setLogger() will need to update their implementations.
     </p>
 
     <h3><a id="streams_api_changes_390" href="#streams_api_changes_390">Streams API changes in 3.9.0</a></h3>

@@ -469,7 +469,7 @@ public class ConnectorConfigTest<R extends ConnectRecord<R>> {
     }
 
     @Test
-    public void testConfigDefaultsFromConnector() throws ClassNotFoundException {
+    public void testConfigDefaultsWithCombinedPluginArtifact() throws ClassNotFoundException {
         assertNotNull(MultiVersionTest.MULTI_VERSION_PLUGINS);
 
         Map<String, String> props = baseConnectorConfigsForDefaultsTesting();

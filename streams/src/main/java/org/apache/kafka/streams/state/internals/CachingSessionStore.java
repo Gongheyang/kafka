@@ -327,6 +327,7 @@ class CachingSessionStore
         internalContext.cache().clear(cacheName);
     }
 
+    @Override
     public void close() {
         final LinkedList<RuntimeException> suppressed = executeAll(
             () -> internalContext.cache().flush(cacheName),

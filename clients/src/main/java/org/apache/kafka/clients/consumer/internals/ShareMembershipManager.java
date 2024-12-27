@@ -17,6 +17,7 @@
 package org.apache.kafka.clients.consumer.internals;
 
 import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.apache.kafka.clients.consumer.GroupMembershipOperation;
 import org.apache.kafka.clients.consumer.internals.metrics.ShareRebalanceMetricsManager;
 import org.apache.kafka.common.Uuid;
 import org.apache.kafka.common.message.ShareGroupHeartbeatResponseData;
@@ -29,6 +30,7 @@ import org.apache.kafka.common.utils.Time;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.SortedSet;
 import java.util.TreeSet;
 
@@ -102,6 +104,7 @@ public class ShareMembershipManager extends AbstractMembershipManager<ShareGroup
                            Time time,
                            ShareRebalanceMetricsManager metricsManager) {
         super(groupId,
+                Optional.empty(),
                 subscriptions,
                 metadata,
                 logContext.logger(ShareMembershipManager.class),
@@ -115,6 +118,14 @@ public class ShareMembershipManager extends AbstractMembershipManager<ShareGroup
      */
     public String rackId() {
         return rackId;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void leaveGroupOperationOnClose(GroupMembershipOperation operation) {
+        this.leaveGroupOperation = GroupMembershipOperation.LEAVE_GROUP;
     }
 
     /**

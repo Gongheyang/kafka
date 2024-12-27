@@ -17,6 +17,7 @@
 package org.apache.kafka.clients.consumer.internals;
 
 import org.apache.kafka.clients.KafkaClient;
+import org.apache.kafka.clients.consumer.GroupMembershipOperation;
 import org.apache.kafka.clients.consumer.internals.events.ApplicationEvent;
 import org.apache.kafka.clients.consumer.internals.events.ApplicationEventProcessor;
 import org.apache.kafka.clients.consumer.internals.events.BackgroundEvent;
@@ -270,14 +271,15 @@ public class ConsumerNetworkThread extends KafkaThread implements Closeable {
 
     @Override
     public void close() {
-        close(closeTimeout);
+        close(closeTimeout, GroupMembershipOperation.DEFAULT);
     }
 
-    public void close(final Duration timeout) {
+    public void close(final Duration timeout, GroupMembershipOperation membershipOperation) {
         Objects.requireNonNull(timeout, "Close timeout for consumer network thread must be non-null");
+        Objects.requireNonNull(membershipOperation, "groupMembershipOperation for consumer network thread must be non-null");
 
         closer.close(
-                () -> closeInternal(timeout),
+                () -> closeInternal(timeout, membershipOperation),
                 () -> log.warn("The consumer network thread was already closed")
         );
     }
@@ -299,12 +301,15 @@ public class ConsumerNetworkThread extends KafkaThread implements Closeable {
      * the network thread the time to close down cleanly.
      *
      * @param timeout Upper bound of time to wait for the network thread to close its resources
+     * @param membershipOperation the operation on consumer group membership that the consumer will perform when closing
      */
-    private void closeInternal(final Duration timeout) {
+    private void closeInternal(final Duration timeout, GroupMembershipOperation membershipOperation) {
         long timeoutMs = timeout.toMillis();
         log.trace("Signaling the consumer network thread to close in {}ms", timeoutMs);
         running = false;
         closeTimeout = timeout;
+        requestManagers.consumerMembershipManager.ifPresent(membershipManager ->
+            membershipManager.leaveGroupOperationOnClose(membershipOperation));
         wakeup();
 
         try {

@@ -22,12 +22,14 @@ import org.apache.kafka.clients.CommonClientConfigs;
 import org.apache.kafka.clients.GroupRebalanceConfig;
 import org.apache.kafka.clients.KafkaClient;
 import org.apache.kafka.clients.Metadata;
+import org.apache.kafka.clients.consumer.CloseOption;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerGroupMetadata;
 import org.apache.kafka.clients.consumer.ConsumerInterceptor;
 import org.apache.kafka.clients.consumer.ConsumerPartitionAssignor;
 import org.apache.kafka.clients.consumer.ConsumerRebalanceListener;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
+import org.apache.kafka.clients.consumer.GroupMembershipOperation;
 import org.apache.kafka.clients.consumer.GroupProtocol;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.consumer.NoOffsetForPartitionException;
@@ -265,7 +267,7 @@ public class ClassicKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
             // call close methods if internal objects are already constructed; this is to prevent resource leak. see KAFKA-2121
             // we do not need to call `close` at all when `log` is null, which means no internal objects were initialized.
             if (this.log != null) {
-                close(Duration.ZERO, true);
+                close(Duration.ZERO, GroupMembershipOperation.DEFAULT, true);
             }
             // now propagate the exception
             throw new KafkaException("Failed to construct kafka consumer", t);
@@ -578,7 +580,7 @@ public class ClassicKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
             fetcher.clearBufferedDataForUnassignedPartitions(Collections.emptySet());
             if (this.coordinator != null) {
                 this.coordinator.onLeavePrepare();
-                this.coordinator.maybeLeaveGroup("the consumer unsubscribed from all topics");
+                this.coordinator.maybeLeaveGroup(GroupMembershipOperation.DEFAULT, "the consumer unsubscribed from all topics");
             }
             this.subscriptions.unsubscribe();
             log.info("Unsubscribed all topics or patterns and assigned partitions");
@@ -1102,10 +1104,11 @@ public class ClassicKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
 
     @Override
     public void close() {
-        close(Duration.ofMillis(DEFAULT_CLOSE_TIMEOUT_MS));
+        close(CloseOption.timeout(Duration.ofMillis(DEFAULT_CLOSE_TIMEOUT_MS)));
     }
 
     @Override
+    @SuppressWarnings("deprecation")
     public void close(Duration timeout) {
         if (timeout.toMillis() < 0)
             throw new IllegalArgumentException("The timeout cannot be negative.");
@@ -1114,7 +1117,7 @@ public class ClassicKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
             if (!closed) {
                 // need to close before setting the flag since the close function
                 // itself may trigger rebalance callback that needs the consumer to be open still
-                close(timeout, false);
+                close(CloseOption.timeout(timeout));
             }
         } finally {
             closed = true;
@@ -1127,13 +1130,32 @@ public class ClassicKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
         this.client.wakeup();
     }
 
+    @Override
+    public void close(CloseOption option) {
+        CloseOptionInternal closeOption = new CloseOptionInternal(option);
+        Duration timeout = closeOption.timeout().orElse(Duration.ofMillis(DEFAULT_CLOSE_TIMEOUT_MS));
+        if (timeout.toMillis() < 0)
+            throw new IllegalArgumentException("The timeout cannot be negative.");
+        acquire();
+        try {
+            if (!closed) {
+                // need to close before setting the flag since the close function
+                // itself may trigger rebalance callback that needs the consumer to be open still
+                close(timeout, closeOption.groupMembershipOperation(), false);
+            }
+        } finally {
+            closed = true;
+            release();
+        }
+    }
+
     private Timer createTimerForRequest(final Duration timeout) {
         // this.time could be null if an exception occurs in constructor prior to setting the this.time field
         final Time localTime = (time == null) ? Time.SYSTEM : time;
         return localTime.timer(Math.min(timeout.toMillis(), requestTimeoutMs));
     }
 
-    private void close(Duration timeout, boolean swallowException) {
+    private void close(Duration timeout, GroupMembershipOperation membershipOperation, boolean swallowException) {
         log.trace("Closing the Kafka consumer");
         AtomicReference<Throwable> firstException = new AtomicReference<>();
 
@@ -1145,7 +1167,13 @@ public class ClassicKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
         // consumer.
         if (coordinator != null) {
             // This is a blocking call bound by the time remaining in closeTimer
-            swallow(log, Level.ERROR, "Failed to close coordinator with a timeout(ms)=" + closeTimer.timeoutMs(), () -> coordinator.close(closeTimer), firstException);
+            swallow(
+                log,
+                Level.ERROR,
+                "Failed to close coordinator with a timeout(ms)=" + closeTimer.timeoutMs(),
+                () -> coordinator.close(closeTimer, membershipOperation),
+                firstException
+            );
         }
 
         if (fetcher != null) {

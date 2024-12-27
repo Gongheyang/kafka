@@ -30,6 +30,7 @@ import org.apache.kafka.common.KafkaFuture;
 import org.apache.kafka.common.Metric;
 import org.apache.kafka.common.MetricName;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.errors.InvalidOffsetException;
 import org.apache.kafka.common.errors.TimeoutException;
 import org.apache.kafka.common.internals.KafkaFutureImpl;
 import org.apache.kafka.common.metrics.KafkaMetric;
@@ -446,7 +447,7 @@ public class TaskManagerTest {
     }
 
     @Test
-    public void shouldRemoveUnusedFailedActiveTaskFromStateUpdaterAndCloseDirty() {
+    public void shouldRemoveUnusedFailedActiveTaskFromStateUpdaterAndCloseClean() {
         final StreamTask activeTaskToClose = statefulTask(taskId03, taskId03ChangelogPartitions)
             .inState(State.RESTORING)
             .withInputPartitions(taskId03Partitions).build();
@@ -459,9 +460,8 @@ public class TaskManagerTest {
 
         taskManager.handleAssignment(Collections.emptyMap(), Collections.emptyMap());
 
-        verify(activeTaskToClose).prepareCommit();
         verify(activeTaskToClose).suspend();
-        verify(activeTaskToClose).closeDirty();
+        verify(activeTaskToClose).closeClean();
         verify(activeTaskCreator).createTasks(consumer, Collections.emptyMap());
         verify(standbyTaskCreator).createTasks(Collections.emptyMap());
     }
@@ -487,7 +487,7 @@ public class TaskManagerTest {
     }
 
     @Test
-    public void shouldRemoveUnusedFailedStandbyTaskFromStateUpdaterAndCloseDirty() {
+    public void shouldRemoveUnusedFailedStandbyTaskFromStateUpdaterAndCloseClean() {
         final StandbyTask standbyTaskToClose = standbyTask(taskId02, taskId02ChangelogPartitions)
             .inState(State.RUNNING)
             .withInputPartitions(taskId02Partitions).build();
@@ -500,9 +500,8 @@ public class TaskManagerTest {
 
         taskManager.handleAssignment(Collections.emptyMap(), Collections.emptyMap());
 
-        verify(standbyTaskToClose).prepareCommit();
         verify(standbyTaskToClose).suspend();
-        verify(standbyTaskToClose).closeDirty();
+        verify(standbyTaskToClose).closeClean();
         verify(activeTaskCreator).createTasks(consumer, Collections.emptyMap());
         verify(standbyTaskCreator).createTasks(Collections.emptyMap());
     }
@@ -1529,10 +1528,10 @@ public class TaskManagerTest {
         final TaskManager taskManager = setupForRevocationAndLost(Set.of(task1, task2), tasks);
         final CompletableFuture<StateUpdater.RemovedTaskResult> future1 = new CompletableFuture<>();
         when(stateUpdater.remove(task1.id())).thenReturn(future1);
-        future1.complete(new StateUpdater.RemovedTaskResult(task1, new StreamsException("Something happened")));
+        future1.complete(new StateUpdater.RemovedTaskResult(task1, new TaskCorruptedException(Set.of(task1.id()))));
         final CompletableFuture<StateUpdater.RemovedTaskResult> future3 = new CompletableFuture<>();
         when(stateUpdater.remove(task2.id())).thenReturn(future3);
-        future3.complete(new StateUpdater.RemovedTaskResult(task2, new StreamsException("Something else happened")));
+        future3.complete(new StateUpdater.RemovedTaskResult(task2, new TaskCorruptedException(Set.of(task2.id()))));
 
         taskManager.handleLostAll();
 
@@ -1569,9 +1568,8 @@ public class TaskManagerTest {
 
         verify(task1).suspend();
         verify(task1).closeClean();
-        verify(task2).prepareCommit();
         verify(task2).suspend();
-        verify(task2).closeDirty();
+        verify(task2).closeClean();
         verify(task3).suspend();
         verify(task3).closeClean();
     }
@@ -3478,7 +3476,7 @@ public class TaskManagerTest {
     }
 
     @Test
-    public void shouldShutDownStateUpdaterAndCloseFailedTasksDirty() {
+    public void shouldShutDownStateUpdaterAndCloseFailedTasksClean() {
         final TasksRegistry tasks = mock(TasksRegistry.class);
         final StreamTask failedStatefulTask = statefulTask(taskId01, taskId01ChangelogPartitions)
             .inState(State.RESTORING).build();
@@ -3489,15 +3487,17 @@ public class TaskManagerTest {
                 new ExceptionAndTask(new RuntimeException(), failedStatefulTask),
                 new ExceptionAndTask(new RuntimeException(), failedStandbyTask))
             );
+        when(tasks.activeTasks()).thenReturn(Set.of(failedStatefulTask));
+        when(tasks.allTasks()).thenReturn(Set.of(failedStatefulTask, failedStandbyTask));
         final TaskManager taskManager = setUpTaskManager(ProcessingMode.AT_LEAST_ONCE, tasks, true);
 
         taskManager.shutdown(true);
-
         verify(activeTaskCreator).close();
         verify(stateUpdater).shutdown(Duration.ofMillis(Long.MAX_VALUE));
-        verify(failedStatefulTask).prepareCommit();
+        verify(tasks).addTask(failedStatefulTask);
+        verify(tasks).addTask(failedStandbyTask);
         verify(failedStatefulTask).suspend();
-        verify(failedStatefulTask).closeDirty();
+        verify(failedStatefulTask).closeClean();
     }
 
     @Test
@@ -3511,7 +3511,7 @@ public class TaskManagerTest {
     }
 
     @Test
-    public void shouldShutDownStateUpdaterAndCloseDirtyTasksFailedDuringRemoval() {
+    public void shouldShutDownStateUpdaterAndCleanDirtyTasksFailedDuringRemoval() {
         final TasksRegistry tasks = mock(TasksRegistry.class);
         final StreamTask removedStatefulTask = statefulTask(taskId01, taskId01ChangelogPartitions)
             .inState(State.RESTORING).build();
@@ -3534,6 +3534,20 @@ public class TaskManagerTest {
                 removedFailedStatefulTaskDuringRemoval,
                 removedFailedStandbyTaskDuringRemoval
             ));
+        when(tasks.allTasks())
+                .thenReturn(Set.of(
+                        removedStatefulTask,
+                        removedStandbyTask,
+                        removedFailedStatefulTask,
+                        removedFailedStandbyTask,
+                        removedFailedStatefulTaskDuringRemoval,
+                        removedFailedStandbyTaskDuringRemoval
+                ));
+        when(tasks.activeTasks()).thenReturn(Set.of(
+                removedStatefulTask,
+                removedFailedStatefulTask,
+                removedFailedStatefulTaskDuringRemoval
+        ));
         final CompletableFuture<StateUpdater.RemovedTaskResult> futureForRemovedStatefulTask = new CompletableFuture<>();
         final CompletableFuture<StateUpdater.RemovedTaskResult> futureForRemovedStandbyTask = new CompletableFuture<>();
         final CompletableFuture<StateUpdater.RemovedTaskResult> futureForRemovedFailedStatefulTask = new CompletableFuture<>();
@@ -3569,18 +3583,16 @@ public class TaskManagerTest {
         verify(stateUpdater).shutdown(Duration.ofMillis(Long.MAX_VALUE));
         verify(tasks).addTask(removedStatefulTask);
         verify(tasks).addTask(removedStandbyTask);
-        verify(removedFailedStatefulTask).prepareCommit();
+        verify(tasks).addTask(removedFailedStatefulTask);
+        verify(tasks).addTask(removedFailedStandbyTask);
         verify(removedFailedStatefulTask).suspend();
-        verify(removedFailedStatefulTask).closeDirty();
-        verify(removedFailedStandbyTask).prepareCommit();
+        verify(removedFailedStatefulTask).closeClean();
         verify(removedFailedStandbyTask).suspend();
-        verify(removedFailedStandbyTask).closeDirty();
-        verify(removedFailedStatefulTaskDuringRemoval).prepareCommit();
+        verify(removedFailedStandbyTask).closeClean();
         verify(removedFailedStatefulTaskDuringRemoval).suspend();
-        verify(removedFailedStatefulTaskDuringRemoval).closeDirty();
-        verify(removedFailedStandbyTaskDuringRemoval).prepareCommit();
+        verify(removedFailedStatefulTaskDuringRemoval).closeClean();
         verify(removedFailedStandbyTaskDuringRemoval).suspend();
-        verify(removedFailedStandbyTaskDuringRemoval).closeDirty();
+        verify(removedFailedStandbyTaskDuringRemoval).closeClean();
     }
 
     @Test

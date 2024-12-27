@@ -27,6 +27,7 @@ import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.Metric;
 import org.apache.kafka.common.MetricName;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.errors.InvalidOffsetException;
 import org.apache.kafka.common.errors.TimeoutException;
 import org.apache.kafka.common.utils.ExponentialBackoff;
 import org.apache.kafka.common.utils.LogContext;
@@ -731,15 +732,20 @@ public class TaskManager {
                                    final Set<Task> tasksToCloseCleanFromStateUpdater,
                                    final Set<Task> tasksToCloseDirtyFromStateUpdater) {
         futures.entrySet().stream()
-            .map(entry -> waitForFuture(entry.getKey(), entry.getValue()))
-            .filter(Objects::nonNull)
-            .forEach(removedTaskResult -> {
-                if (removedTaskResult.exception().isPresent()) {
-                    tasksToCloseDirtyFromStateUpdater.add(removedTaskResult.task());
-                } else {
-                    tasksToCloseCleanFromStateUpdater.add(removedTaskResult.task());
-                }
-            });
+                .map(entry -> waitForFuture(entry.getKey(), entry.getValue()))
+                .filter(Objects::nonNull)
+                .forEach(removedTaskResult -> {
+                    if (removedTaskResult.exception().isPresent()) {
+                        final RuntimeException runtimeException = removedTaskResult.exception().get();
+                        if (runtimeException instanceof TaskCorruptedException) {
+                            tasksToCloseDirtyFromStateUpdater.add(removedTaskResult.task());
+                        } else  {
+                            tasksToCloseCleanFromStateUpdater.add(removedTaskResult.task());
+                        }
+                    } else {
+                        tasksToCloseCleanFromStateUpdater.add(removedTaskResult.task());
+                    }
+                });
     }
 
     private Task checkIfTaskFailed(final StateUpdater.RemovedTaskResult removedTaskResult,
@@ -1561,7 +1567,11 @@ public class TaskManager {
             }
             for (final StateUpdater.ExceptionAndTask exceptionAndTask : stateUpdater.drainExceptionsAndFailedTasks()) {
                 final Task failedTask = exceptionAndTask.task();
-                closeTaskDirty(failedTask, false);
+                if (exceptionAndTask.exception() instanceof TaskCorruptedException) {
+                    closeTaskDirty(failedTask, false);
+                } else {
+                    tasks.addTask(failedTask);
+                }
             }
         }
     }

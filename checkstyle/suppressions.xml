@@ -321,7 +321,7 @@
     <suppress checks="CyclomaticComplexity"
               files="(ConsumerGroupMember|GroupMetadataManager|GeneralUniformAssignmentBuilder|GroupCoordinatorRecordSerde).java"/>
     <suppress checks="(NPathComplexity|MethodLength)"
-              files="(GroupMetadataManager|ConsumerGroupTest|ShareGroupTest|GroupMetadataManagerTest|GroupMetadataManagerTestContext|GeneralUniformAssignmentBuilder).java"/>
+              files="(GroupMetadataManager|ConsumerGroupTest|ShareGroupTest|GroupMetadataManagerTest|GroupMetadataManagerTestContext|GeneralUniformAssignmentBuilder|StreamsGroupMemberTest).java"/>
     <suppress checks="ClassFanOutComplexity"
               files="(GroupMetadataManager|GroupMetadataManagerTest|GroupMetadataManagerTestContext|GroupCoordinatorService|GroupCoordinatorServiceTest).java"/>
     <suppress checks="ParameterNumber"
@@ -329,7 +329,7 @@
     <suppress checks="ClassDataAbstractionCouplingCheck"
               files="(RecordHelpersTest|GroupCoordinatorRecordHelpers|GroupMetadataManager|GroupMetadataManagerTest|OffsetMetadataManagerTest|GroupCoordinatorServiceTest|GroupCoordinatorShardTest|GroupCoordinatorRecordSerde).java"/>
     <suppress checks="JavaNCSS"
-              files="(GroupMetadataManager|GroupMetadataManagerTest).java"/>
+              files="(GroupMetadataManager|GroupMetadataManagerTest|StreamsGroupMemberTest).java"/>
 
     <!-- coordinator-common -->
     <suppress checks="NPathComplexity"

@@ -25,6 +25,7 @@ import org.apache.kafka.common.metrics.stats.Avg;
 import org.apache.kafka.common.metrics.stats.Max;
 import org.apache.kafka.common.metrics.stats.Rate;
 import org.apache.kafka.common.metrics.stats.WindowedSum;
+import org.apache.kafka.raft.LeaderState;
 import org.apache.kafka.raft.LogOffsetMetadata;
 import org.apache.kafka.raft.OffsetAndEpoch;
 import org.apache.kafka.raft.QuorumState;
@@ -51,7 +52,10 @@ public class KafkaRaftMetrics implements AutoCloseable {
     private final MetricName highWatermarkMetricName;
     private final MetricName logEndOffsetMetricName;
     private final MetricName logEndEpochMetricName;
+    private final MetricName numObserversMetricName;
     private final MetricName numUnknownVoterConnectionsMetricName;
+    private final MetricName numVotersMetricName;
+    private final MetricName uncommittedVoterChangeMetricName;
     private final Sensor commitTimeSensor;
     private final Sensor electionTimeSensor;
     private final Sensor fetchRecordsSensor;
@@ -138,6 +142,14 @@ public class KafkaRaftMetrics implements AutoCloseable {
                 "Number of unknown voters whose connection information is not cached; would never be larger than quorum-size.");
         metrics.addMetric(this.numUnknownVoterConnectionsMetricName, (mConfig, currentTimeMs) -> numUnknownVoterConnections);
 
+        this.numVotersMetricName = metrics.metricName("number-of-voters", metricGroupName, "Number of voters for a KRaft topic partition.");
+        metrics.addMetric(this.numVotersMetricName, (Gauge<Integer>) (mConfig, currentTimestamp) -> state.numVoters());
+
+        // These metrics should only be present on the leader, otherwise they do not make sense.
+        // They should be added when a replica becomes leader and removed when it is no longer leader.
+        this.numObserversMetricName = metrics.metricName("number-of-observers", metricGroupName, "Number of observers being tracked by the KRaft topic partition leader.");
+        this.uncommittedVoterChangeMetricName = metrics.metricName("uncommitted-voter-change", metricGroupName, "1 if there is a voter change that has not been committed, 0 otherwise.");
+
         this.commitTimeSensor = metrics.sensor("commit-latency");
         this.commitTimeSensor.add(metrics.metricName("commit-latency-avg", metricGroupName,
                 "The average time in milliseconds to commit an entry in the raft log."), new Avg());
@@ -215,6 +227,22 @@ public class KafkaRaftMetrics implements AutoCloseable {
         }
     }
 
+    public <T> void addLeaderMetrics(LeaderState<T> leaderState) {
+        metrics.addMetric(numObserversMetricName, (Gauge<Integer>) (config, now) -> leaderState.numObservers());
+        metrics.addMetric(uncommittedVoterChangeMetricName, (Gauge<Integer>) (config, now) -> {
+            if (leaderState.addVoterHandlerState().isEmpty() && leaderState.removeVoterHandlerState().isEmpty()) {
+                return 0;
+            } else {
+                return 1;
+            }
+        });
+    }
+
+    public void removeLeaderMetrics() {
+        metrics.removeMetric(numObserversMetricName);
+        metrics.removeMetric(uncommittedVoterChangeMetricName);
+    }
+
     @Override
     public void close() {
         Arrays.asList(
@@ -226,7 +254,10 @@ public class KafkaRaftMetrics implements AutoCloseable {
             highWatermarkMetricName,
             logEndOffsetMetricName,
             logEndEpochMetricName,
-            numUnknownVoterConnectionsMetricName
+            numObserversMetricName,
+            numUnknownVoterConnectionsMetricName,
+            numVotersMetricName,
+            uncommittedVoterChangeMetricName
         ).forEach(metrics::removeMetric);
 
         Arrays.asList(

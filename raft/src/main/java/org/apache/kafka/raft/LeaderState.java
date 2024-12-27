@@ -428,6 +428,10 @@ public class LeaderState<T> implements EpochState {
         return observerStates;
     }
 
+    public int numObservers() {
+        return observerStates.size();
+    }
+
     public Set<Integer> grantingVoters() {
         return this.grantingVoters;
     }

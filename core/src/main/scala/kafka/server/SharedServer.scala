@@ -295,6 +295,13 @@ class SharedServer(
         raftManager = _raftManager
         _raftManager.startup()
 
+        if (sharedServerConfig.processRoles.contains(ProcessRole.BrokerRole)) {
+          brokerMetrics.addRaftMetrics(raftManager.client)
+        }
+        if (sharedServerConfig.processRoles.contains(ProcessRole.ControllerRole)) {
+          controllerServerMetrics.addRaftMetrics(raftManager.client)
+        }
+
         metadataLoaderMetrics = if (brokerMetrics != null) {
           new MetadataLoaderMetrics(Optional.of(KafkaYammerMetrics.defaultRegistry()),
             elapsedNs => brokerMetrics.updateBatchProcessingTime(elapsedNs),

@@ -17,10 +17,12 @@
 package org.apache.kafka.server.metrics;
 
 import org.apache.kafka.common.MetricName;
+import org.apache.kafka.common.metrics.Gauge;
 import org.apache.kafka.common.metrics.Metrics;
 import org.apache.kafka.image.MetadataProvenance;
 
 import com.yammer.metrics.core.Histogram;
+import org.apache.kafka.raft.KafkaRaftClient;
 
 import java.util.Collections;
 import java.util.concurrent.atomic.AtomicLong;
@@ -62,6 +64,8 @@ public final class BrokerServerMetrics implements AutoCloseable {
     private final MetricName metadataLoadErrorCountName;
     private final MetricName metadataApplyErrorCountName;
 
+    private final MetricName ignoredStaticVotersName;
+
     public BrokerServerMetrics(Metrics metrics) {
         this.metrics = metrics;
         lastAppliedRecordOffsetName = metrics.metricName(
@@ -89,12 +93,21 @@ public final class BrokerServerMetrics implements AutoCloseable {
                 METRIC_GROUP_NAME,
                 "The number of errors encountered by the BrokerMetadataPublisher while applying a new MetadataImage based on the latest MetadataDelta."
         );
+        ignoredStaticVotersName = metrics.metricName(
+            "ignored-static-voters",
+            METRIC_GROUP_NAME,
+            "This value is 1 when the current voter set for the metadata topic partition is being read from the log and 0 when it is read from the static configuration."
+        );
 
         metrics.addMetric(lastAppliedRecordOffsetName, (config, now) -> lastAppliedImageProvenance.get().lastContainedOffset());
         metrics.addMetric(lastAppliedRecordTimestampName, (config, now) -> lastAppliedImageProvenance.get().lastContainedLogTimeMs());
         metrics.addMetric(lastAppliedRecordLagMsName, (config, now) -> now - lastAppliedImageProvenance.get().lastContainedLogTimeMs());
         metrics.addMetric(metadataLoadErrorCountName, (config, now) -> metadataLoadErrorCount.get());
         metrics.addMetric(metadataApplyErrorCountName, (config, now) -> metadataApplyErrorCount.get());
+    }
+
+    public <T> void addRaftMetrics(KafkaRaftClient<T> client) {
+        metrics.addMetric(ignoredStaticVotersName, (Gauge<Integer>) (mConfig, currentTimestamp) -> client.ignoredStaticVoters());
     }
 
     @Override

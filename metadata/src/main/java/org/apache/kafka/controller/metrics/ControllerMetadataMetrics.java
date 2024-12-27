@@ -17,6 +17,7 @@
 
 package org.apache.kafka.controller.metrics;
 
+import org.apache.kafka.raft.KafkaRaftClient;
 import org.apache.kafka.server.metrics.KafkaYammerMetrics;
 
 import com.yammer.metrics.core.Gauge;
@@ -58,6 +59,12 @@ public final class ControllerMetadataMetrics implements AutoCloseable {
         "KafkaController", "ZkMigrationState");
     private static final MetricName UNCLEAN_LEADER_ELECTIONS_PER_SEC = getMetricName(
         "ControllerStats", "UncleanLeaderElectionsPerSec");
+
+    private static final MetricName IGNORED_STATIC_VOTERS = getMetricName(
+        "KafkaController", "IgnoredStaticVoters");
+
+    private static final MetricName IS_OBSERVER = getMetricName(
+        "KafkaController", "IsObserver");
 
     private final Optional<MetricsRegistry> registry;
     private final AtomicInteger fencedBrokerCount = new AtomicInteger(0);
@@ -137,6 +144,22 @@ public final class ControllerMetadataMetrics implements AutoCloseable {
 
         registry.ifPresent(r -> uncleanLeaderElectionMeter =
                 Optional.of(registry.get().newMeter(UNCLEAN_LEADER_ELECTIONS_PER_SEC, "elections", TimeUnit.SECONDS)));
+    }
+
+    public <T> void addRaftMetrics(KafkaRaftClient<T> client) {
+        registry.ifPresent(r -> r.newGauge(IGNORED_STATIC_VOTERS, new Gauge<Integer>() {
+            @Override
+            public Integer value() {
+                return client.ignoredStaticVoters();
+            }
+        }));
+
+        registry.ifPresent(r -> r.newGauge(IS_OBSERVER, new Gauge<Integer>() {
+            @Override
+            public Integer value() {
+                return client.isObserver();
+            }
+        }));
     }
 
     public void setFencedBrokerCount(int brokerCount) {
@@ -255,7 +278,9 @@ public final class ControllerMetadataMetrics implements AutoCloseable {
             PREFERRED_REPLICA_IMBALANCE_COUNT,
             METADATA_ERROR_COUNT,
             ZK_MIGRATION_STATE,
-            UNCLEAN_LEADER_ELECTIONS_PER_SEC
+            UNCLEAN_LEADER_ELECTIONS_PER_SEC,
+            IGNORED_STATIC_VOTERS,
+            IS_OBSERVER
         ).forEach(r::removeMetric));
     }
 

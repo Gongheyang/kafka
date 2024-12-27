@@ -25,6 +25,8 @@ import org.apache.kafka.common.message.LeaderChangeMessage;
 import org.apache.kafka.common.message.SnapshotFooterRecord;
 import org.apache.kafka.common.message.SnapshotHeaderRecord;
 import org.apache.kafka.common.message.VotersRecord;
+import org.apache.kafka.common.metrics.KafkaMetric;
+import org.apache.kafka.common.metrics.Metrics;
 import org.apache.kafka.common.network.ListenerName;
 import org.apache.kafka.common.protocol.Errors;
 import org.apache.kafka.common.record.ControlRecordType;
@@ -63,6 +65,7 @@ import static org.apache.kafka.snapshot.Snapshots.BOOTSTRAP_SNAPSHOT_ID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class KafkaRaftClientReconfigTest {
@@ -336,6 +339,11 @@ public class KafkaRaftClientReconfigTest {
         context.becomeLeader();
         int epoch = context.currentEpoch();
 
+        // Check expected metrics values for leader
+        assertEquals(2, getMetric(context.metrics, "number-of-voters").metricValue());
+        assertEquals(0, getMetric(context.metrics, "number-of-observers").metricValue());
+        assertEquals(0, getMetric(context.metrics, "uncommitted-voter-change").metricValue());
+
         ReplicaKey newVoter = replicaKey(local.id() + 2, true);
         InetSocketAddress newAddress = InetSocketAddress.createUnresolved(
             "localhost",
@@ -355,12 +363,13 @@ public class KafkaRaftClientReconfigTest {
         context.pollUntilResponse();
         context.assertSentFetchPartitionResponse(Errors.NONE, epoch, OptionalInt.of(local.id()));
 
-        // Catch up the new voter to the leader's LEO
+        // Catch up the new voter to the leader's LEO, the new voter is still an observer at this point
         context.deliverRequest(
             context.fetchRequest(epoch, newVoter, context.log.endOffset().offset(), epoch, 0)
         );
         context.pollUntilResponse();
         context.assertSentFetchPartitionResponse(Errors.NONE, epoch, OptionalInt.of(local.id()));
+        assertEquals(1, getMetric(context.metrics, "number-of-observers").metricValue());
 
         // Attempt to add new voter to the quorum
         context.deliverRequest(context.addVoterRequest(Integer.MAX_VALUE, newVoter, newListeners));
@@ -386,6 +395,8 @@ public class KafkaRaftClientReconfigTest {
         context.client.poll();
         // The new voter is now a voter after writing the VotersRecord to the log
         assertTrue(context.client.quorum().isVoter(newVoter));
+        assertEquals(1, getMetric(context.metrics, "uncommitted-voter-change").metricValue());
+        assertEquals(3, getMetric(context.metrics, "number-of-voters").metricValue());
 
         // Send a FETCH to increase the HWM and commit the new voter set
         context.deliverRequest(
@@ -397,6 +408,8 @@ public class KafkaRaftClientReconfigTest {
         // Expect reply for AddVoter request
         context.pollUntilResponse();
         context.assertSentAddVoterResponse(Errors.NONE);
+        assertEquals(0, getMetric(context.metrics, "number-of-observers").metricValue());
+        assertEquals(0, getMetric(context.metrics, "uncommitted-voter-change").metricValue());
     }
 
     @Test
@@ -939,6 +952,11 @@ public class KafkaRaftClientReconfigTest {
         context.becomeLeader();
         int epoch = context.currentEpoch();
 
+        // Check expected metrics values for leader
+        assertEquals(2, getMetric(context.metrics, "number-of-voters").metricValue());
+        assertEquals(0, getMetric(context.metrics, "number-of-observers").metricValue());
+        assertEquals(0, getMetric(context.metrics, "uncommitted-voter-change").metricValue());
+
         ReplicaKey newVoter = replicaKey(local.id() + 2, true);
         InetSocketAddress newAddress = InetSocketAddress.createUnresolved(
             "localhost",
@@ -970,6 +988,10 @@ public class KafkaRaftClientReconfigTest {
         context.client.resign(epoch);
         context.pollUntilResponse();
         context.assertSentAddVoterResponse(Errors.NOT_LEADER_OR_FOLLOWER);
+
+        assertEquals(2, getMetric(context.metrics, "number-of-voters").metricValue());
+        assertNull(getMetric(context.metrics, "number-of-observers"));
+        assertNull(getMetric(context.metrics, "uncommitted-voter-change"));
     }
 
     @Test
@@ -1029,6 +1051,11 @@ public class KafkaRaftClientReconfigTest {
 
         assertTrue(context.client.quorum().isVoter(follower2));
 
+        // Check expected metrics values for leader
+        assertEquals(3, getMetric(context.metrics, "number-of-voters").metricValue());
+        assertEquals(0, getMetric(context.metrics, "number-of-observers").metricValue());
+        assertEquals(0, getMetric(context.metrics, "uncommitted-voter-change").metricValue());
+
         // Establish a HWM and fence previous leaders
         context.deliverRequest(
             context.fetchRequest(epoch, follower1, context.log.endOffset().offset(), epoch, 0)
@@ -1043,9 +1070,11 @@ public class KafkaRaftClientReconfigTest {
         context.client.poll();
         // Append the VotersRecord to the log
         context.client.poll();
+        assertEquals(1, getMetric(context.metrics, "uncommitted-voter-change").metricValue());
 
         // follower2 should not be a voter in the latest voter set
         assertFalse(context.client.quorum().isVoter(follower2));
+        assertEquals(2, getMetric(context.metrics, "number-of-voters").metricValue());
 
         // Send a FETCH to increase the HWM and commit the new voter set
         context.deliverRequest(
@@ -1057,6 +1086,8 @@ public class KafkaRaftClientReconfigTest {
         // Expect reply for RemoveVoter request
         context.pollUntilResponse();
         context.assertSentRemoveVoterResponse(Errors.NONE);
+        assertEquals(1, getMetric(context.metrics, "number-of-observers").metricValue());
+        assertEquals(0, getMetric(context.metrics, "uncommitted-voter-change").metricValue());
     }
 
     @Test
@@ -1076,6 +1107,11 @@ public class KafkaRaftClientReconfigTest {
         context.becomeLeader();
         int epoch = context.currentEpoch();
 
+        // Check expected metrics values for leader
+        assertEquals(3, getMetric(context.metrics, "number-of-voters").metricValue());
+        assertEquals(0, getMetric(context.metrics, "number-of-observers").metricValue());
+        assertEquals(0, getMetric(context.metrics, "uncommitted-voter-change").metricValue());
+
         // Establish a HWM and fence previous leaders
         context.deliverRequest(
             context.fetchRequest(epoch, follower1, context.log.endOffset().offset(), epoch, 0)
@@ -1093,6 +1129,8 @@ public class KafkaRaftClientReconfigTest {
 
         // local should not be a voter in the latest voter set
         assertFalse(context.client.quorum().isVoter(local));
+        assertEquals(2, getMetric(context.metrics, "number-of-voters").metricValue());
+        assertEquals(1, getMetric(context.metrics, "uncommitted-voter-change").metricValue());
 
         // Send a FETCH request for follower1
         context.deliverRequest(
@@ -1107,6 +1145,8 @@ public class KafkaRaftClientReconfigTest {
         );
         context.pollUntilResponse();
         context.assertSentFetchPartitionResponse(Errors.NONE, epoch, OptionalInt.of(local.id()));
+        assertEquals(1, getMetric(context.metrics, "number-of-observers").metricValue());
+        assertEquals(0, getMetric(context.metrics, "uncommitted-voter-change").metricValue());
 
         // Expect reply for RemoveVoter request
         context.pollUntilResponse();
@@ -1122,6 +1162,8 @@ public class KafkaRaftClientReconfigTest {
 
         // Calls to resign should be allowed and not throw an exception
         context.client.resign(epoch);
+        assertNull(getMetric(context.metrics, "number-of-observers"));
+        assertNull(getMetric(context.metrics, "uncommitted-voter-change"));
 
         // Election timeout is random number in [electionTimeoutMs, 2 * electionTimeoutMs)
         context.time.sleep(2L * context.electionTimeoutMs());
@@ -2350,5 +2392,9 @@ public class KafkaRaftClientReconfigTest {
         return new ApiVersionsResponseData()
             .setErrorCode(error.code())
             .setSupportedFeatures(supportedFeatures);
+    }
+
+    private static KafkaMetric getMetric(final Metrics metrics, final String name) {
+        return metrics.metrics().get(metrics.metricName(name, "raft-metrics"));
     }
 }

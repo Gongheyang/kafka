@@ -341,6 +341,10 @@ public class QuorumState {
         return partitionState.lastVoterSet().isVoter(nodeKey);
     }
 
+    public int numVoters() {
+        return partitionState.lastVoterSet().size();
+    }
+
     public boolean isObserver() {
         return !isVoter();
     }

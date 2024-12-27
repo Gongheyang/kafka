@@ -53,7 +53,7 @@ object RequestChannel extends Logging {
     * That makes it possible to enable the former without enabling latter.
     */
   private def isRequestLoggingEnabled(header: RequestHeader): Boolean = requestLogger.underlying.isDebugEnabled ||
-    (requestLogger.underlying.isInfoEnabled && header.apiKey.isVersionDeprecated(header.apiVersion()))
+    (requestLogger.underlying.isInfoEnabled && header.isApiVersionDeprecated())
 
   sealed trait BaseRequest
   case object ShutdownRequest extends BaseRequest
@@ -263,7 +263,7 @@ object RequestChannel extends Logging {
           messageConversionsTimeMs)
         val logPrefix = "Completed request: {}"
         // log deprecated apis at `info` level to allow them to be selectively enabled
-        if (header.apiKey().isVersionDeprecated(header.apiVersion()))
+        if (header.isApiVersionDeprecated())
           requestLogger.info(logPrefix, desc)
         else
           requestLogger.debug(logPrefix, desc)

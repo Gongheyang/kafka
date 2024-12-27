@@ -39,40 +39,47 @@ import java.util.Random;
  * how they are triggered:
  *
  * Resigned transitions to:
- *    Unattached: After learning of a new election with a higher epoch
- *    Candidate: After expiration of the election timeout
- *    Follower: After discovering a leader with an equal or larger epoch
+ *    Unattached:  After learning of a new election with a higher epoch
+ *    Prospective: After expiration of the election timeout
+ *    Follower:    After discovering a leader with an equal or larger epoch
  *
  * Unattached transitions to:
- *    Unattached: After learning of a new election with a higher epoch or after giving a binding vote
- *    Candidate: After expiration of the election timeout
- *    Follower: After discovering a leader with an equal or larger epoch
+ *    Unattached:  After learning of a new election with a higher epoch or after giving a binding vote
+ *    Prospective: After expiration of the election timeout
+ *    Follower:    After discovering a leader with an equal or larger epoch
+ *
+ * Prospective transitions to:
+ *    Unattached:  After learning of an election with a higher epoch, or node did not have last
+ *                 known leader and loses/times out election
+ *    Candidate:   After receiving a majority of PreVotes granted
+ *    Follower:    After discovering a leader with a larger epoch, or node had a last known leader
+ *                 and loses/times out election
  *
  * Candidate transitions to:
- *    Unattached: After learning of a new election with a higher epoch
- *    Candidate: After expiration of the election timeout
- *    Leader: After receiving a majority of votes
+ *    Unattached:  After learning of a new election with a higher epoch
+ *    Prospective: After expiration of the election timeout or loss of election
+ *    Leader:      After receiving a majority of votes
  *
  * Leader transitions to:
- *    Unattached: After learning of a new election with a higher epoch
- *    Resigned: When shutting down gracefully
+ *    Unattached:  After learning of a new election with a higher epoch
+ *    Resigned:    When shutting down gracefully
  *
  * Follower transitions to:
- *    Unattached: After learning of a new election with a higher epoch
- *    Candidate: After expiration of the fetch timeout
- *    Follower: After discovering a leader with a larger epoch
+ *    Unattached:  After learning of a new election with a higher epoch
+ *    Prospective: After expiration of the fetch timeout
+ *    Follower:    After discovering a leader with a larger epoch
  *
- * Observers follow a simpler state machine. The Voted/Candidate/Leader/Resigned
+ * Observers follow a simpler state machine. The Prospective/Candidate/Leader/Resigned
  * states are not possible for observers, so the only transitions that are possible
  * are between Unattached and Follower.
  *
  * Unattached transitions to:
  *    Unattached: After learning of a new election with a higher epoch
- *    Follower: After discovering a leader with an equal or larger epoch
+ *    Follower:   After discovering a leader with an equal or larger epoch
  *
  * Follower transitions to:
  *    Unattached: After learning of a new election with a higher epoch
- *    Follower: After discovering a leader with a larger epoch
+ *    Follower:   After discovering a leader with a larger epoch
  *
  */
 public class QuorumState {
@@ -193,17 +200,6 @@ public class QuorumState {
                 randomElectionTimeoutMs(),
                 logContext
             );
-        } else if (election.hasVoted()) {
-            initialState = new UnattachedState(
-                time,
-                election.epoch(),
-                OptionalInt.empty(),
-                Optional.of(election.votedKey()),
-                partitionState.lastVoterSet().voterIds(),
-                Optional.empty(),
-                randomElectionTimeoutMs(),
-                logContext
-            );
         } else if (election.hasLeader()) {
             VoterSet voters = partitionState.lastVoterSet();
             Endpoints leaderEndpoints = voters.listeners(election.leaderId());
@@ -226,7 +222,7 @@ public class QuorumState {
                     time,
                     election.epoch(),
                     OptionalInt.of(election.leaderId()),
-                    Optional.empty(),
+                    election.optionalVotedKey(),
                     partitionState.lastVoterSet().voterIds(),
                     Optional.empty(),
                     randomElectionTimeoutMs(),
@@ -238,6 +234,7 @@ public class QuorumState {
                     election.epoch(),
                     election.leaderId(),
                     leaderEndpoints,
+                    election.optionalVotedKey(),
                     voters.voterIds(),
                     Optional.empty(),
                     fetchTimeoutMs,
@@ -249,7 +246,7 @@ public class QuorumState {
                 time,
                 election.epoch(),
                 OptionalInt.empty(),
-                Optional.empty(),
+                election.optionalVotedKey(),
                 partitionState.lastVoterSet().voterIds(),
                 Optional.empty(),
                 randomElectionTimeoutMs(),
@@ -315,6 +312,10 @@ public class QuorumState {
             return OptionalInt.empty();
     }
 
+    public Optional<ReplicaKey> votedKey() {
+        return state.election().optionalVotedKey();
+    }
+
     public boolean hasLeader() {
         return leaderId().isPresent();
     }
@@ -368,14 +369,26 @@ public class QuorumState {
     }
 
     /**
-     * Transition to the "unattached" state. This means we have found an epoch greater than the current epoch,
-     * but we do not yet know of the elected leader.
+     * Transition to the "unattached" state. This means we have found an epoch greater than the current epoch
+     * and do not yet know of the elected leader, or we have transitioned from Prospective with the same epoch.
+     * Note, if we are transitioning from unattached and there is no epoch change, we take the path of
+     * unattachedAddVotedState instead.
      */
+    // Used in testing
     public void transitionToUnattached(int epoch) {
+        transitionToUnattached(epoch, OptionalInt.empty());
+    }
+
+    public void transitionToUnattached(int epoch, OptionalInt leaderId) {
         int currentEpoch = state.epoch();
-        if (epoch <= currentEpoch) {
-            throw new IllegalStateException("Cannot transition to Unattached with epoch= " + epoch +
-                " from current state " + state);
+        if (epoch < currentEpoch || (epoch == currentEpoch && !isProspective())) {
+            throw new IllegalStateException(
+                String.format(
+                    "Cannot transition to Unattached with epoch= %d from current state %s",
+                    epoch,
+                    state
+                )
+            );
         }
 
         final long electionTimeoutMs;
@@ -385,6 +398,8 @@ public class QuorumState {
             electionTimeoutMs = candidateStateOrThrow().remainingElectionTimeMs(time.milliseconds());
         } else if (isUnattached()) {
             electionTimeoutMs = unattachedStateOrThrow().remainingElectionTimeMs(time.milliseconds());
+        } else if (isProspective() && !prospectiveStateOrThrow().epochElection().isVoteRejected()) {
+            electionTimeoutMs = prospectiveStateOrThrow().remainingElectionTimeMs(time.milliseconds());
         } else {
             electionTimeoutMs = randomElectionTimeoutMs();
         }
@@ -392,8 +407,8 @@ public class QuorumState {
         durableTransitionTo(new UnattachedState(
             time,
             epoch,
-            OptionalInt.empty(),
-            Optional.empty(),
+            leaderId,
+            epoch == currentEpoch ? votedKey() : Optional.empty(),
             partitionState.lastVoterSet().voterIds(),
             state.highWatermark(),
             electionTimeoutMs,
@@ -402,12 +417,10 @@ public class QuorumState {
     }
 
     /**
-     * Grant a vote to a candidate. We will transition/remain in Unattached
-     * state until either the election timeout expires or a leader is elected. In particular,
-     * we do not begin fetching until the election has concluded and
-     * {@link #transitionToFollower(int, int, Endpoints)} is invoked.
+     * Grant a vote to a candidate as Unattached. We will transition to Unattached with votedKey
+     * state and remain there until either the election timeout expires or we discover the leader.
      */
-    public void transitionToUnattachedVotedState(
+    public void unattachedAddVotedState(
         int epoch,
         ReplicaKey candidateKey
     ) {
@@ -415,31 +428,22 @@ public class QuorumState {
         if (localId.isPresent() && candidateKey.id() == localId.getAsInt()) {
             throw new IllegalStateException(
                 String.format(
-                    "Cannot transition to Voted for %s and epoch %d since it matches the local " +
+                    "Cannot add voted key (%s) to current state (%s) in epoch %d since it matches the local " +
                     "broker.id",
                     candidateKey,
+                    state,
                     epoch
                 )
             );
         } else if (localId.isEmpty()) {
-            throw new IllegalStateException("Cannot transition to voted without a replica id");
-        } else if (epoch < currentEpoch) {
+            throw new IllegalStateException("Cannot add voted state without a replica id");
+        } else if (epoch != currentEpoch || !isUnattachedNotVoted()) {
             throw new IllegalStateException(
                 String.format(
-                    "Cannot transition to Voted for %s and epoch %d since the current epoch " +
-                    "(%d) is larger",
+                    "Cannot add voted key (%s) to current state (%s) in epoch %d",
                     candidateKey,
-                    epoch,
-                    currentEpoch
-                )
-            );
-        } else if (epoch == currentEpoch && !isUnattachedNotVoted()) {
-            throw new IllegalStateException(
-                String.format(
-                    "Cannot transition to Voted for %s and epoch %d from the current state (%s)",
-                    candidateKey,
-                    epoch,
-                    state
+                    state,
+                    epoch
                 )
             );
         }
@@ -450,10 +454,63 @@ public class QuorumState {
             new UnattachedState(
                 time,
                 epoch,
-                OptionalInt.empty(),
+                state.election().optionalLeaderId(),
                 Optional.of(candidateKey),
                 partitionState.lastVoterSet().voterIds(),
                 state.highWatermark(),
+                randomElectionTimeoutMs(),
+                logContext
+            )
+        );
+        log.debug("Voted for candidate {} in epoch {}", candidateKey, epoch);
+    }
+
+    /**
+     * Grant a vote to a candidate as Prospective. We will transition to Prospective with votedKey
+     * state and remain there until either the election timeout expires or we discover the leader.
+     */
+    public void prospectiveAddVotedState(
+        int epoch,
+        ReplicaKey candidateKey
+    ) {
+        int currentEpoch = state.epoch();
+        if (localId.isPresent() && candidateKey.id() == localId.getAsInt()) {
+            throw new IllegalStateException(
+                String.format(
+                    "Cannot add voted key (%s) to current state (%s) in epoch %d since it matches the local " +
+                        "broker.id",
+                    candidateKey,
+                    state,
+                    epoch
+                )
+            );
+        } else if (localId.isEmpty()) {
+            throw new IllegalStateException("Cannot add voted state without a replica id");
+        } else if (epoch != currentEpoch || !isProspectiveNotVoted()) {
+            throw new IllegalStateException(
+                String.format(
+                    "Cannot add voted key (%s) to current state (%s) in epoch %d",
+                    candidateKey,
+                    state,
+                    epoch
+                )
+            );
+        }
+
+        ProspectiveState prospectiveState = prospectiveStateOrThrow();
+        // Note that we reset the election timeout after voting for a candidate because we
+        // know that the candidate has at least as good of a chance of getting elected as us
+        durableTransitionTo(
+            new ProspectiveState(
+                time,
+                localIdOrThrow(),
+                epoch,
+                state.election().optionalLeaderId(),
+                Optional.of(state.leaderEndpoints()),
+                Optional.of(candidateKey),
+                partitionState.lastVoterSet(),
+                state.highWatermark(),
+                prospectiveState.retries(),
                 randomElectionTimeoutMs(),
                 logContext
             )
@@ -466,6 +523,7 @@ public class QuorumState {
      */
     public void transitionToFollower(int epoch, int leaderId, Endpoints endpoints) {
         int currentEpoch = state.epoch();
+        boolean retainVotedKey = false;
         if (endpoints.isEmpty()) {
             throw new IllegalArgumentException(
                 String.format(
@@ -493,6 +551,7 @@ public class QuorumState {
                 )
             );
         } else if (epoch == currentEpoch) {
+            retainVotedKey = true;
             if (isFollower() && state.leaderEndpoints().size() >= endpoints.size()) {
                 throw new IllegalStateException(
                     String.format(
@@ -521,6 +580,7 @@ public class QuorumState {
                 epoch,
                 leaderId,
                 endpoints,
+                retainVotedKey ? votedKey() : Optional.empty(),
                 partitionState.lastVoterSet().voterIds(),
                 state.highWatermark(),
                 fetchTimeoutMs,
@@ -529,25 +589,46 @@ public class QuorumState {
         );
     }
 
-    public void transitionToCandidate() {
+    public void transitionToProspective() {
         if (isObserver()) {
             throw new IllegalStateException(
                 String.format(
-                    "Cannot transition to Candidate since the local id (%s) and directory id (%s) " +
-                    "is not one of the voters %s",
+                    "Cannot transition to Prospective since the local id (%s) and directory id (%s) " +
+                        "is not one of the voters %s",
                     localId,
                     localDirectoryId,
                     partitionState.lastVoterSet()
                 )
             );
-        } else if (isLeader()) {
-            throw new IllegalStateException("Cannot transition to Candidate since the local broker.id=" + localId +
-                " since this node is already a Leader with state " + state);
+        } else if (isLeader() || isProspective()) {
+            throw new IllegalStateException("Cannot transition to Prospective since the local broker.id=" + localId +
+                " is state " + state);
         }
 
         int retries = isCandidate() ? candidateStateOrThrow().retries() + 1 : 1;
+
+        durableTransitionTo(new ProspectiveState(
+            time,
+            localIdOrThrow(),
+            epoch(),
+            leaderId(),
+            Optional.of(state.leaderEndpoints()),
+            votedKey(),
+            partitionState.lastVoterSet(),
+            state.highWatermark(),
+            retries,
+            randomElectionTimeoutMs(),
+            logContext
+        ));
+    }
+
+    public void transitionToCandidate() {
+        checkValidTransitionToCandidate();
+
         int newEpoch = epoch() + 1;
         int electionTimeoutMs = randomElectionTimeoutMs();
+
+        int retries = isProspective() ? prospectiveStateOrThrow().retries() : 1;
 
         durableTransitionTo(new CandidateState(
             time,
@@ -560,6 +641,26 @@ public class QuorumState {
             electionTimeoutMs,
             logContext
         ));
+    }
+
+    private void checkValidTransitionToCandidate() {
+        if (isObserver()) {
+            throw new IllegalStateException(
+                String.format(
+                    "Cannot transition to Candidate since the local id (%s) and directory id (%s) " +
+                        "is not one of the voters %s",
+                    localId,
+                    localDirectoryId,
+                    partitionState.lastVoterSet()
+                )
+            );
+        }
+        // Leader state can never transition to Candidate state
+        // Only Prospective is allowed to transition to Candidate, unless the local replica is the only voter
+        if (isLeader() || (!isProspective() && !isOnlyVoter())) {
+            throw new IllegalStateException("Cannot transition to Candidate since the local broker.id=" + localId +
+                " is state " + state);
+        }
     }
 
     public <T> LeaderState<T> transitionToLeader(long epochStartOffset, BatchAccumulator<T> accumulator) {
@@ -578,7 +679,7 @@ public class QuorumState {
         }
 
         CandidateState candidateState = candidateStateOrThrow();
-        if (!candidateState.isVoteGranted())
+        if (!candidateState.epochElection().isVoteGranted())
             throw new IllegalStateException("Cannot become leader without majority votes granted");
 
         // Note that the leader does not retain the high watermark that was known
@@ -600,7 +701,7 @@ public class QuorumState {
             partitionState.lastVoterSet(),
             partitionState.lastVoterSetOffset(),
             partitionState.lastKraftVersion(),
-            candidateState.grantingVoters(),
+            candidateState.epochElection().grantingVoters(),
             accumulator,
             localListeners,
             fetchTimeoutMs,
@@ -683,10 +784,40 @@ public class QuorumState {
         throw new IllegalStateException("Expected to be Resigned, but current state is " + state);
     }
 
+    public Optional<ProspectiveState> maybeProspectiveState() {
+        EpochState fixedState = state;
+        if (fixedState instanceof ProspectiveState) {
+            return Optional.of((ProspectiveState) fixedState);
+        } else {
+            return Optional.empty();
+        }
+    }
+
+    public ProspectiveState prospectiveStateOrThrow() {
+        if (isProspective())
+            return (ProspectiveState) state;
+        throw new IllegalStateException("Expected to be Prospective, but current state is " + state);
+    }
+
+    public boolean isProspectiveNotVoted() {
+        return maybeProspectiveState().filter(prospective -> prospective.votedKey().isEmpty()).isPresent();
+    }
+
+    public boolean isProspectiveAndVoted() {
+        return maybeProspectiveState().flatMap(ProspectiveState::votedKey).isPresent();
+    }
+
     public CandidateState candidateStateOrThrow() {
         if (isCandidate())
             return (CandidateState) state;
         throw new IllegalStateException("Expected to be Candidate, but current state is " + state);
+    }
+
+    public NomineeState nomineeStateOrThrow() {
+        if (isNomineeState())
+            return (NomineeState) state;
+        throw new IllegalStateException("Expected to be a NomineeState (Prospective or Candidate), " +
+            "but current state is " + state);
     }
 
     public LeaderAndEpoch leaderAndEpoch() {
@@ -718,7 +849,64 @@ public class QuorumState {
         return state instanceof ResignedState;
     }
 
+    public boolean isProspective() {
+        return state instanceof ProspectiveState;
+    }
+
     public boolean isCandidate() {
         return state instanceof CandidateState;
+    }
+
+    public boolean isNomineeState() {
+        return state instanceof NomineeState;
+    }
+
+    public static boolean unattachedOrProspectiveCanGrantVote(
+        OptionalInt leaderId,
+        Optional<ReplicaKey> votedKey,
+        int epoch,
+        ReplicaKey replicaKey,
+        boolean isLogUpToDate,
+        boolean isPreVote,
+        Logger log
+    ) {
+        if (isPreVote) {
+            if (!isLogUpToDate) {
+                log.debug(
+                    "Rejecting Vote request (preVote=true) from prospective ({}) since prospective's log is not up to date with us",
+                    replicaKey
+                );
+            }
+            return isLogUpToDate;
+        } else if (votedKey.isPresent()) {
+            ReplicaKey votedReplicaKey = votedKey.get();
+            if (votedReplicaKey.id() == replicaKey.id()) {
+                return votedReplicaKey.directoryId().isEmpty() || votedReplicaKey.directoryId().equals(replicaKey.directoryId());
+            }
+            log.debug(
+                "Rejecting Vote request (preVote=false) from candidate ({}), already have voted for another " +
+                    "candidate ({}) in epoch {}",
+                replicaKey,
+                votedKey,
+                epoch
+            );
+            return false;
+        } else if (leaderId.isPresent()) {
+            // If the leader id is known it should behave similar to the follower state
+            log.debug(
+                "Rejecting Vote request (preVote=false) from candidate ({}) since we already have a leader {} in epoch {}",
+                replicaKey,
+                leaderId.getAsInt(),
+                epoch
+            );
+            return false;
+        } else if (!isLogUpToDate) {
+            log.debug(
+                "Rejecting Vote request (preVote=false) from candidate ({}) since candidate's log is not up to date with us",
+                replicaKey
+            );
+        }
+
+        return isLogUpToDate;
     }
 }

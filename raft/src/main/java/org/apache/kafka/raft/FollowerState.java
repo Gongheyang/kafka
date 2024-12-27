@@ -26,6 +26,7 @@ import org.apache.kafka.snapshot.RawSnapshotWriter;
 import org.slf4j.Logger;
 
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.OptionalLong;
 import java.util.Set;
 
@@ -34,6 +35,7 @@ public class FollowerState implements EpochState {
     private final int epoch;
     private final int leaderId;
     private final Endpoints leaderEndpoints;
+    private final Optional<ReplicaKey> votedKey;
     private final Set<Integer> voters;
     // Used for tracking the expiration of both the Fetch and FetchSnapshot requests
     private final Timer fetchTimer;
@@ -56,6 +58,7 @@ public class FollowerState implements EpochState {
         int epoch,
         int leaderId,
         Endpoints leaderEndpoints,
+        Optional<ReplicaKey> votedKey,
         Set<Integer> voters,
         Optional<LogOffsetMetadata> highWatermark,
         int fetchTimeoutMs,
@@ -65,6 +68,7 @@ public class FollowerState implements EpochState {
         this.epoch = epoch;
         this.leaderId = leaderId;
         this.leaderEndpoints = leaderEndpoints;
+        this.votedKey = votedKey;
         this.voters = voters;
         this.fetchTimer = time.timer(fetchTimeoutMs);
         this.updateVoterPeriodTimer = time.timer(updateVoterPeriodMs());
@@ -75,7 +79,7 @@ public class FollowerState implements EpochState {
 
     @Override
     public ElectionState election() {
-        return ElectionState.withElectedLeader(epoch, leaderId, voters);
+        return new ElectionState(epoch, OptionalInt.of(leaderId), votedKey, voters);
     }
 
     @Override
@@ -116,6 +120,10 @@ public class FollowerState implements EpochState {
                     )
                 )
             );
+    }
+
+    public Optional<ReplicaKey> votedKey() {
+        return votedKey;
     }
 
     public boolean hasFetchTimeoutExpired(long currentTimeMs) {
@@ -228,12 +236,13 @@ public class FollowerState implements EpochState {
     @Override
     public String toString() {
         return String.format(
-            "FollowerState(fetchTimeoutMs=%d, epoch=%d, leader=%d, leaderEndpoints=%s, " +
+            "FollowerState(fetchTimeoutMs=%d, epoch=%d, leader=%d, leaderEndpoints=%s, votedKey=%s, " +
             "voters=%s, highWatermark=%s, fetchingSnapshot=%s)",
             fetchTimeoutMs,
             epoch,
             leaderId,
             leaderEndpoints,
+            votedKey,
             voters,
             highWatermark,
             fetchingSnapshot

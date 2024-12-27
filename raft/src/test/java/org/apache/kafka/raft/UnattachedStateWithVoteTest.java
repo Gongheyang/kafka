@@ -24,9 +24,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
-import java.util.Collections;
 import java.util.Optional;
 import java.util.OptionalInt;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -36,6 +36,7 @@ class UnattachedStateWithVoteTest {
 
     private final MockTime time = new MockTime();
     private final LogContext logContext = new LogContext();
+    private final Set<Integer> voters = Set.of(1, 2, 3);
     private final int epoch = 5;
     private final int votedId = 1;
     private final int electionTimeoutMs = 10000;
@@ -48,7 +49,7 @@ class UnattachedStateWithVoteTest {
             epoch,
             OptionalInt.empty(),
             Optional.of(ReplicaKey.of(votedId, votedDirectoryId)),
-            Collections.emptySet(),
+            voters,
             Optional.empty(),
             electionTimeoutMs,
             logContext
@@ -63,7 +64,7 @@ class UnattachedStateWithVoteTest {
         assertEquals(epoch, state.epoch());
         assertEquals(votedKey, state.votedKey().get());
         assertEquals(
-            ElectionState.withVotedCandidate(epoch, votedKey, Collections.emptySet()),
+            ElectionState.withVotedCandidate(epoch, votedKey, voters),
             state.election()
         );
         assertEquals(electionTimeoutMs, state.remainingElectionTimeMs(time.milliseconds()));
@@ -105,7 +106,7 @@ class UnattachedStateWithVoteTest {
 
     @ParameterizedTest
     @ValueSource(booleans = {true, false})
-    void testCanGrantVoteWithDirectoryId(boolean isLogUpToDate) {
+    public void testCanGrantVoteWithDirectoryId(boolean isLogUpToDate) {
         Uuid votedDirectoryId = Uuid.randomUuid();
         UnattachedState state = newUnattachedVotedState(votedDirectoryId);
 
@@ -142,12 +143,19 @@ class UnattachedStateWithVoteTest {
             isLogUpToDate,
             state.canGrantVote(ReplicaKey.of(votedId + 1, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate, true)
         );
-        assertFalse(state.canGrantVote(ReplicaKey.of(votedId + 1, votedDirectoryId), true, false));
-        assertFalse(state.canGrantVote(ReplicaKey.of(votedId + 1, ReplicaKey.NO_DIRECTORY_ID), true, false));
+        assertFalse(state.canGrantVote(ReplicaKey.of(votedId + 1, votedDirectoryId), isLogUpToDate, false));
+        assertFalse(state.canGrantVote(ReplicaKey.of(votedId + 1, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate, false));
+
+        // Observer
+        assertEquals(
+            isLogUpToDate,
+            state.canGrantVote(ReplicaKey.of(10, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate, true)
+        );
+        assertFalse(state.canGrantVote(ReplicaKey.of(10, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate, false));
     }
 
     @Test
-    void testLeaderEndpoints() {
+    public void testLeaderEndpoints() {
         Uuid votedDirectoryId = Uuid.randomUuid();
         UnattachedState state = newUnattachedVotedState(votedDirectoryId);
 

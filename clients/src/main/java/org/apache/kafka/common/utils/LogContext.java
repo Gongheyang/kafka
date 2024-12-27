@@ -23,6 +23,8 @@ import org.slf4j.helpers.FormattingTuple;
 import org.slf4j.helpers.MessageFormatter;
 import org.slf4j.spi.LocationAwareLogger;
 
+import java.util.concurrent.ConcurrentHashMap;
+
 /**
  * This class provides a way to instrument loggers with a common context which can be used to
  * automatically enrich log messages. For example, in the KafkaConsumer, it is often useful to know
@@ -32,6 +34,7 @@ import org.slf4j.spi.LocationAwareLogger;
  */
 public class LogContext {
 
+    private static final ConcurrentHashMap<Class<?>, Logger> LOGGER_CACHE = new ConcurrentHashMap<>();
     private final String logPrefix;
 
     public LogContext(String logPrefix) {
@@ -43,7 +46,7 @@ public class LogContext {
     }
 
     public Logger logger(Class<?> clazz) {
-        Logger logger = LoggerFactory.getLogger(clazz);
+        Logger logger = LOGGER_CACHE.computeIfAbsent(clazz, LoggerFactory::getLogger);
         if (logger instanceof LocationAwareLogger) {
             return new LocationAwareKafkaLogger(logPrefix, (LocationAwareLogger) logger);
         } else {

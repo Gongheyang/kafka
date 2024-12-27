@@ -29,9 +29,9 @@ import kafka.server.{KafkaConfig, _}
 import kafka.utils._
 import kafka.zk.KafkaZkClient
 import org.apache.kafka.common.TopicPartition
+import org.apache.kafka.common.message.ProduceResponseData.PartitionProduceResponse
 import org.apache.kafka.common.protocol.Errors
 import org.apache.kafka.common.record.{MemoryRecords, RecordBatch, RecordValidationStats}
-import org.apache.kafka.common.requests.ProduceResponse.PartitionResponse
 import org.apache.kafka.common.utils.{Time, Utils}
 import org.apache.kafka.server.ActionQueue
 import org.apache.kafka.server.common.RequestLocal
@@ -41,6 +41,8 @@ import org.apache.kafka.server.util.{MockScheduler, MockTime, Scheduler}
 import org.apache.kafka.storage.internals.log.{AppendOrigin, LogConfig, VerificationGuard}
 import org.junit.jupiter.api.{AfterEach, BeforeEach}
 import org.mockito.Mockito.{mock, when, withSettings}
+
+import java.util.Map.Entry
 
 import scala.collection._
 import scala.jdk.CollectionConverters._
@@ -220,7 +222,7 @@ object AbstractCoordinatorConcurrencyTest {
                                internalTopicsAllowed: Boolean,
                                origin: AppendOrigin,
                                entriesPerPartition: Map[TopicPartition, MemoryRecords],
-                               responseCallback: Map[TopicPartition, PartitionResponse] => Unit,
+                               responseCallback: Map[TopicPartition, Entry[PartitionProduceResponse, Long]] => Unit,
                                delayedProduceLock: Option[Lock] = None,
                                processingStatsCallback: Map[TopicPartition, RecordValidationStats] => Unit = _ => (),
                                requestLocal: RequestLocal = RequestLocal.noCaching,
@@ -231,7 +233,11 @@ object AbstractCoordinatorConcurrencyTest {
         return
       val produceMetadata = ProduceMetadata(1, entriesPerPartition.map {
         case (tp, _) =>
-          (tp, ProducePartitionStatus(0L, new PartitionResponse(Errors.NONE, 0L, RecordBatch.NO_TIMESTAMP, 0L)))
+          (tp, ProducePartitionStatus(0L, new PartitionProduceResponse()
+            .setErrorCode(Errors.NONE.code)
+            .setBaseOffset(0L)
+            .setLogStartOffset(0L)
+            .setLogAppendTimeMs(RecordBatch.NO_TIMESTAMP)))
       })
       val delayedProduce = new DelayedProduce(5, produceMetadata, this, responseCallback, delayedProduceLock) {
         // Complete produce requests after a few attempts to trigger delayed produce from different threads
@@ -245,7 +251,14 @@ object AbstractCoordinatorConcurrencyTest {
         override def onComplete(): Unit = {
           responseCallback(entriesPerPartition.map {
             case (tp, _) =>
-              (tp, new PartitionResponse(Errors.NONE, 0L, RecordBatch.NO_TIMESTAMP, 0L))
+              (tp, java.util.Map.entry(new PartitionProduceResponse()
+                .setIndex(tp.partition)
+                .setErrorCode(Errors.NONE.code)
+                .setBaseOffset(0L)
+                .setLogStartOffset(0L)
+                .setLogAppendTimeMs(RecordBatch.NO_TIMESTAMP),
+                -1L)
+              )
           })
         }
       }

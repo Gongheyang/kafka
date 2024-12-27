@@ -25,11 +25,11 @@ import org.apache.kafka.common.record.RecordBatch;
 import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.apache.kafka.common.message.ProduceResponseData.PartitionProduceResponse;
 import static org.apache.kafka.common.protocol.ApiKeys.PRODUCE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -37,11 +37,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class ProduceResponseTest {
 
-    @SuppressWarnings("deprecation")
     @Test
     public void produceResponseVersionTest() {
-        Map<TopicPartition, ProduceResponse.PartitionResponse> responseData = new HashMap<>();
-        responseData.put(new TopicPartition("test", 0), new ProduceResponse.PartitionResponse(Errors.NONE, 10000, RecordBatch.NO_TIMESTAMP, 100));
+        Map<TopicPartition, PartitionProduceResponse> responseData = new HashMap<>();
+        responseData.put(new TopicPartition("test", 0), new PartitionProduceResponse()
+            .setIndex(0)
+            .setErrorCode(Errors.NONE.code())
+            .setBaseOffset(10000)
+            .setLogStartOffset(100)
+            .setLogAppendTimeMs(RecordBatch.NO_TIMESTAMP));
         ProduceResponse v0Response = new ProduceResponse(responseData);
         ProduceResponse v1Response = new ProduceResponse(responseData, 10);
         ProduceResponse v2Response = new ProduceResponse(responseData, 10);
@@ -64,15 +68,18 @@ public class ProduceResponseTest {
         }
     }
 
-    @SuppressWarnings("deprecation")
     @Test
     public void produceResponseRecordErrorsTest() {
-        Map<TopicPartition, ProduceResponse.PartitionResponse> responseData = new HashMap<>();
+        Map<TopicPartition, PartitionProduceResponse> responseData = new HashMap<>();
         TopicPartition tp = new TopicPartition("test", 0);
-        ProduceResponse.PartitionResponse partResponse = new ProduceResponse.PartitionResponse(Errors.NONE,
-                10000, RecordBatch.NO_TIMESTAMP, 100,
-                Collections.singletonList(new ProduceResponse.RecordError(3, "Record error")),
-                "Produce failed");
+        PartitionProduceResponse partResponse = new PartitionProduceResponse()
+            .setIndex(tp.partition())
+            .setErrorCode(Errors.NONE.code())
+            .setErrorMessage("Produce failed")
+            .setBaseOffset(10000)
+            .setLogStartOffset(100)
+            .setLogAppendTimeMs(RecordBatch.NO_TIMESTAMP)
+            .setRecordErrors(List.of(new ProduceResponseData.BatchIndexAndErrorMessage().setBatchIndex(3).setBatchIndexErrorMessage("Record error")));
         responseData.put(tp, partResponse);
 
         for (short version : PRODUCE.allVersions()) {

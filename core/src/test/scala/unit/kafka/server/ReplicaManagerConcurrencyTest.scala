@@ -25,13 +25,14 @@ import kafka.server.metadata.KRaftMetadataCache
 import kafka.server.metadata.MockConfigRepository
 import kafka.utils.TestUtils.waitUntilTrue
 import kafka.utils.{CoreUtils, Logging, TestUtils}
+import org.apache.kafka.common.message.ProduceResponseData.PartitionProduceResponse
 import org.apache.kafka.common.metadata.RegisterBrokerRecord
 import org.apache.kafka.common.metadata.{PartitionChangeRecord, PartitionRecord, TopicRecord}
 import org.apache.kafka.common.metrics.Metrics
 import org.apache.kafka.common.protocol.{ApiKeys, Errors}
 import org.apache.kafka.common.record.SimpleRecord
 import org.apache.kafka.common.replica.ClientMetadata.DefaultClientMetadata
-import org.apache.kafka.common.requests.{FetchRequest, ProduceResponse}
+import org.apache.kafka.common.requests.FetchRequest
 import org.apache.kafka.common.security.auth.KafkaPrincipal
 import org.apache.kafka.common.utils.{Time, Utils}
 import org.apache.kafka.common.{DirectoryId, IsolationLevel, TopicIdPartition, TopicPartition, Uuid}
@@ -49,6 +50,7 @@ import org.junit.jupiter.api.Assertions._
 import org.junit.jupiter.api.{AfterEach, Test}
 import org.mockito.Mockito
 
+import java.util.Map.Entry
 import scala.collection.mutable
 import scala.jdk.CollectionConverters._
 import scala.util.Random
@@ -289,13 +291,13 @@ class ReplicaManagerConcurrencyTest extends Logging {
         new SimpleRecord(s"$clientId-${sequence + i}".getBytes)
       }
 
-      val future = new CompletableFuture[ProduceResponse.PartitionResponse]()
-      def produceCallback(results: collection.Map[TopicPartition, ProduceResponse.PartitionResponse]): Unit = {
+      val future = new CompletableFuture[Entry[PartitionProduceResponse, Long]]()
+      def produceCallback(results: collection.Map[TopicPartition, Entry[PartitionProduceResponse, Long]]): Unit = {
         try {
           assertEquals(1, results.size)
           val (topicPartition, result) = results.head
           assertEquals(this.topicPartition, topicPartition)
-          assertEquals(Errors.NONE, result.error)
+          assertEquals(Errors.NONE.code, result.getKey.errorCode)
           future.complete(result)
         } catch {
           case e: Throwable => future.completeExceptionally(e)

@@ -50,6 +50,7 @@ import org.apache.kafka.common.message.ListOffsetsResponseData.{ListOffsetsParti
 import org.apache.kafka.common.message.MetadataResponseData.{MetadataResponsePartition, MetadataResponseTopic}
 import org.apache.kafka.common.message.OffsetForLeaderEpochRequestData.OffsetForLeaderTopic
 import org.apache.kafka.common.message.OffsetForLeaderEpochResponseData.{EpochEndOffset, OffsetForLeaderTopicResult, OffsetForLeaderTopicResultCollection}
+import org.apache.kafka.common.message.ProduceResponseData.{PartitionProduceResponse, NodeEndpoint}
 import org.apache.kafka.common.message._
 import org.apache.kafka.common.metrics.Metrics
 import org.apache.kafka.common.network.{ListenerName}
@@ -58,7 +59,6 @@ import org.apache.kafka.common.record._
 import org.apache.kafka.common.replica.ClientMetadata
 import org.apache.kafka.common.replica.ClientMetadata.DefaultClientMetadata
 import org.apache.kafka.common.requests.FindCoordinatorRequest.CoordinatorType
-import org.apache.kafka.common.requests.ProduceResponse.PartitionResponse
 import org.apache.kafka.common.requests._
 import org.apache.kafka.common.resource.Resource.CLUSTER_NAME
 import org.apache.kafka.common.resource.ResourceType._
@@ -87,7 +87,7 @@ import java.util
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.{CompletableFuture, ConcurrentHashMap}
 import java.util.{Collections, Optional, OptionalInt}
-import scala.annotation.nowarn
+import java.util.Map.Entry
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.{Map, Seq, Set, mutable}
 import scala.jdk.CollectionConverters._
@@ -622,9 +622,9 @@ class KafkaApis(val requestChannel: RequestChannel,
       }
     }
 
-    val unauthorizedTopicResponses = mutable.Map[TopicPartition, PartitionResponse]()
-    val nonExistingTopicResponses = mutable.Map[TopicPartition, PartitionResponse]()
-    val invalidRequestResponses = mutable.Map[TopicPartition, PartitionResponse]()
+    val unauthorizedTopicResponses = mutable.Map[TopicPartition, Entry[PartitionProduceResponse, Long]]()
+    val nonExistingTopicResponses = mutable.Map[TopicPartition, Entry[PartitionProduceResponse, Long]]()
+    val invalidRequestResponses = mutable.Map[TopicPartition, Entry[PartitionProduceResponse, Long]]()
     val authorizedRequestInfo = mutable.Map[TopicPartition, MemoryRecords]()
     // cache the result to avoid redundant authorization calls
     val authorizedTopics = authHelper.filterByAuthorized(request.context, WRITE, TOPIC,
@@ -637,16 +637,28 @@ class KafkaApis(val requestChannel: RequestChannel,
       // https://issues.apache.org/jira/browse/KAFKA-10698
       val memoryRecords = partition.records.asInstanceOf[MemoryRecords]
       if (!authorizedTopics.contains(topicPartition.topic))
-        unauthorizedTopicResponses += topicPartition -> new PartitionResponse(Errors.TOPIC_AUTHORIZATION_FAILED)
+        unauthorizedTopicResponses += topicPartition -> java.util.Map.entry(new ProduceResponseData.PartitionProduceResponse()
+          .setIndex(topicPartition.partition())
+          .setErrorCode(Errors.TOPIC_AUTHORIZATION_FAILED.code),
+          -1L
+        )
       else if (!metadataCache.contains(topicPartition))
-        nonExistingTopicResponses += topicPartition -> new PartitionResponse(Errors.UNKNOWN_TOPIC_OR_PARTITION)
+        nonExistingTopicResponses += topicPartition -> java.util.Map.entry(new ProduceResponseData.PartitionProduceResponse()
+          .setIndex(topicPartition.partition())
+          .setErrorCode(Errors.UNKNOWN_TOPIC_OR_PARTITION.code),
+          -1L
+        )
       else
         try {
           ProduceRequest.validateRecords(request.header.apiVersion, memoryRecords)
           authorizedRequestInfo += (topicPartition -> memoryRecords)
         } catch {
           case e: ApiException =>
-            invalidRequestResponses += topicPartition -> new PartitionResponse(Errors.forException(e))
+            invalidRequestResponses += topicPartition -> java.util.Map.entry(new ProduceResponseData.PartitionProduceResponse()
+              .setIndex(topicPartition.partition())
+              .setErrorCode(Errors.forException(e).code),
+              -1L
+            )
         }
     })
 
@@ -654,29 +666,32 @@ class KafkaApis(val requestChannel: RequestChannel,
     // The construction of ProduceResponse is able to accept auto-generated protocol data so
     // KafkaApis#handleProduceRequest should apply auto-generated protocol to avoid extra conversion.
     // https://issues.apache.org/jira/browse/KAFKA-10730
-    @nowarn("cat=deprecation")
-    def sendResponseCallback(responseStatus: Map[TopicPartition, PartitionResponse]): Unit = {
+    def sendResponseCallback(responseStatus: Map[TopicPartition, Entry[PartitionProduceResponse, Long]]): Unit = {
       val mergedResponseStatus = responseStatus ++ unauthorizedTopicResponses ++ nonExistingTopicResponses ++ invalidRequestResponses
       var errorInResponse = false
 
-      val nodeEndpoints = new mutable.HashMap[Int, Node]
+      val nodeEndpoints = new mutable.HashMap[Int, NodeEndpoint]
       mergedResponseStatus.foreachEntry { (topicPartition, status) =>
-        if (status.error != Errors.NONE) {
+        if (status.getKey.errorCode != Errors.NONE.code) {
           errorInResponse = true
           debug("Produce request with correlation id %d from client %s on partition %s failed due to %s".format(
             request.header.correlationId,
             request.header.clientId,
             topicPartition,
-            status.error.exceptionName))
+            Errors.forCode(status.getKey.errorCode).exceptionName))
 
           if (request.header.apiVersion >= 10) {
-            status.error match {
+            Errors.forCode(status.getKey.errorCode) match {
               case Errors.NOT_LEADER_OR_FOLLOWER =>
                 val leaderNode = getCurrentLeader(topicPartition, request.context.listenerName)
                 leaderNode.node.foreach { node =>
-                  nodeEndpoints.put(node.id(), node)
+                  nodeEndpoints.put(node.id(), new NodeEndpoint()
+                    .setNodeId(node.id)
+                    .setHost(node.host)
+                    .setPort(node.port)
+                    .setRack(node.rack))
                 }
-                status.currentLeader
+                status.getKey.currentLeader
                   .setLeaderId(leaderNode.leaderId)
                   .setLeaderEpoch(leaderNode.leaderEpoch)
                 case _ =>
@@ -711,21 +726,25 @@ class KafkaApis(val requestChannel: RequestChannel,
         // the producer client will know that some error has happened and will refresh its metadata
         if (errorInResponse) {
           val exceptionsSummary = mergedResponseStatus.map { case (topicPartition, status) =>
-            topicPartition -> status.error.exceptionName
+            topicPartition -> Errors.forCode(status.getKey.errorCode).exceptionName
           }.mkString(", ")
           info(
             s"Closing connection due to error during produce request with correlation id ${request.header.correlationId} " +
               s"from client id ${request.header.clientId} with ack=0\n" +
               s"Topic and partition to exceptions: $exceptionsSummary"
           )
-          requestChannel.closeConnection(request, new ProduceResponse(mergedResponseStatus.asJava).errorCounts)
+          requestChannel.closeConnection(request, new ProduceResponse(mergedResponseStatus.map {
+            case (topicPartition, status) => topicPartition -> status.getKey
+          }.asJava).errorCounts)
         } else {
           // Note that although request throttling is exempt for acks == 0, the channel may be throttled due to
           // bandwidth quota violation.
           requestHelper.sendNoOpResponseExemptThrottle(request)
         }
       } else {
-        requestChannel.sendResponse(request, new ProduceResponse(mergedResponseStatus.asJava, maxThrottleTimeMs, nodeEndpoints.values.toList.asJava), None)
+        requestChannel.sendResponse(request, new ProduceResponse(mergedResponseStatus.map {
+          case (topicPartition, status) => topicPartition -> status.getKey
+        }.asJava, maxThrottleTimeMs, nodeEndpoints.values.toList.asJava), None)
       }
     }
 
@@ -2330,7 +2349,7 @@ class KafkaApis(val requestChannel: RequestChannel,
             requestLocal = requestLocal,
             responseCallback = errors => {
               errors.foreachEntry { (tp, partitionResponse) =>
-                addResultAndMaybeComplete(tp, partitionResponse.error)
+                addResultAndMaybeComplete(tp, Errors.forCode(partitionResponse.getKey.errorCode))
               }
             }
           )

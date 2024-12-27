@@ -107,6 +107,7 @@ import java.util.function.Supplier;
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
+import static org.apache.kafka.common.message.ProduceResponseData.PartitionProduceResponse;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -4287,10 +4288,16 @@ public class TransactionManagerTest {
         return produceResponse(tp, offset, error, throttleTimeMs, 10);
     }
 
-    @SuppressWarnings("deprecation")
     private ProduceResponse produceResponse(TopicPartition tp, long offset, Errors error, int throttleTimeMs, int logStartOffset) {
-        ProduceResponse.PartitionResponse resp = new ProduceResponse.PartitionResponse(error, offset, RecordBatch.NO_TIMESTAMP, logStartOffset);
-        Map<TopicPartition, ProduceResponse.PartitionResponse> partResp = singletonMap(tp, resp);
+        Map<TopicPartition, PartitionProduceResponse> partResp = singletonMap(
+            tp,
+            new PartitionProduceResponse()
+                .setIndex(tp.partition())
+                .setErrorCode(error.code())
+                .setBaseOffset(offset)
+                .setLogStartOffset(logStartOffset)
+                .setLogAppendTimeMs(RecordBatch.NO_TIMESTAMP)
+        );
         return new ProduceResponse(partResp, throttleTimeMs);
     }
 

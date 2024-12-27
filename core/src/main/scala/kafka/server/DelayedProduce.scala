@@ -23,19 +23,21 @@ import com.typesafe.scalalogging.Logger
 import com.yammer.metrics.core.Meter
 import kafka.utils.{Logging, Pool}
 import org.apache.kafka.common.TopicPartition
+import org.apache.kafka.common.message.ProduceResponseData.PartitionProduceResponse
 import org.apache.kafka.common.protocol.Errors
-import org.apache.kafka.common.requests.ProduceResponse.PartitionResponse
 import org.apache.kafka.server.metrics.KafkaMetricsGroup
 import org.apache.kafka.server.purgatory.DelayedOperation
+
+import java.util.Map.Entry
 
 import scala.collection._
 import scala.jdk.CollectionConverters._
 import scala.jdk.OptionConverters.RichOption
 
-case class ProducePartitionStatus(requiredOffset: Long, responseStatus: PartitionResponse) {
+case class ProducePartitionStatus(requiredOffset: Long, responseStatus: PartitionProduceResponse) {
   @volatile var acksPending = false
 
-  override def toString: String = s"[acksPending: $acksPending, error: ${responseStatus.error.code}, " +
+  override def toString: String = s"[acksPending: $acksPending, error: ${responseStatus.errorCode}, " +
     s"startOffset: ${responseStatus.baseOffset}, requiredOffset: $requiredOffset]"
 }
 
@@ -59,7 +61,7 @@ object DelayedProduce {
 class DelayedProduce(delayMs: Long,
                      produceMetadata: ProduceMetadata,
                      replicaManager: ReplicaManager,
-                     responseCallback: Map[TopicPartition, PartitionResponse] => Unit,
+                     responseCallback: Map[TopicPartition, Entry[PartitionProduceResponse, Long]] => Unit,
                      lockOpt: Option[Lock])
   extends DelayedOperation(delayMs, lockOpt.toJava) with Logging {
 
@@ -67,10 +69,10 @@ class DelayedProduce(delayMs: Long,
 
   // first update the acks pending variable according to the error code
   produceMetadata.produceStatus.foreachEntry { (topicPartition, status) =>
-    if (status.responseStatus.error == Errors.NONE) {
+    if (status.responseStatus.errorCode == Errors.NONE.code) {
       // Timeout error state will be cleared when required acks are received
       status.acksPending = true
-      status.responseStatus.error = Errors.REQUEST_TIMED_OUT
+      status.responseStatus.setErrorCode(Errors.REQUEST_TIMED_OUT.code)
     } else {
       status.acksPending = false
     }
@@ -107,7 +109,7 @@ class DelayedProduce(delayMs: Long,
         // Case B || C.1 || C.2
         if (error != Errors.NONE || hasEnough) {
           status.acksPending = false
-          status.responseStatus.error = error
+          status.responseStatus.setErrorCode(error.code)
         }
       }
     }
@@ -132,7 +134,9 @@ class DelayedProduce(delayMs: Long,
    * Upon completion, return the current response status along with the error code per partition
    */
   override def onComplete(): Unit = {
-    val responseStatus = produceMetadata.produceStatus.map { case (k, status) => k -> status.responseStatus }
+    val responseStatus = produceMetadata.produceStatus.map {
+      case (k, status) => k -> java.util.Map.entry(status.responseStatus, status.requiredOffset)
+    }
     responseCallback(responseStatus)
   }
 }

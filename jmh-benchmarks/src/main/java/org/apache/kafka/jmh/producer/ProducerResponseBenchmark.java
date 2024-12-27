@@ -38,6 +38,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.apache.kafka.common.message.ProduceResponseData.BatchIndexAndErrorMessage;
+import static org.apache.kafka.common.message.ProduceResponseData.PartitionProduceResponse;
+
 @State(Scope.Benchmark)
 @Fork(value = 1)
 @Warmup(iterations = 5)
@@ -47,25 +50,24 @@ import java.util.stream.IntStream;
 public class ProducerResponseBenchmark {
     private static final int NUMBER_OF_PARTITIONS = 3;
     private static final int NUMBER_OF_RECORDS = 3;
-    private static final Map<TopicPartition, ProduceResponse.PartitionResponse> PARTITION_RESPONSE_MAP = IntStream.range(0, NUMBER_OF_PARTITIONS)
+    private static final Map<TopicPartition, PartitionProduceResponse> PARTITION_RESPONSE_MAP = IntStream.range(0, NUMBER_OF_PARTITIONS)
         .mapToObj(partitionIndex -> new AbstractMap.SimpleEntry<>(
             new TopicPartition("tp", partitionIndex),
-            new ProduceResponse.PartitionResponse(
-                Errors.NONE,
-                0,
-                0,
-                0,
-                IntStream.range(0, NUMBER_OF_RECORDS)
-                    .mapToObj(ProduceResponse.RecordError::new)
-                    .collect(Collectors.toList()))
+            new PartitionProduceResponse()
+                .setIndex(partitionIndex)
+                .setBaseOffset(0)
+                .setLogAppendTimeMs(0)
+                .setLogStartOffset(0)
+                .setErrorCode(Errors.NONE.code())
+                .setRecordErrors(IntStream.range(0, NUMBER_OF_RECORDS)
+                    .mapToObj(recordIndex -> new BatchIndexAndErrorMessage()
+                        .setBatchIndex(recordIndex)
+                    )
+                    .collect(Collectors.toList())
+                )
         ))
         .collect(Collectors.toMap(AbstractMap.SimpleEntry::getKey, AbstractMap.SimpleEntry::getValue));
 
-    /**
-     * this method is still used by production so we benchmark it.
-     * see https://issues.apache.org/jira/browse/KAFKA-10730
-     */
-    @SuppressWarnings("deprecation")
     private static ProduceResponse response() {
         return new ProduceResponse(PARTITION_RESPONSE_MAP);
     }

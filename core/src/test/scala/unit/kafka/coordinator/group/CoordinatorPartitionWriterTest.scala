@@ -21,9 +21,9 @@ import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.compress.Compression
 import org.apache.kafka.common.errors.NotLeaderOrFollowerException
 import org.apache.kafka.common.message.DeleteRecordsResponseData.DeleteRecordsPartitionResult
+import org.apache.kafka.common.message.ProduceResponseData.PartitionProduceResponse
 import org.apache.kafka.common.protocol.{ApiKeys, Errors}
 import org.apache.kafka.common.record.{MemoryRecords, RecordBatch, SimpleRecord}
-import org.apache.kafka.common.requests.ProduceResponse.PartitionResponse
 import org.apache.kafka.coordinator.common.runtime.PartitionWriter
 import org.apache.kafka.storage.internals.log.{AppendOrigin, LogConfig, VerificationGuard}
 import org.apache.kafka.test.TestUtils.assertFutureThrows
@@ -36,6 +36,7 @@ import org.mockito.Mockito.{mock, verify, when}
 
 import java.nio.charset.Charset
 import java.util.Collections
+import java.util.Map.Entry
 import scala.collection.Map
 import scala.jdk.CollectionConverters._
 
@@ -94,8 +95,8 @@ class CoordinatorPartitionWriterTest {
 
     val recordsCapture: ArgumentCaptor[Map[TopicPartition, MemoryRecords]] =
       ArgumentCaptor.forClass(classOf[Map[TopicPartition, MemoryRecords]])
-    val callbackCapture: ArgumentCaptor[Map[TopicPartition, PartitionResponse] => Unit] =
-      ArgumentCaptor.forClass(classOf[Map[TopicPartition, PartitionResponse] => Unit])
+    val callbackCapture: ArgumentCaptor[Map[TopicPartition, Entry[PartitionProduceResponse, Long]] => Unit] =
+      ArgumentCaptor.forClass(classOf[Map[TopicPartition, Entry[PartitionProduceResponse, Long]] => Unit])
 
     when(replicaManager.appendRecords(
       ArgumentMatchers.eq(0L),
@@ -111,14 +112,16 @@ class CoordinatorPartitionWriterTest {
       ArgumentMatchers.eq(Map(tp -> VerificationGuard.SENTINEL)),
     )).thenAnswer( _ => {
       callbackCapture.getValue.apply(Map(
-        tp -> new PartitionResponse(
-          Errors.NONE,
-          5,
-          10,
-          RecordBatch.NO_TIMESTAMP,
-          -1,
-          Collections.emptyList(),
-          ""
+        tp -> java.util.Map.entry(
+          new PartitionProduceResponse()
+            .setIndex(tp.partition())
+            .setBaseOffset(5)
+            .setLogStartOffset(-1)
+            .setLogAppendTimeMs(RecordBatch.NO_TIMESTAMP)
+            .setErrorMessage("")
+            .setErrorCode(Errors.NONE.code)
+            .setRecordErrors(Collections.emptyList()),
+          10L
         )
       ))
     })
@@ -203,8 +206,8 @@ class CoordinatorPartitionWriterTest {
 
     val recordsCapture: ArgumentCaptor[Map[TopicPartition, MemoryRecords]] =
       ArgumentCaptor.forClass(classOf[Map[TopicPartition, MemoryRecords]])
-    val callbackCapture: ArgumentCaptor[Map[TopicPartition, PartitionResponse] => Unit] =
-      ArgumentCaptor.forClass(classOf[Map[TopicPartition, PartitionResponse] => Unit])
+    val callbackCapture: ArgumentCaptor[Map[TopicPartition, Entry[PartitionProduceResponse, Long]] => Unit] =
+      ArgumentCaptor.forClass(classOf[Map[TopicPartition, Entry[PartitionProduceResponse, Long]] => Unit])
 
     when(replicaManager.appendRecords(
       ArgumentMatchers.eq(0L),
@@ -220,7 +223,12 @@ class CoordinatorPartitionWriterTest {
       ArgumentMatchers.eq(Map(tp -> VerificationGuard.SENTINEL)),
     )).thenAnswer(_ => {
       callbackCapture.getValue.apply(Map(
-        tp -> new PartitionResponse(Errors.NOT_LEADER_OR_FOLLOWER)
+        tp -> java.util.Map.entry(
+          new PartitionProduceResponse()
+            .setIndex(tp.partition)
+            .setErrorCode(Errors.NOT_LEADER_OR_FOLLOWER.code),
+          -1L
+        )
       ))
     })
 

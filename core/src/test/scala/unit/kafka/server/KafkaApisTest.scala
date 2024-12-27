@@ -55,6 +55,7 @@ import org.apache.kafka.common.message.ListOffsetsResponseData.{ListOffsetsParti
 import org.apache.kafka.common.message.MetadataResponseData.MetadataResponseTopic
 import org.apache.kafka.common.message.OffsetDeleteRequestData.{OffsetDeleteRequestPartition, OffsetDeleteRequestTopic, OffsetDeleteRequestTopicCollection}
 import org.apache.kafka.common.message.OffsetDeleteResponseData.{OffsetDeleteResponsePartition, OffsetDeleteResponsePartitionCollection, OffsetDeleteResponseTopic, OffsetDeleteResponseTopicCollection}
+import org.apache.kafka.common.message.ProduceResponseData.PartitionProduceResponse
 import org.apache.kafka.common.message.ShareFetchRequestData.{AcknowledgementBatch, ForgottenTopic}
 import org.apache.kafka.common.message.ShareFetchResponseData.{AcquiredRecords, PartitionData, ShareFetchableTopicResponse}
 import org.apache.kafka.common.message.StopReplicaRequestData.{StopReplicaPartitionState, StopReplicaTopicState}
@@ -67,7 +68,6 @@ import org.apache.kafka.common.quota.{ClientQuotaAlteration, ClientQuotaEntity}
 import org.apache.kafka.common.record._
 import org.apache.kafka.common.requests.FindCoordinatorRequest.CoordinatorType
 import org.apache.kafka.common.requests.MetadataResponse.TopicMetadata
-import org.apache.kafka.common.requests.ProduceResponse.PartitionResponse
 import org.apache.kafka.common.requests.WriteTxnMarkersRequest.TxnMarkerEntry
 import org.apache.kafka.common.requests.{FetchMetadata => JFetchMetadata, _}
 import org.apache.kafka.common.resource.{PatternType, Resource, ResourcePattern, ResourceType}
@@ -113,6 +113,7 @@ import java.nio.charset.StandardCharsets
 import java.time.Duration
 import java.util
 import java.util.Arrays.asList
+import java.util.Map.Entry
 import java.util.concurrent.{CompletableFuture, TimeUnit}
 import java.util.{Collections, Comparator, Optional, OptionalInt, OptionalLong, Properties}
 import scala.collection.{Map, Seq, mutable}
@@ -2647,7 +2648,8 @@ class KafkaApisTest extends Logging {
 
       reset(replicaManager, clientQuotaManager, clientRequestQuotaManager, requestChannel, txnCoordinator)
 
-      val responseCallback: ArgumentCaptor[Map[TopicPartition, PartitionResponse] => Unit] = ArgumentCaptor.forClass(classOf[Map[TopicPartition, PartitionResponse] => Unit])
+      val responseCallback: ArgumentCaptor[Map[TopicPartition, Entry[PartitionProduceResponse, Long]] => Unit] =
+        ArgumentCaptor.forClass(classOf[Map[TopicPartition, Entry[PartitionProduceResponse, Long]] => Unit])
 
       val tp = new TopicPartition("topic", 0)
 
@@ -2674,7 +2676,15 @@ class KafkaApisTest extends Logging {
         any(),
         any(),
         any()
-      )).thenAnswer(_ => responseCallback.getValue.apply(Map(tp -> new PartitionResponse(Errors.INVALID_PRODUCER_EPOCH))))
+      )).thenAnswer(_ => responseCallback.getValue.apply(Map(tp -> java.util.Map.entry(
+        new PartitionProduceResponse()
+          .setIndex(tp.partition)
+          .setErrorCode(Errors.INVALID_PRODUCER_EPOCH.code)
+          .setBaseOffset(-1L)
+          .setLogStartOffset(-1L)
+          .setLogAppendTimeMs(RecordBatch.NO_TIMESTAMP),
+        -1L
+      ))))
 
       when(clientRequestQuotaManager.maybeRecordAndGetThrottleTimeMs(any[RequestChannel.Request](),
         any[Long])).thenReturn(0)
@@ -2706,7 +2716,8 @@ class KafkaApisTest extends Logging {
 
       reset(replicaManager, clientQuotaManager, clientRequestQuotaManager, requestChannel, txnCoordinator)
 
-      val responseCallback: ArgumentCaptor[Map[TopicPartition, PartitionResponse] => Unit] = ArgumentCaptor.forClass(classOf[Map[TopicPartition, PartitionResponse] => Unit])
+      val responseCallback: ArgumentCaptor[Map[TopicPartition, Entry[PartitionProduceResponse, Long]] => Unit] =
+        ArgumentCaptor.forClass(classOf[Map[TopicPartition, Entry[PartitionProduceResponse, Long]] => Unit])
 
       val tp = new TopicPartition(topic, 0)
       val partition = mock(classOf[Partition])
@@ -2736,7 +2747,15 @@ class KafkaApisTest extends Logging {
         any(),
         any(),
         any())
-      ).thenAnswer(_ => responseCallback.getValue.apply(Map(tp -> new PartitionResponse(Errors.NOT_LEADER_OR_FOLLOWER))))
+      ).thenAnswer(_ => responseCallback.getValue.apply(Map(tp ->java.util.Map.entry(
+        new PartitionProduceResponse()
+          .setIndex(tp.partition)
+          .setErrorCode(Errors.NOT_LEADER_OR_FOLLOWER.code)
+          .setBaseOffset(-1L)
+          .setLogStartOffset(-1L)
+          .setLogAppendTimeMs(RecordBatch.NO_TIMESTAMP),
+        -1L
+      ))))
 
       when(replicaManager.getPartitionOrError(tp)).thenAnswer(_ => Right(partition))
       when(partition.leaderReplicaIdOpt).thenAnswer(_ => Some(newLeaderId))
@@ -2774,7 +2793,8 @@ class KafkaApisTest extends Logging {
 
       reset(replicaManager, clientQuotaManager, clientRequestQuotaManager, requestChannel, txnCoordinator)
 
-      val responseCallback: ArgumentCaptor[Map[TopicPartition, PartitionResponse] => Unit] = ArgumentCaptor.forClass(classOf[Map[TopicPartition, PartitionResponse] => Unit])
+      val responseCallback: ArgumentCaptor[Map[TopicPartition, Entry[PartitionProduceResponse, Long]] => Unit] =
+        ArgumentCaptor.forClass(classOf[Map[TopicPartition, Entry[PartitionProduceResponse, Long]] => Unit])
 
       val tp = new TopicPartition(topic, 0)
 
@@ -2801,7 +2821,15 @@ class KafkaApisTest extends Logging {
         any(),
         any(),
         any())
-      ).thenAnswer(_ => responseCallback.getValue.apply(Map(tp -> new PartitionResponse(Errors.NOT_LEADER_OR_FOLLOWER))))
+      ).thenAnswer(_ => responseCallback.getValue.apply(Map(tp -> java.util.Map.entry(
+        new PartitionProduceResponse()
+          .setIndex(tp.partition)
+          .setErrorCode(Errors.NOT_LEADER_OR_FOLLOWER.code)
+          .setBaseOffset(-1L)
+          .setLogStartOffset(-1L)
+          .setLogAppendTimeMs(RecordBatch.NO_TIMESTAMP),
+        -1L
+      ))))
 
       when(replicaManager.getPartitionOrError(tp)).thenAnswer(_ => Left(Errors.UNKNOWN_TOPIC_OR_PARTITION))
 
@@ -2838,7 +2866,8 @@ class KafkaApisTest extends Logging {
 
       reset(replicaManager, clientQuotaManager, clientRequestQuotaManager, requestChannel, txnCoordinator)
 
-      val responseCallback: ArgumentCaptor[Map[TopicPartition, PartitionResponse] => Unit] = ArgumentCaptor.forClass(classOf[Map[TopicPartition, PartitionResponse] => Unit])
+      val responseCallback: ArgumentCaptor[Map[TopicPartition, Entry[PartitionProduceResponse, Long]] => Unit] =
+        ArgumentCaptor.forClass(classOf[Map[TopicPartition, Entry[PartitionProduceResponse, Long]] => Unit])
 
       val tp = new TopicPartition(topic, 0)
 
@@ -2865,7 +2894,15 @@ class KafkaApisTest extends Logging {
         any(),
         any(),
         any())
-      ).thenAnswer(_ => responseCallback.getValue.apply(Map(tp -> new PartitionResponse(Errors.NOT_LEADER_OR_FOLLOWER))))
+      ).thenAnswer(_ => responseCallback.getValue.apply(Map(tp -> java.util.Map.entry(
+        new PartitionProduceResponse()
+          .setIndex(tp.partition)
+          .setErrorCode(Errors.NOT_LEADER_OR_FOLLOWER.code)
+          .setBaseOffset(0L)
+          .setLogStartOffset(0L)
+          .setLogAppendTimeMs(RecordBatch.NO_TIMESTAMP),
+        -1L
+      ))))
 
       when(replicaManager.getPartitionOrError(tp)).thenAnswer(_ => Left(Errors.UNKNOWN_TOPIC_OR_PARTITION))
 
@@ -3198,7 +3235,8 @@ class KafkaApisTest extends Logging {
     val expectedErrors = Map(tp1 -> Errors.UNKNOWN_TOPIC_OR_PARTITION, tp2 -> Errors.NONE).asJava
 
     val capturedResponse: ArgumentCaptor[WriteTxnMarkersResponse] = ArgumentCaptor.forClass(classOf[WriteTxnMarkersResponse])
-    val responseCallback: ArgumentCaptor[Map[TopicPartition, PartitionResponse] => Unit] = ArgumentCaptor.forClass(classOf[Map[TopicPartition, PartitionResponse] => Unit])
+    val responseCallback: ArgumentCaptor[Map[TopicPartition, Entry[PartitionProduceResponse, Long]] => Unit] =
+      ArgumentCaptor.forClass(classOf[Map[TopicPartition, Entry[PartitionProduceResponse, Long]] => Unit])
 
     when(replicaManager.onlinePartition(tp1))
       .thenReturn(None)
@@ -3217,7 +3255,15 @@ class KafkaApisTest extends Logging {
       ArgumentMatchers.eq(requestLocal),
       any(),
       any()
-    )).thenAnswer(_ => responseCallback.getValue.apply(Map(tp2 -> new PartitionResponse(Errors.NONE))))
+    )).thenAnswer(_ => responseCallback.getValue.apply(Map(tp2 -> java.util.Map.entry(
+      new PartitionProduceResponse()
+        .setIndex(tp2.partition)
+        .setErrorCode(Errors.NONE.code)
+        .setBaseOffset(-1L)
+        .setLogStartOffset(-1L)
+        .setLogAppendTimeMs(RecordBatch.NO_TIMESTAMP),
+      -1L
+    ))))
     kafkaApis = createKafkaApis()
     kafkaApis.handleWriteTxnMarkersRequest(request, requestLocal)
     verify(requestChannel).sendResponse(
@@ -3331,8 +3377,8 @@ class KafkaApisTest extends Logging {
 
     val entriesPerPartition: ArgumentCaptor[Map[TopicPartition, MemoryRecords]] =
       ArgumentCaptor.forClass(classOf[Map[TopicPartition, MemoryRecords]])
-    val responseCallback: ArgumentCaptor[Map[TopicPartition, PartitionResponse] => Unit] =
-      ArgumentCaptor.forClass(classOf[Map[TopicPartition, PartitionResponse] => Unit])
+    val responseCallback: ArgumentCaptor[Map[TopicPartition, Entry[PartitionProduceResponse, Long]] => Unit] =
+      ArgumentCaptor.forClass(classOf[Map[TopicPartition, Entry[PartitionProduceResponse, Long]] => Unit])
 
     when(replicaManager.appendRecords(
       ArgumentMatchers.eq(ServerConfigs.REQUEST_TIMEOUT_MS_DEFAULT.toLong),
@@ -3349,7 +3395,15 @@ class KafkaApisTest extends Logging {
     )).thenAnswer { _ =>
       responseCallback.getValue.apply(
         entriesPerPartition.getValue.keySet.map { tp =>
-          tp -> new PartitionResponse(Errors.NONE)
+          tp -> java.util.Map.entry(
+            new PartitionProduceResponse()
+              .setIndex(tp.partition)
+              .setErrorCode(Errors.NONE.code)
+              .setBaseOffset(-1L)
+              .setLogStartOffset(-1L)
+              .setLogAppendTimeMs(RecordBatch.NO_TIMESTAMP),
+            -1L
+          )
         }.toMap
       )
     }
@@ -3463,8 +3517,8 @@ class KafkaApisTest extends Logging {
 
     val entriesPerPartition: ArgumentCaptor[Map[TopicPartition, MemoryRecords]] =
       ArgumentCaptor.forClass(classOf[Map[TopicPartition, MemoryRecords]])
-    val responseCallback: ArgumentCaptor[Map[TopicPartition, PartitionResponse] => Unit] =
-      ArgumentCaptor.forClass(classOf[Map[TopicPartition, PartitionResponse] => Unit])
+    val responseCallback: ArgumentCaptor[Map[TopicPartition, Entry[PartitionProduceResponse, Long]] => Unit] =
+      ArgumentCaptor.forClass(classOf[Map[TopicPartition, Entry[PartitionProduceResponse, Long]] => Unit])
 
     when(replicaManager.appendRecords(
       ArgumentMatchers.eq(ServerConfigs.REQUEST_TIMEOUT_MS_DEFAULT.toLong),
@@ -3481,7 +3535,15 @@ class KafkaApisTest extends Logging {
     )).thenAnswer { _ =>
       responseCallback.getValue.apply(
         entriesPerPartition.getValue.keySet.map { tp =>
-          tp -> new PartitionResponse(Errors.NONE)
+          tp -> java.util.Map.entry(
+            new PartitionProduceResponse()
+              .setIndex(tp.partition)
+              .setErrorCode(Errors.NONE.code)
+              .setBaseOffset(0L)
+              .setLogStartOffset(0L)
+              .setLogAppendTimeMs(RecordBatch.NO_TIMESTAMP),
+            -1L
+          )
         }.toMap
       )
     }

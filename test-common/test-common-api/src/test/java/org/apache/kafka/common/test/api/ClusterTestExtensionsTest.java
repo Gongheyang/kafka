@@ -17,6 +17,7 @@
 
 package org.apache.kafka.common.test.api;
 
+import org.apache.kafka.clients.CommonClientConfigs;
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.AdminClientConfig;
 import org.apache.kafka.clients.admin.Config;
@@ -28,9 +29,15 @@ import org.apache.kafka.clients.consumer.GroupProtocol;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.TopicPartitionInfo;
+import org.apache.kafka.common.acl.AclBindingFilter;
 import org.apache.kafka.common.config.ConfigResource;
+import org.apache.kafka.common.config.SaslConfigs;
+import org.apache.kafka.common.errors.ClusterAuthorizationException;
+import org.apache.kafka.common.errors.SaslAuthenticationException;
+import org.apache.kafka.common.security.auth.SecurityProtocol;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
+import org.apache.kafka.common.test.JaasTestUtils;
 import org.apache.kafka.common.test.TestUtils;
 import org.apache.kafka.coordinator.group.GroupCoordinatorConfig;
 import org.apache.kafka.server.common.MetadataVersion;
@@ -273,12 +280,12 @@ public class ClusterTestExtensionsTest {
         String value = "value";
         try (Admin adminClient = cluster.admin();
              Producer<String, String> producer = cluster.producer(Map.of(
-                     ACKS_CONFIG, "all",
-                     KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName(),
-                     VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName()));
+                 ACKS_CONFIG, "all",
+                 KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName(),
+                 VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName()));
              Consumer<String, String> consumer = cluster.consumer(Map.of(
-                     KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName(),
-                     VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName()))
+                 KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName(),
+                 VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName()))
         ) {
             adminClient.createTopics(singleton(new NewTopic(topic, 1, (short) 1)));
             assertNotNull(producer);
@@ -329,6 +336,44 @@ public class ClusterTestExtensionsTest {
         assertEquals("FOO", cluster.controllerListenerName().get().value());
         try (Admin admin = cluster.admin(Map.of(), true)) {
             assertEquals(1, admin.describeMetadataQuorum().quorumInfo().get().nodes().size());
+        }
+    }
+
+    @ClusterTest(types = {Type.KRAFT, Type.CO_KRAFT},
+        brokerSecurityProtocol = SecurityProtocol.SASL_PLAINTEXT,
+        controllerSecurityProtocol = SecurityProtocol.SASL_PLAINTEXT
+    )
+    public void testSaslPlaintext(ClusterInstance clusterInstance) {
+        Assertions.assertEquals(SecurityProtocol.SASL_PLAINTEXT, clusterInstance.config().brokerSecurityProtocol());
+
+        Map<String, Object> configs = new HashMap<>();
+        configs.put(CommonClientConfigs.SECURITY_PROTOCOL_CONFIG, SecurityProtocol.SASL_PLAINTEXT.name);
+        configs.put(SaslConfigs.SASL_MECHANISM, "PLAIN");
+
+        // client with admin credentials
+        configs.put(SaslConfigs.SASL_JAAS_CONFIG,
+            String.format("org.apache.kafka.common.security.plain.PlainLoginModule required username=\"%s\" password=\"%s\";",
+                JaasTestUtils.KAFKA_PLAIN_ADMIN, JaasTestUtils.KAFKA_PLAIN_ADMIN_PASSWORD));
+        try (Admin admin = clusterInstance.admin(configs)) {
+            Assertions.assertDoesNotThrow(() -> admin.describeAcls(AclBindingFilter.ANY).values().get());
+        }
+
+        // client with non-admin credentials
+        configs.put(SaslConfigs.SASL_JAAS_CONFIG,
+            String.format("org.apache.kafka.common.security.plain.PlainLoginModule required username=\"%s\" password=\"%s\";",
+                JaasTestUtils.KAFKA_PLAIN_USER1, JaasTestUtils.KAFKA_PLAIN_USER1_PASSWORD));
+        try (Admin admin = clusterInstance.admin(configs)) {
+            ExecutionException exception = Assertions.assertThrows(ExecutionException.class, () -> admin.describeAcls(AclBindingFilter.ANY).values().get());
+            Assertions.assertInstanceOf(ClusterAuthorizationException.class, exception.getCause());
+        }
+
+        // client with unknown credentials
+        configs.put(SaslConfigs.SASL_JAAS_CONFIG,
+            String.format("org.apache.kafka.common.security.plain.PlainLoginModule required username=\"%s\" password=\"%s\";",
+                "unknown", "unknown"));
+        try (Admin admin = clusterInstance.admin(configs)) {
+            ExecutionException exception = Assertions.assertThrows(ExecutionException.class, () -> admin.describeAcls(AclBindingFilter.ANY).values().get());
+            Assertions.assertInstanceOf(SaslAuthenticationException.class, exception.getCause());
         }
     }
 }

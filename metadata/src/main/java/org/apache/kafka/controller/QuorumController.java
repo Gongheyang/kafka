@@ -1971,7 +1971,8 @@ public final class QuorumController implements Controller {
         return appendWriteEvent("registerBroker", context.deadlineNs(),
             () -> clusterControl.
                 registerBroker(request, offsetControl.nextWriteOffset(),
-                    new FinalizedControllerFeatures(controllerFeatures, Long.MAX_VALUE)),
+                    new FinalizedControllerFeatures(controllerFeatures, Long.MAX_VALUE),
+                    context.requestHeader().requestApiVersion() >= 3),
             EnumSet.noneOf(ControllerOperationFlag.class));
     }
 

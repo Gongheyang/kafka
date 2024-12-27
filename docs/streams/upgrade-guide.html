@@ -142,6 +142,22 @@
     <h3><a id="streams_api_changes_400" href="#streams_api_changes_400">Streams API changes in 4.0.0</a></h3>
 
     <p>
+        In this release, eos-v1 (Exactly Once Semantics version 1) is no longer supported. Additionally, all deprecated methods, classes, APIs, and config parameters
+        up to (including) AK 3.5 release have been removed.
+    </p>
+
+    <p>
+        For better observability and performance, analysis are provided by additional metrics in Kafka clients and new methods added to the Admin,
+        Consumer, and Producer interfaces. Additionally, the inclusion of numeric metrics for client-level and thread-level states enables
+        explicit status tracking, providing clear insights into the application's health.
+        Moreover, a new constructor method with next offsets is added to
+        the ConsumerRecords class to ensure accurate offset management.
+        Also, a new method in the Java and Scala APIs allows foreign key
+        extraction from both the key and value in KTable joins, reducing storage overhead and improving API usability.
+        Finally, the topology can be configured to enable access to any processor, with the option to wrap or replace it. This flexibility is useful for scenarios such as logging, tracing, testing, or debugging.
+    </p>
+
+    <p>
         In this release the <code>ClientInstanceIds</code> instance stores the global consumer<code>Uuid</code> for the
         <a href="https://cwiki.apache.org/confluence/display/KAFKA/KIP-714%3A+Client+metrics+and+observability#KIP714:Clientmetricsandobservability-Clientidentificationandtheclientinstanceid">KIP-714</a>
         id with a key of global stream-thread name appended with <code>"-global-consumer"</code> where before it was only the global stream-thread name.
@@ -159,6 +175,65 @@
         <a href="https://cwiki.apache.org/confluence/display/KAFKA/KIP-1070%3A+deprecate+MockProcessorContext">KIP-1070</a>
         follow this path by deprecating <code>MockProcessorContext</code>, <code>Transformer</code>,
         <code>TransformerSupplier</code>, <code>ValueTransformer</code>, and <code>ValueTransformerSupplier</code>.
+    </p>
+
+    <p>
+        Kafka Streams introduced the <code>RETRY</code> return option the <code>ProductionExceptionHandler</code> (<a href="https://cwiki.apache.org/confluence/pages/viewpage.action?pageId=311627309">KIP-1065</a>).
+        This feature addresses the issue of infinite retry loops caused by <code>TimeoutException</code> when an output topic might be missing.
+        Now the application is enabled to attempt the action again instead of either crashing or dropping records.
+        This change aims to enhance the robustness and reliability of Kafka Streams by providing a more flexible error-handling mechanism.
+    </p>
+
+    <p>
+
+    </p>
+        <a href="https://cwiki.apache.org/confluence/display/KAFKA/KIP-1076%3A++Metrics+for+client+applications+KIP-714+extension">KIP-1076</a>
+        proposes adding methods to the Admin, Consumer, and Producer interfaces to allow applications embedding Kafka clients to register and push application-specific metrics,
+        supplementing the client metrics introduced in KIP-714.
+
+    <p>
+        <a href="https://cwiki.apache.org/confluence/display/KAFKA/KIP-1077%3A+Deprecate+%60ForeachProcessor%60+and+move+to+internal+package">KIP-1077</a>
+        deprecates the <code>ForeachProcessor</code> class and move it to an internal package.
+        This change is aimed at improving the organization and clarity of the Kafka Streams API by ensuring that internal classes are not exposed in public packages.
+    </p>
+
+    <p>
+        <a href="https://cwiki.apache.org/confluence/display/KAFKA/KIP-1078%3A+Remove+Leaking+Getter+Methods+in+Joined+Helper+Class">KIP-1078</a> deprecates the leaking getter methods in the <code>Joined</code> helper class.
+        These methods should be deprecated for future removal as they are already available via <code>JoinedInternal</code> class.
+    </p>
+
+    <p>
+        To ensures better encapsulation and organization of configuration documentation within Kafka Streams,
+        <a href="https://cwiki.apache.org/confluence/display/KAFKA/KIP-1085%3A+Fix+leaking+*_DOC+variables+in+StreamsConfig">KIP-1085</a>
+        deprecate certain public doc description variables that are only used within the <code>StreamsConfig</code> or <code>TopologyConfig</code> classes.
+        Additionally, the unused variable <code>DUMMY_THREAD_INDEX</code> will also be deprecated.
+    </p>
+
+    <p>
+        Due to the recent deprecation of the <code>#through</code> method in Kafka Streams, the <code>intermediateTopicsOption</code> of <code>StreamsResetter</code> tool in Apache Kafka is
+        not needed any more and therefore is deprecated (<a href="https://cwiki.apache.org/confluence/display/KAFKA/KIP-1087%3A+Removing+intermediateTopicsOption+from+StreamsResetter">KIP-1087</a>).
+    </p>
+
+    <p>
+        In this release, explicit status information about the application's health is provided by new numeric metrics for both client-level and thread-level states
+        (<a href="https://cwiki.apache.org/confluence/display/KAFKA/KIP-1091%3A+Improved+Kafka+Streams+operator+metrics">KIP-1091</a>).
+        These metrics will be available at the <code>INFO</code> recording level, and a thread-level metric with a String value will be available for users leveraging Java Management Extensions (<code>JMX</code>).
+    </p>
+
+    <p>
+        The <a href="https://cwiki.apache.org/confluence/display/KAFKA/KIP-1094%3A+Add+a+new+constructor+method+with+nextOffsets+to+ConsumerRecords">KIP-1094</a>
+        introduces a new constructor method with next offsets to the <code>ConsumerRecords</code> class in Apache Kafka.
+        This enhancement aims to expose the next offset to be fetched after an invocation of <code>Consumer.poll()</code>.
+        By providing the next offset directly, more accurate and reliable offset management is ensured, especially in scenarios involving race conditions between application threads and consumer heartbeat threads.
+    </p>
+
+    <p>
+        In order to reduce storage overhead and improve API usability, a new method in the Java and Scala APIs that accepts a BiFunction for foreign key extraction is introduced by
+        <a href="">KIP-1104</a>.
+        KIP-1104 allows foreign key extraction from both the key and value in KTable joins in Apache Kafka.
+        Previously, foreign key joins in KTables only allowed extraction from the value, which led to data duplication and potential inconsistencies.
+        This enhancement introduces a new method in the Java and Scala APIs that accepts a BiFunction for foreign key extraction, enabling more intuitive and efficient joins.
+        The existing methods will be deprecated but not removed, ensuring backward compatibility. This change aims to reduce storage overhead and improve API usability.
     </p>
 
     <p>

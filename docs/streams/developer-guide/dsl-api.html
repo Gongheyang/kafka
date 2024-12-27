@@ -65,6 +65,7 @@
                     </ul>
                     </li>
                     <li><a class="reference internal" href="#applying-processors-and-transformers-processor-api-integration" id="id24">Applying processors and transformers (Processor API integration)</a></li>
+                    <li><a class="reference internal" href="#migrating-from-transform-to-process" id="id37">Migrating from transform to process</a></li>
                 </ul>
                 </li>
                 <li><a class="reference internal" href="#naming-a-streams-app" id="id33">Naming Operators in a Streams DSL application</a></li>
@@ -3242,6 +3243,177 @@ pageViews.groupByKey()
          // PopularPageEmailAlert is your custom processor that implements the
          // `Processor` interface, see further down below.
          .process(() -&gt; new PopularPageEmailAlert(&quot;alerts@yourcompany.com&quot;));</code></pre>
+        </div>
+        <div class="section" id="migrating-from-transform-to-process">
+            <h2>
+                <a class="headerlink" href="#migrating-from-transform-to-process" title="Permalink to this headline">
+                    Migrating from transform to process
+                </a>
+            </h2>
+            <div>
+                <p>
+                    As of Kafka 4.0, several deprecated methods in the Kafka Streams API, such as <code>transform</code>,
+                    <code>flatTransform</code>, <code>transformValues</code>, and <code>flatTransformValues</code>, have
+                    been removed. These methods have been replaced with the more versatile <code>process</code> API. This
+                    guide provides detailed steps for migrating existing code to use the new <code>process</code> API and
+                    explains the benefits of the changes.
+                </p>
+                <h3>Overview of Changes</h3>
+                <p>The following deprecated methods are no longer available in Kafka Streams:</p>
+                <ul>
+                    <li><code>KStream#transform</code></li>
+                    <li><code>KStream#flatTransform</code></li>
+                    <li><code>KStream#transformValues</code></li>
+                    <li><code>KStream#flatTransformValues</code></li>
+                </ul>
+                <p>The <code>process</code> API now serves as a unified replacement for all these methods. It simplifies the
+                    API surface while maintaining support for both stateless and stateful operations.</p>
+
+                <h3>Migration Steps</h3>
+
+                <h4>1. Migrate from <code>transform</code> to <code>process</code></h4>
+
+                <pre class="line-numbers"><code class="language-java">// Before
+KStream&lt;String, String> transformedStream = stream.transform(
+  () -> new CustomTransformer(),
+  "state-store"
+);
+
+// After
+KStream&lt;String, String> processedStream = stream.process(
+  () -> new CustomProcessor(),
+  "state-store"
+);</code></pre>
+
+                <h4>2. Migrate from <code>flatTransform</code> to <code>process</code></h4>
+                <pre class="line-numbers"><code class="language-java">// Before
+KStream&lt;String, String> flatTransformedStream = stream.flatTransform(
+  () -> new CustomFlatTransformer(),
+  "state-store"
+);
+
+// After
+KStream&lt;String, String> processedStream = stream.process(
+  () -> new Processor&lt;String, String>() {
+      @Override
+      public void init(ProcessorContext context) {
+          // Initialization logic here
+      }
+
+      @Override
+      public void process(String key, String value) {
+          Iterable&lt;KeyValue&lt;String, String>> results = customFlatTransformation(key, value);
+          for (KeyValue&lt;String, String> result : results) {
+              context.forward(result.key, result.value);
+          }
+      }
+
+      @Override
+      public void close() {
+          // Cleanup logic here
+      }
+  },
+  "state-store"
+);</code></pre>
+
+                <h4>3. Migrate from <code>transformValues</code> to <code>process</code></h4>
+
+                <pre class="line-numbers"><code class="language-java">// Before
+KStream&lt;String, String> transformedValuesStream = stream.transformValues(
+  () -> new ValueTransformer&lt;String, String>() {
+      @Override
+      public void init(ProcessorContext context) {
+          // Initialization logic
+      }
+
+      @Override
+      public String transform(String value) {
+          return value.toUpperCase();
+      }
+
+      @Override
+      public void close() {
+          // Cleanup logic
+      }
+  },
+  "state-store"
+);
+
+// After
+KStream&lt;String, String> processedStream = stream.process(
+  () -> new Processor&lt;String, String>() {
+      @Override
+      public void init(ProcessorContext context) {
+          // Initialization logic
+      }
+
+      @Override
+      public void process(String key, String value) {
+          String transformedValue = value.toUpperCase();
+          context.forward(key, transformedValue);
+      }
+
+      @Override
+      public void close() {
+          // Cleanup logic
+      }
+  },
+  "state-store"
+);</code></pre>
+
+                <h4>4. Migrate from <code>flatTransformValues</code> to <code>process</code></h4>
+
+                <pre class="line-numbers"><code class="language-java">// Before
+KStream&lt;String> flatTransformedValuesStream = stream.flatTransformValues(
+  () -> new ValueTransformerWithKey&lt;String, String, Iterable&lt;String>>() {
+      @Override
+      public void init(ProcessorContext context) {
+          // Initialization logic
+      }
+
+      @Override
+      public Iterable&lt;String> transform(String readOnlyKey, String value) {
+          return Arrays.asList(value.split(","));
+      }
+
+      @Override
+      public void close() {
+          // Cleanup logic
+      }
+  },
+  "state-store"
+);
+
+// After
+KStream&lt;String, String> processedStream = stream.process(
+  () -> new Processor&lt;String, String>() {
+      @Override
+      public void init(ProcessorContext context) {
+          // Initialization logic
+      }
+
+      @Override
+      public void process(String key, String value) {
+          for (String transformedValue : value.split(",")) {
+              context.forward(key, transformedValue);
+          }
+      }
+
+      @Override
+      public void close() {
+          // Cleanup logic
+      }
+  },
+  "state-store"
+);</code></pre>
+
+                <h3>Benefits of Migrating to <code>process</code></h3>
+                <ul>
+                    <li><strong>Unified API:</strong> Consolidates multiple methods into a single, versatile API.</li>
+                    <li><strong>Flexibility:</strong> Simplifies the implementation of custom processing logic.</li>
+                    <li><strong>Future-Proof:</strong> Ensures compatibility with the latest Kafka Streams releases.</li>
+                </ul>
+            </div>
         </div>
         <div class="section" id="naming-a-streams-app">
             <a class="headerlink" href="#naming-a-streams-app" title="Permalink to this headline"><h2><a class="toc-backref" href="#id33">Naming Operators in a Streams DSL application</a></h2></a>

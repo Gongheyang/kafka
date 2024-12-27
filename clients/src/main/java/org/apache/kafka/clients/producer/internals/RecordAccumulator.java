@@ -406,7 +406,7 @@ public class RecordAccumulator {
         dq.addLast(batch);
         incomplete.add(batch);
 
-        return new RecordAppendResult(future, dq.size() > 1 || batch.isFull(), true, false, batch.estimatedSizeInBytes());
+        return new RecordAppendResult(future, dq.size() > 1 || batch.isFull(), true, batch.estimatedSizeInBytes());
     }
 
     private MemoryRecordsBuilder recordsBuilder(ByteBuffer buffer) {
@@ -442,7 +442,7 @@ public class RecordAccumulator {
                 last.closeForRecordAppends();
             } else {
                 int appendedBytes = last.estimatedSizeInBytes() - initialBytes;
-                return new RecordAppendResult(future, deque.size() > 1 || last.isFull(), false, false, appendedBytes);
+                return new RecordAppendResult(future, deque.size() > 1 || last.isFull(), false, appendedBytes);
             }
         }
         return null;
@@ -1204,18 +1204,15 @@ public class RecordAccumulator {
         public final FutureRecordMetadata future;
         public final boolean batchIsFull;
         public final boolean newBatchCreated;
-        public final boolean abortForNewBatch;
         public final int appendedBytes;
 
         public RecordAppendResult(FutureRecordMetadata future,
                                   boolean batchIsFull,
                                   boolean newBatchCreated,
-                                  boolean abortForNewBatch,
                                   int appendedBytes) {
             this.future = future;
             this.batchIsFull = batchIsFull;
             this.newBatchCreated = newBatchCreated;
-            this.abortForNewBatch = abortForNewBatch;
             this.appendedBytes = appendedBytes;
         }
     }

@@ -2363,7 +2363,6 @@ public class KafkaProducerTest {
                 futureRecordMetadata,
                 false,
                 false,
-                false,
                 0);
         });
 
